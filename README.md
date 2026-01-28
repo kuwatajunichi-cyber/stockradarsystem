@@ -3,6 +3,9 @@
 ## Design (Single Source of Truth)
 - docs/MVPdesignDoc_v1.0.md
 
+## User Story Map
+- docs/MVPuserstorymap_v1.0.md
+
 ## Decision Records
 - docs/adr/
 - docs/decision-candidates/
