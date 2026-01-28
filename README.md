@@ -1,5 +1,17 @@
 # Stock Radar System
 
+## Design (Single Source of Truth)
+- docs/MVPdesignDoc_v1.0.md
+
+## Decision Records
+- docs/adr/
+- docs/decision-candidates/
+
+## Issue Structure
+- Epic: [Epic] prefix
+- Story: [Story x.y]
+- Task: Story内 checklist
+
 ## 概要
 
 Stock Radar System は、日本株市場を対象に、相対的に注目度が急浮上している銘柄群を
