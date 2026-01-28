@@ -1,19 +1,7 @@
 # Stock Radar System
 
-## Design (Single Source of Truth)
-- docs/MVPdesignDoc_v1.0.md
-
-## User Story Map
-- docs/MVPuserstorymap_v1.0.md
-
-## Decision Records
-- docs/adr/
-- docs/decision-candidates/
-
-## Issue Structure
-- Epic: [Epic] prefix
-- Story: [Story x.y]
-- Task: Story内 checklist
+## Document
+https://raw.githubusercontent.com/kuwatajunichi-cyber/stockradarsystem/refs/heads/main/docs/INDEX.md
 
 ## 概要
 
