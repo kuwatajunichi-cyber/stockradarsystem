@@ -32,6 +32,12 @@
 ### Decision Candidates (Pre-ADR)
 - Directory (View):  
   https://github.com/kuwatajunichi-cyber/stockradarsystem/tree/main/docs/decision-candidates/
+- 001 (Raw):  
+ https://raw.githubusercontent.com/kuwatajunichi-cyber/stockradarsystem/refs/heads/main/docs/decision-candidates/dc-001-boro-universe.md
+- 002 (Raw):  
+ https://raw.githubusercontent.com/kuwatajunichi-cyber/stockradarsystem/refs/heads/main/docs/decision-candidates/dc-002-rise-mid-down-universe.md
+- 003 (Raw):  
+ https://raw.githubusercontent.com/kuwatajunichi-cyber/stockradarsystem/refs/heads/main/docs/decision-candidates/dc-003-weekly-monthly-report.md
 
 ---
 
