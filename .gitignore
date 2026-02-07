@@ -1,5 +1,10 @@
 # Python virtual environment
 venv/
+.venv/
+
+# Data (raw / processed)
+data/raw/
+data/processed/
 
 # Python cache
 __pycache__/

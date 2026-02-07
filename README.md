@@ -105,3 +105,56 @@ yaml
 - 投資助言・推奨
 - 個別銘柄の定性評価
 - Web UI / ダッシュボード（将来検討）
+
+---
+
+## ローカル実行手順（Windows）
+
+以下は Windows（PowerShell）で JPX 銘柄一覧取得ジョブを動かす最小手順です。
+
+### 1. 仮想環境の作成と有効化
+
+```powershell
+cd C:\path\to\stockradarsystem
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+### 2. 依存のインストール
+
+```powershell
+pip install -r requirements.txt
+```
+
+### 3. 環境変数 JPX_LIST_URL の設定
+
+銘柄一覧 Excel の**直接ダウンロードURL**を指定します（コード直書きは禁止のため必須）。  
+JPX の銘柄一覧は **.xls（旧形式）** で配布されている場合があります。本ジョブは取得内容の先頭バイトで .xls / .xlsx を自動判定し、その拡張子のまま保存します。  
+**HTMLページのURLを指定すると「ダウンロード結果がExcel形式ではありません」で失敗します。** ブラウザで「銘柄一覧」のファイルを右クリック→リンクのアドレスをコピーするなどして、Excel の直リンクを設定してください。
+
+```powershell
+$env:JPX_LIST_URL = "https://（.xls または .xlsx の直リンク）"
+```
+
+### 4. ジョブの実行
+
+プロジェクトルートをカレントにし、`src` を PYTHONPATH に含めて実行します。
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m stockradar.jobs.fetch_jpx_list
+```
+
+- 成功時: `data/raw/jpx/jpx_list_YYYYMMDD.xls` または `.xlsx` と `data/processed/jpx/jpx_list_YYYYMMDD.csv`（UTF-8 BOM）が出力されます。
+- 失敗時: エラーメッセージを表示し、終了コード 1 で終了します（例: `JPX_LIST_URL` 未設定、HTTP エラー、保存失敗、**ダウンロード結果がExcel形式でない**）。
+
+### 検証・トラブルシュート
+
+- **「CSVの出力に失敗」「Excelの読み込みに失敗」など**  
+  実際の原因（例外名・メッセージ）を確認するには、既存の .xls / .xlsx を使って読み込み〜CSV書き込みを試す検証スクリプトを実行してください。  
+  ```powershell
+  python scripts/verify_jpx_xlsx_to_csv.py
+  # または対象ファイルを指定: python scripts/verify_jpx_xlsx_to_csv.py "data/raw/jpx/jpx_list_20260207.xls"
+  ```
+- **「ダウンロード結果がExcel形式ではありません（HTML/XMLの可能性）」**  
+  `JPX_LIST_URL` に HTML ページのURLが入っています。Excel（.xls / .xlsx）の**直リンク**に変更してください。
