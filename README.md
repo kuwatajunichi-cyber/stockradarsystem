@@ -126,27 +126,53 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-### 3. 環境変数 JPX_LIST_URL の設定
+### 3. 環境変数（任意）
 
-銘柄一覧 Excel の**直接ダウンロードURL**を指定します（コード直書きは禁止のため必須）。  
-JPX の銘柄一覧は **.xls（旧形式）** で配布されている場合があります。本ジョブは取得内容の先頭バイトで .xls / .xlsx を自動判定し、その拡張子のまま保存します。  
-**HTMLページのURLを指定すると「ダウンロード結果がExcel形式ではありません」で失敗します。** ブラウザで「銘柄一覧」のファイルを右クリック→リンクのアドレスをコピーするなどして、Excel の直リンクを設定してください。
+- **JPX_LIST_URL_OVERRIDE**  
+  銘柄一覧 Excel の URL を**手動で固定**する場合に指定。指定時は**絶対優先**で、ページからの取得・キャッシュは行いません。
+  ```powershell
+  $env:JPX_LIST_URL_OVERRIDE = "https://（.xls または .xlsx の直リンク）"
+  ```
+- **JPX_PAGE_URL**  
+  最新URLを抽出する対象ページ。未設定時は既定の銘柄一覧ページ（01.html）を使用します。
 
-```powershell
-$env:JPX_LIST_URL = "https://（.xls または .xlsx の直リンク）"
-```
+### 4. URL の決定とキャッシュ（挙動）
 
-### 4. ジョブの実行
+銘柄一覧の URL は**月次で変わる**ため、毎回「最新URLの解決」を試み、失敗時はキャッシュで続行します。
+
+1. **JPX_LIST_URL_OVERRIDE が設定されている**  
+   → その URL をそのまま使用（キャッシュは参照・更新しない）。
+2. **上記以外**  
+   → `resolve_and_update_cache` を実行:
+   - **成功**: 固定ページ（JPX_PAGE_URL）から .xls/.xlsx リンクを抽出し、`data/cache/jpx_latest_url.txt` を更新してその URL を採用。
+   - **失敗かつキャッシュあり**: キャッシュの URL を採用し、更新失敗理由を **WARN** で出力。ダウンロードは止めない。
+   - **失敗かつキャッシュなし**: エラー終了（事前にキャッシュを作成するか、OVERRIDE を設定する必要あり）。
+
+ダウンロード／変換ジョブは「URL が決まった後」だけを担当するため、**URL 更新の失敗だけではダウンロードは止まりません**（キャッシュがあれば続行）。
+
+### 5. ジョブの実行
 
 プロジェクトルートをカレントにし、`src` を PYTHONPATH に含めて実行します。
+
+**銘柄一覧のダウンロード＋CSV 出力（URL 解決を含む）:**
 
 ```powershell
 $env:PYTHONPATH = "src"
 python -m stockradar.jobs.fetch_jpx_list
 ```
 
+**URL 更新のみ（独立ジョブ。キャッシュの更新だけ行い、ダウンロードはしない）:**
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m stockradar.jobs.update_jpx_url_cache
+```
+（`update_jpx_url_cache` の成功時は採用した URL を標準出力に出力。失敗時はキャッシュがあれば WARN のうえその URL を出力、キャッシュが無ければエラーで終了。）
+
+**fetch_jpx_list の結果:**
+
 - 成功時: `data/raw/jpx/jpx_list_YYYYMMDD.xls` または `.xlsx` と `data/processed/jpx/jpx_list_YYYYMMDD.csv`（UTF-8 BOM）が出力されます。
-- 失敗時: エラーメッセージを表示し、終了コード 1 で終了します（例: `JPX_LIST_URL` 未設定、HTTP エラー、保存失敗、**ダウンロード結果がExcel形式でない**）。
+- 失敗時: エラーメッセージを表示し、終了コード 1 で終了します（例: 最新URL取得失敗かつキャッシュなし、HTTP エラー、保存失敗、**ダウンロード結果がExcel形式でない**）。
 
 ### 検証・トラブルシュート
 
@@ -157,4 +183,6 @@ python -m stockradar.jobs.fetch_jpx_list
   # または対象ファイルを指定: python scripts/verify_jpx_xlsx_to_csv.py "data/raw/jpx/jpx_list_20260207.xls"
   ```
 - **「ダウンロード結果がExcel形式ではありません（HTML/XMLの可能性）」**  
-  `JPX_LIST_URL` に HTML ページのURLが入っています。Excel（.xls / .xlsx）の**直リンク**に変更してください。
+  採用した URL が HTML 等になっています。JPX_LIST_URL_OVERRIDE で Excel の**直リンク**を指定するか、キャッシュを正しい URL で更新してください。
+- **「最新URLの取得に失敗し、キャッシュもありません」**  
+  まず `python -m stockradar.jobs.update_jpx_url_cache` をネットワークが通る状態で実行するか、JPX_LIST_URL_OVERRIDE で URL を固定してください。

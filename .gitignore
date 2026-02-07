@@ -2,9 +2,10 @@
 venv/
 .venv/
 
-# Data (raw / processed)
+# Data (raw / processed / cache)
 data/raw/
 data/processed/
+data/cache/
 
 # Python cache
 __pycache__/

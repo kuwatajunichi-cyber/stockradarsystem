@@ -1,8 +1,8 @@
 """
 JPX銘柄一覧Excelをダウンロードし、rawに保存・processedにCSV(utf-8-sig)出力するジョブ。
 
-- URLは環境変数 JPX_LIST_URL から取得（コード直書き禁止）。
-- 取得ファイルは .xls（旧形式）または .xlsx を想定。内容で形式を判定し拡張子を付けて保存する。
+- URL決定: JPX_LIST_URL_OVERRIDE があればそれを採用、なければ resolve_and_update_cache（ページから最新URL解決→失敗時はキャッシュ）。
+- 取得ファイルは .xls / .xlsx を想定。内容で形式を判定し拡張子を付けて保存する。
 - 出力: data/raw/jpx/jpx_list_YYYYMMDD.xls または .xlsx, data/processed/jpx/jpx_list_YYYYMMDD.csv
 - 列選択・renameは未実装（TODO）。
 """
@@ -12,8 +12,9 @@ from datetime import date
 import pandas as pd
 import requests
 
-from stockradar.config import get_jpx_list_url
+from stockradar.config import get_jpx_list_url_override
 from stockradar.io.http import download_bytes
+from stockradar.sources.jpx_resolver import resolve_and_update_cache
 
 # 形式判定用: xlsx は ZIP 先頭 PK、xls は OLE2 のマジックバイト（1a e0 / 1a e1 等の変種あり）
 _MAGIC_XLSX = b"PK"
@@ -26,7 +27,7 @@ def _detect_excel_format(content: bytes) -> str:
         return "xlsx"
     if content.startswith(_MAGIC_XLS):
         return "xls"
-    hint = "JPX_LIST_URL に Excel ファイル（.xls または .xlsx）の直リンクを指定してください。"
+    hint = "Excel の直リンクを指定するか、JPX_LIST_URL_OVERRIDE で固定URLを設定してください。"
     if content.lstrip().startswith((b"<", b"<!", b"<?xml")):
         raise RuntimeError(
             f"ダウンロード結果がExcel形式ではありません（HTML/XMLの可能性）。{hint}"
@@ -56,8 +57,12 @@ def run(
 
     csv_path = processed_dir / f"jpx_list_{suffix}.csv"
 
-    # 1) URL取得（未設定時はここで例外）
-    url = get_jpx_list_url()
+    # 1) URL決定（OVERRIDE 優先、なければページ解決→キャッシュフォールバック）
+    override = get_jpx_list_url_override()
+    if override is not None:
+        url = override
+    else:
+        url = resolve_and_update_cache(base)
 
     # 2) ダウンロード（HTTPエラー時は raise_for_status で例外）
     try:
