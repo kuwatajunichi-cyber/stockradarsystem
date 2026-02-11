@@ -45,13 +45,60 @@ jobs:
           python -c "import stockradar.utils.manifest; print('OK')" || echo "Import failed"
           python scripts/run_monthly.py
 
-      - name: Upload artifacts
+      - name: Get run ID from output
+        id: get_run_id
+        if: success()
+        run: |
+          RUN_ID=$(cat data/output/latest/LATEST_RUN_ID.txt 2>/dev/null || echo "")
+          if [ -z "$RUN_ID" ]; then
+            # fallback: 最新のstagingディレクトリから取得
+            RUN_ID=$(ls -td data/output/staging/*/ 2>/dev/null | head -1 | xargs basename || echo "")
+          fi
+          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+          echo "Found RUN_ID: $RUN_ID"
+          
+          # ファイルの存在確認
+          STAGING_DIR="data/output/staging/$RUN_ID"
+          if [ -d "$STAGING_DIR" ]; then
+            echo "Staging directory exists: $STAGING_DIR"
+            ls -la "$STAGING_DIR" || true
+          else
+            echo "Warning: Staging directory not found: $STAGING_DIR"
+          fi
+
+      - name: Create Release
+        if: success() && steps.get_run_id.outputs.run_id != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: monthly-${{ github.run_id }}
+          name: Monthly Universe Build - ${{ steps.get_run_id.outputs.run_id }}
+          body: |
+            Monthly universe build completed successfully.
+            
+            Run ID: ${{ steps.get_run_id.outputs.run_id }}
+            Workflow Run: ${{ github.run_number }}
+            Commit: ${{ github.sha }}
+            
+            ## Output Files
+            - equity_domestic_ipo_with_name.csv
+            - equity_domestic_illiquid_with_name.csv
+            - equity_domestic_core_with_name.csv
+          files: |
+            data/output/staging/${{ steps.get_run_id.outputs.run_id }}/equity_domestic_ipo_with_name.csv
+            data/output/staging/${{ steps.get_run_id.outputs.run_id }}/equity_domestic_illiquid_with_name.csv
+            data/output/staging/${{ steps.get_run_id.outputs.run_id }}/equity_domestic_core_with_name.csv
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts (for debugging)
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: universe-outputs-${{ github.run_id }}
           path: |
-            data/output/staging/*/equity_domestic_*_with_name.csv
             data/output/staging/*/*.manifest.json
             data/output/latest/LATEST_RUN_ID.txt
             logs/*/run.log
