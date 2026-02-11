@@ -158,10 +158,11 @@ def main(argv: list[str] | None = None) -> None:
     code_to_name = _load_code_to_name_from_jpx_processed(base, ymd)
     if code_to_name is None:
         print(
-            f"注意: JPX processed CSV が見つかりません（data/processed/jpx/jpx_list_{ymd}.csv）。"
-            "銘柄名付きCSVは出力しません。",
+            f"エラー: JPX processed CSV が見つかりません（data/processed/jpx/jpx_list_{ymd}.csv）。"
+            "銘柄名付きCSVは必須です。",
             file=sys.stderr,
         )
+        raise SystemExit(1)
 
     for name, code_list in [
         ("equity_domestic_ipo", result.ipo),

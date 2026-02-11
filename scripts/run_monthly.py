@@ -49,11 +49,14 @@ def run_job(module: str, args: list[str] | None = None) -> tuple[int, str]:
             cmd,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             cwd=Path.cwd(),
         )
-        return result.returncode, result.stdout + result.stderr
+        output = (result.stdout or "") + (result.stderr or "")
+        return result.returncode, output
     except Exception as e:
-        return 1, str(e)
+        return 1, f"実行エラー: {type(e).__name__}: {e}"
 
 
 def copy_to_staging(source: Path, dest_name: str) -> Path:
@@ -66,24 +69,36 @@ def copy_to_staging(source: Path, dest_name: str) -> Path:
     return dest
 
 
-def find_latest_secondary_outputs() -> dict[str, Path]:
-    """最新の sets_secondary_* から 3CSV を探す。"""
+def find_latest_secondary_outputs() -> tuple[dict[str, Path], list[str]]:
+    """
+    最新の sets_secondary_* から 3CSV を探す。
+    Returns:
+        (found_files, debug_messages)
+    """
+    debug: list[str] = []
     jpx_dir = Path("data/universe/jpx")
     if not jpx_dir.exists():
-        return {}
+        debug.append(f"ディレクトリが存在しません: {jpx_dir}")
+        return {}, debug
+    debug.append(f"検索対象: {jpx_dir}")
     candidates = sorted(
         [d for d in jpx_dir.iterdir() if d.is_dir() and d.name.startswith("sets_secondary_")],
         reverse=True,
     )
     if not candidates:
-        return {}
+        debug.append("sets_secondary_* ディレクトリが見つかりません")
+        return {}, debug
     latest_dir = candidates[0]
+    debug.append(f"最新ディレクトリ: {latest_dir}")
     out: dict[str, Path] = {}
     for name in LATEST_3CSV:
         path = latest_dir / name
         if path.exists():
             out[name] = path
-    return out
+            debug.append(f"見つかった: {name}")
+        else:
+            debug.append(f"見つからない: {name} (パス={path})")
+    return out, debug
 
 
 def collect_inputs_for_manifest() -> list[dict[str, str]]:
@@ -150,63 +165,75 @@ def verify_gate(staging_dir: Path) -> tuple[bool, list[str]]:
 
 def main() -> None:
     """メイン実行。"""
-    STAGING_DIR.mkdir(parents=True, exist_ok=True)
-    LOGS_DIR.mkdir(parents=True, exist_ok=True)
-    log_path = LOGS_DIR / "run.log"
+    try:
+        STAGING_DIR.mkdir(parents=True, exist_ok=True)
+        LOGS_DIR.mkdir(parents=True, exist_ok=True)
+        log_path = LOGS_DIR / "run.log"
 
-    def log(msg: str) -> None:
-        print(msg, flush=True)
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write(f"{datetime.now(timezone.utc).isoformat()} {msg}\n")
+        def log(msg: str) -> None:
+            print(msg, flush=True)
+            try:
+                with open(log_path, "a", encoding="utf-8") as f:
+                    f.write(f"{datetime.now(timezone.utc).isoformat()} {msg}\n")
+            except Exception:
+                pass  # ログ書き込み失敗は無視
 
-    log(f"=== 月次実行開始 run_id={RUN_ID} ===")
+        log(f"=== 月次実行開始 run_id={RUN_ID} ===")
+        log(f"カレントディレクトリ: {Path.cwd()}")
+        log(f"STAGING_DIR: {STAGING_DIR.absolute()}")
+    except Exception as e:
+        print(f"初期化エラー: {e}", file=sys.stderr, flush=True)
+        sys.exit(2)
 
     # 1. update_jpx_url_cache
     log("1/5: update_jpx_url_cache")
     code, output = run_job("stockradar.jobs.update_jpx_url_cache")
-    log(output)
+    log(f"出力:\n{output}")
     if code != 0:
         log(f"エラー: update_jpx_url_cache が失敗 (code={code})")
-        sys.exit(1)
+        sys.exit(2)
 
     # 2. fetch_jpx_list
     log("2/5: fetch_jpx_list")
     code, output = run_job("stockradar.jobs.fetch_jpx_list")
-    log(output)
+    log(f"出力:\n{output}")
     if code != 0:
         log(f"エラー: fetch_jpx_list が失敗 (code={code})")
-        sys.exit(1)
+        sys.exit(2)
 
     # 3. build_universe_from_jpx
     log("3/5: build_universe_from_jpx")
     code, output = run_job("stockradar.jobs.build_universe_from_jpx")
-    log(output)
+    log(f"出力:\n{output}")
     if code != 0:
         log(f"エラー: build_universe_from_jpx が失敗 (code={code})")
-        sys.exit(1)
+        sys.exit(2)
 
     # 4. fetch_yf_daily_for_universe
     log("4/5: fetch_yf_daily_for_universe")
     code, output = run_job("stockradar.jobs.fetch_yf_daily_for_universe")
-    log(output)
+    log(f"出力:\n{output}")
     if code != 0:
         log(f"エラー: fetch_yf_daily_for_universe が失敗 (code={code})")
-        sys.exit(1)
+        sys.exit(2)
 
     # 5. split_equity_domestic_secondary
     log("5/5: split_equity_domestic_secondary")
     code, output = run_job("stockradar.jobs.split_equity_domestic_secondary")
-    log(output)
+    log(f"出力:\n{output}")
     if code != 0:
         log(f"エラー: split_equity_domestic_secondary が失敗 (code={code})")
-        sys.exit(1)
+        sys.exit(2)
 
     # 最新の sets_secondary_* から 3CSV を staging にコピー
     log("成果物を staging にコピー中...")
-    secondary_outputs = find_latest_secondary_outputs()
+    secondary_outputs, debug_msgs = find_latest_secondary_outputs()
+    for msg in debug_msgs:
+        log(f"  {msg}")
     if len(secondary_outputs) != 3:
-        log(f"エラー: 3CSV が見つかりません (見つかった数={len(secondary_outputs)})")
-        sys.exit(1)
+        log(f"エラー: 3CSV が見つかりません (見つかった数={len(secondary_outputs)}, 期待=3)")
+        log(f"見つかったファイル: {list(secondary_outputs.keys())}")
+        sys.exit(2)
 
     inputs = collect_inputs_for_manifest()
     flags_summary: dict[str, str] = {}
@@ -234,7 +261,7 @@ def main() -> None:
         log("検証ゲート失敗:")
         for err in errors:
             log(f"  - {err}")
-        sys.exit(1)
+        sys.exit(2)
 
     # latest ポインタ更新
     log("latest ポインタ更新中...")
@@ -249,4 +276,14 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("中断されました", file=sys.stderr)
+        sys.exit(130)
+    except Exception as e:
+        print(f"予期しないエラー: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
+        import traceback
+
+        traceback.print_exc(file=sys.stderr)
+        sys.exit(2)
