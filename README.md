@@ -318,3 +318,111 @@ python -m stockradar.jobs.split_equity_domestic_secondary
 3. **ジョブ B** で ipo / illiquid / core に分割（同じくプロジェクトルートで実行。`LIQ_MIN_MEDIAN_TURNOVER_YEN` を設定してから実行）。
 
 **「全件取得失敗」になる場合**: ジョブ B は `data/cache/yf_daily/_manifest.jsonl` を参照します。manifest が無い（ジョブ A をまだ実行していない、または別ディレクトリで実行した）場合は全銘柄が ipo に分類されます。先にジョブ A をプロジェクトルートで実行し、取得が完了してからジョブ B を実行してください。ジョブ A では `period` で空になる場合に `start/end` で再試行するフォールバックを入れています。
+
+---
+
+## 日次指標算出（equity_domestic_core 対象）
+
+月次で生成済みの `equity_domestic_core_with_name.csv` を対象に、日次で指標（出来高zscore/RS）を算出します。
+
+### 環境変数
+
+| 変数 | 説明 | 既定値 |
+|------|------|--------|
+| Z_LOOKBACK_DAYS | 出来高zscoreの窓サイズ（営業日数） | 60 |
+| RS_WINDOWS | RS算出の期間リスト（営業日数、カンマ区切り） | 63,126,252 |
+| RS_BENCHMARK | RS算出のベンチマーク（TOPIX/NIKKEI/BOTH） | BOTH |
+| RS_WEIGHTS | RS合成用の重みリスト（カンマ区切り、任意） | なし |
+| BUFFER_DAYS | キャッシュ取得時のバッファ日数 | 20 |
+| YF_BATCH_SIZE | 取得バッチサイズ | 100 |
+| YF_SLEEP_SEC_BETWEEN_BATCHES | バッチ間スリープ秒 | 5 |
+| YF_RETRY_MAX | 銘柄あたり最大再試行回数 | 3 |
+| YF_RETRY_BACKOFF_SEC | 再試行待機秒（カンマ区切り） | 5,15,30 |
+
+### ジョブ構成
+
+#### Job1: resolve_trading_day
+- Asia/Tokyo基準で run_date を決定
+- 東証営業日（XTKS）か判定
+- 休場なら以降ジョブをスキップ（success扱い）
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m stockradar.jobs.resolve_trading_day
+# または特定日を指定
+python -m stockradar.jobs.resolve_trading_day --date 2026-02-11
+```
+
+#### Job2: ensure_index_cache
+- ベンチETFのキャッシュ確保（BOTHが標準）
+  - TOPIX proxy: 1306.T
+  - Nikkei225 proxy: 1321.T
+- 不足時のみ重い取得、通常は差分取得
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m stockradar.jobs.ensure_index_cache --run-date 2026-02-11
+```
+
+#### Job3: ensure_core_cache
+- 入力: `equity_domestic_core_with_name.csv`（最新 sets_secondary_YYYYMMDD から自動選択）
+- 各銘柄のOHLCVキャッシュを確保（不足時のみ重い取得）
+- 分割取得 + インターバル + リトライ + 途中再開（manifest）
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m stockradar.jobs.ensure_core_cache --run-date 2026-02-11
+# または入力ファイルを明示
+python -m stockradar.jobs.ensure_core_cache --input data/universe/jpx/sets_secondary_20260211/equity_domestic_core_with_name.csv --run-date 2026-02-11
+```
+
+#### Job4: compute_indicators_for_core
+- 入力: `equity_domestic_core_with_name.csv`、`data/cache/yf_daily/`、`data/cache/yf_index/`
+- 出力: `data/indicators/daily/indicators_YYYYMMDD.csv`
+- 指標:
+  - 出来高zscore（売買代金近似ベース）
+  - RS（B方式：期間リターン差）
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m stockradar.jobs.compute_indicators_for_core --run-date 2026-02-11
+# または入力ファイルを明示
+python -m stockradar.jobs.compute_indicators_for_core --input data/universe/jpx/sets_secondary_20260211/equity_domestic_core_with_name.csv --run-date 2026-02-11
+```
+
+### 出力ファイル
+
+- **内部キャッシュ（非配布）**
+  - `data/cache/yf_daily/{code}.csv`（銘柄別OHLCV、最低Close/Volume）
+  - `data/cache/yf_index/{bench}.csv`（ベンチETF）
+- **日次指標（分析用・配布前の生）**
+  - `data/indicators/daily/indicators_YYYYMMDD.csv`（縦持ち：date, code, indicators...）
+    - 列例: `date`, `code`, `name`（任意）, `turnover_yen`, `z_turnover_{Z_LOOKBACK_DAYS}`, `rs63_topix`, `rs126_topix`, `rs252_topix`, `rs63_nikkei`, `rs126_nikkei`, `rs252_nikkei`, `n_bars_used`
+
+### GitHub Actions での実行
+
+`.github/workflows/daily.yml` が毎営業日 16:00 JST 以降に自動実行されます。
+
+- schedule: 毎営業日 16:00 JST 以降（当日バー反映後）
+- concurrency: 同一workflowの多重起動禁止
+- fetch系は部分成功を許容しつつmanifestに残す
+- computeで対象銘柄の有効計算率が極端に低い場合はfail
+
+### ローカル実行例（全ジョブ順次実行）
+
+```powershell
+$env:PYTHONPATH = "src"
+$RUN_DATE = "2026-02-11"
+
+# Job1: 営業日判定
+python -m stockradar.jobs.resolve_trading_day --date $RUN_DATE
+
+# Job2: ベンチマークキャッシュ確保
+python -m stockradar.jobs.ensure_index_cache --run-date $RUN_DATE
+
+# Job3: 銘柄キャッシュ確保
+python -m stockradar.jobs.ensure_core_cache --run-date $RUN_DATE
+
+# Job4: 指標算出
+python -m stockradar.jobs.compute_indicators_for_core --run-date $RUN_DATE
+```
