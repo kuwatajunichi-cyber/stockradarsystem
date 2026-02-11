@@ -14,11 +14,14 @@ from typing import Any
 
 def compute_sha256(path: Path) -> str:
     """ファイルの SHA256 を計算する。"""
-    sha256 = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(8192), b""):
-            sha256.update(chunk)
-    return sha256.hexdigest()
+    try:
+        sha256 = hashlib.sha256()
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(8192), b""):
+                sha256.update(chunk)
+        return sha256.hexdigest()
+    except Exception as e:
+        raise RuntimeError(f"SHA256計算エラー ({path}): {e}") from e
 
 
 def get_git_commit() -> str | None:
@@ -67,7 +70,10 @@ def create_manifest(
         rel_path = Path(output_path.name)
 
     size_bytes = output_path.stat().st_size if output_path.exists() else 0
-    sha256 = compute_sha256(output_path) if output_path.exists() and size_bytes > 0 else ""
+    try:
+        sha256 = compute_sha256(output_path) if output_path.exists() and size_bytes > 0 else ""
+    except Exception as e:
+        raise RuntimeError(f"manifest生成時のSHA256計算エラー: {e}") from e
 
     manifest = {
         "schema_version": 1,

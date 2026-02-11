@@ -95,12 +95,14 @@ def run_job(module: str, args: list[str] | None = None) -> tuple[int, str]:
 
 def copy_to_staging(source: Path, dest_name: str) -> Path:
     """ファイルを staging にコピーし、パスを返す。"""
-    STAGING_DIR.mkdir(parents=True, exist_ok=True)
-    dest = STAGING_DIR / dest_name
     import shutil
-
-    shutil.copy2(source, dest)
-    return dest
+    try:
+        STAGING_DIR.mkdir(parents=True, exist_ok=True)
+        dest = STAGING_DIR / dest_name
+        shutil.copy2(source, dest)
+        return dest
+    except Exception as e:
+        raise RuntimeError(f"コピーエラー ({source} -> {dest_name}): {e}") from e
 
 
 def find_latest_secondary_outputs() -> tuple[dict[str, Path], list[str]]:
@@ -278,39 +280,77 @@ def main() -> None:
         log(f"見つかったファイル: {list(secondary_outputs.keys())}")
         sys.exit(2)
 
-    inputs = collect_inputs_for_manifest()
+    try:
+        inputs = collect_inputs_for_manifest()
+        log(f"入力ファイル数: {len(inputs)}")
+    except Exception as e:
+        log(f"入力収集エラー: {type(e).__name__}: {e}")
+        import traceback
+        log(traceback.format_exc())
+        sys.exit(2)
+
     flags_summary: dict[str, str] = {}
 
     for csv_name, source_path in secondary_outputs.items():
-        dest_path = copy_to_staging(source_path, csv_name)
-        log(f"コピー: {source_path} -> {dest_path}")
+        try:
+            log(f"処理中: {csv_name} (source={source_path})")
+            if not source_path.exists():
+                log(f"エラー: ソースファイルが存在しません: {source_path}")
+                sys.exit(2)
+            dest_path = copy_to_staging(source_path, csv_name)
+            log(f"コピー完了: {source_path} -> {dest_path}")
 
-        # manifest 生成
-        manifest = create_manifest(
-            output_path=dest_path,
-            run_id=RUN_ID,
-            inputs=inputs,
-            flags_summary=flags_summary,
-            repo_root=Path.cwd(),
-        )
-        manifest_path = STAGING_DIR / f"{csv_name}.manifest.json"
-        write_manifest(manifest_path, manifest)
-        log(f"manifest 生成: {manifest_path}")
+            # manifest 生成
+            log(f"manifest 生成開始: {csv_name}")
+            manifest = create_manifest(
+                output_path=dest_path,
+                run_id=RUN_ID,
+                inputs=inputs,
+                flags_summary=flags_summary,
+                repo_root=Path.cwd(),
+            )
+            manifest_path = STAGING_DIR / f"{csv_name}.manifest.json"
+            write_manifest(manifest_path, manifest)
+            log(f"manifest 生成完了: {manifest_path}")
+        except Exception as e:
+            log(f"エラー ({csv_name}): {type(e).__name__}: {e}")
+            import traceback
+            log(traceback.format_exc())
+            print(f"エラー ({csv_name}): {type(e).__name__}: {e}", file=sys.stderr, flush=True)
+            traceback.print_exc(file=sys.stderr)
+            sys.exit(2)
 
     # 検証ゲート
-    log("検証ゲート実行中...")
-    is_valid, errors = verify_gate(STAGING_DIR)
-    if not is_valid:
-        log("検証ゲート失敗:")
-        for err in errors:
-            log(f"  - {err}")
+    try:
+        log("検証ゲート実行中...")
+        is_valid, errors = verify_gate(STAGING_DIR)
+        if not is_valid:
+            log("検証ゲート失敗:")
+            for err in errors:
+                log(f"  - {err}")
+            sys.exit(2)
+        log("検証ゲート通過")
+    except Exception as e:
+        log(f"検証ゲート実行エラー: {type(e).__name__}: {e}")
+        import traceback
+        log(traceback.format_exc())
+        print(f"検証ゲート実行エラー: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
+        traceback.print_exc(file=sys.stderr)
         sys.exit(2)
 
     # latest ポインタ更新
-    log("latest ポインタ更新中...")
-    LATEST_DIR.mkdir(parents=True, exist_ok=True)
-    LATEST_POINTER.write_text(RUN_ID, encoding="utf-8")
-    log(f"LATEST_RUN_ID.txt 更新: {RUN_ID}")
+    try:
+        log("latest ポインタ更新中...")
+        LATEST_DIR.mkdir(parents=True, exist_ok=True)
+        LATEST_POINTER.write_text(RUN_ID, encoding="utf-8")
+        log(f"LATEST_RUN_ID.txt 更新: {RUN_ID}")
+    except Exception as e:
+        log(f"latest ポインタ更新エラー: {type(e).__name__}: {e}")
+        import traceback
+        log(traceback.format_exc())
+        print(f"latest ポインタ更新エラー: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
+        traceback.print_exc(file=sys.stderr)
+        sys.exit(2)
 
     log("=== 月次実行完了 ===")
     print(f"run_id={RUN_ID}")
