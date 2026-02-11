@@ -51,3 +51,14 @@ jobs:
             logs/*/run.log
           retention-days: 90
           if-no-files-found: warn
+
+      - name: Upload logs (debug)
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: debug-logs-${{ github.run_id }}
+          path: |
+            logs/**/*
+            data/output/**/*
+          retention-days: 7
+          if-no-files-found: warn
