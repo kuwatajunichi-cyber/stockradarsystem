@@ -13,18 +13,52 @@
 """
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from stockradar.utils.manifest import (
-    compute_sha256,
-    create_manifest,
-    verify_manifest,
-    write_manifest,
-)
+# PYTHONPATH が設定されていない場合、src を追加
+if "PYTHONPATH" in os.environ:
+    src_path = os.environ["PYTHONPATH"]
+    if src_path not in sys.path:
+        sys.path.insert(0, src_path)
+else:
+    # スクリプトの位置から src を推測
+    script_dir = Path(__file__).parent
+    repo_root = script_dir.parent
+    src_dir = repo_root / "src"
+    if src_dir.exists() and str(src_dir) not in sys.path:
+        sys.path.insert(0, str(src_dir))
+
+print(f"PYTHONPATH env: {os.environ.get('PYTHONPATH', '(未設定)')}", file=sys.stderr, flush=True)
+print(f"sys.path (先頭3つ): {sys.path[:3]}", file=sys.stderr, flush=True)
+print(f"カレントディレクトリ: {Path.cwd()}", file=sys.stderr, flush=True)
+
+try:
+    from stockradar.utils.manifest import (
+        compute_sha256,
+        create_manifest,
+        verify_manifest,
+        write_manifest,
+    )
+    print("インポート成功: stockradar.utils.manifest", file=sys.stderr, flush=True)
+except ImportError as e:
+    print(f"インポートエラー: {e}", file=sys.stderr, flush=True)
+    print(f"sys.path: {sys.path}", file=sys.stderr, flush=True)
+    manifest_path = Path("src/stockradar/utils/manifest.py")
+    if manifest_path.exists():
+        print(f"ファイルは存在します: {manifest_path.absolute()}", file=sys.stderr, flush=True)
+    else:
+        print(f"ファイルが見つかりません: {manifest_path.absolute()}", file=sys.stderr, flush=True)
+        # リポジトリルートから探す
+        repo_root = Path(__file__).parent.parent
+        alt_path = repo_root / "src" / "stockradar" / "utils" / "manifest.py"
+        if alt_path.exists():
+            print(f"代替パスで見つかりました: {alt_path.absolute()}", file=sys.stderr, flush=True)
+    sys.exit(2)
 
 RUN_ID_PREFIX = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
 RUN_ID = f"{RUN_ID_PREFIX}_{uuid.uuid4().hex[:8]}"
@@ -165,24 +199,33 @@ def verify_gate(staging_dir: Path) -> tuple[bool, list[str]]:
 
 def main() -> None:
     """メイン実行。"""
+    # 最初に標準エラーに出力（ログファイルがまだないため）
+    print(f"=== 月次実行開始 run_id={RUN_ID} ===", file=sys.stderr, flush=True)
+    print(f"カレントディレクトリ: {Path.cwd()}", file=sys.stderr, flush=True)
+    print(f"STAGING_DIR: {STAGING_DIR.absolute()}", file=sys.stderr, flush=True)
+    print(f"LOGS_DIR: {LOGS_DIR.absolute()}", file=sys.stderr, flush=True)
+
     try:
         STAGING_DIR.mkdir(parents=True, exist_ok=True)
         LOGS_DIR.mkdir(parents=True, exist_ok=True)
         log_path = LOGS_DIR / "run.log"
+        print(f"ログファイル: {log_path.absolute()}", file=sys.stderr, flush=True)
 
         def log(msg: str) -> None:
             print(msg, flush=True)
             try:
                 with open(log_path, "a", encoding="utf-8") as f:
                     f.write(f"{datetime.now(timezone.utc).isoformat()} {msg}\n")
-            except Exception:
-                pass  # ログ書き込み失敗は無視
+            except Exception as e:
+                print(f"ログ書き込みエラー: {e}", file=sys.stderr, flush=True)
 
         log(f"=== 月次実行開始 run_id={RUN_ID} ===")
         log(f"カレントディレクトリ: {Path.cwd()}")
         log(f"STAGING_DIR: {STAGING_DIR.absolute()}")
     except Exception as e:
-        print(f"初期化エラー: {e}", file=sys.stderr, flush=True)
+        print(f"初期化エラー: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
         sys.exit(2)
 
     # 1. update_jpx_url_cache

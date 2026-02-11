@@ -37,6 +37,12 @@ jobs:
           PYTHONPATH: src
           LIQ_MIN_MEDIAN_TURNOVER_YEN: ${{ secrets.LIQ_MIN_MEDIAN_TURNOVER_YEN || '20000000' }}
         run: |
+          echo "PYTHONPATH=$PYTHONPATH"
+          echo "Current directory: $(pwd)"
+          echo "Checking Python path:"
+          python -c "import sys; print('\\n'.join(sys.path))"
+          echo "Checking module:"
+          python -c "import stockradar.utils.manifest; print('OK')" || echo "Import failed"
           python scripts/run_monthly.py
 
       - name: Upload artifacts
