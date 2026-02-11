@@ -104,3 +104,58 @@ def get_yf_retry_backoff_sec() -> list[int]:
 def get_yf_daily_cache_dir(base_dir: Path) -> Path:
     """yfinance 日次キャッシュのルート。data/cache/yf_daily/。"""
     return base_dir / "data" / "cache" / "yf_daily"
+
+
+# --- 日次指標算出用 ---
+
+def get_z_lookback_days() -> int:
+    """出来高zscoreの窓サイズ（営業日数）。環境変数 Z_LOOKBACK_DAYS（default=60）。"""
+    return _env_int("Z_LOOKBACK_DAYS", 60)
+
+
+def get_rs_windows() -> list[int]:
+    """RS算出の期間リスト（営業日数）。環境変数 RS_WINDOWS（default='63,126,252'）。"""
+    raw = os.environ.get("RS_WINDOWS", "63,126,252").strip()
+    if not raw:
+        return [63, 126, 252]
+    try:
+        return [int(x.strip()) for x in raw.split(",") if x.strip()]
+    except ValueError:
+        return [63, 126, 252]
+
+
+def get_rs_benchmark() -> str:
+    """RS算出のベンチマーク。環境変数 RS_BENCHMARK（default='BOTH'）。TOPIX/NIKKEI/BOTH。"""
+    v = os.environ.get("RS_BENCHMARK", "BOTH").strip().upper()
+    if v in ("TOPIX", "NIKKEI", "BOTH"):
+        return v
+    return "BOTH"
+
+
+def get_rs_weights() -> list[float] | None:
+    """RS合成用の重みリスト。環境変数 RS_WEIGHTS（default=None）。"""
+    raw = os.environ.get("RS_WEIGHTS", "").strip()
+    if not raw:
+        return None
+    try:
+        weights = [float(x.strip()) for x in raw.split(",") if x.strip()]
+        if len(weights) > 0:
+            return weights
+        return None
+    except ValueError:
+        return None
+
+
+def get_buffer_days() -> int:
+    """キャッシュ取得時のバッファ日数。環境変数 BUFFER_DAYS（default=20）。"""
+    return _env_int("BUFFER_DAYS", 20)
+
+
+def get_yf_index_cache_dir(base_dir: Path) -> Path:
+    """yfinance 指数キャッシュのルート。data/cache/yf_index/。"""
+    return base_dir / "data" / "cache" / "yf_index"
+
+
+def get_indicators_daily_dir(base_dir: Path) -> Path:
+    """日次指標出力ディレクトリ。data/indicators/daily/。"""
+    return base_dir / "data" / "indicators" / "daily"
