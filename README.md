@@ -186,3 +186,137 @@ python -m stockradar.jobs.update_jpx_url_cache
   採用した URL が HTML 等になっています。JPX_LIST_URL_OVERRIDE で Excel の**直リンク**を指定するか、キャッシュを正しい URL で更新してください。
 - **「最新URLの取得に失敗し、キャッシュもありません」**  
   まず `python -m stockradar.jobs.update_jpx_url_cache` をネットワークが通る状態で実行するか、JPX_LIST_URL_OVERRIDE で URL を固定してください。
+
+---
+
+## 一次ユニバース生成（JPX銘柄一覧ベース）
+
+JPX の processed CSV（例: `data/processed/jpx/jpx_list_YYYYMMDD.csv`）から、\n市場・商品区分に基づく一次ユニバース（universe_primary）を構築します。
+
+- **一次ユニバース区分（universe_primary）**  
+  - `equity_domestic`：内国株式  
+  - `equity_foreign`：外国株式  
+  - `etf_etn`：ETF・ETN  
+  - `reit_funds`：REIT・ベンチャーファンド・カントリーファンド・インフラファンド  
+  - `pro_market`：PRO Market  
+  - `investment_securities`：出資証券  
+  - `unknown`：上記に分類不能
+
+### 入力CSVの想定列（最低限）
+
+- `コード`  
+- `銘柄名`  
+- `市場・商品区分`  
+  - 無い場合でもジョブは継続し、全件 `unknown` にフォールバック（UNIVERSE_SCHEMA アラートを出力）。
+
+### 出力
+
+- **マスター**  
+  - `data/universe/jpx/universe_master_YYYYMMDD.csv`  
+  - columns: `date`, `code`, `name`, `market_product_raw`, `universe_primary`  
+  - `code` は 4桁文字列（ゼロ埋め維持）
+- **ユニバースごとの銘柄集合**  
+  - `data/universe/jpx/sets_YYYYMMDD/{universe_id}.csv`  
+  - 1列: `code`（ヘッダ付き）  
+  - `universe_id` は上記 7種（空集合でもヘッダのみのCSVとして出力）
+
+### スキーマ破壊アラート（UNIVERSE_SCHEMA）
+
+- **Trigger A: 「市場・商品区分」列が存在しない**  
+  - `ALERT[UNIVERSE_SCHEMA]: COLUMN_MISSING market_product`  
+  - 全銘柄を `unknown` に分類して出力（ジョブは成功扱い）。
+- **Trigger B: 「市場・商品区分」のカテゴリ集合が前回基準から変化**  
+  - 基準: `data/cache/jpx_market_product_categories.json`  
+  - 差分 added/removed を明示して  
+    - `ALERT[UNIVERSE_SCHEMA]: CATEGORY_SET_CHANGED added=[...] removed=[...]`  
+  - 成功時のみキャッシュを更新（初回は「基準作成」として保存）。
+- **コード・銘柄名の欠損**  
+  - 欠損があってもジョブは継続し、空文字として出力する。  
+  - 件数は `WARN[UNIVERSE_SCHEMA]: CODE_MISSING ...` / `WARN[UNIVERSE_SCHEMA]: NAME_MISSING ...` として出力。
+
+### 実行方法
+
+PowerShell 例（プロジェクトルートにて）:
+
+```powershell
+$env:PYTHONPATH = "src"
+
+# 入力CSVを明示する場合
+python -m stockradar.jobs.build_universe_from_jpx --input data/processed/jpx/jpx_list_YYYYMMDD.csv
+
+# --input を省略すると data/processed/jpx/jpx_list_*.csv のうち
+# ファイル名順で最新のものを自動選択
+python -m stockradar.jobs.build_universe_from_jpx
+```
+
+実行後:
+
+- UNIVERSE_SCHEMA に関する ALERT/WARN は標準エラーに出力されますが、  
+  いずれもダウンロード等の他ジョブには影響しません（処理は継続し `unknown` へフォールバック）。  
+- `data/universe/jpx/` 以下にマスターと 7種のユニバース集合が出力されます。
+
+---
+
+## 二次ユニバース（equity_domestic の ipo / illiquid / core 分割）
+
+一次ユニバースの `equity_domestic` を、yfinance の日次データ（Close, Volume）を用いて  
+**ipo**（上場日数不足・取得失敗寄せ）／**illiquid**（売買代金近似の中央値が閾値未満）／**core**（残差）に排他分割します。  
+取得ジョブと分類ジョブは**独立**しており、取得失敗があっても分類ジョブは「ipo 寄せ」で継続できます。
+
+### 環境変数（例）
+
+| 変数 | 説明 | 既定値 |
+|------|------|--------|
+| IPO_LOOKBACK_DAYS | IPO判定に必要な営業日数 | 252 |
+| LIQ_LOOKBACK_DAYS | 流動性判定の直近営業日数 | 60 |
+| LIQ_MIN_MEDIAN_TURNOVER_YEN | 中央値がこれ未満なら illiquid（**必須**） | なし |
+| YF_BATCH_SIZE | 取得バッチサイズ | 100 |
+| YF_SLEEP_SEC_BETWEEN_BATCHES | バッチ間スリープ秒 | 5 |
+| YF_RETRY_MAX | 銘柄あたり最大再試行回数 | 3 |
+| YF_RETRY_BACKOFF_SEC | 再試行待機秒（カンマ区切り） | 5,15,30 |
+
+### ジョブ A: yfinance 日次取得（fetch_yf_daily_for_universe）
+
+- **入力**: `equity_domestic.csv`（`--input` で指定。未指定時は `data/universe/jpx/sets_YYYYMMDD/equity_domestic.csv` の最新を自動選択）
+- **required_days**: `max(IPO_LOOKBACK_DAYS, LIQ_LOOKBACK_DAYS)` 分のデータを取得
+- **キャッシュ**: `data/cache/yf_daily/{code}.csv`（Close, Volume、日付 index）
+- **manifest**: `data/cache/yf_daily/_manifest.jsonl`（code, requested_days, fetched_bars, status, error, fetched_at）
+- **途中再開**: manifest で `status=ok` かつ `fetched_bars >= required_days` の銘柄はスキップ。`--force` で全件再取得。
+
+```powershell
+$env:PYTHONPATH = "src"
+$env:LIQ_MIN_MEDIAN_TURNOVER_YEN = "10000000"   # 分類ジョブ用（取得ジョブでは不要）
+
+python -m stockradar.jobs.fetch_yf_daily_for_universe --input data/universe/jpx/sets_20260207/equity_domestic.csv
+# または入力省略で最新 sets_* から自動選択
+python -m stockradar.jobs.fetch_yf_daily_for_universe
+# 全件再取得
+python -m stockradar.jobs.fetch_yf_daily_for_universe --force
+```
+
+### ジョブ B: 二次分割（split_equity_domestic_secondary）
+
+- **入力**: `equity_domestic.csv` と `data/cache/yf_daily/`（キャッシュ＋manifest）
+- **出力**: `data/universe/jpx/sets_secondary_YYYYMMDD/`
+  - `equity_domestic_ipo.csv`
+  - `equity_domestic_illiquid.csv`
+  - `equity_domestic_core.csv`  
+  （いずれも `code` 1列・ヘッダ付き）
+- **ログサマリ**: 対象銘柄数、取得ok/失敗/bars不足、ipo/illiquid/core 件数、illiquid 閾値・期間を標準エラーに出力。
+
+```powershell
+$env:PYTHONPATH = "src"
+$env:LIQ_MIN_MEDIAN_TURNOVER_YEN = "10000000"   # 必須
+
+python -m stockradar.jobs.split_equity_domestic_secondary --input data/universe/jpx/sets_20260207/equity_domestic.csv
+# または入力省略で最新 sets_* から自動選択
+python -m stockradar.jobs.split_equity_domestic_secondary
+```
+
+### 実行順序
+
+1. 一次ユニバース生成で `sets_YYYYMMDD/equity_domestic.csv` を用意する。
+2. **ジョブ A** で yfinance を取得（キャッシュ・manifest ができる）。**必ずプロジェクトルートをカレントにして実行**すること（キャッシュパスの一貫性のため）。
+3. **ジョブ B** で ipo / illiquid / core に分割（同じくプロジェクトルートで実行。`LIQ_MIN_MEDIAN_TURNOVER_YEN` を設定してから実行）。
+
+**「全件取得失敗」になる場合**: ジョブ B は `data/cache/yf_daily/_manifest.jsonl` を参照します。manifest が無い（ジョブ A をまだ実行していない、または別ディレクトリで実行した）場合は全銘柄が ipo に分類されます。先にジョブ A をプロジェクトルートで実行し、取得が完了してからジョブ B を実行してください。ジョブ A では `period` で空になる場合に `start/end` で再試行するフォールバックを入れています。
