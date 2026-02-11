@@ -1,7 +1,9 @@
 """
 equity_domestic を ipo / illiquid / core に二次分割するジョブ。
 入力: equity_domestic.csv と data/cache/yf_daily/（キャッシュ＋manifest）
-出力: data/universe/jpx/sets_secondary_YYYYMMDD/{equity_domestic_ipo, equity_domestic_illiquid, equity_domestic_core}.csv
+出力: data/universe/jpx/sets_secondary_YYYYMMDD/
+  - equity_domestic_ipo.csv, equity_domestic_illiquid.csv, equity_domestic_core.csv（code のみ）
+  - equity_domestic_ipo_with_name.csv 等（code, name）。銘柄名は JPX processed CSV をマスタとする。
 """
 from __future__ import annotations
 
@@ -21,6 +23,7 @@ from stockradar.config import (
 from stockradar.universe.equity_secondary import (
     split_equity_domestic_secondary,
 )
+from stockradar.universe.jpx_primary import _normalize_code
 
 MANIFEST_FILENAME = "_manifest.jsonl"
 
@@ -46,6 +49,34 @@ def _infer_ymd_from_path(path: Path) -> str | None:
     """sets_YYYYMMDD または 含まれる YYYYMMDD を抽出。"""
     m = re.search(r"(\d{8})", path.as_posix())
     return m.group(1) if m else None
+
+
+def _load_code_to_name_from_jpx_processed(base_dir: Path, ymd: str) -> dict[str, str] | None:
+    """
+    JPX processed CSV（data/processed/jpx/jpx_list_YYYYMMDD.csv）から
+    コード → 銘柄名 のマッピングを返す。ファイルが無い場合は None。
+    """
+    path = base_dir / "data" / "processed" / "jpx" / f"jpx_list_{ymd}.csv"
+    if not path.exists():
+        return None
+    try:
+        df = pd.read_csv(path)
+    except Exception:
+        return None
+    if "コード" not in df.columns or "銘柄名" not in df.columns:
+        return None
+    out: dict[str, str] = {}
+    for _, row in df.iterrows():
+        code = _normalize_code(row.get("コード"))
+        if not code:
+            continue
+        name = row.get("銘柄名")
+        if pd.isna(name):
+            name = ""
+        else:
+            name = str(name).strip()
+        out[code] = name
+    return out
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -124,6 +155,14 @@ def main(argv: list[str] | None = None) -> None:
     out_dir = base / "data" / "universe" / "jpx" / f"sets_secondary_{ymd}"
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    code_to_name = _load_code_to_name_from_jpx_processed(base, ymd)
+    if code_to_name is None:
+        print(
+            f"注意: JPX processed CSV が見つかりません（data/processed/jpx/jpx_list_{ymd}.csv）。"
+            "銘柄名付きCSVは出力しません。",
+            file=sys.stderr,
+        )
+
     for name, code_list in [
         ("equity_domestic_ipo", result.ipo),
         ("equity_domestic_illiquid", result.illiquid),
@@ -131,6 +170,12 @@ def main(argv: list[str] | None = None) -> None:
     ]:
         path = out_dir / f"{name}.csv"
         pd.DataFrame({"code": code_list}).to_csv(path, index=False, encoding="utf-8-sig")
+        if code_to_name is not None:
+            names = [code_to_name.get(c, "") for c in code_list]
+            path_with_name = out_dir / f"{name}_with_name.csv"
+            pd.DataFrame({"code": code_list, "name": names}).to_csv(
+                path_with_name, index=False, encoding="utf-8-sig"
+            )
 
     s = result.summary
     print("--- ログサマリ ---", file=sys.stderr)

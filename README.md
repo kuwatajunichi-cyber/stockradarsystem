@@ -298,10 +298,8 @@ python -m stockradar.jobs.fetch_yf_daily_for_universe --force
 
 - **入力**: `equity_domestic.csv` と `data/cache/yf_daily/`（キャッシュ＋manifest）
 - **出力**: `data/universe/jpx/sets_secondary_YYYYMMDD/`
-  - `equity_domestic_ipo.csv`
-  - `equity_domestic_illiquid.csv`
-  - `equity_domestic_core.csv`  
-  （いずれも `code` 1列・ヘッダ付き）
+  - `equity_domestic_ipo.csv`, `equity_domestic_illiquid.csv`, `equity_domestic_core.csv`（いずれも `code` 1列・ヘッダ付き）
+  - 上記に銘柄名列を加えた `*_with_name.csv`（`code`, `name`）。銘柄名のマスタは JPX processed CSV（`data/processed/jpx/jpx_list_YYYYMMDD.csv`）。該当 CSV が無い場合は銘柄名付きは出力しない。
 - **ログサマリ**: 対象銘柄数、取得ok/失敗/bars不足、ipo/illiquid/core 件数、illiquid 閾値・期間を標準エラーに出力。
 
 ```powershell

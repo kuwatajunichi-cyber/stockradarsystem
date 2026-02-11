@@ -1,0 +1,53 @@
+name: Monthly Universe Build
+
+on:
+  workflow_dispatch:  # 手動実行
+  schedule:
+    - cron: "0 2 1 * *"  # 毎月1日 02:00 UTC（日本時間 11:00）
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # git commit 取得のため
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache JPX URL cache
+        uses: actions/cache@v4
+        with:
+          path: data/cache/jpx_latest_url.txt
+          key: jpx-url-cache-${{ github.run_id }}
+          restore-keys: |
+            jpx-url-cache-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run monthly build
+        env:
+          PYTHONPATH: src
+          LIQ_MIN_MEDIAN_TURNOVER_YEN: ${{ secrets.LIQ_MIN_MEDIAN_TURNOVER_YEN || '20000000' }}
+        run: |
+          python scripts/run_monthly.py
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: universe-outputs-${{ github.run_id }}
+          path: |
+            data/output/staging/*/equity_domestic_*_with_name.csv
+            data/output/staging/*/*.manifest.json
+            data/output/latest/LATEST_RUN_ID.txt
+            logs/*/run.log
+          retention-days: 90
+          if-no-files-found: warn
