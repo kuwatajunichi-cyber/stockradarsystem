@@ -140,16 +140,24 @@ def find_latest_secondary_outputs() -> tuple[dict[str, Path], list[str]]:
 def collect_inputs_for_manifest() -> list[dict[str, str]]:
     """manifest 用の入力情報を収集（簡易版）。"""
     inputs: list[dict[str, str]] = []
+    repo_root = Path.cwd()
     # JPX processed CSV
-    processed_dir = Path("data/processed/jpx")
+    processed_dir = repo_root / "data/processed/jpx"
     if processed_dir.exists():
         for p in sorted(processed_dir.glob("jpx_list_*.csv"), reverse=True):
             if p.exists():
+                # 絶対パスに変換してから relative_to を実行
+                p_abs = p.resolve()
+                try:
+                    rel_path = p_abs.relative_to(repo_root.resolve())
+                except ValueError:
+                    # 相対パスで取得できない場合はファイル名のみ
+                    rel_path = Path(p.name)
                 inputs.append(
                     {
-                        "path": str(p.relative_to(Path.cwd())).replace("\\", "/"),
-                        "size_bytes": str(p.stat().st_size),
-                        "sha256": compute_sha256(p),
+                        "path": str(rel_path).replace("\\", "/"),
+                        "size_bytes": str(p_abs.stat().st_size),
+                        "sha256": compute_sha256(p_abs),
                     }
                 )
                 break
