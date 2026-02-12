@@ -104,16 +104,40 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Find latest core CSV
-        id: find_core
+      - name: Download core CSV from latest monthly release
+        id: download_core
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          LATEST=$(find data/universe/jpx -name "equity_domestic_core_with_name.csv" -type f | sort | tail -1)
-          if [ -z "$LATEST" ]; then
-            echo "エラー: equity_domestic_core_with_name.csv が見つかりません"
+          # 最新のmonthly Releaseを取得（monthly-で始まるタグのみ）
+          LATEST_RELEASE=$(gh release list --limit 100 --json tagName --jq '.[] | select(.tagName | startswith("monthly-")) | .tagName' | head -1)
+          if [ -z "$LATEST_RELEASE" ]; then
+            echo "エラー: 月次Release（monthly-*）が見つかりません"
             exit 1
           fi
-          echo "core_csv=$LATEST" >> $GITHUB_OUTPUT
-          echo "Found: $LATEST"
+          echo "Latest monthly release: $LATEST_RELEASE"
+          
+          # Releaseからequity_domestic_core_with_name.csvをダウンロード
+          mkdir -p data/universe/jpx/latest_release
+          if ! gh release download "$LATEST_RELEASE" \
+            --pattern "equity_domestic_core_with_name.csv" \
+            --dir "data/universe/jpx/latest_release" \
+            --repo "${{ github.repository }}"; then
+            echo "エラー: Releaseからのダウンロードに失敗しました: $LATEST_RELEASE"
+            echo "利用可能なアセットを確認中..."
+            gh release view "$LATEST_RELEASE" --repo "${{ github.repository }}" --json assets --jq '.assets[].name' || true
+            exit 1
+          fi
+          
+          CORE_CSV="data/universe/jpx/latest_release/equity_domestic_core_with_name.csv"
+          if [ ! -f "$CORE_CSV" ]; then
+            echo "エラー: equity_domestic_core_with_name.csv が見つかりません（ダウンロード後）"
+            echo "ダウンロード先の内容:"
+            ls -la "data/universe/jpx/latest_release/" || true
+            exit 1
+          fi
+          echo "core_csv=$CORE_CSV" >> $GITHUB_OUTPUT
+          echo "Downloaded: $CORE_CSV"
 
       - name: Ensure core cache
         env:
@@ -126,7 +150,7 @@ jobs:
           YF_RETRY_MAX: ${{ secrets.YF_RETRY_MAX || '3' }}
           YF_RETRY_BACKOFF_SEC: ${{ secrets.YF_RETRY_BACKOFF_SEC || '5,15,30' }}
         run: |
-          python -m stockradar.jobs.ensure_core_cache --input "${{ steps.find_core.outputs.core_csv }}" --run-date ${{ needs.resolve_trading_day.outputs.run_date }}
+          python -m stockradar.jobs.ensure_core_cache --input "${{ steps.download_core.outputs.core_csv }}" --run-date ${{ needs.resolve_trading_day.outputs.run_date }}
 
   compute_indicators:
     needs: [resolve_trading_day, ensure_index_cache, ensure_core_cache]
@@ -162,16 +186,40 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Find latest core CSV
-        id: find_core
+      - name: Download core CSV from latest monthly release
+        id: download_core
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          LATEST=$(find data/universe/jpx -name "equity_domestic_core_with_name.csv" -type f | sort | tail -1)
-          if [ -z "$LATEST" ]; then
-            echo "エラー: equity_domestic_core_with_name.csv が見つかりません"
+          # 最新のmonthly Releaseを取得（monthly-で始まるタグのみ）
+          LATEST_RELEASE=$(gh release list --limit 100 --json tagName --jq '.[] | select(.tagName | startswith("monthly-")) | .tagName' | head -1)
+          if [ -z "$LATEST_RELEASE" ]; then
+            echo "エラー: 月次Release（monthly-*）が見つかりません"
             exit 1
           fi
-          echo "core_csv=$LATEST" >> $GITHUB_OUTPUT
-          echo "Found: $LATEST"
+          echo "Latest monthly release: $LATEST_RELEASE"
+          
+          # Releaseからequity_domestic_core_with_name.csvをダウンロード
+          mkdir -p data/universe/jpx/latest_release
+          if ! gh release download "$LATEST_RELEASE" \
+            --pattern "equity_domestic_core_with_name.csv" \
+            --dir "data/universe/jpx/latest_release" \
+            --repo "${{ github.repository }}"; then
+            echo "エラー: Releaseからのダウンロードに失敗しました: $LATEST_RELEASE"
+            echo "利用可能なアセットを確認中..."
+            gh release view "$LATEST_RELEASE" --repo "${{ github.repository }}" --json assets --jq '.assets[].name' || true
+            exit 1
+          fi
+          
+          CORE_CSV="data/universe/jpx/latest_release/equity_domestic_core_with_name.csv"
+          if [ ! -f "$CORE_CSV" ]; then
+            echo "エラー: equity_domestic_core_with_name.csv が見つかりません（ダウンロード後）"
+            echo "ダウンロード先の内容:"
+            ls -la "data/universe/jpx/latest_release/" || true
+            exit 1
+          fi
+          echo "core_csv=$CORE_CSV" >> $GITHUB_OUTPUT
+          echo "Downloaded: $CORE_CSV"
 
       - name: Compute indicators
         env:
@@ -180,7 +228,7 @@ jobs:
           RS_WINDOWS: ${{ secrets.RS_WINDOWS || '63,126,252' }}
           RS_BENCHMARK: ${{ secrets.RS_BENCHMARK || 'BOTH' }}
         run: |
-          python -m stockradar.jobs.compute_indicators_for_core --input "${{ steps.find_core.outputs.core_csv }}" --run-date ${{ needs.resolve_trading_day.outputs.run_date }}
+          python -m stockradar.jobs.compute_indicators_for_core --input "${{ steps.download_core.outputs.core_csv }}" --run-date ${{ needs.resolve_trading_day.outputs.run_date }}
 
       - name: Upload indicators artifact
         uses: actions/upload-artifact@v4
