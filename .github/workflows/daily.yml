@@ -43,6 +43,47 @@ jobs:
           echo "is_open=$IS_OPEN" >> $GITHUB_OUTPUT
           echo "Resolved: run_date=$RUN_DATE, is_open=$IS_OPEN"
 
+  restore_ohlc_store:
+    needs: resolve_trading_day
+    if: needs.resolve_trading_day.outputs.is_open == 'True'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache OHLC store zip
+        uses: actions/cache@v4
+        with:
+          path: data/cache/ohlc_store_archive/ohlc_store.zip
+          key: ohlc-store-zip-v1
+          restore-keys: |
+            ohlc-store-zip-v1
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Restore OHLC store
+        env:
+          PYTHONPATH: src
+        run: |
+          python -m stockradar.jobs.restore_ohlc_store
+
+      - name: Upload OHLC store for next jobs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ohlc-store-restored
+          path: data/cache/yf_daily/
+          retention-days: 1
+          if-no-files-found: ignore
+
   ensure_index_cache:
     needs: resolve_trading_day
     if: needs.resolve_trading_day.outputs.is_open == 'True'
@@ -79,7 +120,7 @@ jobs:
           python -m stockradar.jobs.ensure_index_cache --run-date ${{ needs.resolve_trading_day.outputs.run_date }}
 
   ensure_core_cache:
-    needs: resolve_trading_day
+    needs: [resolve_trading_day, restore_ohlc_store]
     if: needs.resolve_trading_day.outputs.is_open == 'True'
     runs-on: ubuntu-latest
     steps:
@@ -91,13 +132,11 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Cache daily data
-        uses: actions/cache@v4
+      - name: Download OHLC store from previous job
+        uses: actions/download-artifact@v4
         with:
+          name: ohlc-store-restored
           path: data/cache/yf_daily/
-          key: yf-daily-cache-${{ github.run_id }}
-          restore-keys: |
-            yf-daily-cache-
 
       - name: Install dependencies
         run: |
@@ -152,6 +191,15 @@ jobs:
         run: |
           python -m stockradar.jobs.ensure_core_cache --input "${{ steps.download_core.outputs.core_csv }}" --run-date ${{ needs.resolve_trading_day.outputs.run_date }}
 
+      - name: Upload OHLC store for next jobs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ohlc-store-after-core-cache
+          path: data/cache/yf_daily/
+          retention-days: 1
+          if-no-files-found: ignore
+
   compute_indicators:
     needs: [resolve_trading_day, ensure_index_cache, ensure_core_cache]
     if: needs.resolve_trading_day.outputs.is_open == 'True'
@@ -165,13 +213,11 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Cache daily data
-        uses: actions/cache@v4
+      - name: Download OHLC store from previous job
+        uses: actions/download-artifact@v4
         with:
+          name: ohlc-store-after-core-cache
           path: data/cache/yf_daily/
-          key: yf-daily-cache-${{ github.run_id }}
-          restore-keys: |
-            yf-daily-cache-
 
       - name: Cache index data
         uses: actions/cache@v4
@@ -238,3 +284,49 @@ jobs:
           path: data/indicators/daily/indicators_*.csv
           retention-days: 90
           if-no-files-found: warn
+
+      - name: Upload OHLC store for archiving
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ohlc-store-updated
+          path: data/cache/yf_daily/
+          retention-days: 1
+          if-no-files-found: ignore
+
+  archive_ohlc_store:
+    needs: [resolve_trading_day, compute_indicators]
+    if: needs.resolve_trading_day.outputs.is_open == 'True'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Download OHLC store from previous job
+        uses: actions/download-artifact@v4
+        with:
+          name: ohlc-store-updated
+          path: data/cache/yf_daily/
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Archive OHLC store
+        env:
+          PYTHONPATH: src
+        run: |
+          python -m stockradar.jobs.archive_ohlc_store
+
+      - name: Cache OHLC store zip
+        uses: actions/cache@v4
+        if: success()
+        with:
+          path: data/cache/ohlc_store_archive/ohlc_store.zip
+          key: ohlc-store-zip-v1
