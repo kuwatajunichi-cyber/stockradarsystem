@@ -29,6 +29,12 @@ from stockradar.config import (
 )
 from stockradar.utils.yf_cache import load_cache
 
+# candle_descriptorのインポート（オプション）
+try:
+    from stockradar.utils.candle_descriptor import compute_candle_descriptors
+except ImportError:
+    compute_candle_descriptors = None
+
 
 def _find_latest_core_with_name(base_dir: Path) -> Path | None:
     """data/universe/jpx/sets_secondary_YYYYMMDD/equity_domestic_core_with_name.csv の最新を返す。"""
@@ -230,6 +236,23 @@ def main(argv: list[str] | None = None) -> None:
         }
         if "name" in codes_df.columns:
             result_row["name"] = name
+
+        # candle_labelsとprice_textを計算（Open, High, Lowが必要）
+        if compute_candle_descriptors is not None and all(col in stock_df.columns for col in ["Open", "High", "Low", "Close"]):
+            try:
+                candle_labels, price_text = compute_candle_descriptors(stock_df)
+                result_row["candle_labels"] = candle_labels
+                result_row["price_text"] = price_text
+            except Exception as e:
+                print(f"警告: {code} のcandle descriptor計算に失敗: {type(e).__name__}: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc(file=sys.stderr)
+                result_row["candle_labels"] = None
+                result_row["price_text"] = None
+        else:
+            # Open, High, Lowが無い場合、またはインポート失敗時はスキップ
+            result_row["candle_labels"] = None
+            result_row["price_text"] = None
 
         # RS計算
         for bench_name, bench_df in benchmarks.items():
