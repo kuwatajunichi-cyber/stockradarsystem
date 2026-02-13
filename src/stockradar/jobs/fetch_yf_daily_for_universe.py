@@ -158,7 +158,15 @@ def _fetch_one(
                 if attempt < retry_max:
                     time.sleep(backoff_sec[min(attempt, len(backoff_sec) - 1)])
                 continue
-            df = hist[["Close", "Volume"]].copy()
+            # Open, High, Lowも取得（candle descriptor用）
+            required_cols = ["Open", "High", "Low", "Close", "Volume"]
+            available_cols = [col for col in required_cols if col in hist.columns]
+            if len(available_cols) < 2:  # CloseとVolumeは最低限必要
+                last_error = "missing_columns"
+                if attempt < retry_max:
+                    time.sleep(backoff_sec[min(attempt, len(backoff_sec) - 1)])
+                continue
+            df = hist[available_cols].copy()
             df.index = pd.to_datetime(df.index)
             # 重複日を落とす
             df = df[~df.index.duplicated(keep="first")]

@@ -231,6 +231,21 @@ def main(argv: list[str] | None = None) -> None:
         if "name" in codes_df.columns:
             result_row["name"] = name
 
+        # candle_labelsとprice_textを計算（Open, High, Lowが必要）
+        if all(col in stock_df.columns for col in ["Open", "High", "Low", "Close"]):
+            try:
+                candle_labels, price_text = compute_candle_descriptors(stock_df)
+                result_row["candle_labels"] = candle_labels
+                result_row["price_text"] = price_text
+            except Exception as e:
+                print(f"警告: {code} のcandle descriptor計算に失敗: {type(e).__name__}: {e}", file=sys.stderr)
+                result_row["candle_labels"] = None
+                result_row["price_text"] = None
+        else:
+            # Open, High, Lowが無い場合はスキップ
+            result_row["candle_labels"] = None
+            result_row["price_text"] = None
+
         # RS計算
         for bench_name, bench_df in benchmarks.items():
             bench_df_filtered = bench_df[bench_df.index.date <= run_date]

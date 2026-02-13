@@ -1,0 +1,362 @@
+"""
+ローソク足の特徴量計算とラベル生成（OHLC descriptor）。
+
+ドキュメント: docs/OHLC_desripter_v1.0.md
+"""
+from __future__ import annotations
+
+import numpy as np
+import pandas as pd
+
+
+def compute_true_range(df: pd.DataFrame, prev_close: pd.Series | None = None) -> pd.Series:
+    """
+    True Range (TR)を計算。
+
+    Args:
+        df: DataFrame（Open, High, Low, Close列、date index）
+        prev_close: 前日終値のSeries（indexはdfのindexより1日ずれている想定）
+
+    Returns:
+        Series（TR）
+    """
+    h_l = df["High"] - df["Low"]
+    if prev_close is not None:
+        # prev_closeのindexを1日進めてdfと揃える
+        prev_close_aligned = prev_close.shift(-1).reindex(df.index, method="ffill")
+        h_prevc = abs(df["High"] - prev_close_aligned)
+        l_prevc = abs(df["Low"] - prev_close_aligned)
+        tr = pd.concat([h_l, h_prevc, l_prevc], axis=1).max(axis=1)
+    else:
+        tr = h_l
+    return tr
+
+
+def compute_candle_features(df: pd.DataFrame, prev_close: pd.Series | None = None) -> pd.DataFrame:
+    """
+    ローソク足の特徴量を計算。
+
+    Args:
+        df: DataFrame（Open, High, Low, Close列、date index）
+        prev_close: 前日終値のSeries
+
+    Returns:
+        DataFrame（追加列: TR, B, U, D, dir, br, ur, dr, gap, gap_atr, gap_dir, close_pos, hit_high, hit_low）
+    """
+    result = df.copy()
+
+    # True Range
+    result["TR"] = compute_true_range(df, prev_close)
+
+    # ローソク基本量
+    result["B"] = abs(df["Close"] - df["Open"])  # 実体
+    result["U"] = df["High"] - pd.concat([df["Open"], df["Close"]], axis=1).max(axis=1)  # 上ヒゲ
+    result["D"] = pd.concat([df["Open"], df["Close"]], axis=1).min(axis=1) - df["Low"]  # 下ヒゲ
+    result["dir"] = np.sign(df["Close"] - df["Open"])  # 陽/陰/同値
+
+    # 比率
+    result["br"] = result["B"] / result["TR"].replace(0, np.nan)  # 実体比率
+    result["ur"] = result["U"] / result["TR"].replace(0, np.nan)  # 上ヒゲ比率
+    result["dr"] = result["D"] / result["TR"].replace(0, np.nan)  # 下ヒゲ比率
+
+    # ギャップ
+    if prev_close is not None:
+        prev_close_aligned = prev_close.shift(-1).reindex(df.index, method="ffill")
+        result["gap"] = df["Open"] - prev_close_aligned
+    else:
+        result["gap"] = np.nan
+
+    # close_pos, hit_high, hit_low
+    h_l_diff = df["High"] - df["Low"]
+    result["close_pos"] = (df["Close"] - df["Low"]) / h_l_diff.replace(0, np.nan)
+    result["hit_high"] = (df["Close"] == df["High"]).astype(int)
+    result["hit_low"] = (df["Close"] == df["Low"]).astype(int)
+
+    return result
+
+
+def compute_atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
+    """
+    ATR (Average True Range)を計算（EMA）。
+
+    Args:
+        df: DataFrame（TR列、date index）
+        period: EMA期間（default=14）
+
+    Returns:
+        Series（ATR）
+    """
+    return df["TR"].ewm(span=period, adjust=False).mean()
+
+
+def compute_percentile_rank(series: pd.Series, window: int = 252) -> pd.Series:
+    """
+    Percentile rankを計算。
+
+    Args:
+        series: Series
+        window: 窓サイズ（default=252）
+
+    Returns:
+        Series（percentile_rank, 0-1）
+    """
+    return series.rolling(window=window, min_periods=min(20, window // 4)).apply(
+        lambda x: pd.Series(x).rank(pct=True).iloc[-1] if len(x) > 0 else np.nan, raw=False
+    )
+
+
+def compute_candle_labels(
+    df: pd.DataFrame,
+    atr: pd.Series,
+    q_sr: pd.Series,
+    gap_atr: pd.Series,
+) -> str:
+    """
+    ローソク足のラベルを計算。
+
+    Args:
+        df: DataFrame（特徴量計算済み）
+        atr: ATR Series
+        q_sr: percentile_rank of sr Series
+        gap_atr: gap_atr Series
+
+    Returns:
+        Series（ラベル文字列、カンマ区切り）
+    """
+    labels_list = []
+
+    # 最新日の値を取得
+    latest_idx = df.index[-1] if len(df) > 0 else None
+    if latest_idx is None:
+        return ""
+
+    latest_tr = df.loc[latest_idx, "TR"]
+    latest_atr_val = atr.loc[latest_idx] if latest_idx in atr.index else np.nan
+    latest_gap_atr_val = gap_atr.loc[latest_idx] if latest_idx in gap_atr.index else np.nan
+    latest_gap = df.loc[latest_idx, "gap"]
+    latest_hit_high = df.loc[latest_idx, "hit_high"]
+    latest_hit_low = df.loc[latest_idx, "hit_low"]
+    latest_close_pos = df.loc[latest_idx, "close_pos"]
+    latest_open = df.loc[latest_idx, "Open"]
+
+    # 異常ラベル（優先）
+    if latest_tr == 0:
+        labels_list.append("INVALID_TR0")
+
+    if pd.isna(latest_atr_val) or latest_atr_val <= 0:
+        labels_list.append("INVALID_NAN")
+
+    # LIMIT_SUSPECT
+    if not pd.isna(latest_atr_val) and latest_atr_val > 0:
+        sr = latest_tr / latest_atr_val
+        if (sr >= 3 and (latest_hit_high == 1 or latest_hit_low == 1)) or (
+            not pd.isna(latest_gap_atr_val)
+            and latest_gap_atr_val >= 2.5
+            and (latest_close_pos >= 0.9 or latest_close_pos <= 0.1)
+        ):
+            labels_list.append("LIMIT_SUSPECT")
+
+    # ACTION_SUSPECT
+    if not pd.isna(latest_gap_atr_val):
+        prev_close_approx = latest_open - latest_gap
+        if latest_gap_atr_val >= 5 or (
+            not pd.isna(prev_close_approx) and prev_close_approx != 0 and abs(latest_gap / prev_close_approx) >= 0.30
+        ):
+            labels_list.append("ACTION_SUSPECT")
+
+    # GAP_DOMINANT
+    if not pd.isna(latest_gap_atr_val) and latest_gap_atr_val >= 1.0:
+        if latest_tr > 0 and abs(latest_gap) / latest_tr >= 0.6:
+            labels_list.append("GAP_DOMINANT")
+
+    # GAP_UP / GAP_DOWN（窓ラベル）
+    gap_val = df["gap"].iloc[-1] if len(df) > 0 else np.nan
+    gap_atr_val = gap_atr.iloc[-1] if len(gap_atr) > 0 else np.nan
+    if not pd.isna(gap_val) and not pd.isna(gap_atr_val):
+        if gap_val > 0 and gap_atr_val >= 1.0:
+            labels_list.append("GAP_UP")
+        elif gap_val < 0 and gap_atr_val >= 1.0:
+            labels_list.append("GAP_DOWN")
+
+    # サイズラベル
+    if isinstance(q_sr, pd.Series):
+        q_sr_val = q_sr.iloc[-1] if len(q_sr) > 0 else np.nan
+    else:
+        q_sr_val = q_sr
+
+    if not pd.isna(q_sr_val):
+        if q_sr_val >= 0.95:
+            labels_list.append("RANGE_VERY_LARGE")
+        elif q_sr_val >= 0.85:
+            labels_list.append("RANGE_LARGE")
+        elif q_sr_val < 0.40:
+            if q_sr_val < 0.15:
+                labels_list.append("RANGE_VERY_SMALL")
+            else:
+                labels_list.append("RANGE_SMALL")
+
+    # 形状ラベル（実体）
+    br_val = df["br"].iloc[-1] if len(df) > 0 else np.nan
+    if not pd.isna(br_val):
+        if br_val <= 0.10:
+            labels_list.append("DOJI")
+        elif br_val >= 0.70:
+            ur_val = df["ur"].iloc[-1] if len(df) > 0 else np.nan
+            dr_val = df["dr"].iloc[-1] if len(df) > 0 else np.nan
+            if not pd.isna(ur_val) and not pd.isna(dr_val):
+                if max(ur_val, dr_val) <= 0.15:
+                    labels_list.append("BODY_MARUBOZU_LIKE")
+        elif br_val >= 0.55:
+            labels_list.append("BODY_LONG")
+        elif br_val <= 0.25:
+            labels_list.append("BODY_SMALL")
+        else:
+            labels_list.append("BODY_MIDDLE")
+
+    # ヒゲラベル
+    ur_val = df["ur"].iloc[-1] if len(df) > 0 else np.nan
+    dr_val = df["dr"].iloc[-1] if len(df) > 0 else np.nan
+    if not pd.isna(ur_val) and not pd.isna(dr_val):
+        if ur_val >= 0.45 and dr_val >= 0.45:
+            labels_list.append("WICK_BOTH_LONG")
+        elif ur_val >= 0.25 and dr_val >= 0.25:
+            labels_list.append("WICK_BOTH_PRESENT")
+        elif ur_val >= 0.45:
+            labels_list.append("WICK_UPPER_LONG")
+        elif dr_val >= 0.45:
+            labels_list.append("WICK_LOWER_LONG")
+        elif ur_val >= 0.25:
+            labels_list.append("WICK_UPPER_PRESENT")
+        elif dr_val >= 0.25:
+            labels_list.append("WICK_LOWER_PRESENT")
+
+    # 方向ラベル
+    dir_val = df["dir"].iloc[-1] if len(df) > 0 else 0
+    if "DOJI" not in labels_list:
+        if dir_val > 0:
+            labels_list.append("DIR_BULL")
+        elif dir_val < 0:
+            labels_list.append("DIR_BEAR")
+
+    return ",".join(labels_list) if labels_list else ""
+
+
+def compute_price_text(df: pd.DataFrame, labels: str, q_sr: float | pd.Series) -> str:
+    """
+    価格挙動の自然言語テキストを生成。
+
+    Args:
+        df: DataFrame（特徴量計算済み）
+        labels: ラベル文字列（カンマ区切り）
+        q_sr: percentile_rank値
+
+    Returns:
+        価格挙動の説明文
+    """
+    label_set = set(labels.split(",")) if labels else set()
+    parts = []
+
+    # 窓（先頭）
+    if "GAP_UP" in label_set:
+        parts.append("上窓つき")
+    elif "GAP_DOWN" in label_set:
+        parts.append("下窓つき")
+
+    # サイズ（RANGE_NORMALは表示しない）
+    if "RANGE_VERY_LARGE" in label_set:
+        parts.append("極大の")
+    elif "RANGE_LARGE" in label_set:
+        parts.append("大きな")
+    elif "RANGE_SMALL" in label_set:
+        parts.append("小さな")
+    elif "RANGE_VERY_SMALL" in label_set:
+        parts.append("極小の")
+
+    # ヒゲ
+    if "WICK_BOTH_LONG" in label_set:
+        parts.append("長い上下ヒゲ")
+    elif "WICK_BOTH_PRESENT" in label_set:
+        parts.append("上下ヒゲ")
+    elif "WICK_UPPER_LONG" in label_set:
+        parts.append("長い上ヒゲ")
+    elif "WICK_LOWER_LONG" in label_set:
+        parts.append("長い下ヒゲ")
+    elif "WICK_UPPER_PRESENT" in label_set:
+        parts.append("上ヒゲ")
+    elif "WICK_LOWER_PRESENT" in label_set:
+        parts.append("下ヒゲ")
+
+    # 実体
+    if "DOJI" in label_set:
+        parts.append("十字線")
+    elif "BODY_MARUBOZU_LIKE" in label_set:
+        parts.append("丸坊主")
+    elif "BODY_LONG" in label_set:
+        parts.append("長")
+    elif "BODY_SMALL" in label_set:
+        parts.append("短")
+    elif "BODY_MIDDLE" in label_set:
+        parts.append("中")
+
+    # 方向（DOJIの場合は付けない）
+    if "DOJI" not in label_set:
+        if "DIR_BULL" in label_set:
+            parts.append("陽線")
+        elif "DIR_BEAR" in label_set:
+            parts.append("陰線")
+
+    return "".join(parts) if parts else ""
+
+
+def compute_candle_descriptors(
+    df: pd.DataFrame,
+    atr_period: int = 14,
+    percentile_window: int = 252,
+) -> tuple[str, str]:
+    """
+    ローソク足のラベルと価格テキストを計算。
+
+    Args:
+        df: DataFrame（Open, High, Low, Close列、date index）
+        atr_period: ATR計算期間（default=14）
+        percentile_window: percentile_rank計算窓（default=252）
+
+    Returns:
+        (candle_labels, price_text)
+    """
+    if df.empty or len(df) < 2:
+        return "", ""
+
+    # 前日終値を取得
+    prev_close = df["Close"].shift(1)
+
+    # 特徴量計算
+    features_df = compute_candle_features(df, prev_close)
+
+    # ATR計算
+    atr = compute_atr(features_df, period=atr_period)
+
+    # percentile_rank計算
+    sr = features_df["TR"] / atr.replace(0, np.nan)
+    q_sr = compute_percentile_rank(sr, window=percentile_window)
+
+    # gap_atr計算
+    gap_atr = abs(features_df["gap"]) / atr.replace(0, np.nan)
+
+    # 最新日の値を取得
+    latest_features = features_df.iloc[-1]
+    latest_atr = atr.iloc[-1] if len(atr) > 0 else np.nan
+    latest_q_sr = q_sr.iloc[-1] if len(q_sr) > 0 else np.nan
+    latest_gap_atr = gap_atr.iloc[-1] if len(gap_atr) > 0 else np.nan
+
+    # ラベル計算（最新日のみ）
+    latest_df = pd.DataFrame([latest_features])
+    latest_atr_series = pd.Series([latest_atr], index=[features_df.index[-1]])
+    latest_q_sr_series = pd.Series([latest_q_sr], index=[features_df.index[-1]])
+    latest_gap_atr_series = pd.Series([latest_gap_atr], index=[features_df.index[-1]])
+    labels = compute_candle_labels(latest_df, latest_atr_series, latest_q_sr_series, latest_gap_atr_series)
+
+    # price_text生成
+    price_text = compute_price_text(latest_df, labels, latest_q_sr)
+
+    return labels, price_text
