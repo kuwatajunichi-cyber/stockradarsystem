@@ -1,0 +1,74 @@
+# スモークテスト ワークフローB: A が作成したファイルを 0011_work から取得し、加工して 0012_paid に配置
+name: GDrive Smoke Test B
+
+on:
+  workflow_call:
+    inputs:
+      run_id:
+        required: true
+        type: string
+      month_folder:
+        required: true
+        type: string
+      day_folder:
+        required: true
+        type: string
+      file_id:
+        required: true
+        type: string
+      file_name:
+        required: false
+        type: string
+        default: ""
+
+env:
+  TZ: Asia/Tokyo
+
+jobs:
+  fetch_process_upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install google-api-python-client google-auth
+
+      - name: B-1 Get file from 0011_work, B-2/B-3 create paid folders and upload processed file
+        id: process
+        env:
+          GDRIVE_SA_JSON: ${{ secrets.GDRIVE_SA_JSON }}
+        run: |
+          set -e
+          PYTHONPATH=. python scripts/gdrive_smoketest/fetch_process_upload.py \
+            --run-id "${{ inputs.run_id }}" \
+            --month-folder "${{ inputs.month_folder }}" \
+            --day-folder "${{ inputs.day_folder }}" \
+            --file-id "${{ inputs.file_id }}" \
+            --file-name "${{ inputs.file_name }}" 2>&1 | tee process_log.txt
+          while IFS= read -r line; do
+            if [[ "$line" == *=* ]]; then
+              key="${line%%=*}"
+              val="${line#*=}"
+              echo "${key}=${val}" >> "$GITHUB_OUTPUT"
+            fi
+          done < process_log.txt
+        continue-on-error: false
+
+      - name: B-4 Log results (no secrets)
+        run: |
+          echo "::group::B-4 取得・加工・配置結果"
+          echo "取得元(work): ${{ steps.process.outputs.src_file_name }} (file_id: ${{ steps.process.outputs.src_file_id }})"
+          echo "出力先(paid): ${{ steps.process.outputs.paid_month_folder }}/${{ steps.process.outputs.paid_day_folder }}"
+          echo "加工後ファイル: ${{ steps.process.outputs.out_file_name }}"
+          echo "file_id: ${{ steps.process.outputs.out_file_id }}"
+          echo "run_id: ${{ inputs.run_id }}"
+          echo "::endgroup::"
