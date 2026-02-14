@@ -256,6 +256,20 @@ def compute_price_text(df: pd.DataFrame, labels: str, q_sr: float | pd.Series) -
     label_set = set(labels.split(",")) if labels else set()
     parts = []
 
+    # 異常ラベル（最優先。衝突時はレンジ0を優先）
+    if "INVALID_TR0" in label_set:
+        return "レンジ0"
+    if "INVALID_NAN" in label_set:
+        return "判定不能"
+    if "LIMIT_SUSPECT" in label_set:
+        return "制限級の張り付き/極端決着疑い"
+    if "ACTION_SUSPECT" in label_set:
+        return "構造要因疑い"
+    if "SPLIT_CONFIRMED" in label_set:
+        return "分割明示"
+    if "GAP_DOMINANT" in label_set:
+        parts.append("ギャップ主導")
+
     # 窓（先頭）
     if "GAP_UP" in label_set:
         parts.append("上窓つき")
@@ -316,6 +330,9 @@ def compute_candle_descriptors(
     """
     ローソク足のラベルと価格テキストを計算。
 
+    基準となるATRは「前日まで」の系列で計算し、当日の gap_atr・sr は前日時点のATRで
+    正規化する。これにより窓（GAP_UP/GAP_DOWN）とサイズ（RANGE_*）の判定が明確になる。
+
     Args:
         df: DataFrame（Open, High, Low, Close列、date index）
         atr_period: ATR計算期間（default=14）
@@ -333,14 +350,16 @@ def compute_candle_descriptors(
     # 特徴量計算
     features_df = compute_candle_features(df, prev_close)
 
-    # ATR計算
-    atr = compute_atr(features_df, period=atr_period)
+    # ATR計算（当日のTRを含めた系列）
+    atr_raw = compute_atr(features_df, period=atr_period)
+    # 基準ATRを「前日まで」とする: 各日付で前日時点のATRを使用（窓・サイズの判定が明確になる）
+    atr = atr_raw.shift(1)
 
-    # percentile_rank計算
+    # percentile_rank計算（sr = 当日TR / 前日までのATR）
     sr = features_df["TR"] / atr.replace(0, np.nan)
     q_sr = compute_percentile_rank(sr, window=percentile_window)
 
-    # gap_atr計算
+    # gap_atr計算（当日ギャップを前日までのATRで正規化）
     gap_atr = abs(features_df["gap"]) / atr.replace(0, np.nan)
 
     # 最新日の値を取得
@@ -350,7 +369,8 @@ def compute_candle_descriptors(
     latest_gap_atr = gap_atr.iloc[-1] if len(gap_atr) > 0 else np.nan
 
     # ラベル計算（最新日のみ）
-    latest_df = pd.DataFrame([latest_features])
+    # indexを日付に揃える（atr/gap_atrとの.loc照合で異常ラベル判定が正しく動くため）
+    latest_df = pd.DataFrame([latest_features], index=[features_df.index[-1]])
     latest_atr_series = pd.Series([latest_atr], index=[features_df.index[-1]])
     latest_q_sr_series = pd.Series([latest_q_sr], index=[features_df.index[-1]])
     latest_gap_atr_series = pd.Series([latest_gap_atr], index=[features_df.index[-1]])
