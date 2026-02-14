@@ -37,8 +37,8 @@ jobs:
           GDRIVE_SA_JSON: ${{ secrets.GDRIVE_SA_JSON }}
           GITHUB_RUN_ID: ${{ github.run_id }}
         run: |
-          set -e
           PYTHONPATH=. python scripts/gdrive_smoketest/create_and_upload.py > create_stdout.txt 2>&1
+          exitcode=$?
           cat create_stdout.txt
           while IFS= read -r line; do
             if [[ "$line" == *=* ]]; then
@@ -47,6 +47,10 @@ jobs:
               echo "${key}=${val}" >> "$GITHUB_OUTPUT"
             fi
           done < create_stdout.txt
+          if [ "$exitcode" -ne 0 ]; then
+            echo "::error::A-1 Python script exited with $exitcode (see output above for details)"
+            exit "$exitcode"
+          fi
         continue-on-error: false
 
       - name: A-1 Log created paths (no secrets)
