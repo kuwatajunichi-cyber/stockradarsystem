@@ -1,0 +1,71 @@
+# スモークテスト ワークフローA: 0011_work に作成→配置、続けてワークフローBを呼び出し
+name: GDrive Smoke Test A
+
+on:
+  workflow_dispatch:
+
+env:
+  TZ: Asia/Tokyo
+
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    outputs:
+      run_id: ${{ steps.create.outputs.run_id }}
+      month_folder: ${{ steps.create.outputs.month_folder }}
+      day_folder: ${{ steps.create.outputs.day_folder }}
+      file_name: ${{ steps.create.outputs.file_name }}
+      file_id: ${{ steps.create.outputs.file_id }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install google-api-python-client google-auth
+
+      - name: A-1 Create month/day folders and upload test file (0011_work)
+        id: create
+        env:
+          GDRIVE_SA_JSON: ${{ secrets.GDRIVE_SA_JSON }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -e
+          PYTHONPATH=. python scripts/gdrive_smoketest/create_and_upload.py > create_stdout.txt 2>&1
+          cat create_stdout.txt
+          while IFS= read -r line; do
+            if [[ "$line" == *=* ]]; then
+              key="${line%%=*}"
+              val="${line#*=}"
+              echo "${key}=${val}" >> "$GITHUB_OUTPUT"
+            fi
+          done < create_stdout.txt
+        continue-on-error: false
+
+      - name: A-1 Log created paths (no secrets)
+        run: |
+          echo "::group::A-1 作成結果"
+          echo "月フォルダ: ${{ steps.create.outputs.month_folder }}"
+          echo "日フォルダ: ${{ steps.create.outputs.day_folder }}"
+          echo "アップロードファイル: ${{ steps.create.outputs.file_name }}"
+          echo "file_id: ${{ steps.create.outputs.file_id }}"
+          echo "run_id: ${{ steps.create.outputs.run_id }}"
+          echo "::endgroup::"
+
+  call_b:
+    needs: create
+    uses: ./.github/workflows/gdrive_smoketest_B.yml
+    with:
+      run_id: ${{ needs.create.outputs.run_id }}
+      month_folder: ${{ needs.create.outputs.month_folder }}
+      day_folder: ${{ needs.create.outputs.day_folder }}
+      file_id: ${{ needs.create.outputs.file_id }}
+      file_name: ${{ needs.create.outputs.file_name }}
+    secrets: inherit
