@@ -316,6 +316,9 @@ def compute_candle_descriptors(
     """
     ローソク足のラベルと価格テキストを計算。
 
+    基準となるATRは「前日まで」の系列で計算し、当日の gap_atr・sr は前日時点のATRで
+    正規化する。これにより窓（GAP_UP/GAP_DOWN）とサイズ（RANGE_*）の判定が明確になる。
+
     Args:
         df: DataFrame（Open, High, Low, Close列、date index）
         atr_period: ATR計算期間（default=14）
@@ -333,14 +336,16 @@ def compute_candle_descriptors(
     # 特徴量計算
     features_df = compute_candle_features(df, prev_close)
 
-    # ATR計算
-    atr = compute_atr(features_df, period=atr_period)
+    # ATR計算（当日のTRを含めた系列）
+    atr_raw = compute_atr(features_df, period=atr_period)
+    # 基準ATRを「前日まで」とする: 各日付で前日時点のATRを使用（窓・サイズの判定が明確になる）
+    atr = atr_raw.shift(1)
 
-    # percentile_rank計算
+    # percentile_rank計算（sr = 当日TR / 前日までのATR）
     sr = features_df["TR"] / atr.replace(0, np.nan)
     q_sr = compute_percentile_rank(sr, window=percentile_window)
 
-    # gap_atr計算
+    # gap_atr計算（当日ギャップを前日までのATRで正規化）
     gap_atr = abs(features_df["gap"]) / atr.replace(0, np.nan)
 
     # 最新日の値を取得
