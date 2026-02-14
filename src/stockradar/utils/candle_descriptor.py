@@ -256,6 +256,20 @@ def compute_price_text(df: pd.DataFrame, labels: str, q_sr: float | pd.Series) -
     label_set = set(labels.split(",")) if labels else set()
     parts = []
 
+    # 異常ラベル（最優先。衝突時はレンジ0を優先）
+    if "INVALID_TR0" in label_set:
+        return "レンジ0"
+    if "INVALID_NAN" in label_set:
+        return "判定不能"
+    if "LIMIT_SUSPECT" in label_set:
+        return "制限級の張り付き/極端決着疑い"
+    if "ACTION_SUSPECT" in label_set:
+        return "構造要因疑い"
+    if "SPLIT_CONFIRMED" in label_set:
+        return "分割明示"
+    if "GAP_DOMINANT" in label_set:
+        parts.append("ギャップ主導")
+
     # 窓（先頭）
     if "GAP_UP" in label_set:
         parts.append("上窓つき")
@@ -355,7 +369,8 @@ def compute_candle_descriptors(
     latest_gap_atr = gap_atr.iloc[-1] if len(gap_atr) > 0 else np.nan
 
     # ラベル計算（最新日のみ）
-    latest_df = pd.DataFrame([latest_features])
+    # indexを日付に揃える（atr/gap_atrとの.loc照合で異常ラベル判定が正しく動くため）
+    latest_df = pd.DataFrame([latest_features], index=[features_df.index[-1]])
     latest_atr_series = pd.Series([latest_atr], index=[features_df.index[-1]])
     latest_q_sr_series = pd.Series([latest_q_sr], index=[features_df.index[-1]])
     latest_gap_atr_series = pd.Series([latest_gap_atr], index=[features_df.index[-1]])
