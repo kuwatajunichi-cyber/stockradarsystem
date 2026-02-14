@@ -37,9 +37,8 @@ jobs:
           GDRIVE_SA_JSON: ${{ secrets.GDRIVE_SA_JSON }}
           GITHUB_RUN_ID: ${{ github.run_id }}
         run: |
-          PYTHONPATH=. python scripts/gdrive_smoketest/create_and_upload.py > create_stdout.txt 2>&1
-          exitcode=$?
-          cat create_stdout.txt
+          PYTHONPATH=. python scripts/gdrive_smoketest/create_and_upload.py 2>&1 | tee create_stdout.txt
+          exitcode=${PIPESTATUS[0]}
           while IFS= read -r line; do
             if [[ "$line" == *=* ]]; then
               key="${line%%=*}"
