@@ -3,7 +3,7 @@ equity_domestic を ipo / illiquid / core に二次分割するジョブ。
 入力: equity_domestic.csv と data/cache/yf_daily/（キャッシュ＋manifest）
 出力: data/universe/jpx/sets_secondary_YYYYMMDD/
   - equity_domestic_ipo.csv, equity_domestic_illiquid.csv, equity_domestic_core.csv（code のみ）
-  - equity_domestic_ipo_with_name.csv 等（code, name）。銘柄名は JPX processed CSV をマスタとする。
+  - equity_domestic_ipo_with_name.csv 等（code, name, 外部リンクURL列）。銘柄名は JPX processed CSV をマスタとする。
 """
 from __future__ import annotations
 
@@ -49,6 +49,18 @@ def _infer_ymd_from_path(path: Path) -> str | None:
     """sets_YYYYMMDD または 含まれる YYYYMMDD を抽出。"""
     m = re.search(r"(\d{8})", path.as_posix())
     return m.group(1) if m else None
+
+
+def _external_urls_for_code(code: str) -> dict[str, str]:
+    """銘柄コードから外部サイトURLを生成（externalLink_v1.0 に準拠）。"""
+    return {
+        "kabutan_main": f"https://kabutan.jp/stock/?code={code}",
+        "kabutan_chart": f"https://kabutan.jp/stock/chart?code={code}",
+        "kabutan_news": f"https://kabutan.jp/stock/news?code={code}",
+        "minkabu": f"https://minkabu.jp/stock/{code}",
+        "buffett": f"https://www.buffett-code.com/company/{code}",
+        "yahoo": f"https://finance.yahoo.co.jp/quote/{code}.T",
+    }
 
 
 def _load_code_to_name_from_jpx_processed(base_dir: Path, ymd: str) -> dict[str, str] | None:
@@ -172,11 +184,13 @@ def main(argv: list[str] | None = None) -> None:
         path = out_dir / f"{name}.csv"
         pd.DataFrame({"code": code_list}).to_csv(path, index=False, encoding="utf-8-sig")
         if code_to_name is not None:
-            names = [code_to_name.get(c, "") for c in code_list]
+            rows = []
+            for c in code_list:
+                row = {"code": c, "name": code_to_name.get(c, "")}
+                row.update(_external_urls_for_code(c))
+                rows.append(row)
             path_with_name = out_dir / f"{name}_with_name.csv"
-            pd.DataFrame({"code": code_list, "name": names}).to_csv(
-                path_with_name, index=False, encoding="utf-8-sig"
-            )
+            pd.DataFrame(rows).to_csv(path_with_name, index=False, encoding="utf-8-sig")
 
     s = result.summary
     print("--- ログサマリ ---", file=sys.stderr)
