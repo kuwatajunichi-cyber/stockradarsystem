@@ -190,11 +190,11 @@ def verify_gate(staging_dir: Path) -> tuple[bool, list[str]]:
             errors.append(f"CSV が空です: {csv_name}")
             continue
 
-        # ヘッダ確認
+        # ヘッダ確認（code,name 必須。URL列含む場合は code,name,kabutan_main,...）
         with open(csv_path, encoding="utf-8-sig") as f:
             header = f.readline().strip()
-            if header != "code,name":
-                errors.append(f"CSV ヘッダが不正: {csv_name} (期待='code,name', 実='{header}')")
+            if not header.startswith("code,name"):
+                errors.append(f"CSV ヘッダが不正: {csv_name} (先頭が 'code,name' である必要あり, 実='{header[:80]}...' 等)")
             # 行数確認（ヘッダ除く）
             lines = sum(1 for _ in f)
             if lines < 10:
