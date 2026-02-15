@@ -95,6 +95,25 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Install Drive API deps (for 0011_work upload)
+        if: success() && steps.get_run_id.outputs.run_id != ''
+        run: pip install google-api-python-client google-auth
+
+      - name: Upload latest 3 CSVs to 0011_work (month folder)
+        if: success() && steps.get_run_id.outputs.run_id != ''
+        env:
+          GDRIVE_OAUTH_CLIENT_ID: ${{ secrets.GDRIVE_OAUTH_CLIENT_ID }}
+          GDRIVE_OAUTH_CLIENT_SECRET: ${{ secrets.GDRIVE_OAUTH_CLIENT_SECRET }}
+          GDRIVE_OAUTH_REFRESH_TOKEN: ${{ secrets.GDRIVE_OAUTH_REFRESH_TOKEN }}
+        run: |
+          MONTH=$(TZ=Asia/Tokyo date +%Y-%m)
+          STAGING="data/output/staging/${{ steps.get_run_id.outputs.run_id }}"
+          PYTHONPATH=. python scripts/gdrive_smoketest/upload_to_work.py --month "$MONTH" \
+            "$STAGING/equity_domestic_ipo_with_name.csv" \
+            "$STAGING/equity_domestic_illiquid_with_name.csv" \
+            "$STAGING/equity_domestic_core_with_name.csv"
+          echo "Uploaded 3 CSVs to 0011_work/$MONTH/"
+
       - name: Upload artifacts (for debugging)
         uses: actions/upload-artifact@v4
         if: always()

@@ -285,6 +285,28 @@ jobs:
           retention-days: 90
           if-no-files-found: warn
 
+      - name: Install Drive API deps (for 0011_work upload)
+        if: success()
+        run: pip install google-api-python-client google-auth
+
+      - name: Upload indicator CSVs to 0011_work (day folder)
+        if: success()
+        env:
+          GDRIVE_OAUTH_CLIENT_ID: ${{ secrets.GDRIVE_OAUTH_CLIENT_ID }}
+          GDRIVE_OAUTH_CLIENT_SECRET: ${{ secrets.GDRIVE_OAUTH_CLIENT_SECRET }}
+          GDRIVE_OAUTH_REFRESH_TOKEN: ${{ secrets.GDRIVE_OAUTH_REFRESH_TOKEN }}
+        run: |
+          RUN_DATE="${{ needs.resolve_trading_day.outputs.run_date }}"
+          MONTH="${RUN_DATE:0:7}"
+          shopt -s nullglob
+          FILES=(data/indicators/daily/indicators_*.csv)
+          if [ ${#FILES[@]} -eq 0 ]; then
+            echo "No indicator CSVs found, skipping Drive upload"
+            exit 0
+          fi
+          PYTHONPATH=. python scripts/gdrive_smoketest/upload_to_work.py --month "$MONTH" --day "$RUN_DATE" "${FILES[@]}"
+          echo "Uploaded ${#FILES[@]} CSV(s) to 0011_work/$MONTH/$RUN_DATE/"
+
       - name: Upload OHLC store for archiving
         uses: actions/upload-artifact@v4
         if: always()
