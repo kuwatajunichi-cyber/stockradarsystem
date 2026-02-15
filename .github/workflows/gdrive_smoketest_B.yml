@@ -1,4 +1,5 @@
 # スモークテスト ワークフローB: A が作成したファイルを 0011_work から取得し、加工して 0012_paid に配置
+# 認証: GDRIVE_OAUTH_* Secrets（ワークフローA と同一）
 name: GDrive Smoke Test B
 
 on:
@@ -45,7 +46,9 @@ jobs:
       - name: B-1 Get file from 0011_work, B-2/B-3 create paid folders and upload processed file
         id: process
         env:
-          GDRIVE_SA_JSON: ${{ secrets.GDRIVE_SA_JSON }}
+          GDRIVE_OAUTH_CLIENT_ID: ${{ secrets.GDRIVE_OAUTH_CLIENT_ID }}
+          GDRIVE_OAUTH_CLIENT_SECRET: ${{ secrets.GDRIVE_OAUTH_CLIENT_SECRET }}
+          GDRIVE_OAUTH_REFRESH_TOKEN: ${{ secrets.GDRIVE_OAUTH_REFRESH_TOKEN }}
         run: |
           set -e
           PYTHONPATH=. python scripts/gdrive_smoketest/fetch_process_upload.py \
