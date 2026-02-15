@@ -2,12 +2,13 @@
 venv/
 .venv/
 
-# Data (raw / processed / cache / universe / output staging / logs)
+# Data (raw / processed / cache / universe / output staging / key / logs)
 data/raw/
 data/processed/
 data/cache/
 data/universe/
 data/output/staging/
+data/key
 logs/
 
 # Python cache
