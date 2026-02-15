@@ -1,4 +1,7 @@
 # スモークテスト ワークフローA: 0011_work に作成→配置、続けてワークフローBを呼び出し
+#
+# 認証: 専用 Google アカウント + OAuth (refresh token)
+# 必須 Secrets: GDRIVE_OAUTH_CLIENT_ID, GDRIVE_OAUTH_CLIENT_SECRET, GDRIVE_OAUTH_REFRESH_TOKEN
 name: GDrive Smoke Test A
 
 on:
@@ -34,7 +37,9 @@ jobs:
       - name: A-1 Create month/day folders and upload test file (0011_work)
         id: create
         env:
-          GDRIVE_SA_JSON: ${{ secrets.GDRIVE_SA_JSON }}
+          GDRIVE_OAUTH_CLIENT_ID: ${{ secrets.GDRIVE_OAUTH_CLIENT_ID }}
+          GDRIVE_OAUTH_CLIENT_SECRET: ${{ secrets.GDRIVE_OAUTH_CLIENT_SECRET }}
+          GDRIVE_OAUTH_REFRESH_TOKEN: ${{ secrets.GDRIVE_OAUTH_REFRESH_TOKEN }}
           GITHUB_RUN_ID: ${{ github.run_id }}
         run: |
           PYTHONPATH=. python scripts/gdrive_smoketest/create_and_upload.py 2>&1 | tee create_stdout.txt

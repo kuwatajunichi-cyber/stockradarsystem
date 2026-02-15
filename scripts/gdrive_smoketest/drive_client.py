@@ -1,10 +1,10 @@
 """
-Google Drive API クライアント（Service Account 利用）。
-GDRIVE_SA_JSON の内容をログに出さない。
+Google Drive API クライアント（OAuth refresh token 方式）。
+専用 Google アカウント + client_id / client_secret / refresh_token で認証する。
+認証情報（Secrets）をログに出さない。
 """
 from __future__ import annotations
 
-import json
 import os
 import sys
 from typing import Any
@@ -14,12 +14,18 @@ FOLDER_ID_WORK = "1i0HfAJAwVE6o8_q-_8S8g_WVWwbLvXQs"
 FOLDER_ID_PAID = "1sUA-HL04eOo9fCBa5fN1OxKRs0Sp-Wf5"
 FOLDER_ID_PUBLIC = "1VftO77iFAGrx7CWPaOWPQb3xpCQO07OY"
 
+# OAuth 環境変数名
+ENV_CLIENT_ID = "GDRIVE_OAUTH_CLIENT_ID"
+ENV_CLIENT_SECRET = "GDRIVE_OAUTH_CLIENT_SECRET"
+ENV_REFRESH_TOKEN = "GDRIVE_OAUTH_REFRESH_TOKEN"
+
+DRIVE_SCOPE = "https://www.googleapis.com/auth/drive"
+
 
 def _ensure_deps() -> None:
     try:
-        from google.oauth2 import service_account
+        from google.oauth2.credentials import Credentials
         from googleapiclient.discovery import build
-        from googleapiclient.http import MediaIoBaseUpload
     except ImportError as e:
         print(
             "エラー: Google Drive API 用の依存関係がありません。"
@@ -29,31 +35,44 @@ def _ensure_deps() -> None:
         raise SystemExit(1) from e
 
 
-def get_credentials(env_var: str = "GDRIVE_SA_JSON") -> Any:
-    """環境変数から Service Account JSON を読み、Credentials を返す。"""
+def get_credentials() -> Any:
+    """
+    環境変数 GDRIVE_OAUTH_CLIENT_ID / GDRIVE_OAUTH_CLIENT_SECRET / GDRIVE_OAUTH_REFRESH_TOKEN
+    から OAuth Credentials を組み立てる。値はログに出さない。
+    """
     _ensure_deps()
-    from google.oauth2 import service_account
+    from google.auth.transport.requests import Request
+    from google.oauth2.credentials import Credentials
 
-    raw = os.environ.get(env_var)
-    if not raw:
+    client_id = os.environ.get(ENV_CLIENT_ID, "").strip()
+    client_secret = os.environ.get(ENV_CLIENT_SECRET, "").strip()
+    refresh_token = os.environ.get(ENV_REFRESH_TOKEN, "").strip()
+
+    missing = []
+    if not client_id:
+        missing.append(ENV_CLIENT_ID)
+    if not client_secret:
+        missing.append(ENV_CLIENT_SECRET)
+    if not refresh_token:
+        missing.append(ENV_REFRESH_TOKEN)
+    if missing:
         print(
-            f"エラー: 環境変数 {env_var} が設定されていません。"
-            " Repository Secret を確認してください。",
+            f"エラー: 以下の環境変数が設定されていません: {', '.join(missing)}。"
+            " Repository Secrets を確認してください。",
             file=sys.stderr,
         )
         raise SystemExit(1)
-    try:
-        info = json.loads(raw)
-    except json.JSONDecodeError as e:
-        print(
-            f"エラー: {env_var} の内容が有効な JSON ではありません。",
-            file=sys.stderr,
-        )
-        raise SystemExit(1) from e
-    return service_account.Credentials.from_service_account_info(
-        info,
-        scopes=["https://www.googleapis.com/auth/drive.file"],
+
+    creds = Credentials(
+        token=None,
+        refresh_token=refresh_token,
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=client_id,
+        client_secret=client_secret,
+        scopes=[DRIVE_SCOPE],
     )
+    creds.refresh(Request())
+    return creds
 
 
 def build_service(credentials: Any) -> Any:
@@ -69,7 +88,9 @@ def get_or_create_folder(service: Any, parent_id: str, name: str) -> str:
     親フォルダ直下に name のフォルダを取得する。存在しなければ作成する。
     戻り値: フォルダの file id。
     """
-    q = f"'{parent_id}' in parents and name = '{name.replace(chr(39), chr(39)+chr(39))}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+    # クエリ内のシングルクォートは '' でエスケープ（Drive API）
+    name_esc = name.replace("'", "''")
+    q = f"'{parent_id}' in parents and name = '{name_esc}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
     resp = (
         service.files()
         .list(q=q, spaces="drive", fields="files(id, name)", pageSize=2)
@@ -122,7 +143,8 @@ def get_file_content(service: Any, file_id: str) -> bytes:
 
 def find_file_in_folder(service: Any, folder_id: str, file_name: str) -> str | None:
     """フォルダ直下で名前が file_name のファイルの ID を返す。見つからなければ None。"""
-    q = f"'{folder_id}' in parents and name = '{file_name.replace(chr(39), chr(39)+chr(39))}' and trashed = false"
+    name_esc = file_name.replace("'", "''")
+    q = f"'{folder_id}' in parents and name = '{name_esc}' and trashed = false"
     resp = (
         service.files()
         .list(q=q, spaces="drive", fields="files(id)", pageSize=2)
