@@ -231,6 +231,10 @@ def ensure_cache_with_incremental_fetch(
         manifestエントリ（code/symbol, requested_days, fetched_bars, status, error, fetched_at）
     """
     now_iso = datetime.now(timezone.utc).isoformat()
+    
+    # 変数の初期化
+    cached_df = None
+    need_full_fetch = False
 
     # manifestチェック（force時はスキップ）
     if not force:
@@ -277,54 +281,66 @@ def ensure_cache_with_incremental_fetch(
                                 }
                                 manifest[symbol] = ent
                                 return ent
-
-    # キャッシュ読み込み
-    cached_df = load_cache(cache_path)
-
-    # 不足判定
-    need_full_fetch = False
-    if cached_df is None:
-        need_full_fetch = True
-    else:
-        n_bars = len(cached_df)
-        if n_bars < required_days:
-            need_full_fetch = True
-        elif run_date:
-            last_date = cached_df.index.max().date()
-            if last_date < run_date:
-                # 差分取得を試みる
-                start_date = last_date + timedelta(days=1)
-                new_df = fetch_yf_data(
-                    ticker, 
-                    required_days, 
-                    run_date, 
-                    start_date=start_date,
-                    retry_max=1, 
-                    backoff_sec=[5]
-                )
-                if new_df is not None and len(new_df) > 0:
-                    # 既存データより新しい日付のみを抽出
-                    new_df_filtered = new_df[new_df.index.date > last_date]
-                    if len(new_df_filtered) > 0:
-                        # マージ
-                        combined = pd.concat([cached_df, new_df_filtered])
-                        combined = combined[~combined.index.duplicated(keep="last")]
-                        combined = combined.sort_index()
-                        save_cache(cache_path, combined)
-                        n_bars = len(combined)
-                        status = "ok" if n_bars >= required_days else "insufficient"
-                        ent = {
-                            "symbol": symbol,
-                            "requested_days": required_days,
-                            "fetched_bars": n_bars,
-                            "status": status,
-                            "error": None if n_bars >= required_days else "insufficient_bars",
-                            "fetched_at": now_iso,
-                        }
-                        manifest[symbol] = ent
+                        # 差分取得失敗 → フル取得に進む（次のパスに進まない）
+                        need_full_fetch = True
+                    else:
+                        # 既に最新まで取得済みの場合は、次のパスに進まない
                         return ent
-                # 差分取得失敗 → フル取得
+                else:
+                    # キャッシュが空の場合は次のパスに進む
+                    pass
+            else:
+                # manifestにエントリがない、または不足している場合は次のパスに進む
+                pass
+
+    # キャッシュ読み込み（最初のパスで既に読み込んでいる場合は再利用）
+    if cached_df is None:
+        cached_df = load_cache(cache_path)
+
+    # 不足判定（最初のパスで差分取得を試みていない場合のみ）
+    if not need_full_fetch:
+        if cached_df is None:
+            need_full_fetch = True
+        else:
+            n_bars = len(cached_df)
+            if n_bars < required_days:
                 need_full_fetch = True
+            elif run_date:
+                last_date = cached_df.index.max().date()
+                if last_date < run_date:
+                    # 差分取得を試みる（最初のパスで試みていない場合のみ）
+                    start_date = last_date + timedelta(days=1)
+                    new_df = fetch_yf_data(
+                        ticker, 
+                        required_days, 
+                        run_date, 
+                        start_date=start_date,
+                        retry_max=1, 
+                        backoff_sec=[5]
+                    )
+                    if new_df is not None and len(new_df) > 0:
+                        # 既存データより新しい日付のみを抽出
+                        new_df_filtered = new_df[new_df.index.date > last_date]
+                        if len(new_df_filtered) > 0:
+                            # マージ
+                            combined = pd.concat([cached_df, new_df_filtered])
+                            combined = combined[~combined.index.duplicated(keep="last")]
+                            combined = combined.sort_index()
+                            save_cache(cache_path, combined)
+                            n_bars = len(combined)
+                            status = "ok" if n_bars >= required_days else "insufficient"
+                            ent = {
+                                "symbol": symbol,
+                                "requested_days": required_days,
+                                "fetched_bars": n_bars,
+                                "status": status,
+                                "error": None if n_bars >= required_days else "insufficient_bars",
+                                "fetched_at": now_iso,
+                            }
+                            manifest[symbol] = ent
+                            return ent
+                    # 差分取得失敗 → フル取得
+                    need_full_fetch = True
 
     # フル取得
     if need_full_fetch or force:
