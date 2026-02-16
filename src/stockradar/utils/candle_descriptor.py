@@ -1,12 +1,66 @@
 """
 ローソク足の特徴量計算とラベル生成（OHLC descriptor）。
 
-ドキュメント: docs/OHLC_desripter_v1.0.md
+ドキュメント: docs/OHLC_desripter_v1.1.md
 """
 from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+
+# JPX制限値幅テーブル（基準値段 -> 制限値幅）
+JPX_LIMIT_TABLE = [
+    (100, 30),
+    (200, 50),
+    (500, 80),
+    (700, 100),
+    (1000, 150),
+    (1500, 300),
+    (2000, 400),
+    (3000, 500),
+    (5000, 700),
+    (7000, 1000),
+    (10000, 1500),
+    (15000, 3000),
+    (20000, 4000),
+    (30000, 5000),
+    (50000, 7000),
+    (70000, 10000),
+    (100000, 15000),
+    (150000, 30000),
+    (200000, 40000),
+    (300000, 50000),
+    (500000, 70000),
+    (700000, 100000),
+    (1000000, 150000),
+    (1500000, 300000),
+    (2000000, 400000),
+    (3000000, 500000),
+    (5000000, 700000),
+    (7000000, 1000000),
+    (10000000, 1500000),
+    (15000000, 3000000),
+    (20000000, 4000000),
+    (30000000, 5000000),
+    (50000000, 7000000),
+    (float("inf"), 10000000),  # 50,000,000円以上
+]
+
+
+def get_limit_range(prev_close: float) -> float:
+    """
+    前日終値から制限値幅を取得。
+
+    Args:
+        prev_close: 前日終値
+
+    Returns:
+        制限値幅（円）
+    """
+    for threshold, limit_range in JPX_LIMIT_TABLE:
+        if prev_close < threshold:
+            return limit_range
+    return 10000000  # フォールバック
 
 
 def compute_true_range(df: pd.DataFrame, prev_close: pd.Series | None = None) -> pd.Series:
@@ -105,11 +159,84 @@ def compute_percentile_rank(series: pd.Series, window: int = 252) -> pd.Series:
     )
 
 
+def compute_limit_suspect_labels(
+    df: pd.DataFrame,
+    prev_close: float,
+) -> str | None:
+    """
+    制限値幅テーブルを使った制限付き値幅の疑いラベルを判定。
+
+    Args:
+        df: DataFrame（Open, High, Low, Close列、最新日のみ）
+        prev_close: 前日終値
+
+    Returns:
+        ラベル文字列（該当なしの場合はNone）
+    """
+    if len(df) == 0:
+        return None
+
+    latest = df.iloc[-1]
+    o = latest["Open"]
+    h = latest["High"]
+    l = latest["Low"]
+    c = latest["Close"]
+
+    # 制限値幅を取得
+    limit_range = get_limit_range(prev_close)
+    limit_high = prev_close + limit_range
+    limit_low = prev_close - limit_range
+
+    # 高値・安値に到達したか
+    hit_limit_high = h >= limit_high
+    hit_limit_low = l <= limit_low
+
+    # 優先順位の逆順（下から順）にチェック（最後に見つかったものが優先）
+    label = None
+
+    # 1. Hが高値に到達：ストップ高タッチ疑い
+    if hit_limit_high:
+        label = "LIMIT_HIGH_TOUCH"
+
+    # 2. Lが安値に到達：ストップ安タッチ疑い
+    if hit_limit_low:
+        label = "LIMIT_LOW_TOUCH"
+
+    # 3. Hが高値に到達し、Cも同値：ストップ高タッチ後張付き疑い
+    if hit_limit_high and c >= limit_high:
+        label = "LIMIT_HIGH_TOUCH_STUCK"
+
+    # 4. Lが安値に到達し、Cも同値：ストップ安タッチ後張付き疑い
+    if hit_limit_low and c <= limit_low:
+        label = "LIMIT_LOW_TOUCH_STUCK"
+
+    # 5. Hが高値に到達し、Oも同値、しかしCは到達しない：ストップ高寄天疑い
+    if hit_limit_high and o >= limit_high and c < limit_high:
+        label = "LIMIT_HIGH_OPEN_ONLY"
+
+    # 6. Lが安値に到達し、Oも同値、しかしCは到達しない：ストップ安寄底疑い
+    if hit_limit_low and o <= limit_low and c > limit_low:
+        label = "LIMIT_LOW_OPEN_ONLY"
+
+    # 7. OHLC全て高値に到達：ストップ高完全張り付き疑い
+    # H, O, Cが制限高値に到達し、Lも制限高値に到達（実質的に全てが制限高値）
+    if h >= limit_high and o >= limit_high and c >= limit_high and l >= limit_high:
+        label = "LIMIT_HIGH_FULL_STUCK"
+
+    # 8. OHLC全て安値に到達：ストップ安完全張り付き疑い
+    # H, O, Cが制限安値に到達し、Hも制限安値に到達（実質的に全てが制限安値）
+    if h <= limit_low and o <= limit_low and c <= limit_low and l <= limit_low:
+        label = "LIMIT_LOW_FULL_STUCK"
+
+    return label
+
+
 def compute_candle_labels(
     df: pd.DataFrame,
     atr: pd.Series,
     q_sr: pd.Series,
     gap_atr: pd.Series,
+    prev_close: float | None = None,
 ) -> str:
     """
     ローソク足のラベルを計算。
@@ -139,23 +266,20 @@ def compute_candle_labels(
     latest_close_pos = df.loc[latest_idx, "close_pos"]
     latest_open = df.loc[latest_idx, "Open"]
 
-    # 異常ラベル（優先）
-    if latest_tr == 0:
+    # 制限値幅テーブルを使った判定（ストップ高・ストップ安はレンジ0より優先）
+    limit_label = None
+    if prev_close is not None and not pd.isna(prev_close):
+        limit_label = compute_limit_suspect_labels(df, prev_close)
+        if limit_label:
+            labels_list.append(limit_label)
+
+    # 異常ラベル（優先。ただし制限値幅ラベルが既にある場合はスキップ）
+    if latest_tr == 0 and limit_label is None:
         labels_list.append("INVALID_TR0")
 
     # INVALID_NANの出力はOFF（一旦無効化）
     # if pd.isna(latest_atr_val) or latest_atr_val <= 0:
     #     labels_list.append("INVALID_NAN")
-
-    # LIMIT_SUSPECT
-    if not pd.isna(latest_atr_val) and latest_atr_val > 0:
-        sr = latest_tr / latest_atr_val
-        if (sr >= 3 and (latest_hit_high == 1 or latest_hit_low == 1)) or (
-            not pd.isna(latest_gap_atr_val)
-            and latest_gap_atr_val >= 2.5
-            and (latest_close_pos >= 0.9 or latest_close_pos <= 0.1)
-        ):
-            labels_list.append("LIMIT_SUSPECT")
 
     # ACTION_SUSPECT
     if not pd.isna(latest_gap_atr_val):
@@ -250,13 +374,34 @@ def compute_price_text(df: pd.DataFrame, labels: str, q_sr: float | pd.Series) -
     label_set = set(labels.split(",")) if labels else set()
     parts = []
 
-    # 異常ラベル（最優先。衝突時はレンジ0を優先）
+    # 制限値幅ラベル（ストップ高・ストップ安はレンジ0より優先）
+    # 優先順位の逆順（下から順）にチェック（最後に見つかったものが優先）
+    limit_text = None
+    if "LIMIT_LOW_FULL_STUCK" in label_set:
+        limit_text = "ストップ安完全張り付き疑い"
+    if "LIMIT_HIGH_FULL_STUCK" in label_set:
+        limit_text = "ストップ高完全張り付き疑い"
+    if "LIMIT_LOW_OPEN_ONLY" in label_set:
+        limit_text = "ストップ安寄底疑い"
+    if "LIMIT_HIGH_OPEN_ONLY" in label_set:
+        limit_text = "ストップ高寄天疑い"
+    if "LIMIT_LOW_TOUCH_STUCK" in label_set:
+        limit_text = "ストップ安タッチ後張付き疑い"
+    if "LIMIT_HIGH_TOUCH_STUCK" in label_set:
+        limit_text = "ストップ高タッチ後張付き疑い"
+    if "LIMIT_LOW_TOUCH" in label_set:
+        limit_text = "ストップ安タッチ疑い"
+    if "LIMIT_HIGH_TOUCH" in label_set:
+        limit_text = "ストップ高タッチ疑い"
+    
+    if limit_text:
+        return limit_text
+
+    # 異常ラベル（優先。ただし制限値幅ラベルが既にある場合はスキップ）
     if "INVALID_TR0" in label_set:
         return "レンジ0"
     if "INVALID_NAN" in label_set:
         return "判定不能"
-    if "LIMIT_SUSPECT" in label_set:
-        return "制限級の張り付き/極端決着疑い"
     if "ACTION_SUSPECT" in label_set:
         return "構造要因疑い"
     if "SPLIT_CONFIRMED" in label_set:
@@ -362,13 +507,20 @@ def compute_candle_descriptors(
     latest_q_sr = q_sr.iloc[-1] if len(q_sr) > 0 else np.nan
     latest_gap_atr = gap_atr.iloc[-1] if len(gap_atr) > 0 else np.nan
 
+    # 前日終値を取得（最新日の前日終値）
+    latest_prev_close = None
+    if len(df) >= 2:
+        latest_prev_close = df["Close"].iloc[-2]
+
     # ラベル計算（最新日のみ）
     # indexを日付に揃える（atr/gap_atrとの.loc照合で異常ラベル判定が正しく動くため）
     latest_df = pd.DataFrame([latest_features], index=[features_df.index[-1]])
     latest_atr_series = pd.Series([latest_atr], index=[features_df.index[-1]])
     latest_q_sr_series = pd.Series([latest_q_sr], index=[features_df.index[-1]])
     latest_gap_atr_series = pd.Series([latest_gap_atr], index=[features_df.index[-1]])
-    labels = compute_candle_labels(latest_df, latest_atr_series, latest_q_sr_series, latest_gap_atr_series)
+    labels = compute_candle_labels(
+        latest_df, latest_atr_series, latest_q_sr_series, latest_gap_atr_series, latest_prev_close
+    )
 
     # 窓ラベルの判定（前日データが必要なため、ここで判定）
     if len(df) >= 2:

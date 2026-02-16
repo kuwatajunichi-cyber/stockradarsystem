@@ -18,7 +18,12 @@ from stockradar.config import (
     get_yf_index_cache_dir,
     get_z_lookback_days,
 )
-from stockradar.utils.yf_cache import MANIFEST_FILENAME, ensure_cache_with_incremental_fetch
+from stockradar.utils.yf_cache import (
+    MANIFEST_FILENAME,
+    ensure_cache_with_incremental_fetch,
+    load_manifest,
+    update_manifest,
+)
 
 BENCHMARKS = {
     "topix": "1306.T",
@@ -63,6 +68,10 @@ def main(argv: list[str] | None = None) -> None:
     print(f"キャッシュ出力: {cache_dir}", file=sys.stderr)
     print(f"required_days={required_days} (rs_max={rs_max}, z_days={z_days}, buffer={buffer_days})", file=sys.stderr)
 
+    # manifestを1回だけ読み込む
+    manifest = load_manifest(manifest_path)
+    print(f"manifest読み込み完了: {len(manifest)}エントリ", file=sys.stderr)
+
     results = {}
     for bench_name, ticker in BENCHMARKS.items():
         cache_path = cache_dir / f"{bench_name}.csv"
@@ -71,7 +80,7 @@ def main(argv: list[str] | None = None) -> None:
             symbol=ticker,
             ticker=ticker,
             cache_path=cache_path,
-            manifest_path=manifest_path,
+            manifest=manifest,  # manifestを渡す（更新される）
             required_days=required_days,
             run_date=run_date,
             force=args.force,
@@ -80,6 +89,11 @@ def main(argv: list[str] | None = None) -> None:
         status = ent.get("status", "unknown")
         bars = ent.get("fetched_bars", 0)
         print(f"  {bench_name}: status={status}, bars={bars}", file=sys.stderr)
+
+    # manifestをまとめて更新（1回だけ）
+    print(f"manifest更新中: {len(manifest)}エントリ", file=sys.stderr)
+    update_manifest(manifest_path, manifest)
+    print(f"manifest更新完了", file=sys.stderr)
 
     ok_count = sum(1 for r in results.values() if r.get("status") == "ok")
     print(f"完了: ok={ok_count}/{len(results)}", file=sys.stderr)
