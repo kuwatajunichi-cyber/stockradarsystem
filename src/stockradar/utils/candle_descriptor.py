@@ -143,8 +143,9 @@ def compute_candle_labels(
     if latest_tr == 0:
         labels_list.append("INVALID_TR0")
 
-    if pd.isna(latest_atr_val) or latest_atr_val <= 0:
-        labels_list.append("INVALID_NAN")
+    # INVALID_NANの出力はOFF（一旦無効化）
+    # if pd.isna(latest_atr_val) or latest_atr_val <= 0:
+    #     labels_list.append("INVALID_NAN")
 
     # LIMIT_SUSPECT
     if not pd.isna(latest_atr_val) and latest_atr_val > 0:
@@ -169,14 +170,7 @@ def compute_candle_labels(
         if latest_tr > 0 and abs(latest_gap) / latest_tr >= 0.6:
             labels_list.append("GAP_DOMINANT")
 
-    # GAP_UP / GAP_DOWN（窓ラベル）
-    gap_val = df["gap"].iloc[-1] if len(df) > 0 else np.nan
-    gap_atr_val = gap_atr.iloc[-1] if len(gap_atr) > 0 else np.nan
-    if not pd.isna(gap_val) and not pd.isna(gap_atr_val):
-        if gap_val > 0 and gap_atr_val >= 1.0:
-            labels_list.append("GAP_UP")
-        elif gap_val < 0 and gap_atr_val >= 1.0:
-            labels_list.append("GAP_DOWN")
+    # GAP_UP / GAP_DOWN（窓ラベル）はcompute_candle_descriptorsで判定（前日データが必要なため）
 
     # サイズラベル
     if isinstance(q_sr, pd.Series):
@@ -375,6 +369,26 @@ def compute_candle_descriptors(
     latest_q_sr_series = pd.Series([latest_q_sr], index=[features_df.index[-1]])
     latest_gap_atr_series = pd.Series([latest_gap_atr], index=[features_df.index[-1]])
     labels = compute_candle_labels(latest_df, latest_atr_series, latest_q_sr_series, latest_gap_atr_series)
+
+    # 窓ラベルの判定（前日データが必要なため、ここで判定）
+    if len(df) >= 2:
+        # 前日と当日のデータを取得
+        prev_row = df.iloc[-2]  # 前日
+        today_row = df.iloc[-1]  # 当日
+        
+        prev_high = prev_row["High"]
+        prev_low = prev_row["Low"]
+        today_high = today_row["High"]
+        today_low = today_row["Low"]
+        
+        # 前日の最高値 < 当日の最低値 → 下窓つき（ユーザー指定）
+        if prev_high < today_low:
+            if "GAP_DOWN" not in labels.split(","):
+                labels = labels + ",GAP_DOWN" if labels else "GAP_DOWN"
+        # 前日の最低値 > 当日の最高値 → 上窓つき（ユーザー指定）
+        elif prev_low > today_high:
+            if "GAP_UP" not in labels.split(","):
+                labels = labels + ",GAP_UP" if labels else "GAP_UP"
 
     # price_text生成
     price_text = compute_price_text(latest_df, labels, latest_q_sr)
