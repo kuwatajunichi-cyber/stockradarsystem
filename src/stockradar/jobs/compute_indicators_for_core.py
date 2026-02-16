@@ -7,6 +7,9 @@
 指標:
 - 出来高zscore（売買代金近似ベース）
 - RS（B方式：期間リターン差）
+- 短期RS加速（Short-term RS Acceleration）：短期RSと長期RSの差
+- β調整RS（Market-adjusted Excess Return）：市場寄与分を差し引いた純粋な銘柄固有要因の強さ
+- 情報比率（Information Ratio）：日次超過リターンの平均を標準偏差で割った値
 """
 from __future__ import annotations
 
@@ -117,6 +120,151 @@ def compute_rs(
         result[f"rs{T}"] = rs_T
 
     return result
+
+
+def compute_rs_acceleration(
+    stock_df: pd.DataFrame,
+    bench_df: pd.DataFrame,
+    short_window: int = 31,
+    long_window: int = 252,
+) -> pd.Series:
+    """
+    短期RS加速（Short-term RS Acceleration）を計算。
+    短期RSと長期RSの差を算出。
+
+    Args:
+        stock_df: 銘柄DataFrame（Close列、date index）
+        bench_df: ベンチマークDataFrame（Close列、date index）
+        short_window: 短期窓（営業日数、default=31）
+        long_window: 長期窓（営業日数、default=252）
+
+    Returns:
+        Series（rs_acceleration）
+    """
+    # 共通営業日で整列（inner join）
+    merged = pd.merge(
+        stock_df[["Close"]].rename(columns={"Close": "stock_close"}),
+        bench_df[["Close"]].rename(columns={"Close": "bench_close"}),
+        left_index=True,
+        right_index=True,
+        how="inner",
+    )
+
+    # 短期RS
+    stock_ret_short = merged["stock_close"] / merged["stock_close"].shift(short_window) - 1
+    bench_ret_short = merged["bench_close"] / merged["bench_close"].shift(short_window) - 1
+    rs_short = stock_ret_short - bench_ret_short
+
+    # 長期RS
+    stock_ret_long = merged["stock_close"] / merged["stock_close"].shift(long_window) - 1
+    bench_ret_long = merged["bench_close"] / merged["bench_close"].shift(long_window) - 1
+    rs_long = stock_ret_long - bench_ret_long
+
+    # 加速値 = 短期RS - 長期RS
+    rs_acceleration = rs_short - rs_long
+
+    return rs_acceleration
+
+
+def compute_beta_adjusted_rs(
+    stock_df: pd.DataFrame,
+    bench_df: pd.DataFrame,
+    beta_window: int = 126,
+    return_window: int = 252,
+) -> pd.Series:
+    """
+    β調整RS（Market-adjusted Excess Return）を計算。
+    βを推定し、市場寄与分を差し引いた純粋な銘柄固有要因の強さを測定。
+
+    Args:
+        stock_df: 銘柄DataFrame（Close列、date index）
+        bench_df: ベンチマークDataFrame（Close列、date index）
+        beta_window: β推定窓（営業日数、default=126）
+        return_window: 累積リターン計算窓（営業日数、default=252）
+
+    Returns:
+        Series（beta_adjusted_rs）
+    """
+    # 共通営業日で整列（inner join）
+    merged = pd.merge(
+        stock_df[["Close"]].rename(columns={"Close": "stock_close"}),
+        bench_df[["Close"]].rename(columns={"Close": "bench_close"}),
+        left_index=True,
+        right_index=True,
+        how="inner",
+    )
+
+    # 日次リターンを計算
+    stock_ret = merged["stock_close"].pct_change()
+    bench_ret = merged["bench_close"].pct_change()
+
+    # β推定（rolling回帰）
+    # 共分散と分散を計算してβを推定
+    min_periods = max(20, int(beta_window * 0.7))
+    # 2つのSeries間のrolling共分散を計算
+    stock_mean = stock_ret.rolling(window=beta_window, min_periods=min_periods).mean()
+    bench_mean = bench_ret.rolling(window=beta_window, min_periods=min_periods).mean()
+    cov = ((stock_ret - stock_mean) * (bench_ret - bench_mean)).rolling(window=beta_window, min_periods=min_periods).mean()
+    bench_var = bench_ret.rolling(window=beta_window, min_periods=min_periods).var()
+    beta = cov / bench_var
+
+    # 累積リターン（return_window期間）
+    stock_cumret = merged["stock_close"] / merged["stock_close"].shift(return_window) - 1
+    bench_cumret = merged["bench_close"] / merged["bench_close"].shift(return_window) - 1
+
+    # 市場寄与分 = β × 市場リターン
+    # return_window期間の累積リターンを計算する際に、その期間の開始時点（return_window日前）でのβを使う
+    beta_at_start = beta.shift(return_window)
+    market_contribution = beta_at_start * bench_cumret
+
+    # β調整RS = 銘柄累積リターン - 市場寄与分
+    beta_adjusted_rs = stock_cumret - market_contribution
+
+    return beta_adjusted_rs
+
+
+def compute_information_ratio(
+    stock_df: pd.DataFrame,
+    bench_df: pd.DataFrame,
+    window: int = 63,
+) -> pd.Series:
+    """
+    情報比率（Information Ratio）を計算。
+    日次超過リターンの平均を標準偏差で割った値。
+
+    Args:
+        stock_df: 銘柄DataFrame（Close列、date index）
+        bench_df: ベンチマークDataFrame（Close列、date index）
+        window: 情報比率窓（営業日数、default=63）
+
+    Returns:
+        Series（information_ratio）
+    """
+    # 共通営業日で整列（inner join）
+    merged = pd.merge(
+        stock_df[["Close"]].rename(columns={"Close": "stock_close"}),
+        bench_df[["Close"]].rename(columns={"Close": "bench_close"}),
+        left_index=True,
+        right_index=True,
+        how="inner",
+    )
+
+    # 日次リターンを計算
+    stock_ret = merged["stock_close"].pct_change()
+    bench_ret = merged["bench_close"].pct_change()
+
+    # 日次超過リターン
+    excess_ret = stock_ret - bench_ret
+
+    # 情報比率 = 平均超過リターン / 超過リターンの標準偏差
+    min_periods = max(20, int(window * 0.7))
+    mean_excess = excess_ret.rolling(window=window, min_periods=min_periods).mean()
+    std_excess = excess_ret.rolling(window=window, min_periods=min_periods).std()
+
+    # 標準偏差が0の場合はNaNを返す
+    information_ratio = mean_excess / std_excess
+
+    return information_ratio
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -268,6 +416,33 @@ def main(argv: list[str] | None = None) -> None:
                     if pd.isna(value):
                         nan_count += 1
 
+            # 短期RS加速（Short-term RS Acceleration）
+            rs_accel = compute_rs_acceleration(stock_df, bench_df_filtered, short_window=31, long_window=252)
+            if not rs_accel.empty and latest_idx in rs_accel.index:
+                col_name = f"rs_acceleration_{bench_name}"
+                value = rs_accel.loc[latest_idx]
+                result_row[col_name] = value
+                if pd.isna(value):
+                    nan_count += 1
+
+            # β調整RS（Market-adjusted Excess Return）
+            beta_adj_rs = compute_beta_adjusted_rs(stock_df, bench_df_filtered, beta_window=126, return_window=252)
+            if not beta_adj_rs.empty and latest_idx in beta_adj_rs.index:
+                col_name = f"beta_adjusted_rs_{bench_name}"
+                value = beta_adj_rs.loc[latest_idx]
+                result_row[col_name] = value
+                if pd.isna(value):
+                    nan_count += 1
+
+            # 情報比率（Information Ratio）
+            info_ratio = compute_information_ratio(stock_df, bench_df_filtered, window=63)
+            if not info_ratio.empty and latest_idx in info_ratio.index:
+                col_name = f"information_ratio_{bench_name}"
+                value = info_ratio.loc[latest_idx]
+                result_row[col_name] = value
+                if pd.isna(value):
+                    nan_count += 1
+
         # n_bars_used（監査用）
         result_row["n_bars_used"] = len(stock_df)
 
@@ -287,7 +462,9 @@ def main(argv: list[str] | None = None) -> None:
     print(f"出力: {output_path} ({len(result_df)}行)", file=sys.stderr)
 
     # サマリ
-    total_indicators = len(result_df) * len(rs_windows) * len(benchmarks)
+    # RS指標: len(rs_windows)個 × ベンチマーク数
+    # 新規指標: 3個（短期RS加速、β調整RS、情報比率）× ベンチマーク数
+    total_indicators = len(result_df) * (len(rs_windows) + 3) * len(benchmarks)
     nan_ratio = nan_count / total_indicators if total_indicators > 0 else 0
     print(f"サマリ: 計算成功={len(result_df)}, 欠損銘柄={missing_count}, NaN比率={nan_ratio:.2%}", file=sys.stderr)
 
