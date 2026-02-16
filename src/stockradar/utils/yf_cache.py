@@ -107,6 +107,7 @@ def fetch_yf_data(
     ticker: str,
     required_days: int,
     run_date: date | None = None,
+    start_date: date | None = None,
     retry_max: int | None = None,
     backoff_sec: list[int] | None = None,
 ) -> pd.DataFrame | None:
@@ -117,6 +118,7 @@ def fetch_yf_data(
         ticker: ティッカー（例: "7203.T", "1306.T"）
         required_days: 必要な営業日数
         run_date: 取得終了日（None時は今日）
+        start_date: 取得開始日（None時はrequired_daysから自動計算、差分取得時に指定）
         retry_max: 最大再試行回数（None時はconfigから取得）
         backoff_sec: 再試行待機秒リスト（None時はconfigから取得）
 
@@ -128,18 +130,37 @@ def fetch_yf_data(
     if backoff_sec is None:
         backoff_sec = get_yf_retry_backoff_sec()
 
-    period = _period_for_required_days(required_days)
-    start_dt, end_dt = _start_end_for_required_days(required_days)
+    end_dt = datetime.now(timezone.utc)
     if run_date:
         end_dt = datetime.combine(run_date, datetime.max.time()).replace(tzinfo=timezone.utc)
+    
+    # start_dateが指定されている場合は差分取得モード
+    if start_date:
+        start_dt = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+        # 差分取得時はstart/endのみを使用（periodは使わない）
+        use_period = False
+    else:
+        # フル取得時は従来通り
+        period = _period_for_required_days(required_days)
+        start_dt, _ = _start_end_for_required_days(required_days)
+        use_period = True
 
     last_error: str | None = None
     for attempt in range(retry_max + 1):
         try:
             t = yf.Ticker(ticker)
-            hist = t.history(period=period, interval="1d", auto_adjust=True)
-            # 日本株等で period が空になることがあるため、start/end で再試行
-            if hist is None or hist.empty:
+            if use_period:
+                hist = t.history(period=period, interval="1d", auto_adjust=True)
+                # 日本株等で period が空になることがあるため、start/end で再試行
+                if hist is None or hist.empty:
+                    hist = t.history(
+                        start=start_dt.strftime("%Y-%m-%d"),
+                        end=end_dt.strftime("%Y-%m-%d"),
+                        interval="1d",
+                        auto_adjust=True,
+                    )
+            else:
+                # 差分取得時はstart/endのみを使用
                 hist = t.history(
                     start=start_dt.strftime("%Y-%m-%d"),
                     end=end_dt.strftime("%Y-%m-%d"),
@@ -189,7 +210,7 @@ def ensure_cache_with_incremental_fetch(
     symbol: str,
     ticker: str,
     cache_path: Path,
-    manifest_path: Path,
+    manifest: dict[str, dict],
     required_days: int,
     run_date: date | None = None,
     force: bool = False,
@@ -201,7 +222,7 @@ def ensure_cache_with_incremental_fetch(
         symbol: シンボル（manifest用、例: "7203" または "1306.T"）
         ticker: yfinanceティッカー（例: "7203.T", "1306.T"）
         cache_path: キャッシュCSVパス
-        manifest_path: manifest JSONLパス
+        manifest: manifest辞書（symbol -> エントリ）、この関数内で更新される
         required_days: 必要な営業日数
         run_date: 取得終了日（None時は今日）
         force: True時はmanifestを無視して全件再取得
@@ -210,7 +231,6 @@ def ensure_cache_with_incremental_fetch(
         manifestエントリ（code/symbol, requested_days, fetched_bars, status, error, fetched_at）
     """
     now_iso = datetime.now(timezone.utc).isoformat()
-    manifest = load_manifest(manifest_path)
 
     # manifestチェック（force時はスキップ）
     if not force:
@@ -227,8 +247,15 @@ def ensure_cache_with_incremental_fetch(
                     # 差分取得を試みる
                     if run_date and last_date < run_date:
                         # 差分取得: 最後の日付+1日からrun_dateまでを取得
-                        # 注: yfinanceは期間全体を返すため、実際には軽量ではないが、要件に従って差分取得として扱う
-                        new_df = fetch_yf_data(ticker, required_days, run_date, retry_max=1, backoff_sec=[5])
+                        start_date = last_date + timedelta(days=1)
+                        new_df = fetch_yf_data(
+                            ticker, 
+                            required_days, 
+                            run_date, 
+                            start_date=start_date,
+                            retry_max=1, 
+                            backoff_sec=[5]
+                        )
                         if new_df is not None and len(new_df) > 0:
                             # 既存データより新しい日付のみを抽出
                             new_df_filtered = new_df[new_df.index.date > last_date]
@@ -249,7 +276,6 @@ def ensure_cache_with_incremental_fetch(
                                     "fetched_at": now_iso,
                                 }
                                 manifest[symbol] = ent
-                                update_manifest(manifest_path, manifest)
                                 return ent
 
     # キャッシュ読み込み
@@ -267,7 +293,15 @@ def ensure_cache_with_incremental_fetch(
             last_date = cached_df.index.max().date()
             if last_date < run_date:
                 # 差分取得を試みる
-                new_df = fetch_yf_data(ticker, required_days, run_date, retry_max=1, backoff_sec=[5])
+                start_date = last_date + timedelta(days=1)
+                new_df = fetch_yf_data(
+                    ticker, 
+                    required_days, 
+                    run_date, 
+                    start_date=start_date,
+                    retry_max=1, 
+                    backoff_sec=[5]
+                )
                 if new_df is not None and len(new_df) > 0:
                     # 既存データより新しい日付のみを抽出
                     new_df_filtered = new_df[new_df.index.date > last_date]
@@ -288,7 +322,6 @@ def ensure_cache_with_incremental_fetch(
                             "fetched_at": now_iso,
                         }
                         manifest[symbol] = ent
-                        update_manifest(manifest_path, manifest)
                         return ent
                 # 差分取得失敗 → フル取得
                 need_full_fetch = True
@@ -306,7 +339,6 @@ def ensure_cache_with_incremental_fetch(
                 "fetched_at": now_iso,
             }
             manifest[symbol] = ent
-            update_manifest(manifest_path, manifest)
             return ent
         save_cache(cache_path, df)
         n_bars = len(df)
@@ -320,7 +352,6 @@ def ensure_cache_with_incremental_fetch(
             "fetched_at": now_iso,
         }
         manifest[symbol] = ent
-        update_manifest(manifest_path, manifest)
         return ent
 
     # 既存キャッシュが十分
@@ -334,5 +365,4 @@ def ensure_cache_with_incremental_fetch(
         "fetched_at": now_iso,
     }
     manifest[symbol] = ent
-    update_manifest(manifest_path, manifest)
     return ent

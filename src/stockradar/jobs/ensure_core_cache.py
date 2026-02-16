@@ -23,7 +23,12 @@ from stockradar.config import (
     get_yf_sleep_sec_between_batches,
     get_z_lookback_days,
 )
-from stockradar.utils.yf_cache import MANIFEST_FILENAME, ensure_cache_with_incremental_fetch
+from stockradar.utils.yf_cache import (
+    MANIFEST_FILENAME,
+    ensure_cache_with_incremental_fetch,
+    load_manifest,
+    update_manifest,
+)
 
 import time
 
@@ -128,6 +133,10 @@ def main(argv: list[str] | None = None) -> None:
     print(f"キャッシュ出力: {cache_dir}", file=sys.stderr)
     print(f"入力: {input_path} 銘柄数={len(codes)} required_days={required_days}", file=sys.stderr)
 
+    # manifestを1回だけ読み込む
+    manifest = load_manifest(manifest_path)
+    print(f"manifest読み込み完了: {len(manifest)}エントリ", file=sys.stderr)
+
     # バッチ処理
     ok_count = 0
     fail_count = 0
@@ -142,7 +151,7 @@ def main(argv: list[str] | None = None) -> None:
                 symbol=code,
                 ticker=ticker,
                 cache_path=cache_path,
-                manifest_path=manifest_path,
+                manifest=manifest,  # manifestを渡す（更新される）
                 required_days=required_days,
                 run_date=run_date,
                 force=args.force,
@@ -156,6 +165,11 @@ def main(argv: list[str] | None = None) -> None:
                 insuf_count += 1
         if i + batch_size < len(codes):
             time.sleep(sleep_sec)
+
+    # manifestをまとめて更新（1回だけ）
+    print(f"manifest更新中: {len(manifest)}エントリ", file=sys.stderr)
+    update_manifest(manifest_path, manifest)
+    print(f"manifest更新完了", file=sys.stderr)
 
     print(f"完了: ok={ok_count} failed={fail_count} insufficient={insuf_count}", file=sys.stderr)
 
