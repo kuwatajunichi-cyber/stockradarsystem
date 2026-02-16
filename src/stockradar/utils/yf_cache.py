@@ -132,7 +132,9 @@ def fetch_yf_data(
 
     end_dt = datetime.now(timezone.utc)
     if run_date:
-        end_dt = datetime.combine(run_date, datetime.max.time()).replace(tzinfo=timezone.utc)
+        # yfinanceのendパラメータはexclusive（含まない）のため、run_dateのデータを含めるには+1日する必要がある
+        end_date = run_date + timedelta(days=1)
+        end_dt = datetime.combine(end_date, datetime.max.time()).replace(tzinfo=timezone.utc)
     
     # start_dateが指定されている場合は差分取得モード
     if start_date:
@@ -247,6 +249,9 @@ def ensure_cache_with_incremental_fetch(
                     last_date = cached_df.index.max().date()
                     if run_date and last_date >= run_date:
                         # 既に最新まで取得済み
+                        # 戻り値にnewly_fetched_daysを追加（既存のentを更新）
+                        ent = ent.copy()
+                        ent["newly_fetched_days"] = 0
                         return ent
                     # 差分取得を試みる
                     if run_date and last_date < run_date:
@@ -270,6 +275,7 @@ def ensure_cache_with_incremental_fetch(
                                 combined = combined.sort_index()
                                 save_cache(cache_path, combined)
                                 n_bars = len(combined)
+                                newly_fetched_days = len(new_df_filtered)
                                 status = "ok" if n_bars >= required_days else "insufficient"
                                 ent = {
                                     "symbol": symbol,
@@ -278,6 +284,7 @@ def ensure_cache_with_incremental_fetch(
                                     "status": status,
                                     "error": None if n_bars >= required_days else "insufficient_bars",
                                     "fetched_at": now_iso,
+                                    "newly_fetched_days": newly_fetched_days,
                                 }
                                 manifest[symbol] = ent
                                 return ent
@@ -328,6 +335,7 @@ def ensure_cache_with_incremental_fetch(
                             combined = combined.sort_index()
                             save_cache(cache_path, combined)
                             n_bars = len(combined)
+                            newly_fetched_days = len(new_df_filtered)
                             status = "ok" if n_bars >= required_days else "insufficient"
                             ent = {
                                 "symbol": symbol,
@@ -336,6 +344,7 @@ def ensure_cache_with_incremental_fetch(
                                 "status": status,
                                 "error": None if n_bars >= required_days else "insufficient_bars",
                                 "fetched_at": now_iso,
+                                "newly_fetched_days": newly_fetched_days,
                             }
                             manifest[symbol] = ent
                             return ent
@@ -353,6 +362,7 @@ def ensure_cache_with_incremental_fetch(
                 "status": "failed",
                 "error": "fetch_failed",
                 "fetched_at": now_iso,
+                "newly_fetched_days": 0,  # 取得失敗の場合は0
             }
             manifest[symbol] = ent
             return ent
@@ -366,6 +376,7 @@ def ensure_cache_with_incremental_fetch(
             "status": status,
             "error": None if n_bars >= required_days else "insufficient_bars",
             "fetched_at": now_iso,
+            "newly_fetched_days": n_bars,  # フル取得の場合は全データが新規
         }
         manifest[symbol] = ent
         return ent
@@ -379,6 +390,7 @@ def ensure_cache_with_incremental_fetch(
         "status": "ok" if n_bars >= required_days else "insufficient",
         "error": None if n_bars >= required_days else "insufficient_bars",
         "fetched_at": now_iso,
+        "newly_fetched_days": 0,  # 既存キャッシュが十分な場合は新規取得なし
     }
     manifest[symbol] = ent
     return ent

@@ -376,8 +376,14 @@ def main(argv: list[str] | None = None) -> None:
         # 最新日の値を取得（run_dateでフィルタ後の最新日）
         latest_idx = stock_df.index.max()
         latest_date = stock_df.index.max().date()
+        
+        # dateフィールドはrun_dateを使用（ワークフローで指定された日付）
+        # 指標の値はlatest_idx（実際のデータがある最新日）から取得
+        if latest_date < run_date:
+            print(f"警告: {code} の最新データ日付({latest_date})がrun_date({run_date})より古いです", file=sys.stderr)
+        
         result_row = {
-            "date": latest_date.isoformat(),  # 実際の最新営業日を使用
+            "date": run_date.isoformat(),  # run_dateを使用（ワークフローで指定された日付）
             "code": code,
             "turnover_yen": turnover_yen.loc[latest_idx] if latest_idx in turnover_yen.index else None,
             f"z_turnover_{z_lookback_days}": z_turnover.loc[latest_idx] if latest_idx in z_turnover.index else None,
