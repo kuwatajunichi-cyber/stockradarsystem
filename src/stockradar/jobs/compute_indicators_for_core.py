@@ -8,6 +8,7 @@
 - 出来高zscore（売買代金近似ベース）
 - RS（B方式：期間リターン差）
 - 短期RS加速（Short-term RS Acceleration）：短期RSと長期RSの差
+- 短期RS加速のzscore：短期RS加速を標準化窓で標準化した値
 - β調整RS（Market-adjusted Excess Return）：市場寄与分を差し引いた純粋な銘柄固有要因の強さ
 - 情報比率（Information Ratio）：日次超過リターンの平均を標準偏差で割った値
 """
@@ -164,6 +165,39 @@ def compute_rs_acceleration(
     rs_acceleration = rs_short - rs_long
 
     return rs_acceleration
+
+
+def compute_rs_acceleration_zscore(
+    stock_df: pd.DataFrame,
+    bench_df: pd.DataFrame,
+    lookback_days: int,
+    short_window: int = 31,
+    long_window: int = 252,
+) -> pd.Series:
+    """
+    短期RS加速のzscoreを計算。
+    短期RS加速を標準化窓で標準化した値。
+
+    Args:
+        stock_df: 銘柄DataFrame（Close列、date index）
+        bench_df: ベンチマークDataFrame（Close列、date index）
+        lookback_days: 標準化窓（営業日数、売買代金zscoreと同じ）
+        short_window: 短期窓（営業日数、default=31）
+        long_window: 長期窓（営業日数、default=252）
+
+    Returns:
+        Series（rs_acceleration_zscore）
+    """
+    # 短期RS加速を計算
+    rs_acceleration = compute_rs_acceleration(stock_df, bench_df, short_window, long_window)
+
+    # zscore化（標準化窓で標準化）
+    min_periods = max(20, int(lookback_days * 0.7))
+    rs_accel_mean = rs_acceleration.rolling(window=lookback_days, min_periods=min_periods).mean()
+    rs_accel_std = rs_acceleration.rolling(window=lookback_days, min_periods=min_periods).std()
+    rs_acceleration_zscore = (rs_acceleration - rs_accel_mean) / rs_accel_std
+
+    return rs_acceleration_zscore
 
 
 def compute_beta_adjusted_rs(
@@ -431,6 +465,17 @@ def main(argv: list[str] | None = None) -> None:
                 if pd.isna(value):
                     nan_count += 1
 
+            # 短期RS加速のzscore
+            rs_accel_zscore = compute_rs_acceleration_zscore(
+                stock_df, bench_df_filtered, lookback_days=z_lookback_days, short_window=31, long_window=252
+            )
+            if not rs_accel_zscore.empty and latest_idx in rs_accel_zscore.index:
+                col_name = f"rs_acceleration_zscore_{bench_name}"
+                value = rs_accel_zscore.loc[latest_idx]
+                result_row[col_name] = value
+                if pd.isna(value):
+                    nan_count += 1
+
             # β調整RS（Market-adjusted Excess Return）
             beta_adj_rs = compute_beta_adjusted_rs(stock_df, bench_df_filtered, beta_window=126, return_window=252)
             if not beta_adj_rs.empty and latest_idx in beta_adj_rs.index:
@@ -469,8 +514,8 @@ def main(argv: list[str] | None = None) -> None:
 
     # サマリ
     # RS指標: len(rs_windows)個 × ベンチマーク数
-    # 新規指標: 3個（短期RS加速、β調整RS、情報比率）× ベンチマーク数
-    total_indicators = len(result_df) * (len(rs_windows) + 3) * len(benchmarks)
+    # 新規指標: 4個（短期RS加速、短期RS加速zscore、β調整RS、情報比率）× ベンチマーク数
+    total_indicators = len(result_df) * (len(rs_windows) + 4) * len(benchmarks)
     nan_ratio = nan_count / total_indicators if total_indicators > 0 else 0
     print(f"サマリ: 計算成功={len(result_df)}, 欠損銘柄={missing_count}, NaN比率={nan_ratio:.2%}", file=sys.stderr)
 
