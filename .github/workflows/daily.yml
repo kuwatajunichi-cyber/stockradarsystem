@@ -5,7 +5,7 @@ on:
   schedule:
     # 毎営業日 16:00 JST 以降（UTC 07:00）
     # 注: GitHub ActionsのcronはUTC基準
-    - cron: "47 6 * * 1-5"  # 月曜〜金曜 06:47 UTC（日本時間 15:47）
+    - cron: "37 6 * * 1-5"  # 月曜〜金曜 06:37 UTC（日本時間 15:37）
 
 concurrency:
   group: daily-indicators
