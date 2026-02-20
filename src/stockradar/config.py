@@ -114,14 +114,14 @@ def get_z_lookback_days() -> int:
 
 
 def get_rs_windows() -> list[int]:
-    """RS算出の期間リスト（営業日数）。環境変数 RS_WINDOWS（default='63,126,252'）。"""
-    raw = os.environ.get("RS_WINDOWS", "63,126,252").strip()
+    """RS算出の期間リスト（営業日数）。環境変数 RS_WINDOWS（default='31,63,126,252'）。"""
+    raw = os.environ.get("RS_WINDOWS", "31,63,126,252").strip()
     if not raw:
-        return [63, 126, 252]
+        return [31, 63, 126, 252]
     try:
         return [int(x.strip()) for x in raw.split(",") if x.strip()]
     except ValueError:
-        return [63, 126, 252]
+        return [31, 63, 126, 252]
 
 
 def get_rs_benchmark() -> str:

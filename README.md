@@ -330,7 +330,7 @@ python -m stockradar.jobs.split_equity_domestic_secondary
 | 変数 | 説明 | 既定値 |
 |------|------|--------|
 | Z_LOOKBACK_DAYS | 出来高zscoreの窓サイズ（営業日数） | 60 |
-| RS_WINDOWS | RS算出の期間リスト（営業日数、カンマ区切り） | 63,126,252 |
+| RS_WINDOWS | RS算出の期間リスト（営業日数、カンマ区切り） | 31,63,126,252 |
 | RS_BENCHMARK | RS算出のベンチマーク（TOPIX/NIKKEI/BOTH） | BOTH |
 | RS_WEIGHTS | RS合成用の重みリスト（カンマ区切り、任意） | なし |
 | BUFFER_DAYS | キャッシュ取得時のバッファ日数 | 20 |
