@@ -114,7 +114,7 @@ jobs:
         env:
           PYTHONPATH: src
           Z_LOOKBACK_DAYS: ${{ secrets.Z_LOOKBACK_DAYS || '60' }}
-          RS_WINDOWS: ${{ secrets.RS_WINDOWS || '63,126,252' }}
+          RS_WINDOWS: ${{ secrets.RS_WINDOWS || '31,63,126,252' }}
           BUFFER_DAYS: ${{ secrets.BUFFER_DAYS || '20' }}
         run: |
           python -m stockradar.jobs.ensure_index_cache --run-date ${{ needs.resolve_trading_day.outputs.run_date }}
@@ -182,7 +182,7 @@ jobs:
         env:
           PYTHONPATH: src
           Z_LOOKBACK_DAYS: ${{ secrets.Z_LOOKBACK_DAYS || '60' }}
-          RS_WINDOWS: ${{ secrets.RS_WINDOWS || '63,126,252' }}
+          RS_WINDOWS: ${{ secrets.RS_WINDOWS || '31,63,126,252' }}
           BUFFER_DAYS: ${{ secrets.BUFFER_DAYS || '20' }}
           YF_BATCH_SIZE: ${{ secrets.YF_BATCH_SIZE || '100' }}
           YF_SLEEP_SEC_BETWEEN_BATCHES: ${{ secrets.YF_SLEEP_SEC_BETWEEN_BATCHES || '5' }}
@@ -271,7 +271,7 @@ jobs:
         env:
           PYTHONPATH: src
           Z_LOOKBACK_DAYS: ${{ secrets.Z_LOOKBACK_DAYS || '60' }}
-          RS_WINDOWS: ${{ secrets.RS_WINDOWS || '63,126,252' }}
+          RS_WINDOWS: ${{ secrets.RS_WINDOWS || '31,63,126,252' }}
           RS_BENCHMARK: ${{ secrets.RS_BENCHMARK || 'BOTH' }}
         run: |
           python -m stockradar.jobs.compute_indicators_for_core --input "${{ steps.download_core.outputs.core_csv }}" --run-date ${{ needs.resolve_trading_day.outputs.run_date }}

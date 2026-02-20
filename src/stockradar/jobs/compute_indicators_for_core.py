@@ -6,6 +6,7 @@
 
 指標:
 - 出来高zscore（売買代金近似ベース）
+- 各サイトへのリンク（株探・みんかぶ・バフェット・Yahoo）
 - RS（B方式：期間リターン差）
 - 短期RS加速（Short-term RS Acceleration）：短期RSと長期RSの差
 - 短期RS加速のzscore：短期RS加速を標準化窓で標準化した値
@@ -68,6 +69,21 @@ def _load_codes_with_names(path: Path) -> pd.DataFrame:
 def _ticker_for_code(code: str) -> str:
     """日本株の Yahoo ティッカー（例: 7203 -> 7203.T）。"""
     return f"{code}.T"
+
+
+def _build_external_links(code: str) -> dict[str, str]:
+    """
+    4桁銘柄コードから各サイトへのURLを生成する。
+    externalLink_v1.0.md に準拠。
+    """
+    return {
+        "link_kabutan": f"https://kabutan.jp/stock/?code={code}",
+        "link_kabutan_chart": f"https://kabutan.jp/stock/chart?code={code}",
+        "link_kabutan_news": f"https://kabutan.jp/stock/news?code={code}",
+        "link_minkabu": f"https://minkabu.jp/stock/{code}",
+        "link_buffett": f"https://www.buffett-code.com/company/{code}",
+        "link_yahoo": f"https://finance.yahoo.co.jp/quote/{code}.T",
+    }
 
 
 def compute_zscore_turnover(df: pd.DataFrame, lookback_days: int) -> pd.Series:
@@ -421,6 +437,7 @@ def main(argv: list[str] | None = None) -> None:
             "code": code,
             "turnover_yen": turnover_yen.loc[latest_idx] if latest_idx in turnover_yen.index else None,
             f"z_turnover_{z_lookback_days}": z_turnover.loc[latest_idx] if latest_idx in z_turnover.index else None,
+            **_build_external_links(code),
         }
         if "name" in codes_df.columns:
             result_row["name"] = name
