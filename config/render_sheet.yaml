@@ -1,14 +1,11 @@
-# 日次レポート スプレッドシート生成用設定
+# 日次レポート スプレッドシート生成用設定（XLSX / openpyxl ベース）
 # workflow inputs で上書き可能な項目は inputs を優先
 
-# テンプレ保管先フォルダ（テンプレ検索・出力先兼用）
+# 出力先フォルダ（Drive アップロード先）
 output_folder_id: "1pwtA9TFLxJ1NfyoCEsVeNq8JM9ULUeCt"
 
-# テンプレファイル名（output_folder_id 内で検索）
-template_file_name: "indicators_template_v1.0"
-
-# template_spreadsheet_id: 上書き時のみ使用。未設定なら template_file_name で検索
-# template_spreadsheet_id: null
+# テンプレート（ローカル XLSX ファイル、repo ルートからの相対パス）
+template_path: "config/templates/indicators_template_v1.0.xlsx"
 
 # headerAnchor が存在するシート名
 header_anchor_sheet_name: "indicators001"

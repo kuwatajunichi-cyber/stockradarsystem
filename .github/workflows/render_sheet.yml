@@ -1,8 +1,8 @@
-# 日次レポート スプレッドシート生成ワークフロー
+# 日次レポート スプレッドシート生成ワークフロー（XLSX / openpyxl ベース）
 # - 単独実行: workflow_dispatch で手動テスト
 # - 本番: workflow_call で daily 等から呼び出し
 #
-# 必要 Secrets: GCP_SA_JSON（サービスアカウント JSON）
+# 認証: GDRIVE_OAUTH_*（Drive API のみ、Sheets API 不要）
 name: Render Sheet (Daily Report)
 
 on:
@@ -11,10 +11,6 @@ on:
       csv_drive_file_id:
         description: "CSV の Drive ファイル ID または共有リンク（必須）"
         required: true
-        type: string
-      template_spreadsheet_id:
-        description: "テンプレのスプレッドシート ID（省略時は config で検索）"
-        required: false
         type: string
       output_folder_id:
         description: "出力先フォルダ ID（省略時は config を使用）"
@@ -30,10 +26,6 @@ on:
       csv_drive_file_id:
         description: "CSV の Drive ファイル ID または共有リンク（必須）"
         required: true
-        type: string
-      template_spreadsheet_id:
-        description: "テンプレのスプレッドシート ID"
-        required: false
         type: string
       output_folder_id:
         description: "出力先フォルダ ID"
@@ -71,7 +63,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Render sheet (Drive CSV → Sheets)
+      - name: Render sheet (Drive CSV → XLSX テンプレ)
         id: run
         env:
           PYTHONPATH: .
@@ -80,10 +72,7 @@ jobs:
           GDRIVE_OAUTH_REFRESH_TOKEN: ${{ secrets.GDRIVE_OAUTH_REFRESH_TOKEN }}
         run: |
           set -e
-          ARGS=(
-            --csv-drive-file-id "${{ inputs.csv_drive_file_id }}"
-          )
-          [ -n "${{ inputs.template_spreadsheet_id }}" ] && ARGS+=(--template-spreadsheet-id "${{ inputs.template_spreadsheet_id }}")
+          ARGS=(--csv-drive-file-id "${{ inputs.csv_drive_file_id }}")
           [ -n "${{ inputs.output_folder_id }}" ] && ARGS+=(--output-folder-id "${{ inputs.output_folder_id }}")
           [ -n "${{ inputs.header_anchor_sheet_name }}" ] && ARGS+=(--header-anchor-sheet-name "${{ inputs.header_anchor_sheet_name }}")
           
