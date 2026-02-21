@@ -2,21 +2,20 @@
 
 ## 概要
 
-Google Drive 上の CSV を読み込み、スプレッドシートテンプレに流し込んで日次レポートを生成する。
+Google Drive 上の CSV を読み込み、ローカル XLSX テンプレート（openpyxl）に流し込んで日次レポートを生成する。GCP の Sheets API に依存せず、Drive API のみ使用。
 
 - **ワークフロー**: `.github/workflows/render_sheet.yml`
 - **スクリプト**: `scripts/render_sheet/render_sheet.py`
 - **設定**: `config/render_sheet.yaml`
+- **テンプレート**: `config/templates/indicators_template_v1.0.xlsx`（リポジトリに配置）
 
 ## 認証（OAuth）
 
-smoketest と同一の OAuth 認証を使用。以下の Secrets が設定済みであること:
+smoketest と同一の OAuth 認証を使用。**Drive API のみ**（Sheets API 不要）。
 
 - `GDRIVE_OAUTH_CLIENT_ID`
 - `GDRIVE_OAUTH_CLIENT_SECRET`
 - `GDRIVE_OAUTH_REFRESH_TOKEN`
-
-※ Sheets API を使うため、refresh token 取得時に **Drive** と **Sheets** の両方のスコープを付与すること。既存の token が Drive のみの場合は、再認証が必要。詳細は `docs/トラブルシューティング_GD編.md` 参照。
 
 ## 使い方
 
