@@ -3,7 +3,8 @@ equity_domestic を ipo / illiquid / core に二次分割するジョブ。
 入力: equity_domestic.csv と data/cache/yf_daily/（キャッシュ＋manifest）
 出力: data/universe/jpx/sets_secondary_YYYYMMDD/
   - equity_domestic_ipo.csv, equity_domestic_illiquid.csv, equity_domestic_core.csv（code のみ）
-  - equity_domestic_ipo_with_name.csv 等（code, name, 外部リンクURL列）。銘柄名は JPX processed CSV をマスタとする。
+  - equity_domestic_ipo_with_name.csv 等（code, name, 外部リンクURL列）。銘柄名は JPX processed CSV をマスタとし、
+    短縮処理（半角変換・辞書参照）を適用する。
 """
 from __future__ import annotations
 
@@ -24,6 +25,7 @@ from stockradar.universe.equity_secondary import (
     split_equity_domestic_secondary,
 )
 from stockradar.universe.jpx_primary import _normalize_code
+from stockradar.utils.stock_name_shortener import shorten_stock_name
 
 MANIFEST_FILENAME = "_manifest.jsonl"
 
@@ -186,7 +188,9 @@ def main(argv: list[str] | None = None) -> None:
         if code_to_name is not None:
             rows = []
             for c in code_list:
-                row = {"code": c, "name": code_to_name.get(c, "")}
+                raw_name = code_to_name.get(c, "")
+                short_name = shorten_stock_name(raw_name)
+                row = {"code": c, "name": short_name}
                 row.update(_external_urls_for_code(c))
                 rows.append(row)
             path_with_name = out_dir / f"{name}_with_name.csv"
