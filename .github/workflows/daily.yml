@@ -204,6 +204,8 @@ jobs:
     needs: [resolve_trading_day, ensure_index_cache, ensure_core_cache]
     if: needs.resolve_trading_day.outputs.is_open == 'True'
     runs-on: ubuntu-latest
+    outputs:
+      csv_file_id: ${{ steps.upload_csv.outputs.csv_file_id }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -290,6 +292,7 @@ jobs:
         run: pip install google-api-python-client google-auth
 
       - name: Upload indicator CSVs to 0011_work (day folder)
+        id: upload_csv
         if: success()
         env:
           GDRIVE_OAUTH_CLIENT_ID: ${{ secrets.GDRIVE_OAUTH_CLIENT_ID }}
@@ -304,7 +307,10 @@ jobs:
             echo "No indicator CSVs found, skipping Drive upload"
             exit 0
           fi
-          PYTHONPATH=. python scripts/gdrive_smoketest/upload_to_work.py --month "$MONTH" --day "$RUN_DATE" "${FILES[@]}"
+          OUTPUT=$(PYTHONPATH=. python scripts/gdrive_smoketest/upload_to_work.py --month "$MONTH" --day "$RUN_DATE" "${FILES[@]}" 2>&1)
+          echo "$OUTPUT"
+          CSV_FILE_ID=$(echo "$OUTPUT" | grep "^csv_file_id=" | tail -1 | cut -d= -f2-)
+          [ -n "$CSV_FILE_ID" ] && echo "csv_file_id=$CSV_FILE_ID" >> "$GITHUB_OUTPUT"
           echo "Uploaded ${#FILES[@]} CSV(s) to 0011_work/$MONTH/$RUN_DATE/"
 
       - name: Upload OHLC store for archiving
@@ -315,6 +321,20 @@ jobs:
           path: data/cache/yf_daily/
           retention-days: 1
           if-no-files-found: ignore
+
+  render_sheet_report:
+    needs: [resolve_trading_day, compute_indicators]
+    if: |
+      always() &&
+      needs.resolve_trading_day.outputs.is_open == 'True' &&
+      needs.compute_indicators.result == 'success' &&
+      needs.compute_indicators.outputs.csv_file_id != ''
+    uses: ./.github/workflows/render_sheet.yml
+    with:
+      csv_drive_file_id: ${{ needs.compute_indicators.outputs.csv_file_id }}
+      output_folder_id: "1sUA-HL04eOo9fCBa5fN1OxKRs0Sp-Wf5"
+      run_date: ${{ needs.resolve_trading_day.outputs.run_date }}
+    secrets: inherit
 
   archive_ohlc_store:
     needs: [resolve_trading_day, compute_indicators]

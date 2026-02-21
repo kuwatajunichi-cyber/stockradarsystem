@@ -26,17 +26,9 @@ smoketest と同一の OAuth 認証を使用。**Drive API のみ**（Sheets API
 3. `csv_drive_file_id` に CSV の Drive ファイル ID または共有リンクを入力
 4. 必要に応じて他入力も指定
 
-### 本番（workflow_call）
+### 本番（日次ワークフロー連携）
 
-他のワークフローから呼び出す場合:
+daily.yml の最後で、0011_work にアップロードした CSV の file_id を渡して render_sheet を呼び出し、出力を 0012_paid/YYYY-MM/ に保存する。
 
-```yaml
-jobs:
-  render_sheet:
-    uses: ./.github/workflows/render_sheet.yml
-    with:
-      csv_drive_file_id: ${{ needs.upload.outputs.csv_file_id }}
-    secrets: inherit
-```
-
-※ `csv_drive_file_id` は日次ワークフローの CSV アップロード後に取得したファイル ID を渡す。
+- `output_folder_id`: 1sUA-HL04eOo9fCBa5fN1OxKRs0Sp-Wf5（0012_paid）
+- `run_date` から YYYY-MM フォルダを自動作成

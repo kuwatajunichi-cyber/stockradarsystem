@@ -33,6 +33,7 @@ from scripts.gdrive_smoketest.drive_client import (
     get_credentials,
     get_file_content,
     get_file_metadata,
+    get_or_create_folder,
     upload_file,
 )
 
@@ -89,6 +90,7 @@ def resolve_config(
     config: dict,
     csv_drive_file_id: str | None,
     output_folder_id: str | None,
+    output_subfolder: str | None,
     header_anchor_sheet_name: str | None,
     template_path: str | Path | None,
 ) -> dict:
@@ -96,6 +98,7 @@ def resolve_config(
     out = {
         "csv_drive_file_id": csv_drive_file_id or config.get("csv_drive_file_id"),
         "output_folder_id": output_folder_id or config.get("output_folder_id"),
+        "output_subfolder": output_subfolder or config.get("output_subfolder"),
         "header_anchor_sheet_name": header_anchor_sheet_name or config.get("header_anchor_sheet_name", "indicators001"),
         "template_path": template_path or config.get("template_path", "config/templates/indicators_template_v1.0.xlsx"),
         "link_label_map": config.get("link_label_map") or {},
@@ -268,10 +271,14 @@ def run(cfg: dict) -> str:
     wb.save(output_path)
     logger.info("ローカル保存: %s", output_path)
 
-    # 6) Drive にアップロード（output_folder_id 直下に保存）
+    # 6) Drive にアップロード
     content = output_path.read_bytes()
+    parent_id = cfg["output_folder_id"]
+    if cfg.get("output_subfolder"):
+        parent_id = get_or_create_folder(drive, parent_id, cfg["output_subfolder"])
+        logger.info("出力先サブフォルダ: %s", cfg["output_subfolder"])
     file_id, web_link = upload_file(
-        drive, cfg["output_folder_id"], output_name, content, mime_type=MIME_XLSX
+        drive, parent_id, output_name, content, mime_type=MIME_XLSX
     )
     result_url = web_link or f"https://drive.google.com/file/d/{file_id}/view"
     logger.info("出力URL: %s", result_url)
@@ -298,6 +305,11 @@ def main() -> None:
         "--output-folder-id",
         default=None,
         help="出力先フォルダ ID（省略時は config を使用）",
+    )
+    parser.add_argument(
+        "--output-subfolder",
+        default=None,
+        help="出力先サブフォルダ名（例: YYYY-MM）。未設定時は output_folder_id 直下に保存",
     )
     parser.add_argument(
         "--header-anchor-sheet-name",
@@ -328,6 +340,7 @@ def main() -> None:
         config,
         csv_drive_file_id=args.csv_drive_file_id,
         output_folder_id=args.output_folder_id,
+        output_subfolder=args.output_subfolder,
         header_anchor_sheet_name=args.header_anchor_sheet_name,
         template_path=args.template_path,
     )
