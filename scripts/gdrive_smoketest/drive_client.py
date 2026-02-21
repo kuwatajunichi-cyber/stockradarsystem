@@ -20,6 +20,7 @@ ENV_CLIENT_SECRET = "GDRIVE_OAUTH_CLIENT_SECRET"
 ENV_REFRESH_TOKEN = "GDRIVE_OAUTH_REFRESH_TOKEN"
 
 DRIVE_SCOPE = "https://www.googleapis.com/auth/drive"
+SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets"
 
 
 def _ensure_deps() -> None:
@@ -35,10 +36,12 @@ def _ensure_deps() -> None:
         raise SystemExit(1) from e
 
 
-def get_credentials() -> Any:
+def get_credentials(extra_scopes: list[str] | None = None) -> Any:
     """
     環境変数 GDRIVE_OAUTH_CLIENT_ID / GDRIVE_OAUTH_CLIENT_SECRET / GDRIVE_OAUTH_REFRESH_TOKEN
     から OAuth Credentials を組み立てる。値はログに出さない。
+
+    extra_scopes: 追加スコープ（例: Sheets API 用に [SHEETS_SCOPE] を指定）
     """
     _ensure_deps()
     from google.auth.transport.requests import Request
@@ -63,13 +66,17 @@ def get_credentials() -> Any:
         )
         raise SystemExit(1)
 
+    scopes = [DRIVE_SCOPE]
+    if extra_scopes:
+        scopes = list(scopes) + list(extra_scopes)
+
     creds = Credentials(
         token=None,
         refresh_token=refresh_token,
         token_uri="https://oauth2.googleapis.com/token",
         client_id=client_id,
         client_secret=client_secret,
-        scopes=[DRIVE_SCOPE],
+        scopes=scopes,
     )
     creds.refresh(Request())
     return creds
@@ -81,6 +88,14 @@ def build_service(credentials: Any) -> Any:
     from googleapiclient.discovery import build
 
     return build("drive", "v3", credentials=credentials, cache_discovery=False)
+
+
+def build_sheets_service(credentials: Any) -> Any:
+    """Sheets API v4 サービスを構築する。"""
+    _ensure_deps()
+    from googleapiclient.discovery import build
+
+    return build("sheets", "v4", credentials=credentials, cache_discovery=False)
 
 
 def get_or_create_folder(service: Any, parent_id: str, name: str) -> str:
