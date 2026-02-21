@@ -17,6 +17,11 @@ from pathlib import Path
 
 import pandas as pd
 
+# openpyxl はパス変更前にインポート（sys.path の影響を受けないように）
+from openpyxl import load_workbook
+from openpyxl.styles import Font
+from openpyxl.utils import column_index_from_string, coordinate_from_string
+
 # プロジェクトルートを PYTHONPATH に追加
 _script_dir = Path(__file__).resolve().parent
 _repo_root = _script_dir.parent.parent
@@ -109,11 +114,6 @@ def _parse_header_anchor(wb, sheet_name: str) -> tuple[int, int]:
     headerAnchor の Named Range から (1-based row, 1-based col) を返す。
     sheet_name と一致するシートの headerAnchor のみ採用。
     """
-    try:
-        from openpyxl.utils import coordinate_from_string, column_index_from_string
-    except ImportError:
-        raise SystemExit("openpyxl がインストールされていません。pip install openpyxl を実行してください。")
-
     dn = wb.defined_names.get("headerAnchor")
     if not dn:
         raise SystemExit("Named Range 'headerAnchor' がテンプレートに見つかりません。")
@@ -183,9 +183,6 @@ def run(cfg: dict) -> str:
         raise SystemExit(f"テンプレートが見つかりません: {template_path}")
 
     logger.info("テンプレート: %s", template_path)
-    from openpyxl import load_workbook
-    from openpyxl.styles import Font
-
     wb = load_workbook(template_path, data_only=False)
     target_sheet_name = cfg["header_anchor_sheet_name"]
     if target_sheet_name not in wb.sheetnames:
