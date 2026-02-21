@@ -194,36 +194,36 @@ def compute_limit_suspect_labels(
     # 優先順位の逆順（下から順）にチェック（最後に見つかったものが優先）
     label = None
 
-    # 1. Hが高値に到達：ストップ高タッチ疑い
+    # 1. Hが高値に到達：S高タッチ疑い
     if hit_limit_high:
         label = "LIMIT_HIGH_TOUCH"
 
-    # 2. Lが安値に到達：ストップ安タッチ疑い
+    # 2. Lが安値に到達：S安タッチ疑い
     if hit_limit_low:
         label = "LIMIT_LOW_TOUCH"
 
-    # 3. Hが高値に到達し、Cも同値：ストップ高タッチ後張付き疑い
+    # 3. Hが高値に到達し、Cも同値：S高タッチ後張付き疑い
     if hit_limit_high and c >= limit_high:
         label = "LIMIT_HIGH_TOUCH_STUCK"
 
-    # 4. Lが安値に到達し、Cも同値：ストップ安タッチ後張付き疑い
+    # 4. Lが安値に到達し、Cも同値：S安タッチ後張付き疑い
     if hit_limit_low and c <= limit_low:
         label = "LIMIT_LOW_TOUCH_STUCK"
 
-    # 5. Hが高値に到達し、Oも同値、しかしCは到達しない：ストップ高寄天疑い
+    # 5. Hが高値に到達し、Oも同値、しかしCは到達しない：S高寄天疑い
     if hit_limit_high and o >= limit_high and c < limit_high:
         label = "LIMIT_HIGH_OPEN_ONLY"
 
-    # 6. Lが安値に到達し、Oも同値、しかしCは到達しない：ストップ安寄底疑い
+    # 6. Lが安値に到達し、Oも同値、しかしCは到達しない：S安寄底疑い
     if hit_limit_low and o <= limit_low and c > limit_low:
         label = "LIMIT_LOW_OPEN_ONLY"
 
-    # 7. OHLC全て高値に到達：ストップ高完全張り付き疑い
+    # 7. OHLC全て高値に到達：S高完全張り付き疑い
     # H, O, Cが制限高値に到達し、Lも制限高値に到達（実質的に全てが制限高値）
     if h >= limit_high and o >= limit_high and c >= limit_high and l >= limit_high:
         label = "LIMIT_HIGH_FULL_STUCK"
 
-    # 8. OHLC全て安値に到達：ストップ安完全張り付き疑い
+    # 8. OHLC全て安値に到達：S安完全張り付き疑い
     # H, O, Cが制限安値に到達し、Hも制限安値に到達（実質的に全てが制限安値）
     if h <= limit_low and o <= limit_low and c <= limit_low and l <= limit_low:
         label = "LIMIT_LOW_FULL_STUCK"
@@ -266,7 +266,7 @@ def compute_candle_labels(
     latest_close_pos = df.loc[latest_idx, "close_pos"]
     latest_open = df.loc[latest_idx, "Open"]
 
-    # 制限値幅テーブルを使った判定（ストップ高・ストップ安はレンジ0より優先）
+    # 制限値幅テーブルを使った判定（S高・S安はレンジ0より優先）
     limit_label = None
     if prev_close is not None and not pd.isna(prev_close):
         limit_label = compute_limit_suspect_labels(df, prev_close)
@@ -374,25 +374,25 @@ def compute_price_text(df: pd.DataFrame, labels: str, q_sr: float | pd.Series) -
     label_set = set(labels.split(",")) if labels else set()
     parts = []
 
-    # 制限値幅ラベル（ストップ高・ストップ安はレンジ0より優先）
+    # 制限値幅ラベル（S高・S安はレンジ0より優先）
     # 優先順位の逆順（下から順）にチェック（最後に見つかったものが優先）
     limit_text = None
     if "LIMIT_LOW_FULL_STUCK" in label_set:
-        limit_text = "ストップ安完全張り付き疑い"
+        limit_text = "S安完全張り付き疑い"
     if "LIMIT_HIGH_FULL_STUCK" in label_set:
-        limit_text = "ストップ高完全張り付き疑い"
+        limit_text = "S高完全張り付き疑い"
     if "LIMIT_LOW_OPEN_ONLY" in label_set:
-        limit_text = "ストップ安寄底疑い"
+        limit_text = "S安寄底疑い"
     if "LIMIT_HIGH_OPEN_ONLY" in label_set:
-        limit_text = "ストップ高寄天疑い"
+        limit_text = "S高寄天疑い"
     if "LIMIT_LOW_TOUCH_STUCK" in label_set:
-        limit_text = "ストップ安タッチ後張付き疑い"
+        limit_text = "S安タッチ後張付き疑い"
     if "LIMIT_HIGH_TOUCH_STUCK" in label_set:
-        limit_text = "ストップ高タッチ後張付き疑い"
+        limit_text = "S高タッチ後張付き疑い"
     if "LIMIT_LOW_TOUCH" in label_set:
-        limit_text = "ストップ安タッチ疑い"
+        limit_text = "S安タッチ疑い"
     if "LIMIT_HIGH_TOUCH" in label_set:
-        limit_text = "ストップ高タッチ疑い"
+        limit_text = "S高タッチ疑い"
     
     if limit_text:
         return limit_text

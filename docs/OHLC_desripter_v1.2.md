@@ -57,7 +57,7 @@
 
 ## 2.1 制限値幅テーブルによる判定（v1.2追加）
 
-JPX制限値幅テーブル（`docs/JPX_limitTable.md`参照）を使用して、前日終値から制限値幅を取得し、ストップ高・ストップ安の疑いを判定する。
+JPX制限値幅テーブル（`docs/JPX_limitTable.md`参照）を使用して、前日終値から制限値幅を取得し、S高・S安の疑いを判定する。
 
 **制限値幅の計算**:
 * 前日終値（prevC）から基準値段を判定
@@ -69,14 +69,14 @@ JPX制限値幅テーブル（`docs/JPX_limitTable.md`参照）を使用して�
 
 | キー | 判定条件 | 価格挙動 | 需給含意 |
 |------|---------|---------|---------|
-| `LIMIT_HIGH_TOUCH` | `H >= limit_high` | ストップ高タッチ疑い | 高値に制限値幅到達 |
-| `LIMIT_LOW_TOUCH` | `L <= limit_low` | ストップ安タッチ疑い | 安値に制限値幅到達 |
-| `LIMIT_HIGH_TOUCH_STUCK` | `H >= limit_high AND C >= limit_high` | ストップ高タッチ後張付き疑い | 高値到達後、終値も制限高値維持 |
-| `LIMIT_LOW_TOUCH_STUCK` | `L <= limit_low AND C <= limit_low` | ストップ安タッチ後張付き疑い | 安値到達後、終値も制限安値維持 |
-| `LIMIT_HIGH_OPEN_ONLY` | `H >= limit_high AND O >= limit_high AND C < limit_high` | ストップ高寄天疑い | 寄り付きで高値到達、終値は戻り |
-| `LIMIT_LOW_OPEN_ONLY` | `L <= limit_low AND O <= limit_low AND C > limit_low` | ストップ安寄底疑い | 寄り付きで安値到達、終値は戻り |
-| `LIMIT_HIGH_FULL_STUCK` | `H >= limit_high AND O >= limit_high AND C >= limit_high AND L >= limit_high` | ストップ高完全張り付き疑い | OHLC全てが制限高値に到達 |
-| `LIMIT_LOW_FULL_STUCK` | `H <= limit_low AND O <= limit_low AND C <= limit_low AND L <= limit_low` | ストップ安完全張り付き疑い | OHLC全てが制限安値に到達 |
+| `LIMIT_HIGH_TOUCH` | `H >= limit_high` | S高タッチ疑い | 高値に制限値幅到達 |
+| `LIMIT_LOW_TOUCH` | `L <= limit_low` | S安タッチ疑い | 安値に制限値幅到達 |
+| `LIMIT_HIGH_TOUCH_STUCK` | `H >= limit_high AND C >= limit_high` | S高タッチ後張付き疑い | 高値到達後、終値も制限高値維持 |
+| `LIMIT_LOW_TOUCH_STUCK` | `L <= limit_low AND C <= limit_low` | S安タッチ後張付き疑い | 安値到達後、終値も制限安値維持 |
+| `LIMIT_HIGH_OPEN_ONLY` | `H >= limit_high AND O >= limit_high AND C < limit_high` | S高寄天疑い | 寄り付きで高値到達、終値は戻り |
+| `LIMIT_LOW_OPEN_ONLY` | `L <= limit_low AND O <= limit_low AND C > limit_low` | S安寄底疑い | 寄り付きで安値到達、終値は戻り |
+| `LIMIT_HIGH_FULL_STUCK` | `H >= limit_high AND O >= limit_high AND C >= limit_high AND L >= limit_high` | S高完全張り付き疑い | OHLC全てが制限高値に到達 |
+| `LIMIT_LOW_FULL_STUCK` | `H <= limit_low AND O <= limit_low AND C <= limit_low AND L <= limit_low` | S安完全張り付き疑い | OHLC全てが制限安値に到達 |
 
 **優先順位**: 同時に複数の条件を満たす場合、**下のものほど優先**して表示される（最後にチェックしたものが優先）。
 
@@ -93,8 +93,8 @@ JPX制限値幅テーブル（`docs/JPX_limitTable.md`参照）を使用して�
 推奨優先度：**制限値幅ラベル** > `INVALID_*` > `SPLIT_CONFIRMED` > `ACTION_SUSPECT` > `GAP_DOMINANT`
 
 **v1.2変更点**: 
-* 制限値幅テーブルを使ったストップ高・ストップ安判定を追加
-* ストップ高・ストップ安ラベルは`INVALID_TR0`（レンジ0）より優先
+* 制限値幅テーブルを使ったS高・S安判定を追加
+* S高・S安ラベルは`INVALID_TR0`（レンジ0）より優先
 * `LIMIT_SUSPECT`ラベルは削除（制限値幅テーブルによる細分化された判定に置き換え）
 
 ---
@@ -212,7 +212,7 @@ JPX制限値幅テーブル（`docs/JPX_limitTable.md`参照）を使用して�
 # 6. 出力
 
 * `candle_labels`（ラベル文字列、カンマ区切り）
-* `price_text`（例："ストップ高タッチ疑い" / "極大の長い上ヒゲ陰線" / "丸坊主陽線" / "レンジ0"）
+* `price_text`（例："S高タッチ疑い" / "極大の長い上ヒゲ陰線" / "丸坊主陽線" / "レンジ0"）
 * `volume_text`（将来実装予定）
 
 ---
@@ -247,14 +247,14 @@ JPX制限値幅テーブル（`docs/JPX_limitTable.md`参照）を使用して�
 
 # 9. バージョン変更履歴
 
-## 9.1 v1.2変更点（ストップ高・ストップ安判定の細分化）
+## 9.1 v1.2変更点（S高・S安判定の細分化）
 
 **v1.1**: `LIMIT_SUSPECT`ラベルで制限級の張り付き/極端決着疑いを判定
 
 **v1.2**: JPX制限値幅テーブルを使用した細分化された判定に変更
 * 8つの判定パターンに細分化
 * 制限値幅テーブル（`docs/JPX_limitTable.md`）を参照して前日終値から制限値幅を取得
-* ストップ高・ストップ安ラベルは`INVALID_TR0`（レンジ0）より優先
+* S高・S安ラベルは`INVALID_TR0`（レンジ0）より優先
 * 同時に複数の条件を満たす場合、下のものほど優先して表示
 
 ## 9.2 v1.1変更点まとめ

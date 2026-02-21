@@ -1,0 +1,28 @@
+# 日次レポート スプレッドシート生成用設定
+# workflow inputs で上書き可能な項目は inputs を優先
+
+# テンプレ保管先フォルダ（テンプレ検索・出力先兼用）
+output_folder_id: "1pwtA9TFLxJ1NfyoCEsVeNq8JM9ULUeCt"
+
+# テンプレファイル名（output_folder_id 内で検索）
+template_file_name: "indicators_template_v1.0"
+
+# template_spreadsheet_id: 上書き時のみ使用。未設定なら template_file_name で検索
+# template_spreadsheet_id: null
+
+# headerAnchor が存在するシート名
+header_anchor_sheet_name: "indicators001"
+
+# CSV Drive ファイルID（workflow inputs で必須指定。ここはデフォルト未設定）
+# csv_drive_file_id: null
+
+# URL列の表示名マップ（列名 → 表示ラベル）
+# 列名はテンプレヘッダー名（CSVヘッダー名）と完全一致
+link_label_map:
+  link_kabutan: "概要"
+  link_kabutan_chart: "チャート"
+  link_kabutan_news: "ニュース"
+  link_buffett: "Bcode"
+  # 将来拡張例:
+  # link_minkabu: "みんかぶ"
+  # link_yahoo: "Yahoo"
