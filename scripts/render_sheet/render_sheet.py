@@ -99,6 +99,8 @@ def resolve_config(
         "header_anchor_sheet_name": header_anchor_sheet_name or config.get("header_anchor_sheet_name", "indicators001"),
         "template_path": template_path or config.get("template_path", "config/templates/indicators_template_v1.0.xlsx"),
         "link_label_map": config.get("link_label_map") or {},
+        "sort_column": config.get("sort_column"),
+        "sort_ascending": config.get("sort_ascending", False),
     }
     if not out["csv_drive_file_id"]:
         raise SystemExit("csv_drive_file_id が指定されていません。")
@@ -167,6 +169,15 @@ def run(cfg: dict) -> str:
     df = pd.read_csv(io.BytesIO(resp))
     csv_rows = len(df)
     logger.info("入力CSV行数: %d", csv_rows)
+
+    # ソート（設定あり且つ列が存在する場合）
+    sort_column = cfg.get("sort_column")
+    if sort_column and sort_column in df.columns:
+        sort_asc = cfg.get("sort_ascending", False)
+        df = df.sort_values(by=sort_column, ascending=sort_asc, na_position="last")
+        logger.info("ソート適用: %s %s", sort_column, "昇順" if sort_asc else "降順")
+    elif sort_column:
+        logger.warning("ソートキー列 '%s' がCSVに存在しないため、ソートをスキップしました。", sort_column)
 
     # 日付（出力ファイル名用）
     run_date = extract_date_from_filename(csv_filename)

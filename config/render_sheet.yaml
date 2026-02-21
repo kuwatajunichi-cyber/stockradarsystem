@@ -10,6 +10,12 @@ template_path: "config/templates/indicators_template_v1.0.xlsx"
 # headerAnchor が存在するシート名
 header_anchor_sheet_name: "indicators001"
 
+# デフォルトソート（出力順）
+# sort_column: ソートキー列名（CSVヘッダー名）。未設定時はソートなし
+# sort_ascending: true=昇順, false=降順
+sort_column: "z_turnover_60"
+sort_ascending: false
+
 # CSV Drive ファイルID（workflow inputs で必須指定。ここはデフォルト未設定）
 # csv_drive_file_id: null
 
