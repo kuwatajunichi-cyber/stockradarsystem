@@ -20,7 +20,7 @@ import pandas as pd
 # openpyxl はパス変更前にインポート（sys.path の影響を受けないように）
 from openpyxl import load_workbook
 from openpyxl.styles import Font
-from openpyxl.utils import column_index_from_string, coordinate_from_string
+from openpyxl.utils.cell import column_index_from_string, coordinate_from_string
 
 # プロジェクトルートを PYTHONPATH に追加
 _script_dir = Path(__file__).resolve().parent
