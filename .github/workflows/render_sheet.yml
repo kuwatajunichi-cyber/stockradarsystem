@@ -63,7 +63,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
           python -m pip install openpyxl
-          python -c "import openpyxl; from openpyxl.utils import coordinate_from_string; print('openpyxl OK')"
+          python -c "from openpyxl.utils.cell import coordinate_from_string; print('openpyxl OK')"
 
       - name: Render sheet (Drive CSV → XLSX テンプレ)
         id: run
