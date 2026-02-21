@@ -16,6 +16,14 @@ on:
         description: "出力先フォルダ ID（省略時は config を使用）"
         required: false
         type: string
+      output_subfolder:
+        description: "出力先サブフォルダ名（例: YYYY-MM）。未設定時は run_date から YYYY-MM を導出"
+        required: false
+        type: string
+      run_date:
+        description: "日付（YYYY-MM-DD）。output_subfolder 未設定時に YYYY-MM 導出に使用"
+        required: false
+        type: string
       header_anchor_sheet_name:
         description: "headerAnchor が存在するシート名（省略時は config を使用）"
         required: false
@@ -29,6 +37,14 @@ on:
         type: string
       output_folder_id:
         description: "出力先フォルダ ID"
+        required: false
+        type: string
+      output_subfolder:
+        description: "出力先サブフォルダ名（例: YYYY-MM）"
+        required: false
+        type: string
+      run_date:
+        description: "日付（YYYY-MM-DD）。output_subfolder 未設定時に YYYY-MM 導出に使用"
         required: false
         type: string
       header_anchor_sheet_name:
@@ -76,6 +92,12 @@ jobs:
           set -e
           ARGS=(--csv-drive-file-id "${{ inputs.csv_drive_file_id }}")
           [ -n "${{ inputs.output_folder_id }}" ] && ARGS+=(--output-folder-id "${{ inputs.output_folder_id }}")
+          if [ -n "${{ inputs.output_subfolder }}" ]; then
+            ARGS+=(--output-subfolder "${{ inputs.output_subfolder }}")
+          elif [ -n "${{ inputs.run_date }}" ]; then
+            MONTH="${{ inputs.run_date }}"
+            ARGS+=(--output-subfolder "${MONTH:0:7}")
+          fi
           [ -n "${{ inputs.header_anchor_sheet_name }}" ] && ARGS+=(--header-anchor-sheet-name "${{ inputs.header_anchor_sheet_name }}")
           
           OUTPUT=$(python scripts/render_sheet/render_sheet.py "${ARGS[@]}" 2>&1 | tee render_log.txt)

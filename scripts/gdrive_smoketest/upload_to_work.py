@@ -66,6 +66,7 @@ def main() -> None:
         parent_id = month_id
         target_path = f"0011_work/{month}/"
 
+    last_file_id = None
     for path_str in args.files:
         path = Path(path_str)
         if not path.is_file():
@@ -76,8 +77,11 @@ def main() -> None:
         file_id, web_link = upload_file(
             service, parent_id, name, content, mime_type="text/csv"
         )
+        last_file_id = file_id
         print(f"[Drive] {name} -> {target_path} (id={file_id})", file=sys.stderr)
     print(f"Uploaded {len(args.files)} file(s) to {target_path}", file=sys.stderr)
+    if last_file_id:
+        print(f"csv_file_id={last_file_id}")
 
 
 if __name__ == "__main__":
