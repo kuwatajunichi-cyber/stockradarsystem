@@ -5,11 +5,13 @@
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
-# JPX制限値幅テーブル（基準値段 -> 制限値幅）
-JPX_LIMIT_TABLE = [
+# JPX制限値幅テーブルのデフォルト（config/jpx_limit_table.yaml 読み込み失敗時のフォールバック）
+_DEFAULT_JPX_LIMIT_TABLE = [
     (100, 30),
     (200, 50),
     (500, 80),
@@ -46,6 +48,50 @@ JPX_LIMIT_TABLE = [
     (float("inf"), 10000000),  # 50,000,000円以上
 ]
 
+_JPX_LIMIT_TABLE_CACHE: list[tuple[float, float]] | None = None
+
+
+def _load_jpx_limit_table() -> list[tuple[float, float]]:
+    """config/jpx_limit_table.yaml からJPX制限値幅テーブルを読み込む。失敗時はデフォルトを返す。"""
+    global _JPX_LIMIT_TABLE_CACHE
+    if _JPX_LIMIT_TABLE_CACHE is not None:
+        return _JPX_LIMIT_TABLE_CACHE
+
+    from stockradar.config import get_jpx_limit_table_path
+
+    path = get_jpx_limit_table_path()
+    if not path.exists():
+        _JPX_LIMIT_TABLE_CACHE = _DEFAULT_JPX_LIMIT_TABLE
+        return _JPX_LIMIT_TABLE_CACHE
+
+    try:
+        import yaml
+
+        with open(path, encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        entries = data.get("table", [])
+        table: list[tuple[float, float]] = []
+        for e in entries:
+            th = e.get("threshold")
+            limit = float(e.get("limit_range", 0))
+            if th == "inf" or (isinstance(th, str) and th.lower() == "inf"):
+                th = float("inf")
+            else:
+                th = float(th)
+            table.append((th, limit))
+        if table:
+            _JPX_LIMIT_TABLE_CACHE = table
+            return _JPX_LIMIT_TABLE_CACHE
+    except Exception:
+        pass
+    _JPX_LIMIT_TABLE_CACHE = _DEFAULT_JPX_LIMIT_TABLE
+    return _JPX_LIMIT_TABLE_CACHE
+
+
+def get_jpx_limit_table() -> list[tuple[float, float]]:
+    """JPX制限値幅テーブル（基準値段 -> 制限値幅）を返す。config/jpx_limit_table.yaml から読み込み。"""
+    return _load_jpx_limit_table()
+
 
 def get_limit_range(prev_close: float) -> float:
     """
@@ -57,7 +103,7 @@ def get_limit_range(prev_close: float) -> float:
     Returns:
         制限値幅（円）
     """
-    for threshold, limit_range in JPX_LIMIT_TABLE:
+    for threshold, limit_range in get_jpx_limit_table():
         if prev_close < threshold:
             return limit_range
     return 10000000  # フォールバック

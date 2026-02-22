@@ -25,26 +25,15 @@ from stockradar.universe.equity_secondary import (
     split_equity_domestic_secondary,
 )
 from stockradar.universe.jpx_primary import _normalize_code
+from stockradar.utils.external_links import build_external_links
+from stockradar.utils.paths import (
+    PATTERN_SETS,
+    find_latest_matching,
+    get_processed_jpx_dir,
+    get_universe_jpx_dir,
+)
 from stockradar.utils.stock_name_shortener import shorten_stock_name
-
-MANIFEST_FILENAME = "_manifest.jsonl"
-
-
-def _find_latest_equity_domestic(base_dir: Path) -> Path | None:
-    """data/universe/jpx/sets_YYYYMMDD/equity_domestic.csv の最新を返す。"""
-    jpx_dir = base_dir / "data" / "universe" / "jpx"
-    if not jpx_dir.exists():
-        return None
-    candidates = []
-    for d in jpx_dir.iterdir():
-        if d.is_dir() and re.match(r"sets_\d{8}", d.name):
-            p = d / "equity_domestic.csv"
-            if p.exists():
-                candidates.append(p)
-    if not candidates:
-        return None
-    candidates.sort(key=lambda p: p.parent.name)
-    return candidates[-1]
+from stockradar.utils.yf_cache import MANIFEST_FILENAME
 
 
 def _infer_ymd_from_path(path: Path) -> str | None:
@@ -53,24 +42,12 @@ def _infer_ymd_from_path(path: Path) -> str | None:
     return m.group(1) if m else None
 
 
-def _external_urls_for_code(code: str) -> dict[str, str]:
-    """銘柄コードから外部サイトURLを生成（externalLink_v1.0 に準拠）。"""
-    return {
-        "kabutan_main": f"https://kabutan.jp/stock/?code={code}",
-        "kabutan_chart": f"https://kabutan.jp/stock/chart?code={code}",
-        "kabutan_news": f"https://kabutan.jp/stock/news?code={code}",
-        "minkabu": f"https://minkabu.jp/stock/{code}",
-        "buffett": f"https://www.buffett-code.com/company/{code}",
-        "yahoo": f"https://finance.yahoo.co.jp/quote/{code}.T",
-    }
-
-
 def _load_code_to_name_from_jpx_processed(base_dir: Path, ymd: str) -> dict[str, str] | None:
     """
     JPX processed CSV（data/processed/jpx/jpx_list_YYYYMMDD.csv）から
     コード → 銘柄名 のマッピングを返す。ファイルが無い場合は None。
     """
-    path = base_dir / "data" / "processed" / "jpx" / f"jpx_list_{ymd}.csv"
+    path = get_processed_jpx_dir(base_dir) / f"jpx_list_{ymd}.csv"
     if not path.exists():
         return None
     try:
@@ -113,7 +90,9 @@ def main(argv: list[str] | None = None) -> None:
         if not input_path.is_absolute():
             input_path = base / input_path
     else:
-        input_path = _find_latest_equity_domestic(base)
+        input_path = find_latest_matching(
+            get_universe_jpx_dir(base), PATTERN_SETS, "equity_domestic.csv"
+        )
         if input_path is None:
             print(
                 "エラー: equity_domestic.csv が見つかりません。"
@@ -191,7 +170,7 @@ def main(argv: list[str] | None = None) -> None:
                 raw_name = code_to_name.get(c, "")
                 short_name = shorten_stock_name(raw_name)
                 row = {"code": c, "name": short_name}
-                row.update(_external_urls_for_code(c))
+                row.update(build_external_links(c, "canonical"))
                 rows.append(row)
             path_with_name = out_dir / f"{name}_with_name.csv"
             pd.DataFrame(rows).to_csv(path_with_name, index=False, encoding="utf-8-sig")

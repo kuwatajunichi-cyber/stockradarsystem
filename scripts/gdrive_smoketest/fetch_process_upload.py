@@ -18,8 +18,8 @@ _script_dir = os.path.dirname(os.path.abspath(__file__))
 _repo_root = os.path.dirname(os.path.dirname(_script_dir))
 sys.path.insert(0, _repo_root)
 from scripts.gdrive_smoketest.drive_client import (
-    FOLDER_ID_PAID,
     build_service,
+    get_folder_id_paid,
     get_credentials,
     get_file_content,
     get_file_metadata,
@@ -83,7 +83,7 @@ def main() -> None:
     processed_text, sha256_val = process_content(raw, args.run_id)
     out_name = f"smoke_{args.run_id}_processed.txt"
 
-    month_id = get_or_create_folder(service, FOLDER_ID_PAID, args.month_folder)
+    month_id = get_or_create_folder(service, get_folder_id_paid(), args.month_folder)
     day_id = get_or_create_folder(service, month_id, args.day_folder)
 
     file_id, web_view_link = upload_file(

@@ -9,10 +9,26 @@ import os
 import sys
 from typing import Any
 
-# フォルダID（マイドライブ共有フォルダ）
-FOLDER_ID_WORK = "1i0HfAJAwVE6o8_q-_8S8g_WVWwbLvXQs"
-FOLDER_ID_PAID = "1sUA-HL04eOo9fCBa5fN1OxKRs0Sp-Wf5"
-FOLDER_ID_PUBLIC = "1VftO77iFAGrx7CWPaOWPQb3xpCQO07OY"
+# フォルダID（マイドライブ共有フォルダ）のデフォルト値
+_DEFAULT_FOLDER_ID_WORK = "1i0HfAJAwVE6o8_q-_8S8g_WVWwbLvXQs"
+_DEFAULT_FOLDER_ID_PAID = "1sUA-HL04eOo9fCBa5fN1OxKRs0Sp-Wf5"
+_DEFAULT_FOLDER_ID_PUBLIC = "1VftO77iFAGrx7CWPaOWPQb3xpCQO07OY"
+
+
+def get_folder_id_work() -> str:
+    """作業用フォルダID。環境変数 GDRIVE_FOLDER_ID_WORK で上書き可能。"""
+    return os.environ.get("GDRIVE_FOLDER_ID_WORK", "").strip() or _DEFAULT_FOLDER_ID_WORK
+
+
+def get_folder_id_paid() -> str:
+    """有料成果物フォルダID。環境変数 GDRIVE_FOLDER_ID_PAID で上書き可能。"""
+    return os.environ.get("GDRIVE_FOLDER_ID_PAID", "").strip() or _DEFAULT_FOLDER_ID_PAID
+
+
+def get_folder_id_public() -> str:
+    """公開フォルダID。環境変数 GDRIVE_FOLDER_ID_PUBLIC で上書き可能。"""
+    return os.environ.get("GDRIVE_FOLDER_ID_PUBLIC", "").strip() or _DEFAULT_FOLDER_ID_PUBLIC
+
 
 # OAuth 環境変数名
 ENV_CLIENT_ID = "GDRIVE_OAUTH_CLIENT_ID"

@@ -16,8 +16,8 @@ _script_dir = os.path.dirname(os.path.abspath(__file__))
 _repo_root = os.path.dirname(os.path.dirname(_script_dir))
 sys.path.insert(0, _repo_root)
 from scripts.gdrive_smoketest.drive_client import (
-    FOLDER_ID_WORK,
     build_service,
+    get_folder_id_work,
     get_credentials,
     get_or_create_folder,
     upload_file,
@@ -38,7 +38,7 @@ def main() -> None:
     day_folder = now.strftime("%Y-%m-%d")
 
     # 0011_work 直下に 今月 → 今日
-    month_id = get_or_create_folder(service, FOLDER_ID_WORK, month_folder)
+    month_id = get_or_create_folder(service, get_folder_id_work(), month_folder)
     day_id = get_or_create_folder(service, month_id, day_folder)
 
     file_name = f"smoke_{run_id}.txt"

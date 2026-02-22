@@ -8,6 +8,21 @@ from pathlib import Path
 DEFAULT_JPX_PAGE_URL = "https://www.jpx.co.jp/markets/statistics-equities/misc/01.html"
 
 
+def get_http_timeout() -> int:
+    """HTTP リクエストのタイムアウト秒。環境変数 HTTP_TIMEOUT（default=60）。"""
+    return _env_int("HTTP_TIMEOUT", 60)
+
+
+def get_jpx_page_timeout() -> int:
+    """JPX ページ取得のタイムアウト秒。環境変数 JPX_PAGE_TIMEOUT（default=30）。"""
+    return _env_int("JPX_PAGE_TIMEOUT", 30)
+
+
+def get_git_command_timeout() -> int:
+    """git コマンド実行のタイムアウト秒。環境変数 GIT_COMMAND_TIMEOUT（default=5）。"""
+    return _env_int("GIT_COMMAND_TIMEOUT", 5)
+
+
 def get_jpx_page_url() -> str:
     """最新URLを抽出する対象ページ。環境変数 JPX_PAGE_URL がなければ既定値。"""
     url = os.environ.get("JPX_PAGE_URL", "").strip()
@@ -28,6 +43,15 @@ def get_jpx_cache_path(base_dir: Path) -> Path:
 def get_jpx_market_product_categories_cache_path(base_dir: Path) -> Path:
     """「市場・商品区分」のカテゴリ集合キャッシュファイルパス。"""
     return base_dir / "data" / "cache" / "jpx_market_product_categories.json"
+
+
+def get_jpx_limit_table_path(base_dir: Path | None = None) -> Path:
+    """JPX制限値幅テーブルの設定ファイルパス。環境変数 JPX_LIMIT_TABLE_PATH で上書き可能。"""
+    path = os.environ.get("JPX_LIMIT_TABLE_PATH", "").strip()
+    if path:
+        return Path(path)
+    base = base_dir or Path.cwd()
+    return base / "config" / "jpx_limit_table.yaml"
 
 
 # --- 二次ユニバース（equity_domestic 分割）・yfinance 取得用 ---
@@ -159,3 +183,13 @@ def get_yf_index_cache_dir(base_dir: Path) -> Path:
 def get_indicators_daily_dir(base_dir: Path) -> Path:
     """日次指標出力ディレクトリ。data/indicators/daily/。"""
     return base_dir / "data" / "indicators" / "daily"
+
+
+def get_universe_jpx_dir(base_dir: Path) -> Path:
+    """ユニバースJPXディレクトリ。data/universe/jpx/。"""
+    return base_dir / "data" / "universe" / "jpx"
+
+
+def get_processed_jpx_dir(base_dir: Path) -> Path:
+    """JPX処理済みディレクトリ。data/processed/jpx/。"""
+    return base_dir / "data" / "processed" / "jpx"

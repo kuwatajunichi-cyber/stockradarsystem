@@ -9,12 +9,9 @@ from urllib.parse import urljoin, urlparse
 import requests
 from bs4 import BeautifulSoup
 
-from stockradar.config import get_jpx_cache_path, get_jpx_page_url
+from stockradar.config import get_jpx_cache_path, get_jpx_page_url, get_jpx_page_timeout
 
 logger = logging.getLogger(__name__)
-
-# ページ取得タイムアウト
-_PAGE_TIMEOUT = 30
 
 
 def resolve_latest_url(page_url: str) -> str | None:
@@ -23,7 +20,7 @@ def resolve_latest_url(page_url: str) -> str | None:
     成功時は絶対URLを返し、見つからない・取得失敗時は None。
     """
     try:
-        resp = requests.get(page_url, timeout=_PAGE_TIMEOUT)
+        resp = requests.get(page_url, timeout=get_jpx_page_timeout())
         resp.raise_for_status()
     except requests.RequestException:
         return None
