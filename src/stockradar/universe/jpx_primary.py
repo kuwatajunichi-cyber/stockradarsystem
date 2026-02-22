@@ -77,6 +77,17 @@ def _normalize_str(value: object) -> str:
     return str(value).strip()
 
 
+def _has_five_or_more_digits(code: str) -> bool:
+    """
+    コード中に数字が5桁以上含まれる場合 True を返す。
+    種類株（5桁コード）の除外判定用。数字3桁+アルファベット等は False（除外しない）。
+    """
+    if not code:
+        return False
+    digit_count = sum(1 for c in code if c.isdigit())
+    return digit_count >= 5
+
+
 def assign_universe_primary(market_product_raw: str) -> str:
     """市場・商品区分の文字列から universe_primary を決定する。"""
     text = (market_product_raw or "").strip()
@@ -208,6 +219,20 @@ def build_universe_from_jpx(
 
     # 日付列を追加
     df_normalized["date"] = as_of_date.isoformat()
+
+    # 種類株除外: 数字が5桁以上含まれる銘柄（5桁コードの種類株等）を除外
+    # 数字3桁+アルファベット等は除外しない
+    mask_exclude = df_normalized["code"].map(_has_five_or_more_digits)
+    excluded_count = mask_exclude.sum()
+    if excluded_count:
+        excluded_codes = sorted(
+            df_normalized.loc[mask_exclude, "code"].unique().tolist()
+        )
+        warns.append(
+            f"WARN[UNIVERSE_SCHEMA]: TYPE_SHARES_EXCLUDED count={excluded_count} "
+            f"codes_sample={excluded_codes[:10]}{'...' if len(excluded_codes) > 10 else ''}"
+        )
+        df_normalized = df_normalized[~mask_exclude].copy()
 
     # 列順を揃える
     universe_df = df_normalized[
