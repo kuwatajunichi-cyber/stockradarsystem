@@ -24,16 +24,7 @@ from pathlib import Path
 import pandas as pd
 
 from stockradar.universe.jpx_primary import UNIVERSE_IDS, build_universe_from_jpx
-
-
-def _find_latest_input(base_dir: Path) -> Path | None:
-    processed_dir = base_dir / "data" / "processed" / "jpx"
-    if not processed_dir.exists():
-        return None
-    candidates = sorted(processed_dir.glob("jpx_list_*.csv"))
-    if not candidates:
-        return None
-    return candidates[-1]
+from stockradar.utils.paths import find_latest_processed_jpx
 
 
 def _infer_date_from_filename(path: Path) -> date | None:
@@ -65,7 +56,7 @@ def main(argv: list[str] | None = None) -> None:
         if not input_path.is_absolute():
             input_path = base / input_path
     else:
-        input_path = _find_latest_input(base)
+        input_path = find_latest_processed_jpx(base)
         if input_path is None:
             print(
                 "エラー: 入力CSVが見つかりません。--input で明示するか、"

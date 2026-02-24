@@ -1,0 +1,75 @@
+# JPX制限値幅テーブル（docs/JPX_limitTable.md 準拠）
+# 基準値段（円未満） -> 制限値幅（円）
+# 前日終値が threshold 未満の場合、対応する limit_range を適用
+# 最終行の threshold: inf は「以上」を表す
+
+table:
+  - threshold: 100
+    limit_range: 30
+  - threshold: 200
+    limit_range: 50
+  - threshold: 500
+    limit_range: 80
+  - threshold: 700
+    limit_range: 100
+  - threshold: 1000
+    limit_range: 150
+  - threshold: 1500
+    limit_range: 300
+  - threshold: 2000
+    limit_range: 400
+  - threshold: 3000
+    limit_range: 500
+  - threshold: 5000
+    limit_range: 700
+  - threshold: 7000
+    limit_range: 1000
+  - threshold: 10000
+    limit_range: 1500
+  - threshold: 15000
+    limit_range: 3000
+  - threshold: 20000
+    limit_range: 4000
+  - threshold: 30000
+    limit_range: 5000
+  - threshold: 50000
+    limit_range: 7000
+  - threshold: 70000
+    limit_range: 10000
+  - threshold: 100000
+    limit_range: 15000
+  - threshold: 150000
+    limit_range: 30000
+  - threshold: 200000
+    limit_range: 40000
+  - threshold: 300000
+    limit_range: 50000
+  - threshold: 500000
+    limit_range: 70000
+  - threshold: 700000
+    limit_range: 100000
+  - threshold: 1000000
+    limit_range: 150000
+  - threshold: 1500000
+    limit_range: 300000
+  - threshold: 2000000
+    limit_range: 400000
+  - threshold: 3000000
+    limit_range: 500000
+  - threshold: 5000000
+    limit_range: 700000
+  - threshold: 7000000
+    limit_range: 1000000
+  - threshold: 10000000
+    limit_range: 1500000
+  - threshold: 15000000
+    limit_range: 3000000
+  - threshold: 20000000
+    limit_range: 4000000
+  - threshold: 30000000
+    limit_range: 5000000
+  - threshold: 50000000
+    limit_range: 7000000
+  # 50,000,000円以上（threshold: inf は読み込み時に float("inf") に変換される）
+  - threshold: "inf"
+    limit_range: 10000000

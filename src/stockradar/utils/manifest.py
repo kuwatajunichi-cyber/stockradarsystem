@@ -26,13 +26,15 @@ def compute_sha256(path: Path) -> str:
 
 def get_git_commit() -> str | None:
     """現在の git commit hash を取得。失敗時は None。"""
+    from stockradar.config import get_git_command_timeout
+
     try:
         result = subprocess.run(
             ["git", "rev-parse", "HEAD"],
             capture_output=True,
             text=True,
             check=True,
-            timeout=5,
+            timeout=get_git_command_timeout(),
         )
         return result.stdout.strip() or None
     except Exception:

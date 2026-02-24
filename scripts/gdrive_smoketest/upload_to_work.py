@@ -15,8 +15,8 @@ _script_dir = os.path.dirname(os.path.abspath(__file__))
 _repo_root = os.path.dirname(os.path.dirname(_script_dir))
 sys.path.insert(0, _repo_root)
 from scripts.gdrive_smoketest.drive_client import (
-    FOLDER_ID_WORK,
     build_service,
+    get_folder_id_work,
     get_credentials,
     get_or_create_folder,
     upload_file,
@@ -58,7 +58,7 @@ def main() -> None:
     creds = get_credentials()
     service = build_service(creds)
 
-    month_id = get_or_create_folder(service, FOLDER_ID_WORK, month)
+    month_id = get_or_create_folder(service, get_folder_id_work(), month)
     if day:
         parent_id = get_or_create_folder(service, month_id, day)
         target_path = f"0011_work/{month}/{day}/"

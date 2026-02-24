@@ -23,7 +23,7 @@ from stockradar.config import (
 MANIFEST_FILENAME = "_manifest.jsonl"
 
 
-def _period_for_required_days(required_days: int) -> str:
+def period_for_required_days(required_days: int) -> str:
     """
     required_days 営業日を満たす period 文字列。
     1年では東証休日により約245営業日程度しか返らないため、
@@ -36,7 +36,7 @@ def _period_for_required_days(required_days: int) -> str:
     return "2y"
 
 
-def _start_end_for_required_days(required_days: int) -> tuple[datetime, datetime]:
+def start_end_for_required_days(required_days: int) -> tuple[datetime, datetime]:
     """required_days 営業日をカバーする calendar 日範囲（余裕多め）。"""
     end = datetime.now(timezone.utc)
     # 営業日 252 日 ≈ 約 1 年、余裕で 400 日
@@ -143,8 +143,8 @@ def fetch_yf_data(
         use_period = False
     else:
         # フル取得時は従来通り
-        period = _period_for_required_days(required_days)
-        start_dt, _ = _start_end_for_required_days(required_days)
+        period = period_for_required_days(required_days)
+        start_dt, _ = start_end_for_required_days(required_days)
         use_period = True
 
     last_error: str | None = None

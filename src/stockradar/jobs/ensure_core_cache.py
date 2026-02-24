@@ -8,7 +8,6 @@ equity_domestic_coreのOHLCVキャッシュ確保ジョブ（Job3）。
 from __future__ import annotations
 
 import argparse
-import re
 import sys
 from datetime import date
 from pathlib import Path
@@ -23,6 +22,13 @@ from stockradar.config import (
     get_yf_sleep_sec_between_batches,
     get_z_lookback_days,
 )
+from stockradar.utils.paths import (
+    PATTERN_SETS_SECONDARY,
+    find_latest_matching,
+    get_universe_jpx_dir,
+    load_codes_from_csv,
+    ticker_for_code,
+)
 from stockradar.utils.yf_cache import (
     MANIFEST_FILENAME,
     ensure_cache_with_incremental_fetch,
@@ -31,36 +37,6 @@ from stockradar.utils.yf_cache import (
 )
 
 import time
-
-
-def _find_latest_core_with_name(base_dir: Path) -> Path | None:
-    """data/universe/jpx/sets_secondary_YYYYMMDD/equity_domestic_core_with_name.csv の最新を返す。"""
-    jpx_dir = base_dir / "data" / "universe" / "jpx"
-    if not jpx_dir.exists():
-        return None
-    candidates = []
-    for d in jpx_dir.iterdir():
-        if d.is_dir() and re.match(r"sets_secondary_\d{8}", d.name):
-            p = d / "equity_domestic_core_with_name.csv"
-            if p.exists():
-                candidates.append(p)
-    if not candidates:
-        return None
-    candidates.sort(key=lambda p: p.parent.name)
-    return candidates[-1]
-
-
-def _load_codes(path: Path) -> list[str]:
-    df = pd.read_csv(path)
-    if "code" not in df.columns:
-        raise ValueError(f"入力CSVに code 列がありません: {path}")
-    codes = [str(c).strip() for c in df["code"].dropna() if str(c).strip()]
-    return codes
-
-
-def _ticker_for_code(code: str) -> str:
-    """日本株の Yahoo ティッカー（例: 7203 -> 7203.T）。"""
-    return f"{code}.T"
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -93,7 +69,11 @@ def main(argv: list[str] | None = None) -> None:
         if not input_path.is_absolute():
             input_path = base / input_path
     else:
-        input_path = _find_latest_core_with_name(base)
+        input_path = find_latest_matching(
+            get_universe_jpx_dir(base),
+            PATTERN_SETS_SECONDARY,
+            "equity_domestic_core_with_name.csv",
+        )
         if input_path is None:
             print(
                 "エラー: equity_domestic_core_with_name.csv が見つかりません。"
@@ -116,7 +96,7 @@ def main(argv: list[str] | None = None) -> None:
         run_date = None
 
     try:
-        codes = _load_codes(input_path)
+        codes = load_codes_from_csv(input_path)
     except ValueError as e:
         print(f"エラー: {e}", file=sys.stderr)
         sys.exit(1)
@@ -146,7 +126,7 @@ def main(argv: list[str] | None = None) -> None:
     for i in range(0, len(codes), batch_size):
         batch = codes[i : i + batch_size]
         for code in batch:
-            ticker = _ticker_for_code(code)
+            ticker = ticker_for_code(code)
             cache_path = cache_dir / f"{code}.csv"
             ent = ensure_cache_with_incremental_fetch(
                 symbol=code,

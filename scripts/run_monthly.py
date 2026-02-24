@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 import uuid
@@ -44,6 +45,7 @@ try:
         verify_manifest,
         write_manifest,
     )
+    from stockradar.utils.paths import PATTERN_SETS_SECONDARY
     print("インポート成功: stockradar.utils.manifest", file=sys.stderr, flush=True)
 except ImportError as e:
     print(f"インポートエラー: {e}", file=sys.stderr, flush=True)
@@ -117,8 +119,9 @@ def find_latest_secondary_outputs() -> tuple[dict[str, Path], list[str]]:
         debug.append(f"ディレクトリが存在しません: {jpx_dir}")
         return {}, debug
     debug.append(f"検索対象: {jpx_dir}")
+    pattern = re.compile(PATTERN_SETS_SECONDARY)
     candidates = sorted(
-        [d for d in jpx_dir.iterdir() if d.is_dir() and d.name.startswith("sets_secondary_")],
+        [d for d in jpx_dir.iterdir() if d.is_dir() and pattern.match(d.name)],
         reverse=True,
     )
     if not candidates:

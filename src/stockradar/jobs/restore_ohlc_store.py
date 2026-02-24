@@ -13,6 +13,7 @@ import zipfile
 from pathlib import Path
 
 from stockradar.config import get_yf_daily_cache_dir
+from stockradar.utils.yf_cache import MANIFEST_FILENAME
 
 
 def restore_ohlc_store(base_dir: Path | None = None) -> None:
@@ -50,7 +51,7 @@ def restore_ohlc_store(base_dir: Path | None = None) -> None:
             shutil.rmtree(store_dir)
         store_dir.mkdir(parents=True, exist_ok=True)
         # manifestファイルを空で作成（必要に応じて）
-        manifest_path = store_dir / "_manifest.jsonl"
+        manifest_path = store_dir / MANIFEST_FILENAME
         if not manifest_path.exists():
             manifest_path.touch()
         print(f"初期化完了: {store_dir}", file=sys.stderr)

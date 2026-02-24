@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 import time
 from datetime import datetime, timedelta, timezone
@@ -30,60 +29,18 @@ from stockradar.config import (
     get_yf_retry_max,
     get_yf_sleep_sec_between_batches,
 )
-
-MANIFEST_FILENAME = "_manifest.jsonl"
-
-
-def _find_latest_equity_domestic(base_dir: Path) -> Path | None:
-    """data/universe/jpx/sets_YYYYMMDD/equity_domestic.csv の最新を返す。"""
-    jpx_dir = base_dir / "data" / "universe" / "jpx"
-    if not jpx_dir.exists():
-        return None
-    candidates = []
-    for d in jpx_dir.iterdir():
-        if d.is_dir() and re.match(r"sets_\d{8}", d.name):
-            p = d / "equity_domestic.csv"
-            if p.exists():
-                candidates.append(p)
-    if not candidates:
-        return None
-    candidates.sort(key=lambda p: p.parent.name)
-    return candidates[-1]
-
-
-def _load_codes(path: Path) -> list[str]:
-    df = pd.read_csv(path)
-    if "code" not in df.columns:
-        raise ValueError(f"入力CSVに code 列がありません: {path}")
-    codes = [str(c).strip() for c in df["code"].dropna() if str(c).strip()]
-    return codes
-
-
-def _ticker_for_code(code: str) -> str:
-    """日本株の Yahoo ティッカー（例: 7203 -> 7203.T）。"""
-    return f"{code}.T"
-
-
-def _period_for_required_days(required_days: int) -> str:
-    """
-    required_days 営業日を満たす period 文字列。
-    1年では東証休日により約245営業日程度しか返らないため、
-    required_days が 252 のときも 2年分を要求する。
-    """
-    if required_days <= 126:
-        return "6mo"
-    if required_days <= 252:
-        return "2y"  # 1y だと約245営業日で不足するため 2y で余裕を持たせる
-    return "2y"
-
-
-def _start_end_for_required_days(required_days: int) -> tuple[datetime, datetime]:
-    """required_days 営業日をカバーする calendar 日範囲（余裕多め）。"""
-    end = datetime.now(timezone.utc)
-    # 営業日 252 日 ≈ 約 1 年、余裕で 400 日
-    days_back = min(400, max(365, required_days * 2))
-    start = end - timedelta(days=days_back)
-    return start, end
+from stockradar.utils.paths import (
+    PATTERN_SETS,
+    find_latest_matching,
+    get_universe_jpx_dir,
+    load_codes_from_csv,
+    ticker_for_code,
+)
+from stockradar.utils.yf_cache import (
+    MANIFEST_FILENAME,
+    period_for_required_days,
+    start_end_for_required_days,
+)
 
 
 def _load_manifest(manifest_path: Path) -> dict[str, dict]:
@@ -124,9 +81,9 @@ def _fetch_one(
     1銘柄分を取得しキャッシュに書き、manifest 用エントリを返す。
     period で空の場合は start/end で再試行する（日本株等で安定しやすいため）。
     """
-    ticker = _ticker_for_code(code)
-    period = _period_for_required_days(required_days)
-    start_dt, end_dt = _start_end_for_required_days(required_days)
+    ticker = ticker_for_code(code)
+    period = period_for_required_days(required_days)
+    start_dt, end_dt = start_end_for_required_days(required_days)
     csv_path = cache_dir / f"{code}.csv"
     now_iso = datetime.now(timezone.utc).isoformat()
 
@@ -223,7 +180,9 @@ def main(argv: list[str] | None = None) -> None:
         if not input_path.is_absolute():
             input_path = base / input_path
     else:
-        input_path = _find_latest_equity_domestic(base)
+        input_path = find_latest_matching(
+            get_universe_jpx_dir(base), PATTERN_SETS, "equity_domestic.csv"
+        )
         if input_path is None:
             print(
                 "エラー: equity_domestic.csv が見つかりません。"
@@ -237,7 +196,7 @@ def main(argv: list[str] | None = None) -> None:
         raise SystemExit(1)
 
     try:
-        codes = _load_codes(input_path)
+        codes = load_codes_from_csv(input_path)
     except ValueError as e:
         print(f"エラー: {e}", file=sys.stderr)
         raise SystemExit(1)
