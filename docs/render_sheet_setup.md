@@ -5,7 +5,7 @@
 Google Drive 上の CSV を読み込み、ローカル XLSX テンプレート（openpyxl）に流し込んで日次レポートを生成する。GCP の Sheets API に依存せず、Drive API のみ使用。
 
 - **ワークフロー**: `.github/workflows/render_sheet.yml`
-- **スクリプト**: `scripts/render_sheet/render_sheet.py`
+- **スクリプト**: `scripts/render_sheet/render_sheet.py`（Drive クライアントは `scripts/gdrive/drive_client.py`）
 - **設定**: `config/render_sheet.yaml`
 - **テンプレート**: `config/templates/indicators_template_v1.0.xlsx`（リポジトリに配置）
 

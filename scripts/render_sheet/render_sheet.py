@@ -28,7 +28,7 @@ _repo_root = _script_dir.parent.parent
 if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
-from scripts.gdrive_smoketest.drive_client import (
+from scripts.gdrive.drive_client import (
     DriveAdapter,
     GoogleDriveAdapter,
     build_service,

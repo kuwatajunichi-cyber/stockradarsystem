@@ -51,7 +51,7 @@ jobs:
           GDRIVE_OAUTH_REFRESH_TOKEN: ${{ secrets.GDRIVE_OAUTH_REFRESH_TOKEN }}
         run: |
           set -e
-          PYTHONPATH=. python scripts/gdrive_smoketest/fetch_process_upload.py \
+          PYTHONPATH=. python scripts/gdrive/smoketest/fetch_process_upload.py \
             --run-id "${{ inputs.run_id }}" \
             --month-folder "${{ inputs.month_folder }}" \
             --day-folder "${{ inputs.day_folder }}" \

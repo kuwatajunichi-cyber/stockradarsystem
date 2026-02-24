@@ -14,7 +14,7 @@ import sys
 if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
-from scripts.gdrive_smoketest.drive_client import FakeDriveAdapter
+from scripts.gdrive.drive_client import FakeDriveAdapter
 from scripts.render_sheet.render_sheet import run
 
 

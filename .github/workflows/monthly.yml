@@ -108,7 +108,7 @@ jobs:
         run: |
           MONTH=$(TZ=Asia/Tokyo date +%Y-%m)
           STAGING="data/output/staging/${{ steps.get_run_id.outputs.run_id }}"
-          PYTHONPATH=. python scripts/gdrive_smoketest/upload_to_work.py --month "$MONTH" \
+          PYTHONPATH=. python scripts/gdrive/upload_to_work.py --month "$MONTH" \
             "$STAGING/equity_domestic_ipo_with_name.csv" \
             "$STAGING/equity_domestic_illiquid_with_name.csv" \
             "$STAGING/equity_domestic_core_with_name.csv"
