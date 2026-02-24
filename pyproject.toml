@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stockradar"
+version = "0.1.0"
+description = "Stock Radar System - data pipeline for Japanese equity market analysis"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.28.0",
+    "pandas>=2.0.0",
+    "openpyxl>=3.1.0",
+    "pyyaml>=6.0",
+    "google-api-python-client>=2.0.0",
+    "google-auth>=2.0.0",
+    "xlrd>=2.0.0",
+    "beautifulsoup4>=4.12.0",
+    "yfinance>=0.2.0",
+    "exchange-calendars>=4.3.0",
+    "pytz>=2023.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
