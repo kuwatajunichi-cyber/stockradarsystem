@@ -307,7 +307,7 @@ jobs:
             echo "No indicator CSVs found, skipping Drive upload"
             exit 0
           fi
-          OUTPUT=$(PYTHONPATH=. python scripts/gdrive_smoketest/upload_to_work.py --month "$MONTH" --day "$RUN_DATE" "${FILES[@]}" 2>&1)
+          OUTPUT=$(PYTHONPATH=. python scripts/gdrive/upload_to_work.py --month "$MONTH" --day "$RUN_DATE" "${FILES[@]}" 2>&1)
           echo "$OUTPUT"
           CSV_FILE_ID=$(echo "$OUTPUT" | grep "^csv_file_id=" | tail -1 | cut -d= -f2-)
           [ -n "$CSV_FILE_ID" ] && echo "csv_file_id=$CSV_FILE_ID" >> "$GITHUB_OUTPUT"

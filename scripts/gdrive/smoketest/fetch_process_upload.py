@@ -11,13 +11,15 @@ import json
 import os
 import sys
 from datetime import datetime
+from pathlib import Path
 
 import pytz
 
-_script_dir = os.path.dirname(os.path.abspath(__file__))
-_repo_root = os.path.dirname(os.path.dirname(_script_dir))
-sys.path.insert(0, _repo_root)
-from scripts.gdrive_smoketest.drive_client import (
+_repo_root = Path(__file__).resolve().parent.parent.parent
+if str(_repo_root) not in sys.path:
+    sys.path.insert(0, str(_repo_root))
+
+from scripts.gdrive.drive_client import (
     build_service,
     get_folder_id_paid,
     get_credentials,

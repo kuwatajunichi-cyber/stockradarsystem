@@ -2,6 +2,10 @@
 venv/
 .venv/
 
+# Local credentials (do not commit)
+.env
+.env.local
+
 # Data (raw / processed / cache / universe / output staging / key / logs)
 data/raw/
 data/processed/
