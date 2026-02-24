@@ -2,8 +2,11 @@
 JPX 銘柄一覧ページから最新の Excel（.xls / .xlsx）URL を抽出し、
 キャッシュ更新とフォールバックを行う。
 """
+from __future__ import annotations
+
 import logging
 from pathlib import Path
+from typing import Protocol
 from urllib.parse import urljoin, urlparse
 
 import requests
@@ -14,30 +17,66 @@ from stockradar.config import get_jpx_cache_path, get_jpx_page_url, get_jpx_page
 logger = logging.getLogger(__name__)
 
 
-def resolve_latest_url(page_url: str) -> str | None:
-    """
-    固定ページの HTML から銘柄一覧 Excel のダウンロードURLを抽出する。
-    成功時は絶対URLを返し、見つからない・取得失敗時は None。
-    """
-    try:
-        resp = requests.get(page_url, timeout=get_jpx_page_timeout())
-        resp.raise_for_status()
-    except requests.RequestException:
-        return None
+class HttpFetcher(Protocol):
+    """HTTP でページ本文を取得する抽象。"""
 
-    soup = BeautifulSoup(resp.text, "html.parser")
-    # 基準URL（相対パス解決用）
-    base = resp.url
+    def get(self, url: str) -> str:
+        """指定 URL のレスポンス本文を返す。失敗時は例外。"""
+        ...
 
+
+def extract_excel_urls_from_html(html: str, base_url: str) -> list[str]:
+    """
+    HTML 文字列から同一サイト内の .xls / .xlsx リンクの絶対 URL を抽出する（Pure）。
+
+    Args:
+        html: ページの HTML 文字列
+        base_url: 相対パス解決の基準 URL
+
+    Returns:
+        絶対 URL のリスト（見つからなければ空リスト）
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    base_netloc = urlparse(base_url).netloc
+    result: list[str] = []
     for a in soup.find_all("a", href=True):
         href = a["href"].strip()
         if not href.lower().endswith((".xls", ".xlsx")):
             continue
-        absolute = urljoin(base, href)
-        # 同一サイトのみ（JPX の Excel に限定）
-        if urlparse(absolute).netloc == urlparse(base).netloc:
-            return absolute
-    return None
+        absolute = urljoin(base_url, href)
+        if urlparse(absolute).netloc == base_netloc:
+            result.append(absolute)
+    return result
+
+
+def resolve_latest_url(
+    page_url: str,
+    *,
+    fetcher: HttpFetcher | None = None,
+) -> str | None:
+    """
+    固定ページの HTML から銘柄一覧 Excel のダウンロードURLを抽出する。
+    成功時は絶対URLを返し（先頭1件）、見つからない・取得失敗時は None。
+
+    fetcher 未指定時は requests で取得する。
+    """
+    if fetcher is None:
+        try:
+            resp = requests.get(page_url, timeout=get_jpx_page_timeout())
+            resp.raise_for_status()
+            html = resp.text
+            base_url = resp.url
+        except requests.RequestException:
+            return None
+    else:
+        try:
+            html = fetcher.get(page_url)
+            base_url = page_url
+        except Exception:
+            return None
+
+    urls = extract_excel_urls_from_html(html, base_url)
+    return urls[0] if urls else None
 
 
 def read_cache(cache_path: Path) -> str | None:
