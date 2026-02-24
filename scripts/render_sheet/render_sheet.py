@@ -29,9 +29,10 @@ if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
 from scripts.gdrive_smoketest.drive_client import (
+    DriveAdapter,
+    GoogleDriveAdapter,
     build_service,
     get_credentials,
-    get_file_content,
     get_file_metadata,
     get_or_create_folder,
     upload_file,
@@ -150,22 +151,28 @@ def _read_template_headers(ws, header_row: int, header_col: int, max_cols: int =
 
 
 # --- メイン処理 ---
-def run(cfg: dict) -> str:
+def run(cfg: dict, drive_adapter: DriveAdapter | None = None) -> str:
     """
     メイン処理。戻り値は生成したファイルの Drive URL。
+    drive_adapter 未指定時は get_credentials + build_service で本番接続する。
+    テスト時は FakeDriveAdapter を渡して Secrets 不要で実行可能。
     """
-    creds = get_credentials()  # Sheets API スコープ不要
-    drive = build_service(creds)
+    if drive_adapter is None:
+        creds = get_credentials()
+        service = build_service(creds)
+        drive: DriveAdapter = GoogleDriveAdapter(service)
+    else:
+        drive = drive_adapter
 
     csv_file_id = extract_file_id(cfg["csv_drive_file_id"])
 
     # 1) CSV ダウンロード
     try:
-        resp = get_file_content(drive, csv_file_id)
+        resp = drive.get_file_content(csv_file_id)
     except Exception as e:
         raise SystemExit(f"CSV のダウンロードに失敗しました。file_id={csv_file_id}: {e}") from e
 
-    meta = get_file_metadata(drive, csv_file_id)
+    meta = drive.get_file_metadata(csv_file_id)
     csv_filename = meta.get("name", "")
     logger.info("入力CSV: %s (file_id=%s)", csv_filename, csv_file_id)
 
@@ -275,10 +282,10 @@ def run(cfg: dict) -> str:
     content = output_path.read_bytes()
     parent_id = cfg["output_folder_id"]
     if cfg.get("output_subfolder"):
-        parent_id = get_or_create_folder(drive, parent_id, cfg["output_subfolder"])
+        parent_id = drive.get_or_create_folder(parent_id, cfg["output_subfolder"])
         logger.info("出力先サブフォルダ: %s", cfg["output_subfolder"])
-    file_id, web_link = upload_file(
-        drive, parent_id, output_name, content, mime_type=MIME_XLSX
+    file_id, web_link = drive.upload_file(
+        parent_id, output_name, content, mime_type=MIME_XLSX
     )
     result_url = web_link or f"https://drive.google.com/file/d/{file_id}/view"
     logger.info("出力URL: %s", result_url)

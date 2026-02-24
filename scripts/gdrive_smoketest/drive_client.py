@@ -2,12 +2,32 @@
 Google Drive API クライアント（OAuth refresh token 方式）。
 専用 Google アカウント + client_id / client_secret / refresh_token で認証する。
 認証情報（Secrets）をログに出さない。
+
+ローカルではプロジェクトルートの .env を自動読み込みする（python-dotenv）。
+CI では環境変数または GitHub Secrets をそのまま使用。
+
+DriveAdapter Protocol により、本番は GoogleDriveAdapter、テストは FakeDriveAdapter を注入可能。
 """
 from __future__ import annotations
 
 import os
 import sys
-from typing import Any
+import uuid
+from pathlib import Path
+from typing import Any, Protocol
+
+# プロジェクトルートの .env を読み込む（import 時に1回だけ）
+def _load_dotenv() -> None:
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    load_dotenv(repo_root / ".env")
+    load_dotenv(repo_root / ".env.local")  # .env.local があれば優先して上書き
+
+
+_load_dotenv()
 
 # フォルダID（マイドライブ共有フォルダ）のデフォルト値
 _DEFAULT_FOLDER_ID_WORK = "1i0HfAJAwVE6o8_q-_8S8g_WVWwbLvXQs"
@@ -192,3 +212,101 @@ def get_file_metadata(service: Any, file_id: str) -> dict:
         .get(fileId=file_id, fields="id,name,webViewLink")
         .execute()
     )
+
+
+# --- DriveAdapter Protocol と実装 ---
+
+
+class DriveAdapter(Protocol):
+    """Drive のファイル取得・アップロード・フォルダ操作の抽象。テスト時に Fake を注入可能。"""
+
+    def get_file_content(self, file_id: str) -> bytes:
+        """ファイル ID で内容を取得する。"""
+        ...
+
+    def get_file_metadata(self, file_id: str) -> dict:
+        """ファイルのメタデータ（name, webViewLink 等）を取得する。"""
+        ...
+
+    def upload_file(
+        self,
+        parent_id: str,
+        name: str,
+        content: str | bytes,
+        mime_type: str = "text/plain",
+    ) -> tuple[str, str | None]:
+        """指定親フォルダにファイルをアップロードする。戻り値: (file_id, web_view_link or None)。"""
+        ...
+
+    def get_or_create_folder(self, parent_id: str, name: str) -> str:
+        """親フォルダ直下に name のフォルダを取得または作成する。戻り値: フォルダの file id。"""
+        ...
+
+
+class GoogleDriveAdapter:
+    """既存の Drive API service をラップする DriveAdapter 実装。"""
+
+    def __init__(self, service: Any) -> None:
+        self._service = service
+
+    def get_file_content(self, file_id: str) -> bytes:
+        return get_file_content(self._service, file_id)
+
+    def get_file_metadata(self, file_id: str) -> dict:
+        return get_file_metadata(self._service, file_id)
+
+    def upload_file(
+        self,
+        parent_id: str,
+        name: str,
+        content: str | bytes,
+        mime_type: str = "text/plain",
+    ) -> tuple[str, str | None]:
+        return upload_file(self._service, parent_id, name, content, mime_type)
+
+    def get_or_create_folder(self, parent_id: str, name: str) -> str:
+        return get_or_create_folder(self._service, parent_id, name)
+
+
+class FakeDriveAdapter:
+    """
+    テスト用: メモリ上にファイルを保持する DriveAdapter 実装。
+    get_file_content は事前に登録した file_id -> bytes を返す。
+    upload_file は偽の file_id を発行して内容を保存する（get_file_content で取得可能）。
+    """
+
+    def __init__(self) -> None:
+        # file_id -> {"content": bytes, "name": str}
+        self._files: dict[str, dict[str, Any]] = {}
+
+    def put_file(self, file_id: str, content: bytes, name: str = "") -> None:
+        """テスト用: 指定 file_id で内容を登録する。"""
+        self._files[file_id] = {"content": content, "name": name or file_id}
+
+    def get_file_content(self, file_id: str) -> bytes:
+        if file_id not in self._files:
+            raise KeyError(f"File not found: {file_id}")
+        return self._files[file_id]["content"]
+
+    def get_file_metadata(self, file_id: str) -> dict:
+        if file_id not in self._files:
+            raise KeyError(f"File not found: {file_id}")
+        name = self._files[file_id].get("name", file_id)
+        return {"id": file_id, "name": name, "webViewLink": None}
+
+    def upload_file(
+        self,
+        parent_id: str,
+        name: str,
+        content: str | bytes,
+        mime_type: str = "text/plain",
+    ) -> tuple[str, str | None]:
+        if isinstance(content, str):
+            content = content.encode("utf-8")
+        file_id = str(uuid.uuid4())
+        self._files[file_id] = {"content": content, "name": name}
+        return file_id, None
+
+    def get_or_create_folder(self, parent_id: str, name: str) -> str:
+        """Fake ではフォルダは扱わず、parent_id をそのまま返す（同一 ID でアップロード先とする）。"""
+        return parent_id
