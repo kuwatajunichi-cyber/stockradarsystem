@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Protocol
 
 import json
 import math
@@ -17,6 +17,16 @@ import math
 import pandas as pd
 
 from stockradar.config import get_jpx_market_product_categories_cache_path
+
+
+class CategoryCachePort(Protocol):
+    """市場・商品区分カテゴリのキャッシュ読み書きの抽象。"""
+
+    def load(self) -> set[str] | None:
+        ...
+
+    def save(self, categories: set[str]) -> None:
+        ...
 
 
 UNIVERSE_IDS = [
@@ -132,10 +142,38 @@ def _save_category_cache(path: Path, categories: set[str]) -> None:
     path.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+class _FileCategoryCache:
+    """Path ベースの CategoryCachePort 実装。"""
+
+    def __init__(self, path: Path) -> None:
+        self._path = path
+
+    def load(self) -> set[str] | None:
+        return _load_category_cache(self._path)
+
+    def save(self, categories: set[str]) -> None:
+        _save_category_cache(self._path, categories)
+
+
+class InMemoryCategoryCache:
+    """テスト用: メモリ上のみでキャッシュを保持する CategoryCachePort 実装。"""
+
+    def __init__(self) -> None:
+        self._categories: set[str] | None = None
+
+    def load(self) -> set[str] | None:
+        return self._categories
+
+    def save(self, categories: set[str]) -> None:
+        self._categories = set(categories)
+
+
 def build_universe_from_jpx(
     df: pd.DataFrame,
     as_of_date: date,
     base_dir: Path,
+    *,
+    category_cache: CategoryCachePort | None = None,
 ) -> tuple[pd.DataFrame, UniverseMessages]:
     """
     JPX processed CSV から一次ユニバースを構築する。
@@ -187,7 +225,10 @@ def build_universe_from_jpx(
 
     # 市場・商品区分の有無とカテゴリ集合チェック
     market_missing = col_market not in df.columns
-    cache_path = get_jpx_market_product_categories_cache_path(base_dir)
+    cache = category_cache
+    if cache is None:
+        cache_path = get_jpx_market_product_categories_cache_path(base_dir)
+        cache = _FileCategoryCache(cache_path)
 
     if market_missing:
         alerts.append("ALERT[UNIVERSE_SCHEMA]: COLUMN_MISSING market_product")
@@ -198,11 +239,11 @@ def build_universe_from_jpx(
         df_normalized["market_product_raw"] = raw_market
 
         current_categories: set[str] = {v for v in raw_market.unique() if v}
-        cached = _load_category_cache(cache_path)
+        cached = cache.load()
 
         if cached is None and current_categories:
             # 初回: 基準作成
-            _save_category_cache(cache_path, current_categories)
+            cache.save(current_categories)
         elif cached is not None:
             if current_categories != cached:
                 added = sorted(current_categories - cached)
@@ -211,8 +252,8 @@ def build_universe_from_jpx(
                     "ALERT[UNIVERSE_SCHEMA]: CATEGORY_SET_CHANGED "
                     f"added={added} removed={removed}"
                 )
-                # 成功時のみキャッシュ更新: 呼び出し側でエラーにならなかった前提で更新される
-                _save_category_cache(cache_path, current_categories)
+                # 成功時のみキャッシュ更新
+                cache.save(current_categories)
 
         # マッピング本体
         df_normalized["universe_primary"] = raw_market.map(assign_universe_primary)

@@ -12,6 +12,7 @@ import pandas as pd
 import pytest
 
 from stockradar.universe.jpx_primary import (
+    InMemoryCategoryCache,
     _has_five_or_more_digits,
     _normalize_code,
     build_universe_from_jpx,
@@ -55,7 +56,10 @@ def test_normalize_code_and_type_shares_exclusion() -> None:
 def test_build_universe_from_jpx_excludes_type_shares(tmp_path: Path) -> None:
     """build_universe_from_jpx が種類株を除外し、通常銘柄のみ含むことを検証する。"""
     base_dir = tmp_path
-    universe_df, messages = build_universe_from_jpx(MOCK_DATA, date.today(), base_dir)
+    cache = InMemoryCategoryCache()
+    universe_df, messages = build_universe_from_jpx(
+        MOCK_DATA, date.today(), base_dir, category_cache=cache
+    )
 
     input_codes = set(MOCK_DATA["コード"].map(_normalize_code)) - {""}
     output_codes = set(universe_df["code"])
