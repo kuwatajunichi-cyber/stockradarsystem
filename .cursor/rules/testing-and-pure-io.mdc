@@ -1,0 +1,28 @@
+---
+description: テストの置き場と I/O 分離（Adapter/Pure）
+alwaysApply: true
+---
+
+# テストと I/O 分離
+
+## テストの置き場
+
+- 単体テストは **`tests/`** に配置する。
+- 実行: `pytest tests/ -v`
+- CI（`.github/workflows/test.yml`）は **Secrets 不要**で全テストが通ることを前提とする。
+
+## 外部 I/O の分離
+
+- HTTP・Drive・ファイル等は **Protocol/Adapter** で差し替え可能にする。
+- 本番は実装を、テストは **Fake** を注入する。
+- 参照: `scripts/gdrive/drive_client.py` の `DriveAdapter` / `GoogleDriveAdapter` / `FakeDriveAdapter`
+
+## Pure ロジック
+
+- I/O に依存しない計算は **Pure** に保ち、引数と戻り値だけでテストする。
+- キャッシュ等は引数で注入する（例: `CategoryCachePort`, `DriveAdapter`）。
+- 参照: `src/stockradar/universe/jpx_primary.py` の `CategoryCachePort`
+
+## 禁止
+
+- テストから本番の API や Drive に直接アクセスしない。Fake/モックを必ず使う。

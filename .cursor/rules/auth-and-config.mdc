@@ -1,0 +1,21 @@
+---
+description: 認証・シークレットの扱い
+alwaysApply: true
+---
+
+# 認証・シークレット
+
+## 認証情報
+
+- 環境変数、またはプロジェクトルートの **`.env`** から読み込む。`.env` は **リポジトリにコミットしない**（`.gitignore` 済み）。
+- 必要な変数名は **`.env.example`** で明示する。
+
+## CI
+
+- GitHub Actions では Repository Secrets を環境変数で渡す。
+- **テスト用ワークフロー（test.yml）は Secrets に依存しない**。全テストが Secrets なしで通ること。
+
+## 参照
+
+- `.env` の読み込み例: `scripts/gdrive/drive_client.py`（`_load_dotenv()`、`get_credentials()`）。
+- 認証情報をログに出力しない。
