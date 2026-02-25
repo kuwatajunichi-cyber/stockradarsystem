@@ -1,0 +1,28 @@
+---
+description: Python とジョブ・スクリプトのスタイル
+globs: "**/*.py"
+alwaysApply: false
+---
+
+# Python スタイル
+
+## バージョンと型
+
+- **Python 3.11 以上**。
+- `from __future__ import annotations` と型ヒントを使用する。
+- パスは **`pathlib.Path`** を優先する。
+
+## ジョブ
+
+- 新規ジョブは **`src/stockradar/jobs/`** にモジュールを追加し、`python -m stockradar.jobs.<name>` で起動できる形にする。
+- I/O は可能なら引数で注入する（Protocol/Adapter）。
+
+## スクリプト
+
+- エントリは **`scripts/`** に配置する。
+- Drive 等の共通処理は `scripts/gdrive/` のようにまとめ、名前で用途が分かるようにする。
+
+## 設定
+
+- 設定値は **`src/stockradar/config.py`**（環境変数・パス）と **`config/*.yaml`**（YAML）に分離する。
+- コード内に認証や機密を書かない。
