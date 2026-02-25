@@ -45,6 +45,21 @@ def get_jpx_market_product_categories_cache_path(base_dir: Path) -> Path:
     return base_dir / "data" / "cache" / "jpx_market_product_categories.json"
 
 
+# 上場廃止銘柄一覧ページ（日次パッチ用）
+DEFAULT_JPX_DELISTED_PAGE_URL = "https://www.jpx.co.jp/listing/stocks/delisted/index.html"
+
+
+def get_jpx_delisted_page_url() -> str:
+    """上場廃止銘柄一覧ページURL。環境変数 JPX_DELISTED_PAGE_URL がなければ既定値。"""
+    url = os.environ.get("JPX_DELISTED_PAGE_URL", "").strip()
+    return url or DEFAULT_JPX_DELISTED_PAGE_URL
+
+
+def get_jpx_delisted_page_timeout() -> int:
+    """上場廃止ページ取得のタイムアウト秒。環境変数 JPX_DELISTED_PAGE_TIMEOUT（default=30）。"""
+    return _env_int("JPX_DELISTED_PAGE_TIMEOUT", 30)
+
+
 def get_jpx_limit_table_path(base_dir: Path | None = None) -> Path:
     """JPX制限値幅テーブルの設定ファイルパス。環境変数 JPX_LIMIT_TABLE_PATH で上書き可能。"""
     path = os.environ.get("JPX_LIMIT_TABLE_PATH", "").strip()
