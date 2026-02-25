@@ -1,0 +1,97 @@
+name: Daily Universe Patch
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 毎日 12:00 JST（03:00 UTC）
+    - cron: "0 3 * * *"
+
+concurrency:
+  group: daily-universe-patch
+  cancel-in-progress: false
+
+jobs:
+  resolve_trading_day:
+    runs-on: ubuntu-latest
+    outputs:
+      run_date: ${{ steps.resolve.outputs.run_date }}
+      is_open: ${{ steps.resolve.outputs.is_open }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Resolve trading day
+        id: resolve
+        env:
+          PYTHONPATH: src
+        run: |
+          OUTPUT=$(python -m stockradar.jobs.resolve_trading_day)
+          RUN_DATE=$(echo "$OUTPUT" | grep "^run_date=" | cut -d= -f2)
+          IS_OPEN=$(echo "$OUTPUT" | grep "^is_open=" | cut -d= -f2)
+          echo "run_date=$RUN_DATE" >> $GITHUB_OUTPUT
+          echo "is_open=$IS_OPEN" >> $GITHUB_OUTPUT
+          echo "Resolved: run_date=$RUN_DATE, is_open=$IS_OPEN"
+
+  patch_universe:
+    needs: resolve_trading_day
+    if: needs.resolve_trading_day.outputs.is_open == 'True'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Download latest monthly release
+        id: monthly
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LATEST_RELEASE=$(gh release list --limit 100 --json tagName --jq '.[] | select(.tagName | startswith("monthly-")) | .tagName' | head -1)
+          if [ -z "$LATEST_RELEASE" ]; then
+            echo "エラー: 月次Release（monthly-*）が見つかりません"
+            exit 1
+          fi
+          echo "release=$LATEST_RELEASE" >> $GITHUB_OUTPUT
+          mkdir -p data/universe/jpx/latest_release
+          if ! gh release download "$LATEST_RELEASE" \
+            --pattern "equity_domestic_core_with_name.csv" \
+            --dir "data/universe/jpx/latest_release" \
+            --repo "${{ github.repository }}"; then
+            echo "エラー: Releaseからのダウンロードに失敗しました: $LATEST_RELEASE"
+            exit 1
+          fi
+          echo "Downloaded: $LATEST_RELEASE"
+
+      - name: Patch universe (delisted removal)
+        env:
+          PYTHONPATH: src
+        run: |
+          python -m stockradar.jobs.patch_universe_daily \
+            --input data/universe/jpx/latest_release/equity_domestic_core_with_name.csv \
+            --run-date ${{ needs.resolve_trading_day.outputs.run_date }} \
+            --base-release ${{ steps.monthly.outputs.release }}
+
+      - name: Save patched universe cache
+        uses: actions/cache@v4
+        with:
+          path: data/universe/jpx/patched_cache
+          key: universe-patched-${{ needs.resolve_trading_day.outputs.run_date }}
