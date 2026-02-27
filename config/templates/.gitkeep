@@ -1,2 +1,2 @@
-# indicators_template_v1.0.xlsx をこのディレクトリに配置してください。
+# config/render_sheet.yaml の template_path で指定した XLSX をこのディレクトリに配置してください。
 # テンプレートは Named Range "headerAnchor" を持つシート "indicators001" を含むこと。

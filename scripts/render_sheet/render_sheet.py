@@ -101,7 +101,7 @@ def resolve_config(
         "output_folder_id": output_folder_id or config.get("output_folder_id"),
         "output_subfolder": output_subfolder or config.get("output_subfolder"),
         "header_anchor_sheet_name": header_anchor_sheet_name or config.get("header_anchor_sheet_name", "indicators001"),
-        "template_path": template_path or config.get("template_path", "config/templates/indicators_template_v1.0.xlsx"),
+        "template_path": template_path or config.get("template_path"),
         "link_label_map": config.get("link_label_map") or {},
         "sort_column": config.get("sort_column"),
         "sort_ascending": config.get("sort_ascending", False),
@@ -112,6 +112,8 @@ def resolve_config(
         raise SystemExit("output_folder_id が指定されていません。")
     if not out["header_anchor_sheet_name"]:
         raise SystemExit("header_anchor_sheet_name が指定されていません。")
+    if not out["template_path"]:
+        raise SystemExit("template_path が指定されていません。config/render_sheet.yaml で設定してください。")
     return out
 
 
