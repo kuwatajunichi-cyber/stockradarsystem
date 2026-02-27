@@ -5,7 +5,7 @@
 output_folder_id: "1pwtA9TFLxJ1NfyoCEsVeNq8JM9ULUeCt"
 
 # テンプレート（ローカル XLSX ファイル、repo ルートからの相対パス）
-template_path: "config/templates/indicators_template_v1.0.xlsx"
+template_path: "config/templates/indicators_template_v1.1.xlsx"
 
 # headerAnchor が存在するシート名
 header_anchor_sheet_name: "indicators001"

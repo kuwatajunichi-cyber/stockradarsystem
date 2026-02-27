@@ -15,15 +15,18 @@ if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
 from scripts.gdrive.drive_client import FakeDriveAdapter
-from scripts.render_sheet.render_sheet import run
+from scripts.render_sheet.render_sheet import load_config, run
 
 
 def test_run_with_fake_drive_adapter() -> None:
     """FakeDriveAdapter を渡して run() が完了し、URL を返すことを検証する。"""
-    # テンプレートが存在することを前提（config/templates/indicators_template_v1.0.xlsx）
-    template_path = _repo_root / "config" / "templates" / "indicators_template_v1.0.xlsx"
+    config = load_config(_repo_root / "config" / "render_sheet.yaml")
+    template_path_str = config.get("template_path")
+    if not template_path_str:
+        pytest.skip("config/render_sheet.yaml に template_path が設定されていません")
+    template_path = _repo_root / template_path_str
     if not template_path.exists():
-        pytest.skip("テンプレートがありません: config/templates/indicators_template_v1.0.xlsx")
+        pytest.skip(f"テンプレートがありません: {template_path_str}")
 
     csv_content = (
         "code,name,z_turnover_60\n"
@@ -40,7 +43,7 @@ def test_run_with_fake_drive_adapter() -> None:
         "output_folder_id": "fake-folder-id",
         "output_subfolder": None,
         "header_anchor_sheet_name": "indicators001",
-        "template_path": "config/templates/indicators_template_v1.0.xlsx",
+        "template_path": template_path_str,
         "link_label_map": {},
         "sort_column": "z_turnover_60",
         "sort_ascending": False,
