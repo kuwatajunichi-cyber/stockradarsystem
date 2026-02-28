@@ -269,7 +269,7 @@ python -m stockradar.jobs.build_universe_from_jpx
 |------|------|--------|
 | IPO_LOOKBACK_DAYS | IPO判定に必要な営業日数 | 252 |
 | LIQ_LOOKBACK_DAYS | 流動性判定の直近営業日数 | 60 |
-| LIQ_MIN_MEDIAN_TURNOVER_YEN | 中央値がこれ未満なら illiquid | 20,000,000 |
+| LIQ_MIN_MEDIAN_TURNOVER_YEN | 中央値がこれ未満なら illiquid（**必須**） | なし |
 | YF_BATCH_SIZE | 取得バッチサイズ | 100 |
 | YF_SLEEP_SEC_BETWEEN_BATCHES | バッチ間スリープ秒 | 5 |
 | YF_RETRY_MAX | 銘柄あたり最大再試行回数 | 3 |
@@ -285,7 +285,7 @@ python -m stockradar.jobs.build_universe_from_jpx
 
 ```powershell
 $env:PYTHONPATH = "src"
-$env:LIQ_MIN_MEDIAN_TURNOVER_YEN = "10000000"   # 任意（未設定時は 20,000,000）
+$env:LIQ_MIN_MEDIAN_TURNOVER_YEN = "10000000"   # 分類ジョブ用（取得ジョブでは不要）
 
 python -m stockradar.jobs.fetch_yf_daily_for_universe --input data/universe/jpx/sets_20260207/equity_domestic.csv
 # または入力省略で最新 sets_* から自動選択
@@ -304,7 +304,7 @@ python -m stockradar.jobs.fetch_yf_daily_for_universe --force
 
 ```powershell
 $env:PYTHONPATH = "src"
-$env:LIQ_MIN_MEDIAN_TURNOVER_YEN = "10000000"   # 任意（未設定時は 20,000,000）
+$env:LIQ_MIN_MEDIAN_TURNOVER_YEN = "10000000"   # 必須
 
 python -m stockradar.jobs.split_equity_domestic_secondary --input data/universe/jpx/sets_20260207/equity_domestic.csv
 # または入力省略で最新 sets_* から自動選択
@@ -315,7 +315,7 @@ python -m stockradar.jobs.split_equity_domestic_secondary
 
 1. 一次ユニバース生成で `sets_YYYYMMDD/equity_domestic.csv` を用意する。
 2. **ジョブ A** で yfinance を取得（キャッシュ・manifest ができる）。**必ずプロジェクトルートをカレントにして実行**すること（キャッシュパスの一貫性のため）。
-3. **ジョブ B** で ipo / illiquid / core に分割（同じくプロジェクトルートで実行。`LIQ_MIN_MEDIAN_TURNOVER_YEN` 未設定時は 20,000,000 が使用される）。
+3. **ジョブ B** で ipo / illiquid / core に分割（同じくプロジェクトルートで実行。`LIQ_MIN_MEDIAN_TURNOVER_YEN` を設定してから実行）。
 
 **「全件取得失敗」になる場合**: ジョブ B は `data/cache/yf_daily/_manifest.jsonl` を参照します。manifest が無い（ジョブ A をまだ実行していない、または別ディレクトリで実行した）場合は全銘柄が ipo に分類されます。先にジョブ A をプロジェクトルートで実行し、取得が完了してからジョブ B を実行してください。ジョブ A では `period` で空になる場合に `start/end` で再試行するフォールバックを入れています。
 
@@ -401,13 +401,12 @@ python -m stockradar.jobs.compute_indicators_for_core --input data/universe/jpx/
 
 ### GitHub Actions での実行
 
-`.github/workflows/daily.yml` が毎営業日 15:37 JST に自動実行されます。
+`.github/workflows/daily.yml` が毎営業日 16:00 JST 以降に自動実行されます。
 
-- schedule: 毎営業日 15:37 JST（月〜金、UTC 06:37）
+- schedule: 毎営業日 16:00 JST 以降（当日バー反映後）
 - concurrency: 同一workflowの多重起動禁止
-- 主なジョブ: resolve_trading_day（営業日判定）→ restore_ohlc_store（OHLC復元）→ ensure_index_cache → ensure_core_cache（月次Release + 上場廃止パッチから core を取得）→ compute_indicators_for_core → 0011_work へアップロード → render_sheet（XLSX生成・0012_paid へ）→ archive_ohlc_store
-- fetch系は部分成功を許容しつつ manifest に残す
-- compute で対象銘柄の有効計算率が極端に低い場合は fail
+- fetch系は部分成功を許容しつつmanifestに残す
+- computeで対象銘柄の有効計算率が極端に低い場合はfail
 
 ### ローカル実行例（全ジョブ順次実行）
 

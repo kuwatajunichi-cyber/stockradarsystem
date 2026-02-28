@@ -19,8 +19,9 @@ import pandas as pd
 
 # openpyxl はパス変更前にインポート（sys.path の影響を受けないように）
 from openpyxl import load_workbook
-from openpyxl.styles import Font
+from openpyxl.styles import Font, Protection
 from openpyxl.utils.cell import column_index_from_string, coordinate_from_string
+from openpyxl.worksheet.protection import SheetProtection
 
 # プロジェクトルートを PYTHONPATH に追加
 _script_dir = Path(__file__).resolve().parent
@@ -105,6 +106,8 @@ def resolve_config(
         "link_label_map": config.get("link_label_map") or {},
         "sort_column": config.get("sort_column"),
         "sort_ascending": config.get("sort_ascending", False),
+        "sheet_protection": config.get("sheet_protection", False),
+        "sheet_protection_password": config.get("sheet_protection_password") or "",
     }
     if not out["csv_drive_file_id"]:
         raise SystemExit("csv_drive_file_id が指定されていません。")
@@ -273,14 +276,42 @@ def run(cfg: dict, drive_adapter: DriveAdapter | None = None) -> str:
     url_count = sum(1 for _, r in df.iterrows() for c in url_cols if c in r and pd.notna(r.get(c)) and str(r.get(c)).startswith("http"))
     logger.info("URL置換件数: %d (列: %s)", url_count, url_cols)
 
-    # 5) 一時ファイルに保存
+    # 5) シート保護（設定で有効時）
+    if cfg.get("sheet_protection"):
+        # target_sheet のデータ範囲（ヘッダ＋データ）を unlock（ソートを許可するため）
+        end_col = header_col + len(template_headers) - 1
+        for row in range(header_row, last_row + 1):
+            for col in range(header_col, end_col + 1):
+                cell = ws.cell(row=row, column=col)
+                cell.protection = Protection(locked=False)
+        sp = SheetProtection(
+            sheet=True,
+            sort=False,
+            autoFilter=False,
+            formatCells=True,
+            insertRows=True,
+            insertColumns=True,
+            deleteRows=True,
+            deleteColumns=True,
+            insertHyperlinks=True,
+            pivotTables=True,
+            selectLockedCells=False,
+            selectUnlockedCells=False,
+        )
+        if cfg.get("sheet_protection_password"):
+            sp.set_password(cfg["sheet_protection_password"])
+        for sheet in wb.worksheets:
+            sheet.protection = sp
+        logger.info("シート保護を適用しました（ソート・フィルタ許可）")
+
+    # 6) 一時ファイルに保存
     output_dir = _repo_root / "data" / "indicators" / "daily"
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / output_name
     wb.save(output_path)
     logger.info("ローカル保存: %s", output_path)
 
-    # 6) Drive にアップロード
+    # 7) Drive にアップロード
     content = output_path.read_bytes()
     parent_id = cfg["output_folder_id"]
     if cfg.get("output_subfolder"):

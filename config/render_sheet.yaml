@@ -19,6 +19,12 @@ sort_ascending: false
 # CSV Drive ファイルID（workflow inputs で必須指定。ここはデフォルト未設定）
 # csv_drive_file_id: null
 
+# シート保護（設定で切り替え）
+# sheet_protection: true=全シートに保護をかける, false=保護しない
+# sheet_protection_password: 空=パスワードなし, 非空=保護解除時にパスワード必要
+sheet_protection: true
+sheet_protection_password: "Powerhorn03"
+
 # URL列の表示名マップ（列名 → 表示ラベル）
 # 列名はテンプレヘッダー名（CSVヘッダー名）と完全一致
 link_label_map:

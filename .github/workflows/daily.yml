@@ -3,7 +3,7 @@ name: Daily Indicators
 on:
   workflow_dispatch:  # 手動実行
   schedule:
-    # 毎営業日 16:00 JST 以降（UTC 07:00）
+    # 毎営業日 15:37 JST（UTC 06:37）
     # 注: GitHub ActionsのcronはUTC基準
     - cron: "37 6 * * 1-5"  # 月曜〜金曜 06:37 UTC（日本時間 15:37）
 

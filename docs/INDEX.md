@@ -8,18 +8,30 @@
 ## Single Source of Truth
 
 ### MVP Design Document
-- Version: v1.0
+- Version: v1.1
 - View (GitHub):  
-  https://github.com/kuwatajunichi-cyber/stockradarsystem/blob/main/docs/MVPdesignDoc_v1.0.md
+  https://github.com/kuwatajunichi-cyber/stockradarsystem/blob/main/docs/MVPdesignDoc_v1.1.md
 - Raw (Plain text):  
-  https://raw.githubusercontent.com/kuwatajunichi-cyber/stockradarsystem/main/docs/MVPdesignDoc_v1.0.md
+  https://raw.githubusercontent.com/kuwatajunichi-cyber/stockradarsystem/main/docs/MVPdesignDoc_v1.1.md
 
 ### User Story Map
-- Version: v1.0
+- Version: v1.1
 - View (GitHub):  
-  https://github.com/kuwatajunichi-cyber/stockradarsystem/blob/main/docs/MVPuserstorymap_v1.0.md
+  https://github.com/kuwatajunichi-cyber/stockradarsystem/blob/main/docs/MVPuserstorymap_v1.1.md
 - Raw (Plain text):  
-  https://raw.githubusercontent.com/kuwatajunichi-cyber/stockradarsystem/main/docs/MVPuserstorymap_v1.0.md
+  https://raw.githubusercontent.com/kuwatajunichi-cyber/stockradarsystem/main/docs/MVPuserstorymap_v1.1.md
+
+---
+
+## 仕様・解説ドキュメント
+
+### ユニバース・指標仕様
+- Version: v1.0
+- 用途: ランディングページ・解説記事での説明用情報ソース
+- View (GitHub):  
+  https://github.com/kuwatajunichi-cyber/stockradarsystem/blob/main/docs/universe_and_indicators_v1.0.md
+- Raw (Plain text):  
+  https://raw.githubusercontent.com/kuwatajunichi-cyber/stockradarsystem/main/docs/universe_and_indicators_v1.0.md
 
 ---
 
