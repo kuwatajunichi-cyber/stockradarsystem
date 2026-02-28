@@ -1,4 +1,4 @@
-# 日次レポート スプレッドシート生成 (Render Sheet) v1.1
+# 日次レポート スプレッドシート生成 (Render Sheet)
 
 ## 概要
 
@@ -7,7 +7,7 @@ Google Drive 上の CSV を読み込み、ローカル XLSX テンプレート�
 - **ワークフロー**: `.github/workflows/render_sheet.yml`
 - **スクリプト**: `scripts/render_sheet/render_sheet.py`（Drive クライアントは `scripts/gdrive/drive_client.py`）
 - **設定**: `config/render_sheet.yaml`
-- **テンプレート**: `config/render_sheet.yaml` の `template_path` で指定（例: `config/templates/indicators_template_v1.1.xlsx`）
+- **テンプレート**: `config/render_sheet.yaml` の `template_path` で指定（例: `config/templates/indicators_template_v1.0.xlsx`）
 
 ## 認証（OAuth）
 
