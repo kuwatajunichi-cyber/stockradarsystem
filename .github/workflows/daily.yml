@@ -356,7 +356,6 @@ jobs:
       needs.resolve_trading_day.outputs.is_open == 'True' &&
       needs.compute_indicators.result == 'success' &&
       needs.compute_indicators.outputs.csv_file_id != ''
-    continue-on-error: true
     with:
       run_date: ${{ needs.resolve_trading_day.outputs.run_date }}
       csv_drive_file_id: ${{ needs.compute_indicators.outputs.csv_file_id }}
