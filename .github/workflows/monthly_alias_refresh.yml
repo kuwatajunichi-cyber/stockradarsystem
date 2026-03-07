@@ -189,21 +189,21 @@ jobs:
                   print(f"- {a}")
           PY
           )
-          BODY=$(cat <<EOF
-### Monthly Alias Refresh Summary
+          BODY=$(cat <<BODYEOF | sed 's/^          //'
+          ### Monthly Alias Refresh Summary
 
-- workflow_run_id: \`${{ github.run_id }}\`
-- aliases_release_tag: \`${RELEASE_TAG}\`
+          - workflow_run_id: \`${{ github.run_id }}\`
+          - aliases_release_tag: \`${RELEASE_TAG}\`
 
-$SUMMARY_LINES
+          $SUMMARY_LINES
 
-Artifacts (release):
-- https://github.com/${{ github.repository }}/releases/tag/${RELEASE_TAG}
+          Artifacts (release):
+          - https://github.com/${{ github.repository }}/releases/tag/${RELEASE_TAG}
 
-Note:
-- Full JSON/CSV is not embedded in this issue. Please inspect the release assets.
-EOF
-)
+          Note:
+          - Full JSON/CSV is not embedded in this issue. Please inspect the release assets.
+          BODYEOF
+          )
           gh issue create \
             --repo "${{ github.repository }}" \
             --title "$TITLE" \

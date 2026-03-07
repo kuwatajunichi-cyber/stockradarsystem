@@ -7,3 +7,4 @@ paths:
       - "Unexpected value 'uses'"
       - "Unexpected value 'with'"
       - "Unexpected value 'secrets'"
+      - "Unexpected value 'continue-on-error'"
