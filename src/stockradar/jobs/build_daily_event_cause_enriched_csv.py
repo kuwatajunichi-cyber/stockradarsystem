@@ -152,7 +152,7 @@ def main(argv: list[str] | None = None) -> None:
     out_df["event_news_1_title"] = ""
     out_df["event_news_1_url"] = ""
     out_df["event_news_1_source"] = ""
-    out_df["event_news_1_score"] = ""
+    out_df["event_news_1_score"] = pd.NA
 
     for idx, row in out_df.iterrows():
         code = _norm_code(row.get("code", ""))
@@ -180,7 +180,7 @@ def main(argv: list[str] | None = None) -> None:
         out_df.at[idx, "event_news_1_title"] = title
         out_df.at[idx, "event_news_1_url"] = url
         out_df.at[idx, "event_news_1_source"] = source
-        out_df.at[idx, "event_news_1_score"] = score if score is not None else ""
+        out_df.at[idx, "event_news_1_score"] = score if score is not None else pd.NA
 
     if args.output.strip():
         output_path = _resolve_path(base, args.output.strip())
