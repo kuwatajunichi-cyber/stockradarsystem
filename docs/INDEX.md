@@ -8,11 +8,11 @@
 ## Single Source of Truth
 
 ### MVP Design Document
-- Version: v1.1
+- Version: v1.2
 - View (GitHub):  
-  https://github.com/kuwatajunichi-cyber/stockradarsystem/blob/main/docs/MVPdesignDoc_v1.1.md
+  https://github.com/kuwatajunichi-cyber/stockradarsystem/blob/main/docs/MVPdesignDoc_v1.2.md
 - Raw (Plain text):  
-  https://raw.githubusercontent.com/kuwatajunichi-cyber/stockradarsystem/main/docs/MVPdesignDoc_v1.1.md
+  https://raw.githubusercontent.com/kuwatajunichi-cyber/stockradarsystem/main/docs/MVPdesignDoc_v1.2.md
 
 ### User Story Map
 - Version: v1.1

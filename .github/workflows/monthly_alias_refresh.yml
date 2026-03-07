@@ -1,0 +1,222 @@
+name: Monthly Alias Refresh
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 2 1 * *"
+  workflow_run:
+    workflows: ["Monthly Universe Build"]
+    types: [completed]
+
+concurrency:
+  group: monthly-alias-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh_aliases:
+    if: |
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache alias HTTP cache
+        uses: actions/cache@v4
+        with:
+          path: data/cache/name_aliases/http/
+          key: name-alias-http-v1-${{ github.run_number }}
+          restore-keys: |
+            name-alias-http-v1-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Resolve monthly release tag
+        id: resolve_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            UPSTREAM_RUN_ID="${{ github.event.workflow_run.id }}"
+            TAGS=$(gh release list --limit 200 --json tagName --jq '.[].tagName' | grep "^monthly-.*-${UPSTREAM_RUN_ID}$" || true)
+            COUNT=$(echo "$TAGS" | sed '/^$/d' | wc -l | tr -d ' ')
+            if [ "$COUNT" -ne 1 ]; then
+              echo "エラー: upstream_run_id=${UPSTREAM_RUN_ID} に一致する monthly tag が一意に解決できません (count=${COUNT})"
+              echo "$TAGS"
+              exit 1
+            fi
+            TAG=$(echo "$TAGS" | head -1)
+          else
+            TAG=$(gh release list --limit 200 --json tagName --jq '.[] | select(.tagName | startswith("monthly-")) | .tagName' | head -1)
+            UPSTREAM_RUN_ID=""
+          fi
+          if [ -z "$TAG" ]; then
+            echo "エラー: monthly release tag が見つかりません"
+            exit 1
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "upstream_run_id=$UPSTREAM_RUN_ID" >> $GITHUB_OUTPUT
+          echo "resolved monthly tag: $TAG"
+
+      - name: Download monthly 3 CSVs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p data/universe/jpx/latest_release
+          TAG="${{ steps.resolve_release.outputs.tag }}"
+          gh release download "$TAG" \
+            --pattern "equity_domestic_core_with_name.csv" \
+            --pattern "equity_domestic_illiquid_with_name.csv" \
+            --pattern "equity_domestic_ipo_with_name.csv" \
+            --dir data/universe/jpx/latest_release \
+            --repo "${{ github.repository }}"
+
+      - name: Download previous alias state assets
+        id: prev_alias
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p data/alias_inputs/prev
+          PREV_TAG=$(gh release list --limit 200 --json tagName --jq '.[] | select(.tagName | startswith("aliases-")) | .tagName' | head -1 || true)
+          if [ -n "$PREV_TAG" ]; then
+            gh release download "$PREV_TAG" \
+              --pattern "kabutan_name_aliases.yaml" \
+              --pattern "alias_state.json" \
+              --dir data/alias_inputs/prev \
+              --repo "${{ github.repository }}" || true
+          fi
+          if [ ! -f data/alias_inputs/prev/kabutan_name_aliases.yaml ]; then
+            cp config/kabutan_name_aliases.yaml data/alias_inputs/prev/kabutan_name_aliases.yaml
+          fi
+          if [ ! -f data/alias_inputs/prev/alias_state.json ]; then
+            mkdir -p data/alias_inputs/prev
+            echo '{"aliases_by_code":{}}' > data/alias_inputs/prev/alias_state.json
+          fi
+          echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
+
+      - name: Run alias refresh job
+        env:
+          PYTHONPATH: src
+        run: |
+          set -euo pipefail
+          RUN_DATE=$(TZ=Asia/Tokyo date +%Y-%m-%d)
+          mkdir -p data/alias_outputs
+          python -m stockradar.jobs.update_kabutan_name_aliases \
+            --input-core data/universe/jpx/latest_release/equity_domestic_core_with_name.csv \
+            --input-illiquid data/universe/jpx/latest_release/equity_domestic_illiquid_with_name.csv \
+            --input-ipo data/universe/jpx/latest_release/equity_domestic_ipo_with_name.csv \
+            --base-alias-yaml data/alias_inputs/prev/kabutan_name_aliases.yaml \
+            --base-state-json data/alias_inputs/prev/alias_state.json \
+            --output-alias-yaml data/alias_outputs/kabutan_name_aliases.yaml \
+            --output-state-json data/alias_outputs/alias_state.json \
+            --output-delta-csv data/alias_outputs/alias_delta_${RUN_DATE}.csv \
+            --output-summary-json data/alias_outputs/alias_summary_${RUN_DATE}.json \
+            --run-date "$RUN_DATE" \
+            --media kabutan,nikkei,reuters,tdnet \
+            --resolved-monthly-tag "${{ steps.resolve_release.outputs.tag }}" \
+            --upstream-run-id "${{ steps.resolve_release.outputs.upstream_run_id }}"
+          echo "run_date=$RUN_DATE" >> $GITHUB_OUTPUT
+
+      - name: Create aliases release
+        id: create_alias_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          RUN_DATE=$(TZ=Asia/Tokyo date +%Y%m%d)
+          TAG="aliases-${RUN_DATE}-${{ github.run_id }}"
+          SUMMARY="data/alias_outputs/alias_summary_$(TZ=Asia/Tokyo date +%Y-%m-%d).json"
+          DELTA="data/alias_outputs/alias_delta_$(TZ=Asia/Tokyo date +%Y-%m-%d).csv"
+          gh release create "$TAG" \
+            --repo "${{ github.repository }}" \
+            --title "Monthly Alias Refresh ${RUN_DATE}" \
+            --notes "Monthly alias refresh from ${{ steps.resolve_release.outputs.tag }}" \
+            data/alias_outputs/kabutan_name_aliases.yaml \
+            data/alias_outputs/alias_state.json \
+            "$SUMMARY" \
+            "$DELTA"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Create issue with summary
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          RUN_DATE=$(TZ=Asia/Tokyo date +%Y-%m-%d)
+          SUMMARY_PATH="data/alias_outputs/alias_summary_${RUN_DATE}.json"
+          RELEASE_TAG="${{ steps.create_alias_release.outputs.tag }}"
+          TITLE="Monthly Alias Refresh ${RUN_DATE} (run_id=${{ github.run_id }})"
+          SUMMARY_LINES=$(SUMMARY_PATH="$SUMMARY_PATH" python - <<'PY'
+import json
+from pathlib import Path
+import os
+p = Path(os.environ["SUMMARY_PATH"])
+if not p.exists():
+    print("- summary: not found")
+    raise SystemExit(0)
+s = json.loads(p.read_text(encoding="utf-8"))
+counts = s.get("counts", {})
+rates = s.get("rates", {})
+anoms = s.get("anomalies", [])
+print(f"- resolved_monthly_tag: `{s.get('resolved_monthly_tag', '')}`")
+print(f"- added_aliases: `{counts.get('added_aliases', 0)}`")
+print(f"- review_aliases: `{counts.get('review_aliases', 0)}`")
+print(f"- aliases_codes: `{counts.get('aliases_codes', 0)}`")
+print(f"- effective_media_success_rate: `{rates.get('effective_media_success_rate', 0):.4f}`")
+print(f"- low_ratio: `{rates.get('low_ratio', 0):.4f}`")
+print(f"- anomaly_count: `{len(anoms)}`")
+if anoms:
+    print("")
+    print("Detected anomalies:")
+    for a in anoms:
+        print(f"- {a}")
+PY
+)
+          BODY=$(cat <<EOF
+### Monthly Alias Refresh Summary
+
+- workflow_run_id: \`${{ github.run_id }}\`
+- aliases_release_tag: \`${RELEASE_TAG}\`
+
+$SUMMARY_LINES
+
+Artifacts (release):
+- https://github.com/${{ github.repository }}/releases/tag/${RELEASE_TAG}
+
+Note:
+- Full JSON/CSV is not embedded in this issue. Please inspect the release assets.
+EOF
+)
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "$TITLE" \
+            --label "aliases" \
+            --label "monthly" \
+            --label "needs-review" \
+            --body "$BODY"
+
+      - name: Upload alias outputs artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: monthly-alias-refresh-${{ github.run_id }}
+          path: data/alias_outputs/*
+          retention-days: 90
+          if-no-files-found: warn

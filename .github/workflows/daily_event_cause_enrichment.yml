@@ -1,0 +1,132 @@
+name: Daily Event Cause Enrichment
+
+on:
+  workflow_call:
+    inputs:
+      run_date:
+        description: "対象日（YYYY-MM-DD）"
+        required: true
+        type: string
+      csv_drive_file_id:
+        description: "元指標CSVのDrive file ID"
+        required: true
+        type: string
+    outputs:
+      enriched_csv_file_id:
+        description: "ニュース列を付与したCSVのDrive file ID"
+        value: ${{ jobs.enrich.outputs.enriched_csv_file_id }}
+
+env:
+  TZ: Asia/Tokyo
+
+jobs:
+  enrich:
+    runs-on: ubuntu-latest
+    outputs:
+      enriched_csv_file_id: ${{ steps.upload_csv.outputs.enriched_csv_file_id }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install google-api-python-client google-auth
+
+      - name: Download base indicators CSV from Drive
+        id: download_csv
+        env:
+          GDRIVE_OAUTH_CLIENT_ID: ${{ secrets.GDRIVE_OAUTH_CLIENT_ID }}
+          GDRIVE_OAUTH_CLIENT_SECRET: ${{ secrets.GDRIVE_OAUTH_CLIENT_SECRET }}
+          GDRIVE_OAUTH_REFRESH_TOKEN: ${{ secrets.GDRIVE_OAUTH_REFRESH_TOKEN }}
+          INPUT_CSV_FILE_ID: ${{ inputs.csv_drive_file_id }}
+          RUN_DATE: ${{ inputs.run_date }}
+        run: |
+          mkdir -p data/indicators/daily
+          OUTPUT=$(PYTHONPATH=. python - <<'PY'
+from pathlib import Path
+import os
+
+from scripts.gdrive.drive_client import GoogleDriveAdapter, build_service, get_credentials
+
+csv_file_id = os.environ["INPUT_CSV_FILE_ID"]
+run_date = os.environ["RUN_DATE"]
+target = Path("data/indicators/daily") / f"indicators_{run_date.replace('-', '')}.csv"
+creds = get_credentials()
+service = build_service(creds)
+drive = GoogleDriveAdapter(service)
+content = drive.get_file_content(csv_file_id)
+target.parent.mkdir(parents=True, exist_ok=True)
+target.write_bytes(content)
+print(f"local_csv={target.as_posix()}")
+PY
+)
+          echo "$OUTPUT"
+          LOCAL_CSV=$(echo "$OUTPUT" | grep "^local_csv=" | tail -1 | cut -d= -f2-)
+          [ -n "$LOCAL_CSV" ] && echo "local_csv=$LOCAL_CSV" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch external events for selected codes
+        env:
+          PYTHONPATH: src
+          RUN_DATE: ${{ inputs.run_date }}
+          INPUT_CSV: ${{ steps.download_csv.outputs.local_csv }}
+        run: |
+          python -m stockradar.jobs.fetch_external_events_for_spikes \
+            --run-date "$RUN_DATE" \
+            --indicators "$INPUT_CSV" \
+            --selection-config config/event_cause_daily.yaml \
+            --lookback-days 20 \
+            --cutoff-time 15:30 \
+            --exclude-kabutan-categories "特集,注目" \
+            --output "data/external/events/news_tdnet_events_${RUN_DATE//-/}.jsonl"
+
+      - name: Rank event causes
+        env:
+          PYTHONPATH: src
+          RUN_DATE: ${{ inputs.run_date }}
+          INPUT_CSV: ${{ steps.download_csv.outputs.local_csv }}
+        run: |
+          python -m stockradar.jobs.rank_turnover_event_causes \
+            --run-date "$RUN_DATE" \
+            --indicators "$INPUT_CSV" \
+            --events-jsonl "data/external/events/news_tdnet_events_${RUN_DATE//-/}.jsonl" \
+            --selection-config config/event_cause_daily.yaml \
+            --name-alias-config config/kabutan_name_aliases.yaml
+
+      - name: Build enriched indicators CSV
+        id: build_enriched
+        env:
+          PYTHONPATH: src
+          RUN_DATE: ${{ inputs.run_date }}
+          INPUT_CSV: ${{ steps.download_csv.outputs.local_csv }}
+        run: |
+          python -m stockradar.jobs.build_daily_event_cause_enriched_csv \
+            --run-date "$RUN_DATE" \
+            --indicators "$INPUT_CSV" \
+            --summary-csv "data/analysis/event_causes_poc/event_cause_summary_${RUN_DATE//-/}.csv" \
+            --candidates-csv "data/analysis/event_causes_poc/event_cause_candidates_${RUN_DATE//-/}.csv" \
+            --selection-config config/event_cause_daily.yaml \
+            --output "data/indicators/daily/indicators_event_enriched_${RUN_DATE//-/}.csv"
+          echo "output_csv=data/indicators/daily/indicators_event_enriched_${RUN_DATE//-/}.csv" >> "$GITHUB_OUTPUT"
+
+      - name: Upload enriched CSV to 0011_work (day folder)
+        id: upload_csv
+        env:
+          GDRIVE_OAUTH_CLIENT_ID: ${{ secrets.GDRIVE_OAUTH_CLIENT_ID }}
+          GDRIVE_OAUTH_CLIENT_SECRET: ${{ secrets.GDRIVE_OAUTH_CLIENT_SECRET }}
+          GDRIVE_OAUTH_REFRESH_TOKEN: ${{ secrets.GDRIVE_OAUTH_REFRESH_TOKEN }}
+          RUN_DATE: ${{ inputs.run_date }}
+          OUTPUT_CSV: ${{ steps.build_enriched.outputs.output_csv }}
+        run: |
+          MONTH="${RUN_DATE:0:7}"
+          OUTPUT=$(PYTHONPATH=. python scripts/gdrive/upload_to_work.py --month "$MONTH" --day "$RUN_DATE" "$OUTPUT_CSV" 2>&1)
+          echo "$OUTPUT"
+          CSV_FILE_ID=$(echo "$OUTPUT" | grep "^csv_file_id=" | tail -1 | cut -d= -f2-)
+          [ -n "$CSV_FILE_ID" ] && echo "enriched_csv_file_id=$CSV_FILE_ID" >> "$GITHUB_OUTPUT"
+

@@ -34,6 +34,7 @@ from scripts.gdrive.drive_client import (
     GoogleDriveAdapter,
     build_service,
     get_credentials,
+    get_folder_id_paid,
     get_file_metadata,
     get_or_create_folder,
     upload_file,
@@ -99,11 +100,12 @@ def resolve_config(
     """コマンドライン・workflow inputs で上書きした最終設定を返す"""
     out = {
         "csv_drive_file_id": csv_drive_file_id or config.get("csv_drive_file_id"),
-        "output_folder_id": output_folder_id or config.get("output_folder_id"),
+        "output_folder_id": output_folder_id or config.get("output_folder_id") or get_folder_id_paid(),
         "output_subfolder": output_subfolder or config.get("output_subfolder"),
         "header_anchor_sheet_name": header_anchor_sheet_name or config.get("header_anchor_sheet_name", "indicators001"),
         "template_path": template_path or config.get("template_path"),
         "link_label_map": config.get("link_label_map") or {},
+        "hyperlink_source_map": config.get("hyperlink_source_map") or {},
         "sort_column": config.get("sort_column"),
         "sort_ascending": config.get("sort_ascending", False),
         "sheet_protection": config.get("sheet_protection", False),
@@ -240,6 +242,7 @@ def run(cfg: dict, drive_adapter: DriveAdapter | None = None) -> str:
 
     data_start_row = header_row + 1
     link_label_map = cfg.get("link_label_map") or {}
+    hyperlink_source_map = cfg.get("hyperlink_source_map") or {}
     hyperlink_font = Font(u="single", color="0563C1")
 
     for row_idx, (_, r) in enumerate(df.iterrows()):
@@ -248,7 +251,22 @@ def run(cfg: dict, drive_adapter: DriveAdapter | None = None) -> str:
             cell = ws.cell(row=excel_row, column=header_col + col_idx)
             if h in df.columns:
                 val = r[h]
-                if h in link_label_map:
+                if h in hyperlink_source_map:
+                    # 表示列: 別URL列の値でハイパーリンク化
+                    display_text = _to_value(val)
+                    url_col = str(hyperlink_source_map[h]).strip()
+                    url_val = r[url_col] if url_col and url_col in df.columns else ""
+                    if (
+                        pd.notna(url_val)
+                        and str(url_val).strip().startswith("http")
+                        and str(display_text).strip()
+                    ):
+                        cell.value = display_text
+                        cell.hyperlink = str(url_val).strip()
+                        cell.font = hyperlink_font
+                    else:
+                        cell.value = display_text
+                elif h in link_label_map:
                     # URL列: 表示名＋ハイパーリンク
                     label = link_label_map[h]
                     if pd.notna(val) and str(val).strip().startswith("http"):
@@ -272,9 +290,31 @@ def run(cfg: dict, drive_adapter: DriveAdapter | None = None) -> str:
     else:
         logger.info("書式設定済み範囲内で書き込みました。")
 
-    url_cols = [c for c in template_headers if c in link_label_map]
-    url_count = sum(1 for _, r in df.iterrows() for c in url_cols if c in r and pd.notna(r.get(c)) and str(r.get(c)).startswith("http"))
-    logger.info("URL置換件数: %d (列: %s)", url_count, url_cols)
+    label_url_cols = [c for c in template_headers if c in link_label_map]
+    dynamic_cols = [c for c in template_headers if c in hyperlink_source_map]
+    url_count_label = sum(
+        1
+        for _, r in df.iterrows()
+        for c in label_url_cols
+        if c in r and pd.notna(r.get(c)) and str(r.get(c)).startswith("http")
+    )
+    url_count_dynamic = sum(
+        1
+        for _, r in df.iterrows()
+        for c in dynamic_cols
+        if c in r
+        and str(r.get(c)).strip()
+        and str(hyperlink_source_map.get(c, "")).strip() in r.index
+        and pd.notna(r.get(str(hyperlink_source_map.get(c, "")).strip()))
+        and str(r.get(str(hyperlink_source_map.get(c, "")).strip())).startswith("http")
+    )
+    logger.info(
+        "URL置換件数: fixed=%d dynamic=%d (fixed列: %s, dynamic列: %s)",
+        url_count_label,
+        url_count_dynamic,
+        label_url_cols,
+        dynamic_cols,
+    )
 
     # 5) シート保護（設定で有効時）
     if cfg.get("sheet_protection"):

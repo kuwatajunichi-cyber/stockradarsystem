@@ -6,7 +6,8 @@ venv/
 .env
 .env.local
 
-# Data (raw / processed / cache / universe / output staging / key / logs)
+# Data (analysis / raw / processed / cache / universe / output staging / key / logs)
+data/analysis/
 data/raw/
 data/processed/
 data/cache/

@@ -25,9 +25,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: data/cache/jpx_latest_url.txt
-          key: jpx-url-cache-${{ github.run_id }}
+          key: jpx-url-${{ github.run_number }}
           restore-keys: |
-            jpx-url-cache-
+            jpx-url-
 
       - name: Install dependencies
         run: |
@@ -68,11 +68,16 @@ jobs:
             echo "Warning: Staging directory not found: $STAGING_DIR"
           fi
 
+      - name: Resolve build date
+        id: build_date
+        if: success() && steps.get_run_id.outputs.run_id != ''
+        run: echo "date=$(TZ=Asia/Tokyo date +%Y%m%d)" >> $GITHUB_OUTPUT
+
       - name: Create Release
         if: success() && steps.get_run_id.outputs.run_id != ''
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: monthly-${{ github.run_id }}
+          tag_name: monthly-${{ steps.build_date.outputs.date }}-${{ github.run_id }}
           name: Monthly Universe Build - ${{ steps.get_run_id.outputs.run_id }}
           body: |
             Monthly universe build completed successfully.
