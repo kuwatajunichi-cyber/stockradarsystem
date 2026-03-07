@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 from openpyxl import load_workbook
+from openpyxl.workbook.defined_name import DefinedName
 
 # プロジェクトルートを path に追加（render_sheet が scripts を import するため）
 _repo_root = Path(__file__).resolve().parent.parent
@@ -159,3 +160,52 @@ def test_sheet_protection_disabled() -> None:
 
     for ws in wb.worksheets:
         assert ws.protection.sheet is False
+
+
+def test_hyperlink_source_map_uses_title_column(tmp_path: Path) -> None:
+    """表示列(event_news_1_title)にURL列(event_news_1_url)をリンク埋め込みできることを検証。"""
+    # テンプレートをテスト用に作成
+    template_path = tmp_path / "tmp_render_template.xlsx"
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "indicators001"
+    ws["A1"] = "event_news_1_title"
+    wb.defined_names.add(DefinedName("headerAnchor", attr_text="'indicators001'!$A$1"))
+    wb.save(template_path)
+
+    csv_content = (
+        "event_news_1_title,event_news_1_url\n"
+        "決算上方修正に関するお知らせ,https://example.com/news/1\n"
+        "材料不明・需給起因疑い,\n"
+    ).encode("utf-8-sig")
+    fake_csv_id = "fake-csv-id-12345678901234567"
+    fake = FakeDriveAdapter()
+    fake.put_file(fake_csv_id, csv_content, "indicators_event_enriched_20260307.csv")
+
+    cfg = {
+        "csv_drive_file_id": fake_csv_id,
+        "output_folder_id": "fake-folder-id",
+        "output_subfolder": None,
+        "header_anchor_sheet_name": "indicators001",
+        "template_path": str(template_path),
+        "link_label_map": {},
+        "hyperlink_source_map": {"event_news_1_title": "event_news_1_url"},
+        "sort_column": None,
+        "sort_ascending": False,
+        "sheet_protection": False,
+    }
+
+    run(cfg, drive_adapter=fake)
+    xlsx_bytes = _get_xlsx_from_fake(fake)
+    out_wb = load_workbook(io.BytesIO(xlsx_bytes), read_only=False)
+    out_ws = out_wb["indicators001"]
+
+    assert out_ws["A2"].value == "決算上方修正に関するお知らせ"
+    assert out_ws["A2"].hyperlink is not None
+    assert out_ws["A2"].hyperlink.target == "https://example.com/news/1"
+
+    assert out_ws["A3"].value == "材料不明・需給起因疑い"
+    assert out_ws["A3"].hyperlink is None
+

@@ -101,9 +101,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: data/cache/yf_index/
-          key: yf-index-cache-${{ github.run_id }}
+          key: yf-index-${{ github.run_number }}
           restore-keys: |
-            yf-index-cache-
+            yf-index-
 
       - name: Install dependencies
         run: |
@@ -238,9 +238,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: data/cache/yf_index/
-          key: yf-index-cache-${{ github.run_id }}
+          key: yf-index-${{ github.run_number }}
           restore-keys: |
-            yf-index-cache-
+            yf-index-
 
       - name: Install dependencies
         run: |
@@ -327,17 +327,17 @@ jobs:
         run: |
           RUN_DATE="${{ needs.resolve_trading_day.outputs.run_date }}"
           MONTH="${RUN_DATE:0:7}"
-          shopt -s nullglob
-          FILES=(data/indicators/daily/indicators_*.csv)
-          if [ ${#FILES[@]} -eq 0 ]; then
-            echo "No indicator CSVs found, skipping Drive upload"
-            exit 0
+          RUN_DATE_COMPACT="${RUN_DATE//-/}"
+          FILE="data/indicators/daily/indicators_${RUN_DATE_COMPACT}.csv"
+          if [ ! -f "$FILE" ]; then
+            echo "Expected indicator CSV not found: $FILE"
+            exit 1
           fi
-          OUTPUT=$(PYTHONPATH=. python scripts/gdrive/upload_to_work.py --month "$MONTH" --day "$RUN_DATE" "${FILES[@]}" 2>&1)
+          OUTPUT=$(PYTHONPATH=. python scripts/gdrive/upload_to_work.py --month "$MONTH" --day "$RUN_DATE" "$FILE" 2>&1)
           echo "$OUTPUT"
           CSV_FILE_ID=$(echo "$OUTPUT" | grep "^csv_file_id=" | tail -1 | cut -d= -f2-)
           [ -n "$CSV_FILE_ID" ] && echo "csv_file_id=$CSV_FILE_ID" >> "$GITHUB_OUTPUT"
-          echo "Uploaded ${#FILES[@]} CSV(s) to 0011_work/$MONTH/$RUN_DATE/"
+          echo "Uploaded 1 CSV to 0011_work/$MONTH/$RUN_DATE/"
 
       - name: Upload OHLC store for archiving
         uses: actions/upload-artifact@v4
@@ -348,17 +348,54 @@ jobs:
           retention-days: 1
           if-no-files-found: ignore
 
-  render_sheet_report:
+  event_cause_enrichment:
     needs: [resolve_trading_day, compute_indicators]
+    if: |
+      needs.resolve_trading_day.outputs.is_open == 'True' &&
+      needs.compute_indicators.result == 'success' &&
+      needs.compute_indicators.outputs.csv_file_id != ''
+    continue-on-error: true
+    uses: ./.github/workflows/daily_event_cause_enrichment.yml
+    with:
+      run_date: ${{ needs.resolve_trading_day.outputs.run_date }}
+      csv_drive_file_id: ${{ needs.compute_indicators.outputs.csv_file_id }}
+    secrets: inherit
+
+  select_csv_for_render:
+    needs: [resolve_trading_day, compute_indicators, event_cause_enrichment]
     if: |
       always() &&
       needs.resolve_trading_day.outputs.is_open == 'True' &&
       needs.compute_indicators.result == 'success' &&
       needs.compute_indicators.outputs.csv_file_id != ''
+    runs-on: ubuntu-latest
+    outputs:
+      csv_file_id: ${{ steps.select.outputs.csv_file_id }}
+    steps:
+      - name: Select CSV for render (enriched or fallback)
+        id: select
+        run: |
+          BASE_CSV_FILE_ID="${{ needs.compute_indicators.outputs.csv_file_id }}"
+          ENRICH_RESULT="${{ needs.event_cause_enrichment.result }}"
+          ENRICHED_CSV_FILE_ID="${{ needs.event_cause_enrichment.outputs.enriched_csv_file_id }}"
+          if [ "$ENRICH_RESULT" = "success" ] && [ -n "$ENRICHED_CSV_FILE_ID" ]; then
+            echo "csv_file_id=$ENRICHED_CSV_FILE_ID" >> "$GITHUB_OUTPUT"
+            echo "Selected enriched CSV"
+          else
+            echo "csv_file_id=$BASE_CSV_FILE_ID" >> "$GITHUB_OUTPUT"
+            echo "Selected fallback indicators CSV"
+          fi
+
+  render_sheet_report:
+    needs: [resolve_trading_day, select_csv_for_render]
+    if: |
+      always() &&
+      needs.resolve_trading_day.outputs.is_open == 'True' &&
+      needs.select_csv_for_render.result == 'success' &&
+      needs.select_csv_for_render.outputs.csv_file_id != ''
     uses: ./.github/workflows/render_sheet.yml
     with:
-      csv_drive_file_id: ${{ needs.compute_indicators.outputs.csv_file_id }}
-      output_folder_id: "1sUA-HL04eOo9fCBa5fN1OxKRs0Sp-Wf5"
+      csv_drive_file_id: ${{ needs.select_csv_for_render.outputs.csv_file_id }}
       run_date: ${{ needs.resolve_trading_day.outputs.run_date }}
     secrets: inherit
 

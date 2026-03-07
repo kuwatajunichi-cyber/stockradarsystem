@@ -1,0 +1,21 @@
+scoring_mode: v1
+
+weights_v1:
+  time_proximity: 0.24
+  issuer_specificity: 0.20
+  material_strength: 0.20
+  primary_source: 0.12
+  novelty: 0.12
+  price_alignment: 0.08
+  confidence_base: 0.04
+
+weights_v2:
+  time_proximity: 0.22
+  source_reliability: 0.16
+  issuer_specificity: 0.10
+  disclosure_channel: 0.16
+  category_signal: 0.12
+  document_structure: 0.06
+  name_match: 0.16
+  confidence_base: 0.02
+  price_alignment: 0.00

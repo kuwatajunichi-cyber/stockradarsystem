@@ -1,9 +1,6 @@
 # 日次レポート スプレッドシート生成用設定（XLSX / openpyxl ベース）
 # workflow inputs で上書き可能な項目は inputs を優先
 
-# 出力先フォルダ（Drive アップロード先）
-output_folder_id: "1pwtA9TFLxJ1NfyoCEsVeNq8JM9ULUeCt"
-
 # テンプレート（ローカル XLSX ファイル、repo ルートからの相対パス）
 template_path: "config/templates/indicators_template_v1.1.xlsx"
 
@@ -35,3 +32,8 @@ link_label_map:
   # 将来拡張例:
   # link_minkabu: "みんかぶ"
   # link_yahoo: "Yahoo"
+
+# 表示列 -> URL列 マップ（表示文字列をリンク化）
+# 例: event_news_1_title に event_news_1_url を埋め込む
+hyperlink_source_map:
+  event_news_1_title: "event_news_1_url"

@@ -89,6 +89,16 @@ yaml
 - 日付 × 銘柄 × ユニバースの縦持ち
 - 欠損は空欄、理由は flags に集約
 
+成果物の管理は、次の2つの直交する軸で整理する。
+
+- Pipeline（確定性）
+  - Staging: 検証ゲート未通過。`data/output/staging/<run_id>/` に格納。
+  - Committed: 検証ゲート通過済み。`data/output/latest/LATEST_RUN_ID.txt` がポインタ。
+  - Release への添付や GDrive へのアップロードは Committed 後に行う。
+- Visibility（公開範囲）
+  - Work（0011_work）: 内部用。CSV 等の中間・最終成果物を月/日フォルダで管理。
+  - Paid（0012_paid）: 顧客向け。XLSX レポートを月フォルダで管理。
+
 ---
 
 ## 実行・運用方針
@@ -97,6 +107,7 @@ yaml
 - 欠損や取得失敗は flags / manifest で可視化
 - 成果物は staging -> latest の原子更新
 - 実行ID（run_id）とログを保存
+- Release 添付および Drive 反映は Committed 後に実施
 
 ---
 

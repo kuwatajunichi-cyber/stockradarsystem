@@ -1,0 +1,30 @@
+# 日次イベント要因付与の設定
+# - 抽出条件（selection_rules）
+# - 判定閾値
+# - スコア重み参照元
+
+scoring_mode: v2
+decision_threshold: 0.58
+a_threshold: 0.72
+
+# 既存 PoC 重み設定を参照（必要時のみ本ファイルで上書き）
+weights_source: "config/event_cause_poc.yaml"
+
+# 抽出条件:
+# any_of のいずれかを満たした銘柄をニュース収集対象にする
+selection_rules:
+  any_of:
+    - type: "z_turnover_gt"
+      column: "z_turnover_60"
+      value: 3.5
+    # 将来拡張例:
+    # - type: "z_turnover_lt"
+    #   column: "z_turnover_60"
+    #   value: -3.5
+    # - type: "candle_labels_contains_any"
+    #   column: "candle_labels"
+    #   values: ["LIMIT_HIGH", "LIMIT_LOW"]
+
+outputs:
+  top_n: 1
+
