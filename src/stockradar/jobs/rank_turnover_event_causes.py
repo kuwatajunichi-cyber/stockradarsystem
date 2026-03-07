@@ -1,7 +1,7 @@
 """
 売買代金zscore急増銘柄の背景候補を順位付けする PoC ジョブ。
 
-既存ワークフローとは独立して手動実行する前提。
+日次運用では selection_rules 経由で接続。手動実行も可能。
 """
 from __future__ import annotations
 

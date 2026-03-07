@@ -11,12 +11,12 @@ import argparse
 import json
 import re
 import sys
-from datetime import date
 from pathlib import Path
 
 import pandas as pd
 
 from stockradar.jobs.resolve_trading_day import resolve_trading_day
+from stockradar.utils.cli_parse import parse_run_date_opt
 from stockradar.sources.jpx_delisted import (
     apply_delisted_patch,
     fetch_delisted_codes,
@@ -60,15 +60,9 @@ def main(argv: list[str] | None = None) -> None:
     )
     args = parser.parse_args(argv)
 
+    run_date = parse_run_date_opt(args.run_date)
     base = Path.cwd()
-
-    if args.run_date:
-        try:
-            run_date = date.fromisoformat(args.run_date)
-        except ValueError:
-            print(f"エラー: --run-date の形式が不正です: {args.run_date} (期待: YYYY-MM-DD)", file=sys.stderr)
-            sys.exit(1)
-    else:
+    if run_date is None:
         run_date, _ = resolve_trading_day(None)
 
     input_path = Path(args.input)

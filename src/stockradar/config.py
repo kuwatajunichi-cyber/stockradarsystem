@@ -104,7 +104,7 @@ def get_liq_lookback_days() -> int:
 def get_liq_min_median_turnover_yen() -> float:
     """
     流動性閾値（円）。中央値がこれ未満なら illiquid。
-    環境変数 LIQ_MIN_MEDIAN_TURNOVER_YEN 必須（未設定時は ValueError）。
+    環境変数 LIQ_MIN_MEDIAN_TURNOVER_YEN（未設定時は 20,000,000 を使用。負の値の場合は ValueError）。
     """
     v = _env_float("LIQ_MIN_MEDIAN_TURNOVER_YEN", 20000000)
     if v is None or v < 0:

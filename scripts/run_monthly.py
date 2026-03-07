@@ -13,6 +13,7 @@
 """
 from __future__ import annotations
 
+import argparse
 import os
 import re
 import subprocess
@@ -20,6 +21,18 @@ import sys
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+
+# 端末エンコーディング差異を吸収（CP932等でも落ちない）
+if hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(errors="replace")
+    except Exception:
+        pass
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(errors="replace")
+    except Exception:
+        pass
 
 # PYTHONPATH が設定されていない場合、src を追加
 if "PYTHONPATH" in os.environ:
@@ -375,6 +388,10 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="月次実行の統合スクリプト。JPX取得・ユニバース構築・yfinance取得・分割を実行し、3CSVをstagingに出力する。"
+    )
+    parser.parse_args()  # --help のときはここで終了（実処理を起動しない）
     try:
         main()
     except KeyboardInterrupt:

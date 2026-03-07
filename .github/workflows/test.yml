@@ -24,5 +24,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
+      - name: Ruff (jobs 限定)
+        run: ruff check src/stockradar/jobs/ --select F401,F841
+
+      - name: Mypy (緩和設定・段階導入)
+        run: mypy src/stockradar/jobs/ --ignore-missing-imports --allow-untyped-defs --no-strict-optional || true
+
       - name: Run tests
         run: pytest tests/ -v

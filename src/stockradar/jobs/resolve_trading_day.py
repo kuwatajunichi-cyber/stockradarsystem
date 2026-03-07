@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import argparse
 import sys
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 
 import pytz
 from exchange_calendars import get_calendar

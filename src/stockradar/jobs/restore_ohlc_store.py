@@ -59,7 +59,7 @@ def restore_ohlc_store(base_dir: Path | None = None) -> None:
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Restore OHLC store from zip archive.")
-    args = parser.parse_args(argv)
+    parser.parse_args(argv)
 
     try:
         restore_ohlc_store()

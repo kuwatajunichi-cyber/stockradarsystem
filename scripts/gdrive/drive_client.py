@@ -56,7 +56,6 @@ ENV_CLIENT_SECRET = "GDRIVE_OAUTH_CLIENT_SECRET"
 ENV_REFRESH_TOKEN = "GDRIVE_OAUTH_REFRESH_TOKEN"
 
 DRIVE_SCOPE = "https://www.googleapis.com/auth/drive"
-SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets"
 
 
 def _ensure_deps() -> None:
@@ -77,7 +76,7 @@ def get_credentials(extra_scopes: list[str] | None = None) -> Any:
     環境変数 GDRIVE_OAUTH_CLIENT_ID / GDRIVE_OAUTH_CLIENT_SECRET / GDRIVE_OAUTH_REFRESH_TOKEN
     から OAuth Credentials を組み立てる。値はログに出さない。
 
-    extra_scopes: 追加スコープ（例: Sheets API 用に [SHEETS_SCOPE] を指定）
+    extra_scopes: 追加スコープ（オプション）
     """
     _ensure_deps()
     from google.auth.transport.requests import Request
@@ -124,14 +123,6 @@ def build_service(credentials: Any) -> Any:
     from googleapiclient.discovery import build
 
     return build("drive", "v3", credentials=credentials, cache_discovery=False)
-
-
-def build_sheets_service(credentials: Any) -> Any:
-    """Sheets API v4 サービスを構築する。"""
-    _ensure_deps()
-    from googleapiclient.discovery import build
-
-    return build("sheets", "v4", credentials=credentials, cache_discovery=False)
 
 
 def get_or_create_folder(service: Any, parent_id: str, name: str) -> str:
@@ -190,19 +181,6 @@ def get_file_content(service: Any, file_id: str) -> bytes:
     """ファイル ID でファイルを取得し内容を返す。"""
     request = service.files().get_media(fileId=file_id)
     return request.execute()
-
-
-def find_file_in_folder(service: Any, folder_id: str, file_name: str) -> str | None:
-    """フォルダ直下で名前が file_name のファイルの ID を返す。見つからなければ None。"""
-    name_esc = file_name.replace("'", "''")
-    q = f"'{folder_id}' in parents and name = '{name_esc}' and trashed = false"
-    resp = (
-        service.files()
-        .list(q=q, spaces="drive", fields="files(id)", pageSize=2)
-        .execute()
-    )
-    files = resp.get("files", [])
-    return files[0]["id"] if files else None
 
 
 def get_file_metadata(service: Any, file_id: str) -> dict:

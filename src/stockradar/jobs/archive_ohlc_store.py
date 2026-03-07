@@ -7,10 +7,9 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
 import sys
 import zipfile
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
