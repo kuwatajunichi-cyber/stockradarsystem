@@ -304,7 +304,6 @@ def compute_candle_labels(
         return ""
 
     latest_tr = df.loc[latest_idx, "TR"]
-    latest_atr_val = atr.loc[latest_idx] if latest_idx in atr.index else np.nan
     latest_gap_atr_val = gap_atr.loc[latest_idx] if latest_idx in gap_atr.index else np.nan
     latest_gap = df.loc[latest_idx, "gap"]
     latest_hit_high = df.loc[latest_idx, "hit_high"]

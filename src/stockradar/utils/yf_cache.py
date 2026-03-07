@@ -88,13 +88,6 @@ def load_manifest(manifest_path: Path) -> dict[str, dict]:
     return out
 
 
-def write_manifest_entry(manifest_path: Path, entry: dict) -> None:
-    """manifestに1エントリを追記（append mode）。"""
-    manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(manifest_path, "a", encoding="utf-8") as f:
-        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-
-
 def update_manifest(manifest_path: Path, entries: dict[str, dict]) -> None:
     """manifest全体を書き直す。"""
     manifest_path.parent.mkdir(parents=True, exist_ok=True)

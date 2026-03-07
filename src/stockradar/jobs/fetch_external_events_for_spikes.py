@@ -1,7 +1,7 @@
 """
 z_turnover 急増銘柄向けに、株探/TDnet からイベント候補 JSONL を自動生成する実験ジョブ。
 
-既存ワークフローには接続しない（手動実行前提）。
+日次運用では selection_rules 経由で接続。手動実行も可能。
 """
 from __future__ import annotations
 

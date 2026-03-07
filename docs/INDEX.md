@@ -40,6 +40,8 @@
 ### Architecture Decision Records (ADR)
 - Directory (View):  
   https://github.com/kuwatajunichi-cyber/stockradarsystem/tree/main/docs/adr/
+- ADR-001 監査用トレーサビリティ（温存・削除判断）:  
+  [docs/adr/adr-001-audit-retention-and-removal.md](adr/adr-001-audit-retention-and-removal.md)
 
 ### Decision Candidates (Pre-ADR)
 - Directory (View):  

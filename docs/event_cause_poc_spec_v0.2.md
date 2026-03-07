@@ -11,7 +11,7 @@
 
 本PoCは**調査候補抽出の補助**であり、投資助言を目的としない。
 
-## 2. ジョブ構成（既存ワークフロー非接続）
+## 2. ジョブ構成（PoC ジョブ。日次運用では selection_rules 等で接続可能）
 
 1. 取得: `stockradar.jobs.fetch_external_events_for_spikes`
 2. スコアリング: `stockradar.jobs.rank_turnover_event_causes`

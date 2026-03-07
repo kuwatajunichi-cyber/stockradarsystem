@@ -9,11 +9,9 @@ from __future__ import annotations
 
 import argparse
 import sys
-from datetime import date
 from pathlib import Path
 
-import pandas as pd
-
+from stockradar.utils.cli_parse import parse_run_date_opt
 from stockradar.config import (
     get_buffer_days,
     get_rs_windows,
@@ -60,6 +58,8 @@ def main(argv: list[str] | None = None) -> None:
     )
     args = parser.parse_args(argv)
 
+    run_date = parse_run_date_opt(args.run_date)
+
     base = Path.cwd()
     cache_dir = get_yf_daily_cache_dir(base)
     manifest_path = cache_dir / MANIFEST_FILENAME
@@ -85,15 +85,6 @@ def main(argv: list[str] | None = None) -> None:
     if not input_path.exists():
         print(f"エラー: 入力が存在しません: {input_path}", file=sys.stderr)
         sys.exit(1)
-
-    if args.run_date:
-        try:
-            run_date = date.fromisoformat(args.run_date)
-        except ValueError:
-            print(f"エラー: 日付形式が不正です: {args.run_date} (期待: YYYY-MM-DD)", file=sys.stderr)
-            sys.exit(1)
-    else:
-        run_date = None
 
     try:
         codes = load_codes_from_csv(input_path)

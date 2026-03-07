@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import argparse
 import sys
-from datetime import date
 from pathlib import Path
 
+from stockradar.utils.cli_parse import parse_run_date_opt
 from stockradar.config import (
     get_buffer_days,
     get_rs_windows,
@@ -49,14 +49,7 @@ def main(argv: list[str] | None = None) -> None:
     cache_dir = get_yf_index_cache_dir(base)
     manifest_path = cache_dir / MANIFEST_FILENAME
 
-    if args.run_date:
-        try:
-            run_date = date.fromisoformat(args.run_date)
-        except ValueError:
-            print(f"エラー: 日付形式が不正です: {args.run_date} (期待: YYYY-MM-DD)", file=sys.stderr)
-            sys.exit(1)
-    else:
-        run_date = None
+    run_date = parse_run_date_opt(args.run_date)
 
     # required_days = max(RS_LOOKBACK_DAYS, Z_LOOKBACK_DAYS) + BUFFER_DAYS
     rs_windows = get_rs_windows()

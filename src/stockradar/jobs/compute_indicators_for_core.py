@@ -22,6 +22,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from stockradar.utils.cli_parse import parse_run_date_opt
 from stockradar.config import (
     get_indicators_daily_dir,
     get_rs_benchmark,
@@ -102,14 +103,7 @@ def main(argv: list[str] | None = None) -> None:
         print(f"エラー: 入力が存在しません: {input_path}", file=sys.stderr)
         sys.exit(1)
 
-    if args.run_date:
-        try:
-            run_date = date.fromisoformat(args.run_date)
-        except ValueError:
-            print(f"エラー: 日付形式が不正です: {args.run_date} (期待: YYYY-MM-DD)", file=sys.stderr)
-            sys.exit(1)
-    else:
-        run_date = date.today()
+    run_date = parse_run_date_opt(args.run_date) or date.today()
 
     try:
         codes_df = _load_codes_with_names(input_path)
