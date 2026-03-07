@@ -348,14 +348,15 @@ jobs:
           retention-days: 1
           if-no-files-found: ignore
 
+  # Reusable workflow 呼び出し（runs-on は呼び先で定義）
   event_cause_enrichment:
+    uses: ./.github/workflows/daily_event_cause_enrichment.yml
     needs: [resolve_trading_day, compute_indicators]
     if: |
       needs.resolve_trading_day.outputs.is_open == 'True' &&
       needs.compute_indicators.result == 'success' &&
       needs.compute_indicators.outputs.csv_file_id != ''
     continue-on-error: true
-    uses: ./.github/workflows/daily_event_cause_enrichment.yml
     with:
       run_date: ${{ needs.resolve_trading_day.outputs.run_date }}
       csv_drive_file_id: ${{ needs.compute_indicators.outputs.csv_file_id }}

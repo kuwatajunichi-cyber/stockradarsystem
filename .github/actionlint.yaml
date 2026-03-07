@@ -1,0 +1,9 @@
+# actionlint 設定
+# reusable workflow 呼び出しジョブは runs-on を省略する正規の構文のため、該当エラーを無視
+paths:
+  .github/workflows/daily.yml:
+    ignore:
+      - 'Required property is missing: runs-on'
+      - "Unexpected value 'uses'"
+      - "Unexpected value 'with'"
+      - "Unexpected value 'secrets'"

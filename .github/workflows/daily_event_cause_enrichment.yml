@@ -50,23 +50,23 @@ jobs:
         run: |
           mkdir -p data/indicators/daily
           OUTPUT=$(PYTHONPATH=. python - <<'PY'
-from pathlib import Path
-import os
+          from pathlib import Path
+          import os
 
-from scripts.gdrive.drive_client import GoogleDriveAdapter, build_service, get_credentials
+          from scripts.gdrive.drive_client import GoogleDriveAdapter, build_service, get_credentials
 
-csv_file_id = os.environ["INPUT_CSV_FILE_ID"]
-run_date = os.environ["RUN_DATE"]
-target = Path("data/indicators/daily") / f"indicators_{run_date.replace('-', '')}.csv"
-creds = get_credentials()
-service = build_service(creds)
-drive = GoogleDriveAdapter(service)
-content = drive.get_file_content(csv_file_id)
-target.parent.mkdir(parents=True, exist_ok=True)
-target.write_bytes(content)
-print(f"local_csv={target.as_posix()}")
-PY
-)
+          csv_file_id = os.environ["INPUT_CSV_FILE_ID"]
+          run_date = os.environ["RUN_DATE"]
+          target = Path("data/indicators/daily") / f"indicators_{run_date.replace('-', '')}.csv"
+          creds = get_credentials()
+          service = build_service(creds)
+          drive = GoogleDriveAdapter(service)
+          content = drive.get_file_content(csv_file_id)
+          target.parent.mkdir(parents=True, exist_ok=True)
+          target.write_bytes(content)
+          print(f"local_csv={target.as_posix()}")
+          PY
+          )
           echo "$OUTPUT"
           LOCAL_CSV=$(echo "$OUTPUT" | grep "^local_csv=" | tail -1 | cut -d= -f2-)
           [ -n "$LOCAL_CSV" ] && echo "local_csv=$LOCAL_CSV" >> "$GITHUB_OUTPUT"

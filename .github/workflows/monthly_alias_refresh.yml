@@ -164,31 +164,31 @@ jobs:
           RELEASE_TAG="${{ steps.create_alias_release.outputs.tag }}"
           TITLE="Monthly Alias Refresh ${RUN_DATE} (run_id=${{ github.run_id }})"
           SUMMARY_LINES=$(SUMMARY_PATH="$SUMMARY_PATH" python - <<'PY'
-import json
-from pathlib import Path
-import os
-p = Path(os.environ["SUMMARY_PATH"])
-if not p.exists():
-    print("- summary: not found")
-    raise SystemExit(0)
-s = json.loads(p.read_text(encoding="utf-8"))
-counts = s.get("counts", {})
-rates = s.get("rates", {})
-anoms = s.get("anomalies", [])
-print(f"- resolved_monthly_tag: `{s.get('resolved_monthly_tag', '')}`")
-print(f"- added_aliases: `{counts.get('added_aliases', 0)}`")
-print(f"- review_aliases: `{counts.get('review_aliases', 0)}`")
-print(f"- aliases_codes: `{counts.get('aliases_codes', 0)}`")
-print(f"- effective_media_success_rate: `{rates.get('effective_media_success_rate', 0):.4f}`")
-print(f"- low_ratio: `{rates.get('low_ratio', 0):.4f}`")
-print(f"- anomaly_count: `{len(anoms)}`")
-if anoms:
-    print("")
-    print("Detected anomalies:")
-    for a in anoms:
-        print(f"- {a}")
-PY
-)
+          import json
+          from pathlib import Path
+          import os
+          p = Path(os.environ["SUMMARY_PATH"])
+          if not p.exists():
+              print("- summary: not found")
+              raise SystemExit(0)
+          s = json.loads(p.read_text(encoding="utf-8"))
+          counts = s.get("counts", {})
+          rates = s.get("rates", {})
+          anoms = s.get("anomalies", [])
+          print(f"- resolved_monthly_tag: `{s.get('resolved_monthly_tag', '')}`")
+          print(f"- added_aliases: `{counts.get('added_aliases', 0)}`")
+          print(f"- review_aliases: `{counts.get('review_aliases', 0)}`")
+          print(f"- aliases_codes: `{counts.get('aliases_codes', 0)}`")
+          print(f"- effective_media_success_rate: `{rates.get('effective_media_success_rate', 0):.4f}`")
+          print(f"- low_ratio: `{rates.get('low_ratio', 0):.4f}`")
+          print(f"- anomaly_count: `{len(anoms)}`")
+          if anoms:
+              print("")
+              print("Detected anomalies:")
+              for a in anoms:
+                  print(f"- {a}")
+          PY
+          )
           BODY=$(cat <<EOF
 ### Monthly Alias Refresh Summary
 
