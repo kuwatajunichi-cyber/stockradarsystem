@@ -16,7 +16,7 @@ selection_rules:
   any_of:
     - type: "z_turnover_gt"
       column: "z_turnover_60"
-      value: 3.5
+      value: 2.0
     # 将来拡張例:
     # - type: "z_turnover_lt"
     #   column: "z_turnover_60"
@@ -26,5 +26,5 @@ selection_rules:
     #   values: ["LIMIT_HIGH", "LIMIT_LOW"]
 
 outputs:
-  top_n: 1
+  top_n: 3
 

@@ -65,9 +65,12 @@ def _build_summary_map(summary_df: pd.DataFrame) -> dict[str, dict[str, object]]
     return out
 
 
-def _build_top_candidate_map(cand_df: pd.DataFrame) -> dict[str, dict[str, object]]:
-    out: dict[str, dict[str, object]] = {}
-    if cand_df.empty:
+def _build_top_n_candidates_map(
+    cand_df: pd.DataFrame, top_n: int
+) -> dict[str, list[dict[str, object]]]:
+    """銘柄ごとにスコア上位 top_n 件の候補を返す。"""
+    out: dict[str, list[dict[str, object]]] = {}
+    if cand_df.empty or top_n < 1:
         return out
     working = cand_df.copy()
     if "rank" not in working.columns:
@@ -75,17 +78,23 @@ def _build_top_candidate_map(cand_df: pd.DataFrame) -> dict[str, dict[str, objec
     if "cause_score" not in working.columns:
         working["cause_score"] = 0.0
     working["code_norm"] = working["code"].map(_norm_code)
-    working = working.sort_values(by=["code_norm", "rank", "cause_score"], ascending=[True, True, False], na_position="last")
+    working = working.sort_values(
+        by=["code_norm", "rank", "cause_score"], ascending=[True, True, False], na_position="last"
+    )
     for _, row in working.iterrows():
         code = row["code_norm"]
-        if not code or code in out:
+        if not code:
             continue
-        out[code] = {
+        if code not in out:
+            out[code] = []
+        if len(out[code]) >= top_n:
+            continue
+        out[code].append({
             "title": str(row.get("event_title", "")).strip(),
             "url": str(row.get("event_url", "")).strip(),
             "source": str(row.get("event_source", "")).strip(),
             "score": row.get("cause_score"),
-        }
+        })
     return out
 
 
@@ -142,17 +151,26 @@ def main(argv: list[str] | None = None) -> None:
     target_df = filter_dataframe(indicators_df, resolved_rules)
     target_codes = {_norm_code(x) for x in target_df["code"].tolist() if _norm_code(x)}
 
+    outputs_cfg = daily_cfg.get("outputs")
+    top_n = 1
+    if isinstance(outputs_cfg, dict) and "top_n" in outputs_cfg:
+        try:
+            top_n = max(1, int(outputs_cfg["top_n"]))
+        except (TypeError, ValueError):
+            pass
+
     summary_df = pd.read_csv(summary_path)
     cand_df = pd.read_csv(candidates_path)
     summary_map = _build_summary_map(summary_df)
-    top_map = _build_top_candidate_map(cand_df)
+    top_candidates_map = _build_top_n_candidates_map(cand_df, top_n)
 
     out_df = indicators_df.copy()
     out_df["event_cause_type"] = ""
-    out_df["event_news_1_title"] = ""
-    out_df["event_news_1_url"] = ""
-    out_df["event_news_1_source"] = ""
-    out_df["event_news_1_score"] = pd.NA
+    for i in range(1, top_n + 1):
+        out_df[f"event_news_{i}_title"] = ""
+        out_df[f"event_news_{i}_url"] = ""
+        out_df[f"event_news_{i}_source"] = ""
+        out_df[f"event_news_{i}_score"] = pd.NA
 
     for idx, row in out_df.iterrows():
         code = _norm_code(row.get("code", ""))
@@ -162,25 +180,39 @@ def main(argv: list[str] | None = None) -> None:
         summary = summary_map.get(code, {})
         cause_type = str(summary.get("cause_type", "")).strip().upper() or "C"
         out_df.at[idx, "event_cause_type"] = cause_type
+        fallback_title = str(summary.get("top_title", "")).strip()
+
         if cause_type == "C":
             out_df.at[idx, "event_news_1_title"] = UNKNOWN_CAUSE_TEXT
             out_df.at[idx, "event_news_1_url"] = ""
             continue
 
-        top = top_map.get(code, {})
-        title = str(top.get("title", "")).strip() or str(summary.get("top_title", "")).strip()
-        url = str(top.get("url", "")).strip()
-        source = str(top.get("source", "")).strip()
-        score = top.get("score")
-        if not title:
-            title = UNKNOWN_CAUSE_TEXT
-            url = ""
-            cause_type = "C"
-            out_df.at[idx, "event_cause_type"] = cause_type
-        out_df.at[idx, "event_news_1_title"] = title
-        out_df.at[idx, "event_news_1_url"] = url
-        out_df.at[idx, "event_news_1_source"] = source
-        out_df.at[idx, "event_news_1_score"] = score if score is not None else pd.NA
+        candidates = top_candidates_map.get(code, [])
+        for i in range(1, top_n + 1):
+            if i <= len(candidates):
+                c = candidates[i - 1]
+                title = str(c.get("title", "")).strip()
+                if i == 1 and not title:
+                    title = fallback_title or UNKNOWN_CAUSE_TEXT
+                    if title == UNKNOWN_CAUSE_TEXT:
+                        cause_type = "C"
+                        out_df.at[idx, "event_cause_type"] = cause_type
+                url = "" if (i == 1 and title == UNKNOWN_CAUSE_TEXT) else str(c.get("url", "")).strip()
+                source = str(c.get("source", "")).strip()
+                score = c.get("score")
+                out_df.at[idx, f"event_news_{i}_title"] = title or ""
+                out_df.at[idx, f"event_news_{i}_url"] = url
+                out_df.at[idx, f"event_news_{i}_source"] = source
+                out_df.at[idx, f"event_news_{i}_score"] = score if score is not None else pd.NA
+            else:
+                if i == 1 and fallback_title:
+                    out_df.at[idx, f"event_news_{i}_title"] = fallback_title
+                    out_df.at[idx, f"event_news_{i}_url"] = ""
+                else:
+                    out_df.at[idx, f"event_news_{i}_title"] = ""
+                    out_df.at[idx, f"event_news_{i}_url"] = ""
+                out_df.at[idx, f"event_news_{i}_source"] = ""
+                out_df.at[idx, f"event_news_{i}_score"] = pd.NA
 
     if args.output.strip():
         output_path = _resolve_path(base, args.output.strip())

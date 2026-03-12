@@ -37,3 +37,5 @@ link_label_map:
 # 例: event_news_1_title に event_news_1_url を埋め込む
 hyperlink_source_map:
   event_news_1_title: "event_news_1_url"
+  event_news_2_title: "event_news_2_url"
+  event_news_3_title: "event_news_3_url"
