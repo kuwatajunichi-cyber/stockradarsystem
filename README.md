@@ -44,10 +44,7 @@ Stock Radar System は、日本株市場を対象に、相対的に注目度が�
 [銘柄マスター/補助情報] + [市場データ] -> [ユニバース生成] -> [指標算出]
 |
 v
-[XLSX/CSV/manifest生成] -> [Drive格納]
-
-yaml
-コードをコピーする
+[XLSX/CSV/manifest生成] -> [4系統ミラー: Drive / R2 / Dropbox / GitHub Release]
 
 ---
 
@@ -99,6 +96,17 @@ yaml
   - Work（0011_work）: 内部用。CSV 等の中間・最終成果物を月/日フォルダで管理。
   - Paid（0012_paid）: 顧客向け。XLSX レポートを月フォルダで管理。
 
+### 日次成果物の4系統ミラーと保持期間
+
+日次パイプラインの成果物（指標CSV・enriched CSV・Daily XLSX）は、次の4系統にミラーリングされる。
+
+1. **Google Drive**（0011_work / 0012_paid）: 凍結時はスキップ。解除後に再有効化可能。
+2. **Cloudflare R2**: 無料枠を前提。顧客への「月フォルダ共有」は R2 上のプレフィックス＋簡易一覧等で対応可能。
+3. **Dropbox**: 無料枠を前提。月フォルダ共有リンクを顧客に渡す運用を想定。
+4. **GitHub Releases**: タグ `daily-YYYYMM` に日次ファイルを添付。Private リポジトリでは管理用・バックアップ用。
+
+**3か月保持ポリシー**: 全系統で「直近3か月分を保持し、4か月目に削除」する。月1回のクリーンアップ Workflow（`cleanup_r2.yml` / `cleanup_dropbox.yml` / `cleanup_releases.yml` / `cleanup_drive_work.yml`）で自動削除する。
+
 ---
 
 ## 実行・運用方針
@@ -107,7 +115,7 @@ yaml
 - 欠損や取得失敗は flags / manifest で可視化
 - 成果物は staging -> latest の原子更新
 - 実行ID（run_id）とログを保存
-- Release 添付および Drive 反映は Committed 後に実施
+- 日次成果物は Committed 後に 4 系統へ一括アップロード（`scripts/upload_to_all_targets.py`）。Drive 凍結時は R2 / Dropbox / Release の3系統で継続可能
 
 ---
 

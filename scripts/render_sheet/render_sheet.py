@@ -157,53 +157,17 @@ def _read_template_headers(ws, header_row: int, header_col: int, max_cols: int =
     return headers
 
 
-# --- メイン処理 ---
-def run(cfg: dict, drive_adapter: DriveAdapter | None = None) -> str:
+# --- テンプレート流し込み（Drive 非依存）---
+def _build_xlsx_from_df(cfg: dict, df: pd.DataFrame, run_date: str) -> Path:
     """
-    メイン処理。戻り値は生成したファイルの Drive URL。
-    drive_adapter 未指定時は get_credentials + build_service で本番接続する。
-    テスト時は FakeDriveAdapter を渡して Secrets 不要で実行可能。
+    DataFrame をテンプレートに流し込み、XLSX を保存する。
+    戻り値: 保存したファイルの Path。Drive には触れない。
     """
-    if drive_adapter is None:
-        creds = get_credentials()
-        service = build_service(creds)
-        drive: DriveAdapter = GoogleDriveAdapter(service)
-    else:
-        drive = drive_adapter
-
-    csv_file_id = extract_file_id(cfg["csv_drive_file_id"])
-
-    # 1) CSV ダウンロード
-    try:
-        resp = drive.get_file_content(csv_file_id)
-    except Exception as e:
-        raise SystemExit(f"CSV のダウンロードに失敗しました。file_id={csv_file_id}: {e}") from e
-
-    meta = drive.get_file_metadata(csv_file_id)
-    csv_filename = meta.get("name", "")
-    logger.info("入力CSV: %s (file_id=%s)", csv_filename, csv_file_id)
-
-    df = pd.read_csv(io.BytesIO(resp))
-    csv_rows = len(df)
-    logger.info("入力CSV行数: %d", csv_rows)
-
-    # ソート（設定あり且つ列が存在する場合）
-    sort_column = cfg.get("sort_column")
-    if sort_column and sort_column in df.columns:
-        sort_asc = cfg.get("sort_ascending", False)
-        df = df.sort_values(by=sort_column, ascending=sort_asc, na_position="last")
-        logger.info("ソート適用: %s %s", sort_column, "昇順" if sort_asc else "降順")
-    elif sort_column:
-        logger.warning("ソートキー列 '%s' がCSVに存在しないため、ソートをスキップしました。", sort_column)
-
-    # 日付（出力ファイル名用）
-    run_date = extract_date_from_filename(csv_filename)
-    if not run_date:
-        run_date = pd.Timestamp.now(tz="Asia/Tokyo").strftime("%Y-%m-%d")
-        logger.warning("CSVファイル名から日付を抽出できず、本日を使用: %s", run_date)
     output_name = f"{run_date}_Daily.xlsx"
+    output_dir = _repo_root / "data" / "indicators" / "daily"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / output_name
 
-    # 2) テンプレート読み込み（ローカル）
     template_path = Path(cfg["template_path"])
     if not template_path.is_absolute():
         template_path = _repo_root / template_path
@@ -217,13 +181,10 @@ def run(cfg: dict, drive_adapter: DriveAdapter | None = None) -> str:
         raise SystemExit(f"シート '{target_sheet_name}' が見つかりません。利用可能: {wb.sheetnames}")
 
     ws = wb[target_sheet_name]
-
-    # 3) headerAnchor からヘッダー位置・ヘッダー一覧取得
     header_row, header_col = _parse_header_anchor(wb, target_sheet_name)
     template_headers = _read_template_headers(ws, header_row, header_col)
     logger.info("テンプレ列数: %d, ヘッダー: %s", len(template_headers), template_headers[:5])
 
-    # 4) CSV → テンプレ列順に整形
     csv_columns = set(df.columns)
     template_set = set(template_headers)
     missing_in_csv = template_set - csv_columns
@@ -252,7 +213,6 @@ def run(cfg: dict, drive_adapter: DriveAdapter | None = None) -> str:
             if h in df.columns:
                 val = r[h]
                 if h in hyperlink_source_map:
-                    # 表示列: 別URL列の値でハイパーリンク化
                     display_text = _to_value(val)
                     url_col = str(hyperlink_source_map[h]).strip()
                     url_val = r[url_col] if url_col and url_col in df.columns else ""
@@ -267,7 +227,6 @@ def run(cfg: dict, drive_adapter: DriveAdapter | None = None) -> str:
                     else:
                         cell.value = display_text
                 elif h in link_label_map:
-                    # URL列: 表示名＋ハイパーリンク
                     label = link_label_map[h]
                     if pd.notna(val) and str(val).strip().startswith("http"):
                         url_str = str(val).strip()
@@ -316,9 +275,7 @@ def run(cfg: dict, drive_adapter: DriveAdapter | None = None) -> str:
         dynamic_cols,
     )
 
-    # 5) シート保護（設定で有効時）
     if cfg.get("sheet_protection"):
-        # target_sheet のデータ範囲（ヘッダ＋データ）を unlock（ソートを許可するため）
         end_col = header_col + len(template_headers) - 1
         for row in range(header_row, last_row + 1):
             for col in range(header_col, end_col + 1):
@@ -344,14 +301,78 @@ def run(cfg: dict, drive_adapter: DriveAdapter | None = None) -> str:
             sheet.protection = sp
         logger.info("シート保護を適用しました（ソート・フィルタ許可）")
 
-    # 6) 一時ファイルに保存
-    output_dir = _repo_root / "data" / "indicators" / "daily"
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / output_name
     wb.save(output_path)
     logger.info("ローカル保存: %s", output_path)
+    return output_path
 
-    # 7) Drive にアップロード
+
+def run_local(input_csv: Path, cfg: dict) -> Path:
+    """
+    ローカル CSV を読み、XLSX テンプレに流し込んで日次レポートを生成する。
+    Drive には一切アクセスしない。戻り値は生成した XLSX の Path。
+    """
+    df = pd.read_csv(input_csv)
+    logger.info("入力CSV: %s, 行数: %d", input_csv.name, len(df))
+
+    sort_column = cfg.get("sort_column")
+    if sort_column and sort_column in df.columns:
+        sort_asc = cfg.get("sort_ascending", False)
+        df = df.sort_values(by=sort_column, ascending=sort_asc, na_position="last")
+        logger.info("ソート適用: %s %s", sort_column, "昇順" if sort_asc else "降順")
+    elif sort_column:
+        logger.warning("ソートキー列 '%s' がCSVに存在しないため、ソートをスキップしました。", sort_column)
+
+    run_date = extract_date_from_filename(input_csv.name)
+    if not run_date:
+        run_date = pd.Timestamp.now(tz="Asia/Tokyo").strftime("%Y-%m-%d")
+        logger.warning("CSVファイル名から日付を抽出できず、本日を使用: %s", run_date)
+
+    return _build_xlsx_from_df(cfg, df, run_date)
+
+
+# --- Drive モード（将来削除予定のため --csv-drive-file-id は暫定維持）---
+def run(cfg: dict, drive_adapter: DriveAdapter | None = None) -> str:
+    """
+    メイン処理（Drive モード）。戻り値は生成したファイルの Drive URL。
+    drive_adapter 未指定時は get_credentials + build_service で本番接続する。
+    テスト時は FakeDriveAdapter を渡して Secrets 不要で実行可能。
+    """
+    if drive_adapter is None:
+        creds = get_credentials()
+        service = build_service(creds)
+        drive: DriveAdapter = GoogleDriveAdapter(service)
+    else:
+        drive = drive_adapter
+
+    csv_file_id = extract_file_id(cfg["csv_drive_file_id"])
+    try:
+        resp = drive.get_file_content(csv_file_id)
+    except Exception as e:
+        raise SystemExit(f"CSV のダウンロードに失敗しました。file_id={csv_file_id}: {e}") from e
+
+    meta = drive.get_file_metadata(csv_file_id)
+    csv_filename = meta.get("name", "")
+    logger.info("入力CSV: %s (file_id=%s)", csv_filename, csv_file_id)
+
+    df = pd.read_csv(io.BytesIO(resp))
+    logger.info("入力CSV行数: %d", len(df))
+
+    sort_column = cfg.get("sort_column")
+    if sort_column and sort_column in df.columns:
+        sort_asc = cfg.get("sort_ascending", False)
+        df = df.sort_values(by=sort_column, ascending=sort_asc, na_position="last")
+        logger.info("ソート適用: %s %s", sort_column, "昇順" if sort_asc else "降順")
+    elif sort_column:
+        logger.warning("ソートキー列 '%s' がCSVに存在しないため、ソートをスキップしました。", sort_column)
+
+    run_date = extract_date_from_filename(csv_filename)
+    if not run_date:
+        run_date = pd.Timestamp.now(tz="Asia/Tokyo").strftime("%Y-%m-%d")
+        logger.warning("CSVファイル名から日付を抽出できず、本日を使用: %s", run_date)
+
+    output_name = f"{run_date}_Daily.xlsx"
+    output_path = _build_xlsx_from_df(cfg, df, run_date)
+
     content = output_path.read_bytes()
     parent_id = cfg["output_folder_id"]
     if cfg.get("output_subfolder"):
@@ -362,18 +383,23 @@ def run(cfg: dict, drive_adapter: DriveAdapter | None = None) -> str:
     )
     result_url = web_link or f"https://drive.google.com/file/d/{file_id}/view"
     logger.info("出力URL: %s", result_url)
-
     return result_url
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Drive CSV を読み込み、XLSX テンプレに流し込んで日次レポートを生成"
+        description="CSV を読み込み、XLSX テンプレに流し込んで日次レポートを生成（ローカル or Drive）"
+    )
+    parser.add_argument(
+        "--input-csv",
+        type=Path,
+        default=None,
+        help="ローカル CSV パス。指定時は Drive を使わずローカルモード。--csv-drive-file-id より優先。",
     )
     parser.add_argument(
         "--csv-drive-file-id",
-        required=True,
-        help="CSV の Drive ファイル ID または共有リンク",
+        default=None,
+        help="CSV の Drive ファイル ID または共有リンク（ローカルモード時は不要。将来削除予定）",
     )
     parser.add_argument(
         "--config",
@@ -384,12 +410,12 @@ def main() -> None:
     parser.add_argument(
         "--output-folder-id",
         default=None,
-        help="出力先フォルダ ID（省略時は config を使用）",
+        help="出力先フォルダ ID（Drive モード時のみ。省略時は config を使用）",
     )
     parser.add_argument(
         "--output-subfolder",
         default=None,
-        help="出力先サブフォルダ名（例: YYYY-MM）。未設定時は output_folder_id 直下に保存",
+        help="出力先サブフォルダ名（Drive モード時のみ。例: YYYY-MM）",
     )
     parser.add_argument(
         "--header-anchor-sheet-name",
@@ -416,6 +442,29 @@ def main() -> None:
     )
 
     config = load_config(args.config)
+
+    if args.input_csv is not None:
+        if not args.input_csv.is_file():
+            raise SystemExit(f"入力CSVが見つかりません: {args.input_csv}")
+        template_path = args.template_path or config.get("template_path")
+        if not template_path:
+            raise SystemExit("template_path が指定されていません。config/render_sheet.yaml で設定してください。")
+        cfg = {
+            "template_path": str(template_path),
+            "header_anchor_sheet_name": args.header_anchor_sheet_name or config.get("header_anchor_sheet_name", "indicators001"),
+            "link_label_map": config.get("link_label_map") or {},
+            "hyperlink_source_map": config.get("hyperlink_source_map") or {},
+            "sort_column": config.get("sort_column"),
+            "sort_ascending": config.get("sort_ascending", False),
+            "sheet_protection": config.get("sheet_protection", False),
+            "sheet_protection_password": config.get("sheet_protection_password") or "",
+        }
+        out_path = run_local(args.input_csv, cfg)
+        print(f"output_xlsx={out_path}")
+        return
+
+    if not args.csv_drive_file_id:
+        raise SystemExit("--csv-drive-file-id または --input-csv のいずれかを指定してください。")
     cfg = resolve_config(
         config,
         csv_drive_file_id=args.csv_drive_file_id,
@@ -424,7 +473,6 @@ def main() -> None:
         header_anchor_sheet_name=args.header_anchor_sheet_name,
         template_path=args.template_path,
     )
-
     url = run(cfg)
     print(f"spreadsheet_url={url}")
 

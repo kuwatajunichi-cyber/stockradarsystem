@@ -217,8 +217,6 @@ jobs:
     needs: [resolve_trading_day, ensure_index_cache, ensure_core_cache]
     if: needs.resolve_trading_day.outputs.is_open == 'True'
     runs-on: ubuntu-latest
-    outputs:
-      csv_file_id: ${{ steps.upload_csv.outputs.csv_file_id }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -313,32 +311,6 @@ jobs:
           retention-days: 90
           if-no-files-found: warn
 
-      - name: Install Drive API deps (for 0011_work upload)
-        if: success()
-        run: pip install google-api-python-client google-auth
-
-      - name: Upload indicator CSVs to 0011_work (day folder)
-        id: upload_csv
-        if: success()
-        env:
-          GDRIVE_OAUTH_CLIENT_ID: ${{ secrets.GDRIVE_OAUTH_CLIENT_ID }}
-          GDRIVE_OAUTH_CLIENT_SECRET: ${{ secrets.GDRIVE_OAUTH_CLIENT_SECRET }}
-          GDRIVE_OAUTH_REFRESH_TOKEN: ${{ secrets.GDRIVE_OAUTH_REFRESH_TOKEN }}
-        run: |
-          RUN_DATE="${{ needs.resolve_trading_day.outputs.run_date }}"
-          MONTH="${RUN_DATE:0:7}"
-          RUN_DATE_COMPACT="${RUN_DATE//-/}"
-          FILE="data/indicators/daily/indicators_${RUN_DATE_COMPACT}.csv"
-          if [ ! -f "$FILE" ]; then
-            echo "Expected indicator CSV not found: $FILE"
-            exit 1
-          fi
-          OUTPUT=$(PYTHONPATH=. python scripts/gdrive/upload_to_work.py --month "$MONTH" --day "$RUN_DATE" "$FILE" 2>&1)
-          echo "$OUTPUT"
-          CSV_FILE_ID=$(echo "$OUTPUT" | grep "^csv_file_id=" | tail -1 | cut -d= -f2-)
-          [ -n "$CSV_FILE_ID" ] && echo "csv_file_id=$CSV_FILE_ID" >> "$GITHUB_OUTPUT"
-          echo "Uploaded 1 CSV to 0011_work/$MONTH/$RUN_DATE/"
-
       - name: Upload OHLC store for archiving
         uses: actions/upload-artifact@v4
         if: always()
@@ -348,56 +320,111 @@ jobs:
           retention-days: 1
           if-no-files-found: ignore
 
-  # Reusable workflow 呼び出し（runs-on は呼び先で定義）
   event_cause_enrichment:
     uses: ./.github/workflows/daily_event_cause_enrichment.yml
     needs: [resolve_trading_day, compute_indicators]
     if: |
       needs.resolve_trading_day.outputs.is_open == 'True' &&
-      needs.compute_indicators.result == 'success' &&
-      needs.compute_indicators.outputs.csv_file_id != ''
+      needs.compute_indicators.result == 'success'
     with:
       run_date: ${{ needs.resolve_trading_day.outputs.run_date }}
-      csv_drive_file_id: ${{ needs.compute_indicators.outputs.csv_file_id }}
     secrets: inherit
 
-  select_csv_for_render:
+  render_and_upload:
     needs: [resolve_trading_day, compute_indicators, event_cause_enrichment]
     if: |
       always() &&
       needs.resolve_trading_day.outputs.is_open == 'True' &&
-      needs.compute_indicators.result == 'success' &&
-      needs.compute_indicators.outputs.csv_file_id != ''
+      needs.compute_indicators.result == 'success'
     runs-on: ubuntu-latest
-    outputs:
-      csv_file_id: ${{ steps.select.outputs.csv_file_id }}
     steps:
-      - name: Select CSV for render (enriched or fallback)
-        id: select
-        run: |
-          BASE_CSV_FILE_ID="${{ needs.compute_indicators.outputs.csv_file_id }}"
-          ENRICH_RESULT="${{ needs.event_cause_enrichment.result }}"
-          ENRICHED_CSV_FILE_ID="${{ needs.event_cause_enrichment.outputs.enriched_csv_file_id }}"
-          if [ "$ENRICH_RESULT" = "success" ] && [ -n "$ENRICHED_CSV_FILE_ID" ]; then
-            echo "csv_file_id=$ENRICHED_CSV_FILE_ID" >> "$GITHUB_OUTPUT"
-            echo "Selected enriched CSV"
-          else
-            echo "csv_file_id=$BASE_CSV_FILE_ID" >> "$GITHUB_OUTPUT"
-            echo "Selected fallback indicators CSV"
-          fi
+      - name: Checkout
+        uses: actions/checkout@v4
 
-  render_sheet_report:
-    needs: [resolve_trading_day, select_csv_for_render]
-    if: |
-      always() &&
-      needs.resolve_trading_day.outputs.is_open == 'True' &&
-      needs.select_csv_for_render.result == 'success' &&
-      needs.select_csv_for_render.outputs.csv_file_id != ''
-    uses: ./.github/workflows/render_sheet.yml
-    with:
-      csv_drive_file_id: ${{ needs.select_csv_for_render.outputs.csv_file_id }}
-      run_date: ${{ needs.resolve_trading_day.outputs.run_date }}
-    secrets: inherit
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install boto3
+
+      - name: Download indicators artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: daily-indicators-${{ needs.resolve_trading_day.outputs.run_date }}
+          path: data/indicators/daily/
+
+      - name: Download enriched CSV artifact (optional)
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: enriched-csv-${{ needs.resolve_trading_day.outputs.run_date }}
+          path: data/indicators/daily/
+
+      - name: Select CSV and render XLSX
+        id: render
+        env:
+          PYTHONPATH: .
+          RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
+        run: |
+          RUN_DATE="$RUN_DATE"
+          RUN_DATE_COMPACT="${RUN_DATE//-/}"
+          ENRICHED="data/indicators/daily/indicators_event_enriched_${RUN_DATE_COMPACT}.csv"
+          BASE="data/indicators/daily/indicators_${RUN_DATE_COMPACT}.csv"
+          if [ -f "$ENRICHED" ]; then
+            CSV_PATH="$ENRICHED"
+            echo "Using enriched CSV"
+          else
+            CSV_PATH="$BASE"
+            echo "Using base indicators CSV"
+          fi
+          if [ ! -f "$CSV_PATH" ]; then
+            echo "エラー: CSV が見つかりません: $CSV_PATH"
+            exit 1
+          fi
+          OUT=$(python scripts/render_sheet/render_sheet.py --input-csv "$CSV_PATH" --config config/render_sheet.yaml 2>&1)
+          echo "$OUT"
+          XLSX_PATH=$(echo "$OUT" | grep "^output_xlsx=" | cut -d= -f2-)
+          if [ -z "$XLSX_PATH" ] || [ ! -f "$XLSX_PATH" ]; then
+            XLSX_PATH="data/indicators/daily/${RUN_DATE}_Daily.xlsx"
+          fi
+          if [ ! -f "$XLSX_PATH" ]; then
+            echo "エラー: XLSX が生成されませんでした: $XLSX_PATH"
+            exit 1
+          fi
+          echo "csv_path=$CSV_PATH" >> "$GITHUB_OUTPUT"
+          echo "xlsx_path=$XLSX_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Upload to all targets (R2 / Dropbox / GitHub Release; Drive optional)
+        env:
+          PYTHONPATH: .
+          RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
+          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+          DROPBOX_APP_KEY: ${{ secrets.DROPBOX_APP_KEY }}
+          DROPBOX_APP_SECRET: ${{ secrets.DROPBOX_APP_SECRET }}
+          DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
+          DROPBOX_BASE_FOLDER: ${{ secrets.DROPBOX_BASE_FOLDER }}
+          GDRIVE_OAUTH_CLIENT_ID: ${{ secrets.GDRIVE_OAUTH_CLIENT_ID }}
+          GDRIVE_OAUTH_CLIENT_SECRET: ${{ secrets.GDRIVE_OAUTH_CLIENT_SECRET }}
+          GDRIVE_OAUTH_REFRESH_TOKEN: ${{ secrets.GDRIVE_OAUTH_REFRESH_TOKEN }}
+        run: |
+          RUN_DATE="$RUN_DATE"
+          CSV_PATH="${{ steps.render.outputs.csv_path }}"
+          XLSX_PATH="${{ steps.render.outputs.xlsx_path }}"
+          TARGETS="r2,dropbox,github"
+          if [ -n "$GDRIVE_OAUTH_CLIENT_ID" ] && [ -n "$GDRIVE_OAUTH_REFRESH_TOKEN" ]; then
+            TARGETS="drive,r2,dropbox,github"
+          fi
+          python scripts/upload_to_all_targets.py --run-date "$RUN_DATE" --targets "$TARGETS" --files "$CSV_PATH" "$XLSX_PATH"
 
   archive_ohlc_store:
     needs: [resolve_trading_day, compute_indicators]
