@@ -1,0 +1,33 @@
+name: Cleanup GitHub Releases (3-month retention)
+
+on:
+  schedule:
+    - cron: "0 3 1 * *"  # 毎月1日 03:00 UTC
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute cutoff and delete old daily releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TODAY=$(date -u +%Y-%m-%d)
+          # cutoff_ym: 3 months ago; delete releases with tag daily-YYYYMM where YYYYMM < cutoff
+          CUTOFF_YEAR=$(date -u -d "$TODAY -3 months" +%Y)
+          CUTOFF_MONTH=$(date -u -d "$TODAY -3 months" +%m)
+          CUTOFF_YM="${CUTOFF_YEAR}${CUTOFF_MONTH}"
+          echo "削除対象: daily-YYYYMM where YYYYMM < $CUTOFF_YM"
+
+          for tag in $(gh release list --limit 500 --json tagName --jq '.[].tagName' | grep -E '^daily-[0-9]{6}$'); do
+            YYYYMM="${tag#daily-}"
+            if [ "$YYYYMM" -lt "$CUTOFF_YM" ]; then
+              echo "Deleting release: $tag"
+              gh release delete "$tag" --yes --repo "${{ github.repository }}" || true
+            fi
+          done
+          echo "Cleanup completed"
