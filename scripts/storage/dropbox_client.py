@@ -101,7 +101,9 @@ class DropboxStorageAdapter:
     ) -> str:
         import requests
 
-        full_path = f"{self._base_folder.rstrip('/')}/{path.rstrip('/')}{name}"
+        # path は末尾 / を含む論理パス（例: 0011_work/2026-03/2026-03-17/）を想定。
+        # フォルダとファイル名の間に / が入るように結合する。
+        full_path = f"{self._base_folder.rstrip('/')}/{path.strip('/')}/{name}"
         full_path = full_path.replace("//", "/")
         arg = json.dumps({"path": full_path, "mode": "overwrite"})
         token = self._get_access_token()
