@@ -106,19 +106,23 @@ def run(
                 )
                 if create.returncode != 0 and "already exists" not in (create.stderr or "").lower():
                     print(f"[GitHub] release create エラー: {create.stderr}", file=sys.stderr)
-                    any_failed = True
-            if not any_failed:
-                for f in files:
+                    # GitHub Release は管理用バックアップ枠のため、権限不足等で失敗しても致命扱いにはしない。
+            # Release が存在する前提で、アップロードを試みる（失敗しても他ターゲットには影響させない）。
+            for f in files:
+                try:
                     subprocess.run(
                         ["gh", "release", "upload", tag, str(f), "--clobber"],
                         check=True,
                         capture_output=True,
                         cwd=_repo_root,
                     )
-                results["gh_release_tag"] = tag
+                    results["gh_release_tag"] = tag
+                except subprocess.CalledProcessError as e:
+                    print(f"[GitHub] upload エラー: {e}", file=sys.stderr)
+                    break
         except (FileNotFoundError, subprocess.CalledProcessError) as e:
             print(f"[GitHub] エラー: {e}", file=sys.stderr)
-            any_failed = True
+            # GitHub Release 失敗も致命扱いにはしない（ログのみ）
 
     for k, v in results.items():
         print(f"{k}={v}")
