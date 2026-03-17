@@ -59,7 +59,8 @@ def run(
                 results["drive_file_id"] = last_id
         except Exception as e:
             print(f"[Drive] エラー: {e}", file=sys.stderr)
-            any_failed = True
+            # Drive は凍結や認証エラーがあっても他 3 系統が動けばよい前提のため、
+            # エラーはログに残すのみで致命扱いにはしない。
 
     if "r2" in targets:
         try:
