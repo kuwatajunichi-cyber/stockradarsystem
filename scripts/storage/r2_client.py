@@ -1,7 +1,11 @@
 """
 Cloudflare R2（S3互換API）用 Adapter。
-R2_BASE_PREFIX はバケット直下の work 用プレフィックス（例: stock-radar-system/01_work/）。
-論理名 0011_work は path で渡され、key = base_prefix + path + name で結合する。
+R2_BUCKET はバケット名（例: stock-radar-system）。
+R2_BASE_PREFIX はバケット直下の共通プレフィックス（例: stock-radar-system/）。バケット名は含めない。
+path は論理ディレクトリ（例: 0011_work/2026-03/2026-03-17/）。R2 では以下の規則で物理化する:
+- 0011_work/* -> 011_work/*（work の物理プレフィックス）
+- 0012_paid/* -> 0012_paid/*（paid はそのまま）
+key = base_prefix + normalized_path + name で結合する。
 """
 from __future__ import annotations
 
@@ -69,6 +73,12 @@ class R2StorageAdapter:
         self._endpoint_url = endpoint_url or _get_endpoint_url()
         self._client = None
 
+    def _normalize_path(self, logical_path: str) -> str:
+        # work: 0011_work -> 011_work, paid: 0012_paid はそのまま
+        if logical_path.startswith("0011_work/"):
+            return "011_work/" + logical_path[len("0011_work/") :]
+        return logical_path
+
     def _get_client(self):
         if self._client is not None:
             return self._client
@@ -98,7 +108,7 @@ class R2StorageAdapter:
         content: bytes,
         mime_type: str = "text/plain",
     ) -> str:
-        key = f"{self._base_prefix}{path}{name}"
+        key = f"{self._base_prefix}{self._normalize_path(path)}{name}"
         try:
             self._get_client().put_object(
                 Bucket=self._bucket,
@@ -113,7 +123,8 @@ class R2StorageAdapter:
 
     def delete_older_than(self, cutoff_ym: str) -> None:
         """cutoff_ym より古い YYYY-MM のオブジェクトを削除。ページング対応。"""
-        prefix = f"{self._base_prefix}{WORK_PREFIX}/"
+        # work の物理プレフィックス（011_work）配下だけを対象にする
+        prefix = f"{self._base_prefix}011_work/"
         client = self._get_client()
         paginator = client.get_paginator("list_objects_v2")
         to_delete: list[dict] = []
@@ -133,7 +144,7 @@ class R2StorageAdapter:
             )
 
 
-from scripts.storage.paths import WORK_PREFIX, build_day_path
+from scripts.storage.paths import build_day_path
 
 
 if __name__ == "__main__":
