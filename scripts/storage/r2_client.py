@@ -1,7 +1,7 @@
 """
 Cloudflare R2（S3互換API）用 Adapter。
 R2_BUCKET はバケット名（例: stock-radar-system）。
-R2_BASE_PREFIX はバケット直下の共通プレフィックス（例: stock-radar-system/）。バケット名は含めない。
+R2_BASE_PREFIX はバケット直下の共通プレフィックス（例: "" や "prod/"）。バケット名は含めない。
 path は論理ディレクトリ（例: 0011_work/2026-03/2026-03-17/）。R2 では以下の規則で物理化する:
 - 0011_work/* -> 011_work/*（work の物理プレフィックス）
 - 0012_paid/* -> 0012_paid/*（paid はそのまま）
@@ -67,9 +67,15 @@ class R2StorageAdapter:
         ).strip()
         self._account_id = account_id or os.environ.get(ENV_ACCOUNT_ID, "").strip()
         self._bucket = bucket or os.environ.get(ENV_BUCKET, "").strip()
-        self._base_prefix = base_prefix or os.environ.get(ENV_BASE_PREFIX, "").strip()
-        if not self._base_prefix.endswith("/"):
-            self._base_prefix += "/"
+        base = (base_prefix or os.environ.get(ENV_BASE_PREFIX, "")).strip()
+        # ありがちな誤設定: base_prefix にバケット名を含めてしまう（UI 表示で二重化する）。
+        # 例: bucket=stock-radar-system, base_prefix=stock-radar-system/ → 実体は stock-radar-system/stock-radar-system/ になる。
+        while self._bucket and base.startswith(f"{self._bucket}/"):
+            base = base[len(self._bucket) + 1 :]
+        base = base.lstrip("/")
+        if base and not base.endswith("/"):
+            base += "/"
+        self._base_prefix = base
         self._endpoint_url = endpoint_url or _get_endpoint_url()
         self._client = None
 

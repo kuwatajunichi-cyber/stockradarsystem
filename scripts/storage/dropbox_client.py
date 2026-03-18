@@ -77,10 +77,18 @@ class DropboxStorageAdapter:
         self._app_secret = app_secret or os.environ.get(ENV_APP_SECRET, "").strip()
         self._refresh_token = refresh_token or os.environ.get(ENV_REFRESH_TOKEN, "").strip()
         self._base_folder = base_folder or os.environ.get(ENV_BASE_FOLDER, "").strip()
+        # App folder 権限の Dropbox API は、パス指定が「アプリフォルダ内ルート」基準になる。
+        # UI の `Apps/stock-radar-system` は暗黙のルートなので、base_folder に含めると二重化して見える。
         if self._base_folder.startswith("http"):
-            # 共有URL等が渡された場合は Apps ルートへフォールバック（後段で 011_work/0012_paid を付与する）
-            self._base_folder = "/Apps/stock-radar-system"
-        if not self._base_folder.startswith("/"):
+            self._base_folder = ""
+        self._base_folder = self._base_folder.strip()
+        if self._base_folder in ("/", ""):
+            self._base_folder = ""
+        # 誤って /Apps/stock-radar-system を渡した場合は、アプリルートに正規化する
+        if self._base_folder.startswith("/Apps/stock-radar-system"):
+            self._base_folder = ""
+        # それ以外で相対パスが来た場合は / を付ける（ルート下のサブフォルダとして扱う）
+        if self._base_folder and not self._base_folder.startswith("/"):
             self._base_folder = "/" + self._base_folder.rstrip("/")
         self._access_token: str | None = None
 
@@ -111,7 +119,10 @@ class DropboxStorageAdapter:
         # path は末尾 / を含む論理パス（例: 0011_work/... or 0012_paid/...）を想定。
         # Dropbox では work を 011_work に正規化して格納する。
         norm = self._normalize_path(path)
-        full_path = f"{self._base_folder.rstrip('/')}/{norm.strip('/')}/{name}"
+        if self._base_folder:
+            full_path = f"{self._base_folder.rstrip('/')}/{norm.strip('/')}/{name}"
+        else:
+            full_path = f"/{norm.strip('/')}/{name}"
         full_path = full_path.replace("//", "/")
         arg = json.dumps({"path": full_path, "mode": "overwrite"})
         token = self._get_access_token()
@@ -136,7 +147,7 @@ class DropboxStorageAdapter:
 
         token = self._get_access_token()
         # work の物理プレフィックス（011_work）配下の YYYY-MM を削除対象にする
-        list_path = f"{self._base_folder.rstrip('/')}/011_work"
+        list_path = f"{self._base_folder.rstrip('/')}/011_work" if self._base_folder else "/011_work"
         resp = requests.post(
             LIST_FOLDER_URL,
             headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
