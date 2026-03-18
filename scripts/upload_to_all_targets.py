@@ -14,7 +14,7 @@ _repo_root = Path(__file__).resolve().parent.parent
 if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
-from scripts.storage.paths import build_day_path
+from scripts.storage.paths import build_day_path, build_month_path
 
 
 def _parse_run_date(s: str) -> tuple[str, str]:
@@ -44,7 +44,11 @@ def run(
     """
     month, day = _parse_run_date(run_date)
     run_d = datetime.strptime(run_date, "%Y-%m-%d").date()
-    day_path = build_day_path(run_d, "work")
+    # ルーティング:
+    # - CSV: work の日フォルダ（0011_work/YYYY-MM/YYYY-MM-DD/）
+    # - XLSX: paid の月フォルダ（0012_paid/YYYY-MM/）
+    work_day_path = build_day_path(run_d, "work")
+    paid_month_path = build_month_path(run_d, "paid")
 
     results: dict[str, str] = {}
     any_failed = False
@@ -62,6 +66,12 @@ def run(
             # Drive は凍結や認証エラーがあっても他 3 系統が動けばよい前提のため、
             # エラーはログに残すのみで致命扱いにはしない。
 
+    def _dest_path_for(f: Path) -> str:
+        suf = f.suffix.lower()
+        if suf in (".xlsx", ".xls"):
+            return paid_month_path
+        return work_day_path
+
     if "r2" in targets:
         try:
             from scripts.storage.r2_client import R2StorageAdapter
@@ -69,7 +79,7 @@ def run(
             adapter = R2StorageAdapter()
             for f in files:
                 content = f.read_bytes()
-                key = adapter.upload_file(day_path, f.name, content, _mime_for(f))
+                key = adapter.upload_file(_dest_path_for(f), f.name, content, _mime_for(f))
                 results["r2_key"] = key
         except Exception as e:
             print(f"[R2] エラー: {e}", file=sys.stderr)
@@ -82,7 +92,7 @@ def run(
             adapter = DropboxStorageAdapter()
             for f in files:
                 content = f.read_bytes()
-                full_path = adapter.upload_file(day_path, f.name, content, _mime_for(f))
+                full_path = adapter.upload_file(_dest_path_for(f), f.name, content, _mime_for(f))
                 results["dropbox_path"] = full_path
         except Exception as e:
             print(f"[Dropbox] エラー: {e}", file=sys.stderr)

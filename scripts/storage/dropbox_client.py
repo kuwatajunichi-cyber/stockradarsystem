@@ -78,10 +78,17 @@ class DropboxStorageAdapter:
         self._refresh_token = refresh_token or os.environ.get(ENV_REFRESH_TOKEN, "").strip()
         self._base_folder = base_folder or os.environ.get(ENV_BASE_FOLDER, "").strip()
         if self._base_folder.startswith("http"):
-            self._base_folder = "/Apps/stock-radar-system/011_work"
+            # 共有URL等が渡された場合は Apps ルートへフォールバック（後段で 011_work/0012_paid を付与する）
+            self._base_folder = "/Apps/stock-radar-system"
         if not self._base_folder.startswith("/"):
             self._base_folder = "/" + self._base_folder.rstrip("/")
         self._access_token: str | None = None
+
+    def _normalize_path(self, logical_path: str) -> str:
+        # work: 0011_work -> 011_work, paid: 0012_paid はそのまま
+        if logical_path.startswith("0011_work/"):
+            return "011_work/" + logical_path[len("0011_work/") :]
+        return logical_path
 
     def _get_access_token(self) -> str:
         if self._access_token is None:
@@ -101,9 +108,10 @@ class DropboxStorageAdapter:
     ) -> str:
         import requests
 
-        # path は末尾 / を含む論理パス（例: 0011_work/2026-03/2026-03-17/）を想定。
-        # フォルダとファイル名の間に / が入るように結合する。
-        full_path = f"{self._base_folder.rstrip('/')}/{path.strip('/')}/{name}"
+        # path は末尾 / を含む論理パス（例: 0011_work/... or 0012_paid/...）を想定。
+        # Dropbox では work を 011_work に正規化して格納する。
+        norm = self._normalize_path(path)
+        full_path = f"{self._base_folder.rstrip('/')}/{norm.strip('/')}/{name}"
         full_path = full_path.replace("//", "/")
         arg = json.dumps({"path": full_path, "mode": "overwrite"})
         token = self._get_access_token()
@@ -127,7 +135,8 @@ class DropboxStorageAdapter:
         import requests
 
         token = self._get_access_token()
-        list_path = self._base_folder.rstrip("/")
+        # work の物理プレフィックス（011_work）配下の YYYY-MM を削除対象にする
+        list_path = f"{self._base_folder.rstrip('/')}/011_work"
         resp = requests.post(
             LIST_FOLDER_URL,
             headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
