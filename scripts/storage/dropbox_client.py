@@ -142,43 +142,43 @@ class DropboxStorageAdapter:
         return full_path
 
     def delete_older_than(self, cutoff_ym: str) -> None:
-        """cutoff_ym より古い YYYY-MM フォルダを削除。"""
+        """cutoff_ym より古い YYYY-MM フォルダを削除。work(011_work) / paid(0012_paid) 両方対象。"""
         import requests
 
         token = self._get_access_token()
-        # work の物理プレフィックス（011_work）配下の YYYY-MM を削除対象にする
-        list_path = f"{self._base_folder.rstrip('/')}/011_work" if self._base_folder else "/011_work"
-        resp = requests.post(
-            LIST_FOLDER_URL,
-            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-            json={"path": list_path, "recursive": False},
-            timeout=30,
-        )
-        if resp.status_code != 200:
-            if resp.status_code == 409:
-                body = resp.json()
-                if body.get("error", {}).get(".tag") == "path":
-                    return
-            print(f"Dropbox list_folder エラー: {resp.status_code} {resp.text}", file=sys.stderr)
-            resp.raise_for_status()
-        data = resp.json()
-        for entry in data.get("entries") or []:
-            if entry.get(".tag") != "folder":
-                continue
-            name = entry.get("name", "")
-            if not MONTH_PATTERN.match(name):
-                continue
-            if name < cutoff_ym:
-                folder_path = entry.get("path_display") or entry.get("path_lower") or f"{list_path}/{name}"
-                del_resp = requests.post(
-                    DELETE_URL,
-                    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-                    json={"path": folder_path},
-                    timeout=30,
-                )
-                if del_resp.status_code not in (200, 409):
-                    print(f"Dropbox delete エラー: {del_resp.status_code} {del_resp.text}", file=sys.stderr)
-                    del_resp.raise_for_status()
+        for root in ("011_work", "0012_paid"):
+            list_path = f"{self._base_folder.rstrip('/')}/{root}" if self._base_folder else f"/{root}"
+            resp = requests.post(
+                LIST_FOLDER_URL,
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                json={"path": list_path, "recursive": False},
+                timeout=30,
+            )
+            if resp.status_code != 200:
+                if resp.status_code == 409:
+                    body = resp.json()
+                    if body.get("error", {}).get(".tag") == "path":
+                        continue
+                print(f"Dropbox list_folder エラー: {resp.status_code} {resp.text}", file=sys.stderr)
+                resp.raise_for_status()
+            data = resp.json()
+            for entry in data.get("entries") or []:
+                if entry.get(".tag") != "folder":
+                    continue
+                name = entry.get("name", "")
+                if not MONTH_PATTERN.match(name):
+                    continue
+                if name < cutoff_ym:
+                    folder_path = entry.get("path_display") or entry.get("path_lower") or f"{list_path}/{name}"
+                    del_resp = requests.post(
+                        DELETE_URL,
+                        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                        json={"path": folder_path},
+                        timeout=30,
+                    )
+                    if del_resp.status_code not in (200, 409):
+                        print(f"Dropbox delete エラー: {del_resp.status_code} {del_resp.text}", file=sys.stderr)
+                        del_resp.raise_for_status()
 
 
 if __name__ == "__main__":

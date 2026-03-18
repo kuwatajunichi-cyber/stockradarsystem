@@ -129,25 +129,26 @@ class R2StorageAdapter:
 
     def delete_older_than(self, cutoff_ym: str) -> None:
         """cutoff_ym より古い YYYY-MM のオブジェクトを削除。ページング対応。"""
-        # work の物理プレフィックス（011_work）配下だけを対象にする
-        prefix = f"{self._base_prefix}011_work/"
+        # work(011_work) と paid(0012_paid) の両方を対象にする
         client = self._get_client()
         paginator = client.get_paginator("list_objects_v2")
-        to_delete: list[dict] = []
-        for page in paginator.paginate(Bucket=self._bucket, Prefix=prefix):
-            for obj in page.get("Contents") or []:
-                key = obj["Key"]
-                parts = key[len(prefix) :].split("/")
-                if len(parts) >= 1 and parts[0]:
-                    month = parts[0]
-                    if len(month) == 7 and month < cutoff_ym:
-                        to_delete.append({"Key": key})
-        for i in range(0, len(to_delete), 1000):
-            batch = to_delete[i : i + 1000]
-            client.delete_objects(
-                Bucket=self._bucket,
-                Delete={"Objects": batch, "Quiet": True},
-            )
+        for root in ("011_work/", "0012_paid/"):
+            prefix = f"{self._base_prefix}{root}"
+            to_delete: list[dict] = []
+            for page in paginator.paginate(Bucket=self._bucket, Prefix=prefix):
+                for obj in page.get("Contents") or []:
+                    key = obj["Key"]
+                    parts = key[len(prefix) :].split("/")
+                    if len(parts) >= 1 and parts[0]:
+                        month = parts[0]
+                        if len(month) == 7 and month < cutoff_ym:
+                            to_delete.append({"Key": key})
+            for i in range(0, len(to_delete), 1000):
+                batch = to_delete[i : i + 1000]
+                client.delete_objects(
+                    Bucket=self._bucket,
+                    Delete={"Objects": batch, "Quiet": True},
+                )
 
 
 from scripts.storage.paths import build_day_path
