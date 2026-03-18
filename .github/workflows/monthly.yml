@@ -99,25 +99,54 @@ jobs:
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install Drive API deps (for 0011_work upload)
+      - name: Install deps for multi-target upload
         if: success() && steps.get_run_id.outputs.run_id != ''
-        run: pip install google-api-python-client google-auth
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install boto3
 
-      - name: Upload latest 3 CSVs to 0011_work (month folder)
+      - name: Upload latest 3 CSVs to all targets (work)
         if: success() && steps.get_run_id.outputs.run_id != ''
         env:
+          PYTHONPATH: .
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
+          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+          DROPBOX_APP_KEY: ${{ secrets.DROPBOX_APP_KEY }}
+          DROPBOX_APP_SECRET: ${{ secrets.DROPBOX_APP_SECRET }}
+          DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
+          DROPBOX_BASE_FOLDER: ${{ secrets.DROPBOX_BASE_FOLDER }}
           GDRIVE_OAUTH_CLIENT_ID: ${{ secrets.GDRIVE_OAUTH_CLIENT_ID }}
           GDRIVE_OAUTH_CLIENT_SECRET: ${{ secrets.GDRIVE_OAUTH_CLIENT_SECRET }}
           GDRIVE_OAUTH_REFRESH_TOKEN: ${{ secrets.GDRIVE_OAUTH_REFRESH_TOKEN }}
         run: |
-          MONTH=$(TZ=Asia/Tokyo date +%Y-%m)
-          STAGING="data/output/staging/${{ steps.get_run_id.outputs.run_id }}"
-          PYTHONPATH=. python scripts/gdrive/upload_to_work.py --month "$MONTH" \
-            "$STAGING/equity_domestic_ipo_with_name.csv" \
-            "$STAGING/equity_domestic_illiquid_with_name.csv" \
-            "$STAGING/equity_domestic_core_with_name.csv"
-          echo "Uploaded 3 CSVs to 0011_work/$MONTH/"
+          RUN_ID="${{ steps.get_run_id.outputs.run_id }}"
+          if [ -z "$RUN_ID" ]; then
+            echo "エラー: RUN_ID が取得できませんでした"
+            exit 1
+          fi
+          # 月次成果物は work (0011_work) 扱いなので、run-date はその月の1日とする
+          RUN_DATE="$(TZ=Asia/Tokyo date +%Y-%m-01)"
+          STAGING="data/output/staging/$RUN_ID"
+          IPO="$STAGING/equity_domestic_ipo_with_name.csv"
+          ILLIQ="$STAGING/equity_domestic_illiquid_with_name.csv"
+          CORE="$STAGING/equity_domestic_core_with_name.csv"
+          for f in "$IPO" "$ILLIQ" "$CORE"; do
+            if [ ! -f "$f" ]; then
+              echo "エラー: 月次成果物が見つかりません: $f"
+              exit 1
+            fi
+          done
+          TARGETS="r2,dropbox,github"
+          if [ -n "$GDRIVE_OAUTH_CLIENT_ID" ] && [ -n "$GDRIVE_OAUTH_REFRESH_TOKEN" ]; then
+            TARGETS="drive,r2,dropbox,github"
+          fi
+          python scripts/upload_to_all_targets.py --run-date "$RUN_DATE" --targets "$TARGETS" --files "$IPO" "$ILLIQ" "$CORE"
 
       - name: Upload artifacts (for debugging)
         uses: actions/upload-artifact@v4

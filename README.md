@@ -105,6 +105,9 @@ v
 3. **Dropbox**: 無料枠を前提。月フォルダ共有リンクを顧客に渡す運用を想定。
 4. **GitHub Releases**: タグ `daily-YYYYMM` に日次ファイルを添付。Private リポジトリでは管理用・バックアップ用。
 
+外部ストレージへのアップロードは、日次・月次ともに **`scripts/upload_to_all_targets.py`** に集約する。
+今後ミラーリング系統を追加する場合は、このスクリプトに Adapter を追加するだけで workflow 変更を最小限にできる。
+
 **3か月保持ポリシー**: 全系統で「直近3か月分を保持し、4か月目に削除」する。月1回のクリーンアップ Workflow（`cleanup_r2.yml` / `cleanup_dropbox.yml` / `cleanup_releases.yml` / `cleanup_drive_work.yml`）で自動削除する。
 
 ---
