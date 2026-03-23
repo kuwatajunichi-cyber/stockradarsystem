@@ -25,10 +25,10 @@ on:
         required: false
         type: string
       header_anchor_sheet_name:
-        description: "headerAnchor が存在するシート名（省略時は config を使用）"
+        description: "特定の headerAnchor シートに限定（省略時は headerAnchor が存在する全シートを対象）"
         required: false
         type: string
-        default: "indicators001"
+        default: ""
   workflow_call:
     inputs:
       csv_drive_file_id:
@@ -48,10 +48,10 @@ on:
         required: false
         type: string
       header_anchor_sheet_name:
-        description: "headerAnchor が存在するシート名"
+        description: "特定の headerAnchor シートに限定（省略時は headerAnchor が存在する全シートを対象）"
         required: false
         type: string
-        default: "indicators001"
+        default: ""
     outputs:
       spreadsheet_url:
         description: "生成したスプレッドシートの URL"

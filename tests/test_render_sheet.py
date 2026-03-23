@@ -55,7 +55,6 @@ def test_run_with_fake_drive_adapter() -> None:
         "csv_drive_file_id": fake_csv_id,
         "output_folder_id": "fake-folder-id",
         "output_subfolder": None,
-        "header_anchor_sheet_name": "indicators001",
         "template_path": template_path_str,
         "link_label_map": {},
         "sort_column": "z_turnover_60",
@@ -93,7 +92,6 @@ def test_sheet_protection_enabled() -> None:
         "csv_drive_file_id": fake_csv_id,
         "output_folder_id": "fake-folder-id",
         "output_subfolder": None,
-        "header_anchor_sheet_name": "indicators001",
         "template_path": template_path_str,
         "link_label_map": {},
         "sort_column": "z_turnover_60",
@@ -110,14 +108,17 @@ def test_sheet_protection_enabled() -> None:
         assert ws.protection.sort is False
         assert ws.protection.autoFilter is False
 
-    ws = wb["indicators001"]
     # データ範囲のセルが unlock であること（code=7203 を含むセルを探す）
+    # シート名には依存せず、全シートを横断して確認する。
     unlocked_found = False
-    for row in ws.iter_rows(min_row=1, max_row=20, min_col=1, max_col=10):
-        for cell in row:
-            if cell.value == "7203" or cell.value == 7203:
-                assert cell.protection.locked is False
-                unlocked_found = True
+    for ws in wb.worksheets:
+        for row in ws.iter_rows(min_row=1, max_row=50, min_col=1, max_col=20):
+            for cell in row:
+                if cell.value == "7203" or cell.value == 7203:
+                    assert cell.protection.locked is False
+                    unlocked_found = True
+                    break
+            if unlocked_found:
                 break
         if unlocked_found:
             break
@@ -146,7 +147,6 @@ def test_sheet_protection_disabled() -> None:
         "csv_drive_file_id": fake_csv_id,
         "output_folder_id": "fake-folder-id",
         "output_subfolder": None,
-        "header_anchor_sheet_name": "indicators001",
         "template_path": template_path_str,
         "link_label_map": {},
         "sort_column": None,
@@ -188,7 +188,6 @@ def test_hyperlink_source_map_uses_title_column(tmp_path: Path) -> None:
         "csv_drive_file_id": fake_csv_id,
         "output_folder_id": "fake-folder-id",
         "output_subfolder": None,
-        "header_anchor_sheet_name": "indicators001",
         "template_path": str(template_path),
         "link_label_map": {},
         "hyperlink_source_map": {"event_news_1_title": "event_news_1_url"},
@@ -208,4 +207,63 @@ def test_hyperlink_source_map_uses_title_column(tmp_path: Path) -> None:
 
     assert out_ws["A3"].value == "材料不明・需給起因疑い"
     assert out_ws["A3"].hyperlink is None
+
+
+def test_multiple_sheets_with_header_anchor_are_all_populated(tmp_path: Path) -> None:
+    """headerAnchor が複数シートに定義されている場合、その全シートへ書き込まれること。"""
+    template_path = tmp_path / "tmp_render_template_multi.xlsx"
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws1 = wb.active
+    ws1.title = "data_sheet_a"
+    ws1["A1"] = "event_news_1_title"
+
+    ws2 = wb.create_sheet("data_sheet_b")
+    ws2["A1"] = "event_news_1_title"
+
+    # 同名の Named Range を add() で複数回登録すると上書きされることがあるため、
+    # 「複数 destination」(複数参照) をカンマ区切りで 1 回登録する。
+    wb.defined_names.add(DefinedName("headerAnchor", attr_text="'data_sheet_a'!$A$1,'data_sheet_b'!$A$1"))
+    wb.save(template_path)
+
+    csv_content = (
+        "event_news_1_title,event_news_1_url\n"
+        "決算上方修正に関するお知らせ,https://example.com/news/1\n"
+        "材料不明・需給起因疑い,\n"
+    ).encode("utf-8-sig")
+    fake_csv_id = "fake-csv-id-12345678901234567"
+    fake = FakeDriveAdapter()
+    fake.put_file(fake_csv_id, csv_content, "indicators_event_enriched_20260307.csv")
+
+    cfg = {
+        "csv_drive_file_id": fake_csv_id,
+        "output_folder_id": "fake-folder-id",
+        "output_subfolder": None,
+        "template_path": str(template_path),
+        "link_label_map": {},
+        "hyperlink_source_map": {"event_news_1_title": "event_news_1_url"},
+        "sort_column": None,
+        "sort_ascending": False,
+        "sheet_protection": False,
+    }
+
+    run(cfg, drive_adapter=fake)
+    xlsx_bytes = _get_xlsx_from_fake(fake)
+    out_wb = load_workbook(io.BytesIO(xlsx_bytes), read_only=False)
+
+    out_ws1 = out_wb["data_sheet_a"]
+    out_ws2 = out_wb["data_sheet_b"]
+
+    assert out_ws1["A2"].value == "決算上方修正に関するお知らせ"
+    assert out_ws1["A2"].hyperlink is not None
+    assert out_ws1["A2"].hyperlink.target == "https://example.com/news/1"
+    assert out_ws1["A3"].value == "材料不明・需給起因疑い"
+    assert out_ws1["A3"].hyperlink is None
+
+    assert out_ws2["A2"].value == "決算上方修正に関するお知らせ"
+    assert out_ws2["A2"].hyperlink is not None
+    assert out_ws2["A2"].hyperlink.target == "https://example.com/news/1"
+    assert out_ws2["A3"].value == "材料不明・需給起因疑い"
+    assert out_ws2["A3"].hyperlink is None
 
