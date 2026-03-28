@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-# canonical キー（docs/externalLink_v1.0.md）と URL テンプレート
+# canonical キー（docs/user-facing-spec/externalLink_v1.0.md）と URL テンプレート
 _EXTERNAL_LINK_SPEC: dict[str, str] = {
     "kabutan_main": "https://kabutan.jp/stock/?code={code}",
     "kabutan_chart": "https://kabutan.jp/stock/chart?code={code}",

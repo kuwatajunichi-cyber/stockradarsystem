@@ -128,6 +128,10 @@ def _parse_header_anchors(wb) -> dict[str, tuple[int, int]]:
     {シート名 -> (1-based row, 1-based col)} を返す。
 
     README 等、headerAnchor が定義されていないシートは含まれない。
+
+    テンプレートでは **ブック全体の 1 つの定義名**に
+    `'シート1'!$A$3,'シート2'!$A$3` のようにカンマ区切りで複数領域をまとめること。
+    （シートごとに同名 `headerAnchor` を定義する方式は openpyxl で先頭 1 件しか見えない。）
     """
     dn = wb.defined_names.get("headerAnchor")
     if not dn:

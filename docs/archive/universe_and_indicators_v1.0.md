@@ -1,3 +1,8 @@
+> **アーカイブ（v1.0）**  
+> 最新版は [`../user-facing-spec/universe_and_indicators_v1.1.md`](../user-facing-spec/universe_and_indicators_v1.1.md) を参照してください。
+
+---
+
 # ユニバース・指標仕様 v1.0
 
 **用途**: ランディングページ・解説記事での説明用の情報ソース  
@@ -172,7 +177,7 @@
 - 窓: 上窓つき、下窓つき  
 - 制限値幅: S高タッチ疑い、S安タッチ疑い など  
 
-詳細は `docs/OHLC_desripter_v1.2.md` を参照。
+詳細は [`../OHLC_desripter_v1.2.md`](../OHLC_desripter_v1.2.md) を参照。
 
 **読み方**: 売買代金zスコアと組み合わせると、その日の値動きが「どのような形」で「どれだけの関心」を集めたかを、一目で把握できる。
 
@@ -183,7 +188,7 @@
 ### 3.9 外部リンク
 
 銘柄ごとに、株探・みんかぶ・バフェット銘柄・Yahoo!ファイナンスなどへのURLを付与する。  
-詳細は `docs/externalLink_v1.0.md` を参照。
+詳細は [`../user-facing-spec/externalLink_v1.0.md`](../user-facing-spec/externalLink_v1.0.md) を参照。
 
 ---
 

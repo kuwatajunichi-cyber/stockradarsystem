@@ -1,7 +1,7 @@
 """
 ローソク足の特徴量計算とラベル生成（OHLC descriptor）。
 
-ドキュメント: docs/OHLC_desripter_v1.1.md
+ドキュメント: docs/OHLC_desripter_v1.2.md
 """
 from __future__ import annotations
 

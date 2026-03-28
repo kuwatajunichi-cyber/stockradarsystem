@@ -1,3 +1,5 @@
+> **設計正本**（`docs/` 直下）: ローソク形状・`candle_labels` / `price_text` の判定規則。実装は `src/stockradar/utils/candle_descriptor.py`。制限値幅は [JPX_limitTable.md](JPX_limitTable.md) と `config/jpx_limit_table.yaml`。
+
 # 目的
 
 出来高zscoreが高い銘柄について、「一本足の価格挙動」と「需給構造の含意」を簡潔に説明するための **判定ルール→自然言語対応表（辞書）**。
@@ -57,7 +59,7 @@
 
 ## 2.1 制限値幅テーブルによる判定（v1.2追加）
 
-JPX制限値幅テーブル（`docs/JPX_limitTable.md`参照）を使用して、前日終値から制限値幅を取得し、S高・S安の疑いを判定する。
+JPX制限値幅テーブル（`JPX_limitTable.md`参照）を使用して、前日終値から制限値幅を取得し、S高・S安の疑いを判定する。
 
 **制限値幅の計算**:
 * 前日終値（prevC）から基準値段を判定
@@ -253,7 +255,7 @@ JPX制限値幅テーブル（`docs/JPX_limitTable.md`参照）を使用して�
 
 **v1.2**: JPX制限値幅テーブルを使用した細分化された判定に変更
 * 8つの判定パターンに細分化
-* 制限値幅テーブル（`docs/JPX_limitTable.md`）を参照して前日終値から制限値幅を取得
+* 制限値幅テーブル（`JPX_limitTable.md`）を参照して前日終値から制限値幅を取得
 * S高・S安ラベルは`INVALID_TR0`（レンジ0）より優先
 * 同時に複数の条件を満たす場合、下のものほど優先して表示
 
