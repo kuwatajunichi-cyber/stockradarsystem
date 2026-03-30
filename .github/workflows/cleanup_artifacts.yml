@@ -1,0 +1,121 @@
+name: Cleanup GitHub Artifacts
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run only (true/false)"
+        required: true
+        default: "true"
+      keep_days:
+        description: "Keep artifacts newer than this many days"
+        required: true
+        default: "2"
+      target_prefix:
+        description: "Delete targets with this artifact name prefix"
+        required: true
+        default: "ohlc-store-"
+      max_delete:
+        description: "Safety cap: max artifacts to delete per run"
+        required: true
+        default: "200"
+  schedule:
+    - cron: "0 4 * * *"
+
+concurrency:
+  group: cleanup-artifacts
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cleanup artifacts by prefix and age
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'true' }}
+          KEEP_DAYS: ${{ github.event.inputs.keep_days || '2' }}
+          TARGET_PREFIX: ${{ github.event.inputs.target_prefix || 'ohlc-store-' }}
+          MAX_DELETE: ${{ github.event.inputs.max_delete || '200' }}
+        run: |
+          set -euo pipefail
+
+          REPO="${{ github.repository }}"
+          CUTOFF_EPOCH="$(date -u -d "-${KEEP_DAYS} days" +%s)"
+          PAGE=1
+          PER_PAGE=100
+          TMP_FILE="$(mktemp)"
+
+          echo "repo=${REPO}"
+          echo "dry_run=${DRY_RUN}"
+          echo "keep_days=${KEEP_DAYS}"
+          echo "target_prefix=${TARGET_PREFIX}"
+          echo "max_delete=${MAX_DELETE}"
+          echo "cutoff_utc=$(date -u -d "@${CUTOFF_EPOCH}" '+%Y-%m-%dT%H:%M:%SZ')"
+
+          : > "$TMP_FILE"
+          while :; do
+            RESP="$(gh api "repos/${REPO}/actions/artifacts?per_page=${PER_PAGE}&page=${PAGE}")"
+            COUNT="$(echo "$RESP" | jq '.artifacts | length')"
+            if [ "$COUNT" -eq 0 ]; then
+              break
+            fi
+
+            echo "$RESP" | jq -r --arg prefix "$TARGET_PREFIX" --argjson cutoff "$CUTOFF_EPOCH" '
+              .artifacts[]
+              | select(.expired == false)
+              | select(.name | startswith($prefix))
+              | select((.created_at | fromdateiso8601) < $cutoff)
+              | [.id, .name, .created_at, .size_in_bytes] | @tsv
+            ' >> "$TMP_FILE"
+
+            PAGE=$((PAGE + 1))
+          done
+
+          CANDIDATES="$(wc -l < "$TMP_FILE" | tr -d " ")"
+          echo "candidates=${CANDIDATES}"
+          if [ "$CANDIDATES" -eq 0 ]; then
+            echo "No artifacts matched cleanup conditions."
+            exit 0
+          fi
+
+          echo "Delete candidates:"
+          while IFS=$'\t' read -r ID NAME CREATED SIZE; do
+            echo "- id=${ID} name=${NAME} created_at=${CREATED} size=${SIZE}"
+          done < "$TMP_FILE"
+
+          if [ "$CANDIDATES" -gt "$MAX_DELETE" ]; then
+            echo "Error: candidates (${CANDIDATES}) exceed max_delete (${MAX_DELETE})."
+            exit 1
+          fi
+
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "Dry run mode: no artifacts deleted."
+            exit 0
+          fi
+
+          SUCCESS=0
+          FAIL=0
+          FAIL_IDS=""
+          while IFS=$'\t' read -r ID NAME CREATED SIZE; do
+            if gh api -X DELETE "repos/${REPO}/actions/artifacts/${ID}" >/dev/null 2>&1; then
+              SUCCESS=$((SUCCESS + 1))
+              echo "Deleted artifact id=${ID} name=${NAME}"
+            else
+              FAIL=$((FAIL + 1))
+              FAIL_IDS="${FAIL_IDS} ${ID}"
+              echo "Failed to delete artifact id=${ID} name=${NAME}"
+            fi
+          done < "$TMP_FILE"
+
+          echo "cleanup_result: success=${SUCCESS} fail=${FAIL}"
+          if [ "$FAIL" -gt 0 ]; then
+            echo "failed_ids:${FAIL_IDS}"
+            exit 1
+          fi
