@@ -12,6 +12,7 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
+from typing import Iterator
 
 # プロジェクトルートの .env を読み込む
 def _load_dotenv() -> None:
@@ -135,7 +136,7 @@ class R2StorageAdapter:
         for root in ("011_work/", "0012_paid/"):
             prefix = f"{self._base_prefix}{root}"
             to_delete: list[dict] = []
-            for page in paginator.paginate(Bucket=self._bucket, Prefix=prefix):
+            for page in self._safe_paginate(paginator, prefix):
                 for obj in page.get("Contents") or []:
                     key = obj["Key"]
                     parts = key[len(prefix) :].split("/")
@@ -149,6 +150,28 @@ class R2StorageAdapter:
                     Bucket=self._bucket,
                     Delete={"Objects": batch, "Quiet": True},
                 )
+
+    def _safe_paginate(self, paginator, prefix: str) -> Iterator[dict]:
+        """
+        R2 の list_objects_v2 で NoSuchKey が返る環境差異を吸収する。
+        対象プレフィックス未作成時は「空」とみなして継続する。
+        """
+        try:
+            yield from paginator.paginate(Bucket=self._bucket, Prefix=prefix)
+        except Exception as e:
+            try:
+                from botocore.exceptions import ClientError
+            except ImportError:
+                raise
+            if isinstance(e, ClientError):
+                code = (e.response.get("Error") or {}).get("Code")
+                if code == "NoSuchKey":
+                    print(
+                        f"R2 list_objects_v2: prefix が存在しないためスキップします: {prefix}",
+                        file=sys.stderr,
+                    )
+                    return
+            raise
 
 
 from scripts.storage.paths import build_day_path
