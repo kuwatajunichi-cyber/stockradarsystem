@@ -128,7 +128,15 @@ def run(
                     )
                     results["gh_release_tag"] = tag
                 except subprocess.CalledProcessError as e:
-                    print(f"[GitHub] upload エラー: {e}", file=sys.stderr)
+                    stderr_text = ""
+                    if isinstance(e.stderr, bytes):
+                        stderr_text = e.stderr.decode("utf-8", errors="ignore")
+                    elif isinstance(e.stderr, str):
+                        stderr_text = e.stderr
+                    if stderr_text.strip():
+                        print(f"[GitHub] upload エラー: {stderr_text.strip()}", file=sys.stderr)
+                    else:
+                        print(f"[GitHub] upload エラー: {e}", file=sys.stderr)
                     break
         except (FileNotFoundError, subprocess.CalledProcessError) as e:
             print(f"[GitHub] エラー: {e}", file=sys.stderr)
