@@ -113,6 +113,7 @@ def main(argv: list[str] | None = None) -> None:
     fail_count = 0
     insuf_count = 0
     newly_fetched_days_list = []  # 新規取得日数を記録
+    schema_repair_count = 0
 
     for i in range(0, len(codes), batch_size):
         batch = codes[i : i + batch_size]
@@ -135,6 +136,9 @@ def main(argv: list[str] | None = None) -> None:
                 fail_count += 1
             else:
                 insuf_count += 1
+            err = str(ent.get("error") or "")
+            if err.startswith("schema_mismatch_missing_ohlcv:"):
+                schema_repair_count += 1
             
             # 新規取得日数を記録（取得が行われた場合のみ）
             newly_fetched = ent.get("newly_fetched_days", 0)
@@ -161,6 +165,7 @@ def main(argv: list[str] | None = None) -> None:
     else:
         print("新規取得統計: 取得銘柄数=0（すべてキャッシュから読み込み）", file=sys.stderr)
 
+    print(f"スキーマ自己修復: {schema_repair_count}銘柄", file=sys.stderr)
     print(f"完了: ok={ok_count} failed={fail_count} insufficient={insuf_count}", file=sys.stderr)
 
     if ok_count == 0:

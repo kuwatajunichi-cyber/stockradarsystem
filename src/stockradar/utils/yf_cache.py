@@ -21,6 +21,14 @@ from stockradar.config import (
 )
 
 MANIFEST_FILENAME = "_manifest.jsonl"
+_REQUIRED_OHLCV_COLUMNS = ("Open", "High", "Low", "Close", "Volume")
+
+
+def _missing_required_ohlcv_columns(df: pd.DataFrame | None) -> list[str]:
+    """キャッシュDataFrameに不足している必須OHLCV列を返す。"""
+    if df is None:
+        return list(_REQUIRED_OHLCV_COLUMNS)
+    return [col for col in _REQUIRED_OHLCV_COLUMNS if col not in df.columns]
 
 
 def period_for_required_days(required_days: int) -> str:
@@ -230,6 +238,7 @@ def ensure_cache_with_incremental_fetch(
     # 変数の初期化
     cached_df = None
     need_full_fetch = False
+    schema_mismatch_reason: str | None = None
 
     # manifestチェック（force時はスキップ）
     if not force:
@@ -239,15 +248,19 @@ def ensure_cache_with_incremental_fetch(
                 # 差分取得チェック
                 cached_df = load_cache(cache_path)
                 if cached_df is not None and len(cached_df) > 0:
+                    missing_cols = _missing_required_ohlcv_columns(cached_df)
+                    has_schema_mismatch = bool(missing_cols)
+                    if has_schema_mismatch:
+                        schema_mismatch_reason = f"schema_mismatch_missing_ohlcv:{','.join(missing_cols)}"
                     last_date = cached_df.index.max().date()
-                    if run_date and last_date >= run_date:
+                    if run_date and last_date >= run_date and not has_schema_mismatch:
                         # 既に最新まで取得済み
                         # 戻り値にnewly_fetched_daysを追加（既存のentを更新）
                         ent = ent.copy()
                         ent["newly_fetched_days"] = 0
                         return ent
                     # 差分取得を試みる
-                    if run_date and last_date < run_date:
+                    if run_date and last_date < run_date and not has_schema_mismatch:
                         # 差分取得: 最後の日付+1日からrun_dateまでを取得
                         start_date = last_date + timedelta(days=1)
                         new_df = fetch_yf_data(
@@ -284,8 +297,12 @@ def ensure_cache_with_incremental_fetch(
                         # 差分取得失敗 → フル取得に進む（次のパスに進まない）
                         need_full_fetch = True
                     else:
-                        # 既に最新まで取得済みの場合は、次のパスに進まない
-                        return ent
+                        if has_schema_mismatch:
+                            # 旧スキーマ/欠損列キャッシュは自己修復のためフル取得に進む
+                            need_full_fetch = True
+                        else:
+                            # 既に最新まで取得済みの場合は、次のパスに進まない
+                            return ent
                 else:
                     # キャッシュが空の場合は次のパスに進む
                     pass
@@ -302,10 +319,14 @@ def ensure_cache_with_incremental_fetch(
         if cached_df is None:
             need_full_fetch = True
         else:
-            n_bars = len(cached_df)
-            if n_bars < required_days:
+            missing_cols = _missing_required_ohlcv_columns(cached_df)
+            if missing_cols:
+                schema_mismatch_reason = f"schema_mismatch_missing_ohlcv:{','.join(missing_cols)}"
                 need_full_fetch = True
-            elif run_date:
+            n_bars = len(cached_df)
+            if not need_full_fetch and n_bars < required_days:
+                need_full_fetch = True
+            elif not need_full_fetch and run_date:
                 last_date = cached_df.index.max().date()
                 if last_date < run_date:
                     # 差分取得を試みる（最初のパスで試みていない場合のみ）
@@ -367,7 +388,11 @@ def ensure_cache_with_incremental_fetch(
             "requested_days": required_days,
             "fetched_bars": n_bars,
             "status": status,
-            "error": None if n_bars >= required_days else "insufficient_bars",
+            "error": (
+                schema_mismatch_reason
+                if status == "ok" and schema_mismatch_reason is not None
+                else (None if n_bars >= required_days else "insufficient_bars")
+            ),
             "fetched_at": now_iso,
             "newly_fetched_days": n_bars,  # フル取得の場合は全データが新規
         }
