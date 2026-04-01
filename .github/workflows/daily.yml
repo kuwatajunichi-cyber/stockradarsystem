@@ -11,6 +11,9 @@ concurrency:
   group: daily-indicators
   cancel-in-progress: false  # 同一workflowの多重起動禁止（前回をキャンセルしない）
 
+permissions:
+  contents: write
+
 jobs:
   resolve_trading_day:
     runs-on: ubuntu-latest

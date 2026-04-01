@@ -37,10 +37,11 @@ def test_dropbox_upload_file_retries_on_429_then_succeeds(monkeypatch) -> None:
         return responses.pop(0)
 
     def _fake_sleep(sec: int) -> None:
-        sleep_calls.append(sec)
+        sleep_calls.append(int(sec))
 
     monkeypatch.setattr("requests.post", _fake_post)
     monkeypatch.setattr("scripts.storage.dropbox_client.time.sleep", _fake_sleep)
+    monkeypatch.setattr("scripts.storage.dropbox_client.random.uniform", lambda a, b: 0.0)
 
     full_path = adapter.upload_file("0011_work/2026-04/2026-04-01/", "a.csv", b"1,2,3\n")
     assert full_path == "/011_work/2026-04/2026-04-01/a.csv"
@@ -57,10 +58,8 @@ def test_dropbox_upload_file_raises_after_retry_exhaust(monkeypatch) -> None:
     adapter._access_token = "dummy-token"
 
     responses = [
-        _FakeResponse(429, "too_many_write_operations", {"error": {"retry_after": 1}}),
-        _FakeResponse(429, "too_many_write_operations", {"error": {"retry_after": 1}}),
-        _FakeResponse(429, "too_many_write_operations", {"error": {"retry_after": 1}}),
-        _FakeResponse(429, "too_many_write_operations", {"error": {"retry_after": 1}}),
+        _FakeResponse(429, "too_many_write_operations", {"error": {"retry_after": 1}})
+        for _ in range(9)
     ]
 
     def _fake_post(*args, **kwargs):  # type: ignore[no-untyped-def]
@@ -68,6 +67,23 @@ def test_dropbox_upload_file_raises_after_retry_exhaust(monkeypatch) -> None:
 
     monkeypatch.setattr("requests.post", _fake_post)
     monkeypatch.setattr("scripts.storage.dropbox_client.time.sleep", lambda *_: None)
+    monkeypatch.setattr("scripts.storage.dropbox_client.random.uniform", lambda a, b: 0.0)
 
     with pytest.raises(RuntimeError, match="http_error:429"):
         adapter.upload_file("0011_work/2026-04/2026-04-01/", "a.csv", b"1,2,3\n")
+
+
+def test_dropbox_retry_config_reads_environment(monkeypatch) -> None:
+    monkeypatch.setenv("DROPBOX_UPLOAD_RETRY_MAX", "5")
+    monkeypatch.setenv("DROPBOX_UPLOAD_BACKOFF_BASE_SEC", "2")
+    monkeypatch.setenv("DROPBOX_UPLOAD_BACKOFF_CAP_SEC", "10")
+
+    adapter = DropboxStorageAdapter(
+        app_key="k",
+        app_secret="s",
+        refresh_token="r",
+        base_folder="",
+    )
+    assert adapter._upload_retry_max == 5
+    assert adapter._upload_backoff_base_sec == 2
+    assert adapter._upload_backoff_cap_sec == 10

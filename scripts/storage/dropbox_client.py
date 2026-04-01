@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import random
 import re
 import sys
 import time
@@ -34,10 +35,22 @@ TOKEN_URL = "https://api.dropboxapi.com/oauth2/token"
 UPLOAD_URL = "https://content.dropboxapi.com/2/files/upload"
 LIST_FOLDER_URL = "https://api.dropboxapi.com/2/files/list_folder"
 DELETE_URL = "https://api.dropboxapi.com/2/files/delete_v2"
-UPLOAD_RETRY_MAX = 3
+UPLOAD_RETRY_MAX = 8
+UPLOAD_BACKOFF_BASE_SEC = 1
+UPLOAD_BACKOFF_CAP_SEC = 30
 
 # 月フォルダ名 YYYY-MM のパターン
 MONTH_PATTERN = re.compile(r"^\d{4}-\d{2}$")
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
 
 
 def _get_access_token(
@@ -93,6 +106,9 @@ class DropboxStorageAdapter:
         if self._base_folder and not self._base_folder.startswith("/"):
             self._base_folder = "/" + self._base_folder.rstrip("/")
         self._access_token: str | None = None
+        self._upload_retry_max = _env_int("DROPBOX_UPLOAD_RETRY_MAX", UPLOAD_RETRY_MAX)
+        self._upload_backoff_base_sec = _env_int("DROPBOX_UPLOAD_BACKOFF_BASE_SEC", UPLOAD_BACKOFF_BASE_SEC)
+        self._upload_backoff_cap_sec = _env_int("DROPBOX_UPLOAD_BACKOFF_CAP_SEC", UPLOAD_BACKOFF_CAP_SEC)
 
     def _normalize_path(self, logical_path: str) -> str:
         # work: 0011_work -> 011_work, paid: 0012_paid はそのまま
@@ -128,7 +144,10 @@ class DropboxStorageAdapter:
         full_path = full_path.replace("//", "/")
         arg = json.dumps({"path": full_path, "mode": "overwrite"})
         token = self._get_access_token()
-        for attempt in range(UPLOAD_RETRY_MAX + 1):
+        retry_max = max(0, self._upload_retry_max)
+        backoff_base = max(1, self._upload_backoff_base_sec)
+        backoff_cap = max(backoff_base, self._upload_backoff_cap_sec)
+        for attempt in range(retry_max + 1):
             resp = requests.post(
                 UPLOAD_URL,
                 headers={
@@ -144,7 +163,7 @@ class DropboxStorageAdapter:
 
             # Dropbox の書き込みレート制限は短時間で解消することが多いため、retry_after を優先して再試行する。
             should_retry = resp.status_code in (429, 500, 502, 503, 504)
-            if should_retry and attempt < UPLOAD_RETRY_MAX:
+            if should_retry and attempt < retry_max:
                 retry_after = 1
                 try:
                     body = resp.json()
@@ -152,11 +171,14 @@ class DropboxStorageAdapter:
                 except Exception:
                     pass
                 retry_after = max(1, retry_after)
+                exp_backoff = min(backoff_cap, backoff_base * (2**attempt))
+                # サーバー指示(retry_after)を下限にしつつ、軽いジッターを加えて衝突を避ける。
+                wait_sec = max(retry_after, exp_backoff) + random.uniform(0.0, 0.5)
                 print(
-                    f"Dropbox upload_file リトライ: status={resp.status_code} wait={retry_after}s attempt={attempt + 1}/{UPLOAD_RETRY_MAX}",
+                    f"Dropbox upload_file リトライ: status={resp.status_code} wait={wait_sec:.2f}s attempt={attempt + 1}/{retry_max}",
                     file=sys.stderr,
                 )
-                time.sleep(retry_after)
+                time.sleep(wait_sec)
                 continue
 
             print(f"Dropbox upload_file エラー: {resp.status_code} {resp.text}", file=sys.stderr)

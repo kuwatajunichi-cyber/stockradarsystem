@@ -40,7 +40,7 @@ def run(
 ) -> int:
     """
     指定ファイルを有効なターゲットにアップロードする。
-    戻り値: 0 は全成功、非 0 は 1 つ以上失敗。
+    戻り値: 常に 0（アップロード失敗は警告出力のみ）。
     """
     month, day = _parse_run_date(run_date)
     run_d = datetime.strptime(run_date, "%Y-%m-%d").date()
@@ -51,7 +51,7 @@ def run(
     paid_month_path = build_month_path(run_d, "paid")
 
     results: dict[str, str] = {}
-    any_failed = False
+    failed_targets: set[str] = set()
 
     if "drive" in targets:
         try:
@@ -65,6 +65,7 @@ def run(
             print(f"[Drive] エラー: {e}", file=sys.stderr)
             # Drive は凍結や認証エラーがあっても他 3 系統が動けばよい前提のため、
             # エラーはログに残すのみで致命扱いにはしない。
+            failed_targets.add("drive")
 
     def _dest_path_for(f: Path) -> str:
         suf = f.suffix.lower()
@@ -83,7 +84,7 @@ def run(
                 results["r2_key"] = key
         except Exception as e:
             print(f"[R2] エラー: {e}", file=sys.stderr)
-            any_failed = True
+            failed_targets.add("r2")
 
     if "dropbox" in targets:
         try:
@@ -96,7 +97,7 @@ def run(
                 results["dropbox_path"] = full_path
         except Exception as e:
             print(f"[Dropbox] エラー: {e}", file=sys.stderr)
-            any_failed = True
+            failed_targets.add("dropbox")
 
     if "github" in targets:
         tag = f"daily-{run_date[:7].replace('-', '')}"
@@ -117,6 +118,7 @@ def run(
                 if create.returncode != 0 and "already exists" not in (create.stderr or "").lower():
                     print(f"[GitHub] release create エラー: {create.stderr}", file=sys.stderr)
                     # GitHub Release は管理用バックアップ枠のため、権限不足等で失敗しても致命扱いにはしない。
+                    failed_targets.add("github")
             # Release が存在する前提で、アップロードを試みる（失敗しても他ターゲットには影響させない）。
             for f in files:
                 try:
@@ -137,15 +139,19 @@ def run(
                         print(f"[GitHub] upload エラー: {stderr_text.strip()}", file=sys.stderr)
                     else:
                         print(f"[GitHub] upload エラー: {e}", file=sys.stderr)
+                    failed_targets.add("github")
                     break
         except (FileNotFoundError, subprocess.CalledProcessError) as e:
             print(f"[GitHub] エラー: {e}", file=sys.stderr)
             # GitHub Release 失敗も致命扱いにはしない（ログのみ）
+            failed_targets.add("github")
 
     for k, v in results.items():
         print(f"{k}={v}")
 
-    return 1 if any_failed else 0
+    if failed_targets:
+        print(f"upload_warnings={','.join(sorted(failed_targets))}", file=sys.stderr)
+    return 0
 
 
 def main() -> None:
