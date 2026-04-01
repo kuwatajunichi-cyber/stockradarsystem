@@ -26,3 +26,6 @@ Thumbs.db
 
 # Editor (optional)
 .vscode/
+
+# Local-only workflow experiments
+.github/workflows/monthly_alias_refresh.yml
