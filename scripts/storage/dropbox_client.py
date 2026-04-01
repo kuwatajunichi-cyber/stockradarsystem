@@ -9,6 +9,7 @@ import json
 import os
 import re
 import sys
+import time
 from pathlib import Path
 
 # プロジェクトルートの .env を読み込む
@@ -33,6 +34,7 @@ TOKEN_URL = "https://api.dropboxapi.com/oauth2/token"
 UPLOAD_URL = "https://content.dropboxapi.com/2/files/upload"
 LIST_FOLDER_URL = "https://api.dropboxapi.com/2/files/list_folder"
 DELETE_URL = "https://api.dropboxapi.com/2/files/delete_v2"
+UPLOAD_RETRY_MAX = 3
 
 # 月フォルダ名 YYYY-MM のパターン
 MONTH_PATTERN = re.compile(r"^\d{4}-\d{2}$")
@@ -126,20 +128,41 @@ class DropboxStorageAdapter:
         full_path = full_path.replace("//", "/")
         arg = json.dumps({"path": full_path, "mode": "overwrite"})
         token = self._get_access_token()
-        resp = requests.post(
-            UPLOAD_URL,
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Dropbox-API-Arg": arg,
-                "Content-Type": "application/octet-stream",
-            },
-            data=content,
-            timeout=60,
-        )
-        if resp.status_code != 200:
+        for attempt in range(UPLOAD_RETRY_MAX + 1):
+            resp = requests.post(
+                UPLOAD_URL,
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Dropbox-API-Arg": arg,
+                    "Content-Type": "application/octet-stream",
+                },
+                data=content,
+                timeout=60,
+            )
+            if resp.status_code == 200:
+                return full_path
+
+            # Dropbox の書き込みレート制限は短時間で解消することが多いため、retry_after を優先して再試行する。
+            should_retry = resp.status_code in (429, 500, 502, 503, 504)
+            if should_retry and attempt < UPLOAD_RETRY_MAX:
+                retry_after = 1
+                try:
+                    body = resp.json()
+                    retry_after = int(body.get("error", {}).get("retry_after", retry_after))
+                except Exception:
+                    pass
+                retry_after = max(1, retry_after)
+                print(
+                    f"Dropbox upload_file リトライ: status={resp.status_code} wait={retry_after}s attempt={attempt + 1}/{UPLOAD_RETRY_MAX}",
+                    file=sys.stderr,
+                )
+                time.sleep(retry_after)
+                continue
+
             print(f"Dropbox upload_file エラー: {resp.status_code} {resp.text}", file=sys.stderr)
             resp.raise_for_status()
-        return full_path
+
+        raise RuntimeError("Dropbox upload_file: unexpected fallthrough")
 
     def delete_older_than(self, cutoff_ym: str) -> None:
         """cutoff_ym より古い YYYY-MM フォルダを削除。work(011_work) / paid(0012_paid) 両方対象。"""
