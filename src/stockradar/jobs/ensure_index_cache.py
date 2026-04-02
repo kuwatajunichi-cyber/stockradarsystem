@@ -1,8 +1,8 @@
 """
-ベンチETFキャッシュ確保ジョブ（Job2）。
+ベンチマークキャッシュ確保ジョブ（Job2）。
 
-TOPIX proxy: 1306.T
-Nikkei225 proxy: 1321.T
+TOPIX: 1475.T
+Nikkei225: ^N225
 不足時のみ重い取得、通常は差分取得。
 """
 from __future__ import annotations
@@ -31,8 +31,8 @@ from stockradar.utils.yf_cache import (
 )
 
 BENCHMARKS = {
-    "topix": "1306.T",
-    "nikkei": "1321.T",
+    "topix": "1475.T",
+    "nikkei": "^N225",
 }
 
 
@@ -172,6 +172,10 @@ def main(argv: list[str] | None = None) -> None:
             f"ensure_index_cache: ディスク照合で manifest を {reconcile_changes} 件同期修正",
             file=sys.stderr,
         )
+
+    # ベンチティッカー変更時に古い manifest 行を残さない（このディレクトリはベンチ専用）
+    allowed = set(BENCHMARKS.values())
+    manifest = {sym: ent for sym, ent in manifest.items() if sym in allowed}
 
     # manifestをまとめて更新（1回だけ）
     print(f"manifest更新中: {len(manifest)}エントリ", file=sys.stderr)
