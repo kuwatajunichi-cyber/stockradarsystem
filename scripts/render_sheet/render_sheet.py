@@ -20,7 +20,11 @@ import pandas as pd
 # openpyxl はパス変更前にインポート（sys.path の影響を受けないように）
 from openpyxl import load_workbook
 from openpyxl.styles import Font, Protection
-from openpyxl.utils.cell import column_index_from_string, coordinate_from_string
+from openpyxl.utils.cell import (
+    column_index_from_string,
+    coordinate_from_string,
+    range_boundaries,
+)
 from openpyxl.worksheet.protection import SheetProtection
 
 # プロジェクトルートを PYTHONPATH に追加
@@ -324,10 +328,24 @@ def _build_xlsx_from_df(cfg: dict, df: pd.DataFrame, run_date: str) -> Path:
 
         if sp:
             end_col = header_col + len(template_headers) - 1
-            for row in range(header_row, last_row + 1):
-                for col in range(header_col, end_col + 1):
-                    cell = ws.cell(row=row, column=col)
-                    cell.protection = Protection(locked=False)
+            af_ref = ws.auto_filter.ref if ws.auto_filter and ws.auto_filter.ref else None
+            if af_ref:
+                u_min_col, u_min_row, u_max_col, u_max_row = range_boundaries(af_ref)
+                logger.info("[%s] 保護解除範囲: オートフィルタ %s (全セル unlock)", target_sheet_name, af_ref)
+            else:
+                u_min_col, u_min_row = header_col, header_row
+                u_max_col, u_max_row = end_col, last_row
+                logger.info(
+                    "[%s] 保護解除範囲: 流し込みのみ (row %d-%d, col %d-%d)",
+                    target_sheet_name,
+                    u_min_row,
+                    u_max_row,
+                    u_min_col,
+                    u_max_col,
+                )
+            for row in range(u_min_row, u_max_row + 1):
+                for col in range(u_min_col, u_max_col + 1):
+                    ws.cell(row=row, column=col).protection = Protection(locked=False)
 
     if sp:
         for sheet in wb.worksheets:
