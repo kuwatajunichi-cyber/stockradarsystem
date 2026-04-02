@@ -14,7 +14,6 @@ from pathlib import Path
 import pandas as pd
 import yaml
 
-from stockradar.config import get_indicators_daily_dir
 from stockradar.utils.core_indicators_csv import find_latest_core_indicators_csv
 from stockradar.event_causes.selection_rules import filter_dataframe, resolve_selection_rules
 from stockradar.sources.external_events import (
