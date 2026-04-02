@@ -180,6 +180,17 @@ jobs:
         run: |
           python -m stockradar.jobs.archive_ohlc_store
 
+      # compute_indicators は別ランナー。キャッシュの restore-keys だと過去 run の zip を引く取り違えがあり得るため、
+      # 同一 workflow の ensure で出来上がった zip を artifact で明示受け渡しする。
+      - name: Upload OHLC store zip for compute job
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: daily-ohlc-store-${{ github.run_id }}
+          path: data/cache/ohlc_store_archive/ohlc_store.zip
+          retention-days: 3
+          if-no-files-found: error
+
       - name: Cache OHLC store zip
         uses: actions/cache@v4
         if: success()
@@ -200,13 +211,16 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Cache OHLC store zip
-        uses: actions/cache@v4
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Download OHLC store from ensure_core_cache
+        uses: actions/download-artifact@v4
         with:
-          path: data/cache/ohlc_store_archive/ohlc_store.zip
-          key: ohlc-store-zip-v2
-          restore-keys: |
-            ohlc-store-zip-v2
+          name: daily-ohlc-store-${{ github.run_id }}
+          path: data/cache/ohlc_store_archive/
 
       - name: Cache index data
         uses: actions/cache@v4
@@ -215,11 +229,6 @@ jobs:
           key: yf-index-${{ github.run_number }}
           restore-keys: |
             yf-index-
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
 
       - name: Restore OHLC store from zip
         env:

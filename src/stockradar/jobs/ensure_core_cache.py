@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 from stockradar.utils.cli_parse import parse_run_date_opt
@@ -33,10 +35,9 @@ from stockradar.utils.yf_cache import (
     MANIFEST_FILENAME,
     ensure_cache_with_incremental_fetch,
     load_manifest,
+    rebuild_manifest_entry_from_disk,
     update_manifest,
 )
-
-import time
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -186,6 +187,32 @@ def main(argv: list[str] | None = None) -> None:
                 f"insufficient={s0['insufficient']} failed={s0['failed']}",
                 file=sys.stderr,
             )
+
+    # ディスク実体で manifest を上書き（メモリ内処理の取りこぼし・手編集との差を最終同期）
+    reconcile_at = datetime.now(timezone.utc).isoformat()
+    reconcile_changes = 0
+    for code in codes:
+        cache_path = cache_dir / f"{code}.csv"
+        rebuilt = rebuild_manifest_entry_from_disk(
+            code,
+            cache_path,
+            requested_days=required_days,
+            run_date=run_date,
+            fetched_at=reconcile_at,
+        )
+        old = manifest.get(code)
+        if old is None or (
+            old.get("status") != rebuilt.get("status")
+            or old.get("fetched_bars") != rebuilt.get("fetched_bars")
+            or (old.get("error") or "") != (rebuilt.get("error") or "")
+        ):
+            reconcile_changes += 1
+        manifest[code] = rebuilt
+    if reconcile_changes > 0:
+        print(
+            f"ensure_core_cache: ディスク照合で manifest を {reconcile_changes} 件同期修正",
+            file=sys.stderr,
+        )
 
     # manifestをまとめて更新（1回だけ）
     print(f"manifest更新中: {len(manifest)}エントリ", file=sys.stderr)

@@ -62,6 +62,19 @@ def _load_codes_with_names(path: Path) -> pd.DataFrame:
     return df[["code", "name"]].copy() if "name" in df.columns else df[["code"]].copy()
 
 
+def max_ohlc_date_on_or_before(df: pd.DataFrame | None, run_date: date) -> date | None:
+    """
+    run_date 以前に収まる行だけを見たときの index の最大日付（営業日バーが run_date まで揃っているかの判定用）。
+    index は DatetimeIndex 前提。
+    """
+    if df is None or df.empty:
+        return None
+    sub = df[df.index.date <= run_date]
+    if sub.empty:
+        return None
+    return pd.Timestamp(sub.index.max()).date()
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Compute indicators for equity_domestic_core.")
     parser.add_argument(
@@ -139,10 +152,22 @@ def main(argv: list[str] | None = None) -> None:
         print("エラー: ベンチマークデータが利用できません", file=sys.stderr)
         sys.exit(1)
 
+    # run_date 当日バーまで揃っていないベンチは RS 系が前日と不自然に一致しうるためここで止める（ensure 通過後の最終防衛）
+    for bench_name, bench_df in benchmarks.items():
+        md = max_ohlc_date_on_or_before(bench_df, run_date)
+        if md is not None and md < run_date:
+            print(
+                f"エラー: ベンチマーク {bench_name} のOHLC最新日({md})が run_date({run_date}) より前です。"
+                f" ensure_index_cache またはキャッシュ反映を確認してください。",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+
     # 各銘柄の指標を計算
     results = []
     nan_count = 0
     missing_count = 0
+    stale_ohlc_codes: list[str] = []
 
     for _, row in codes_df.iterrows():
         code = str(row["code"]).strip()
@@ -168,12 +193,12 @@ def main(argv: list[str] | None = None) -> None:
         # 最新日の値を取得（run_dateでフィルタ後の最新日）
         latest_idx = stock_df.index.max()
         latest_date = stock_df.index.max().date()
-        
-        # dateフィールドは「実際に参照した最新データ日」に合わせる。
-        # （run_date はレポート対象日の意味であり、CSVの date には使わない）
+
+        # run_date 名義の日次 job では当日バー未達のまま出力すると前営業日と全行一致する事故になるため、行を出さず失敗扱いに集約する
         if latest_date < run_date:
-            print(f"警告: {code} の最新データ日付({latest_date})がrun_date({run_date})より古いです", file=sys.stderr)
-        
+            stale_ohlc_codes.append(code)
+            continue
+
         result_row = {
             "date": latest_date.isoformat(),  # latest_idx（実データ最新日）を使用
             "code": code,
@@ -257,6 +282,18 @@ def main(argv: list[str] | None = None) -> None:
         result_row["n_bars_used"] = len(stock_df)
 
         results.append(result_row)
+
+    if stale_ohlc_codes:
+        preview = stale_ohlc_codes[:40]
+        more = "..." if len(stale_ohlc_codes) > len(preview) else ""
+        print(
+            f"エラー: run_date={run_date.isoformat()} に対し、OHLC 最新日が run_date 未満の銘柄が "
+            f"{len(stale_ohlc_codes)} 件あります（例: {preview}{more}）。"
+            f" indicators_{run_date.strftime('%Y%m%d')}.csv は出力しません。"
+            f" ensure_core_cache の stale 解消・CI の OHLC artifact 受け渡しを確認してください。",
+            file=sys.stderr,
+        )
+        sys.exit(2)
 
     if not results:
         print("エラー: 計算結果が0件です", file=sys.stderr)

@@ -392,6 +392,7 @@ python -m stockradar.jobs.resolve_trading_day --date 2026-02-11
   - TOPIX proxy: 1306.T
   - Nikkei225 proxy: 1321.T
 - 不足時のみ重い取得、通常は差分取得
+- **`update_manifest` 直前**に各ベンチ `*.csv` を読み直し、**ディスクを真実として `_manifest.jsonl` を1行ずつ再構築**（`rebuild_manifest_entry_from_disk`）。メモリ内の status 取りこぼしを防ぐ。
 - `--run-date` 指定時に `stale` が残る銘柄だけ、`STALE_RETRY_SLEEP_SEC` 間隔で待機しつつ最大 `STALE_RETRY_MAX_PASSES` パス（初回は全銘柄・続くパスは stale のみ）。**最終的に `stale` が残る場合は終了コード 2**（GitHub Actions では赤／人手または翌営業日の再実行を想定）。`insufficient` / `failed` はこの待機リトライの対象外。
 
 ```powershell
@@ -403,6 +404,7 @@ python -m stockradar.jobs.ensure_index_cache --run-date 2026-02-11
 - 入力: `equity_domestic_core_with_name.csv`（最新 sets_secondary_YYYYMMDD から自動選択）
 - 各銘柄のOHLCVキャッシュを確保（不足時のみ重い取得）
 - 分割取得 + インターバル + リトライ + 途中再開（`_manifest.jsonl`）
+- **`update_manifest` 直前**に入力銘柄ごとの `yf_daily/{code}.csv` を読み直し、**ディスクを真実として manifest を再構築**（`rebuild_manifest_entry_from_disk`）。memory / 分岐の取りこぼしで `ok` 偽装されるのを防ぐ。
 - **stale 再試行・終了コード 2** は Job2 と同様（`ensure_index_cache` 参照）
 
 ```powershell
@@ -415,6 +417,7 @@ python -m stockradar.jobs.ensure_core_cache --input data/universe/jpx/sets_secon
 #### Job4: compute_indicators_for_core
 - 入力: `equity_domestic_core_with_name.csv`、`data/cache/yf_daily/`、`data/cache/yf_index/`
 - 出力: `data/indicators/daily/indicators_YYYYMMDD.csv`（**ファイル名の日付は `run_date`、行の `date` 列は各銘柄の実OHLC最新日**）
+- **ガード**: ベンチマークまたはいずれかの銘柄で **OHLC 最新日が `run_date` 未満**のとき、**成果物は出さず終了コード 2**（前営業日データで `run_date` 名義ファイルを出さない）
 - 指標:
   - 出来高zscore（売買代金近似ベース）
   - RS（B方式：期間リターン差）
@@ -441,7 +444,7 @@ python -m stockradar.jobs.compute_indicators_for_core --input data/universe/jpx/
 
 - schedule: 毎営業日 15:37 JST（月〜金、UTC 06:37）
 - concurrency: 同一workflowの多重起動禁止
-- 主なジョブ: resolve_trading_day（営業日判定）→ restore_ohlc_store（OHLC復元）→ ensure_index_cache → ensure_core_cache（月次Release + 上場廃止パッチから core を取得）→ compute_indicators_for_core → 0011_work へアップロード → render_sheet（XLSX生成・0012_paid へ）→ archive_ohlc_store
+- 主なジョブ: resolve_trading_day（営業日判定）→ ensure_index_cache ∥ ensure_core_cache → **compute_indicators は ensure_core_cache が作った `ohlc_store.zip` を artifact で受け取り復元**（別ランナー間の `actions/cache` の取り違え防止。ウォーム用キャッシュは ensure 側でも引き続き利用可）→ compute_indicators_for_core → 0011_work へアップロード → render_sheet 等
 - fetch系は部分成功を許容しつつ manifest に残す
 - compute で対象銘柄の有効計算率が極端に低い場合は fail
 
