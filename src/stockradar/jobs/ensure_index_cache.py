@@ -9,12 +9,15 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
 from pathlib import Path
 
 from stockradar.utils.cli_parse import parse_run_date_opt
 from stockradar.config import (
     get_buffer_days,
     get_rs_windows,
+    get_stale_retry_max_passes,
+    get_stale_retry_sleep_sec,
     get_yf_index_cache_dir,
     get_z_lookback_days,
 )
@@ -65,31 +68,104 @@ def main(argv: list[str] | None = None) -> None:
     manifest = load_manifest(manifest_path)
     print(f"manifest読み込み完了: {len(manifest)}エントリ", file=sys.stderr)
 
-    results = {}
-    for bench_name, ticker in BENCHMARKS.items():
-        cache_path = cache_dir / f"{bench_name}.csv"
-        print(f"処理中: {bench_name} ({ticker})", file=sys.stderr)
-        ent = ensure_cache_with_incremental_fetch(
-            symbol=ticker,
-            ticker=ticker,
-            cache_path=cache_path,
-            manifest=manifest,  # manifestを渡す（更新される）
-            required_days=required_days,
-            run_date=run_date,
-            force=args.force,
-        )
-        results[bench_name] = ent
-        status = ent.get("status", "unknown")
-        bars = ent.get("fetched_bars", 0)
-        print(f"  {bench_name}: status={status}, bars={bars}", file=sys.stderr)
+    max_passes = get_stale_retry_max_passes()
+    stale_sleep = get_stale_retry_sleep_sec()
+    bench_order = list(BENCHMARKS.keys())
+
+    def _manifest_status(ticker: str) -> str:
+        return str(manifest.get(ticker, {}).get("status", "missing"))
+
+    def _summarize() -> dict[str, int]:
+        ok_c = fail_c = insuf_c = stale_c = 0
+        for bn in bench_order:
+            st = _manifest_status(BENCHMARKS[bn])
+            if st == "ok":
+                ok_c += 1
+            elif st == "failed":
+                fail_c += 1
+            elif st == "stale":
+                stale_c += 1
+            else:
+                insuf_c += 1
+        return {
+            "ok": ok_c,
+            "failed": fail_c,
+            "insufficient": insuf_c,
+            "stale": stale_c,
+        }
+
+    results: dict[str, dict] = {}
+    for pass_i in range(max_passes):
+        if pass_i > 0:
+            if run_date is None:
+                break
+            stale_benches = [
+                bn
+                for bn in bench_order
+                if _manifest_status(BENCHMARKS[bn]) == "stale"
+            ]
+            stats = _summarize()
+            print(
+                f"ensure_index_cache: stale 再試行 {pass_i + 1}/{max_passes} "
+                f"対象={stale_benches} "
+                f"(ok={stats['ok']} stale={stats['stale']} "
+                f"insufficient={stats['insufficient']} failed={stats['failed']})",
+                file=sys.stderr,
+            )
+            if not stale_benches:
+                break
+            time.sleep(stale_sleep)
+            pending = stale_benches
+        else:
+            pending = bench_order
+
+        for bench_name in pending:
+            ticker = BENCHMARKS[bench_name]
+            cache_path = cache_dir / f"{bench_name}.csv"
+            print(f"処理中: {bench_name} ({ticker})", file=sys.stderr)
+            ent = ensure_cache_with_incremental_fetch(
+                symbol=ticker,
+                ticker=ticker,
+                cache_path=cache_path,
+                manifest=manifest,
+                required_days=required_days,
+                run_date=run_date,
+                force=args.force,
+            )
+            results[bench_name] = ent
+            status = ent.get("status", "unknown")
+            bars = ent.get("fetched_bars", 0)
+            print(f"  {bench_name}: status={status}, bars={bars}", file=sys.stderr)
+
+        if pass_i == 0 and run_date is not None:
+            s0 = _summarize()
+            print(
+                f"ensure_index_cache: 初回パス完了 ok={s0['ok']} stale={s0['stale']} "
+                f"insufficient={s0['insufficient']} failed={s0['failed']}",
+                file=sys.stderr,
+            )
 
     # manifestをまとめて更新（1回だけ）
     print(f"manifest更新中: {len(manifest)}エントリ", file=sys.stderr)
     update_manifest(manifest_path, manifest)
     print(f"manifest更新完了", file=sys.stderr)
 
-    ok_count = sum(1 for r in results.values() if r.get("status") == "ok")
-    print(f"完了: ok={ok_count}/{len(results)}", file=sys.stderr)
+    final = _summarize()
+    ok_count = final["ok"]
+    stale_count = final["stale"]
+    print(
+        f"完了: ok={ok_count}/{len(bench_order)} "
+        f"(insufficient={final['insufficient']} stale={stale_count} failed={final['failed']})",
+        file=sys.stderr,
+    )
+
+    if run_date is not None and stale_count > 0:
+        print(
+            f"エラー: ensure_index_cache stale が {stale_count} 件残存 "
+            f"（データ未反映・遅延の可能性。人手確認または翌営業日に再実行）",
+            file=sys.stderr,
+        )
+        sys.exit(2)
 
     if ok_count == 0:
         print("警告: すべてのベンチマーク取得に失敗しました", file=sys.stderr)

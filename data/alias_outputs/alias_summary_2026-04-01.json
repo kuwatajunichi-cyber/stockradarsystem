@@ -1,0 +1,73 @@
+{
+  "run_date": "2026-04-01",
+  "resolved_monthly_tag": "monthly-20260401-local",
+  "upstream_run_id": "local",
+  "inputs": {
+    "core": "C:\\Users\\junic\\Downloads\\2026-04-01\\equity_domestic_core_with_name.csv",
+    "illiquid": "C:\\Users\\junic\\Downloads\\2026-04-01\\equity_domestic_illiquid_with_name.csv",
+    "ipo": "C:\\Users\\junic\\Downloads\\2026-04-01\\equity_domestic_ipo_with_name.csv",
+    "base_alias_yaml": "C:\\GitHub\\stockradarsystem\\config\\kabutan_name_aliases.yaml",
+    "base_state_json": "C:\\GitHub\\stockradarsystem\\data\\alias_inputs\\prev\\alias_state.json"
+  },
+  "outputs": {
+    "alias_yaml": "C:\\GitHub\\stockradarsystem\\data\\alias_outputs\\kabutan_name_aliases.yaml",
+    "state_json": "C:\\GitHub\\stockradarsystem\\data\\alias_outputs\\alias_state.json",
+    "delta_csv": "C:\\GitHub\\stockradarsystem\\data\\alias_outputs\\alias_delta_2026-04-01.csv",
+    "summary_json": "C:\\GitHub\\stockradarsystem\\data\\alias_outputs\\alias_summary_2026-04-01.json"
+  },
+  "counts": {
+    "universe_codes": 3762,
+    "aliases_codes": 3768,
+    "added_aliases": 2000,
+    "review_aliases": 32,
+    "delta_rows": 13470
+  },
+  "rates": {
+    "media_success_rate": 0.9899121662753283,
+    "effective_media_success_rate": 0.9899121662753283,
+    "low_ratio": 0.015748031496062992
+  },
+  "anomaly_context": {
+    "enforce_media_success_rate": true,
+    "eligible_media_for_success_rate": [
+      "kabutan",
+      "nikkei",
+      "reuters",
+      "tdnet"
+    ],
+    "min_requests_for_rate": 10
+  },
+  "media_stats": {
+    "kabutan": {
+      "requests": 3762,
+      "success": 3762,
+      "fail": 0,
+      "retry": 0,
+      "avg_latency_ms": 106.25
+    },
+    "nikkei": {
+      "requests": 3762,
+      "success": 3762,
+      "fail": 0,
+      "retry": 0,
+      "avg_latency_ms": 583.0
+    },
+    "reuters": {
+      "requests": 3766,
+      "success": 3757,
+      "fail": 5,
+      "retry": 4,
+      "avg_latency_ms": 2279.81
+    },
+    "tdnet": {
+      "requests": 209,
+      "success": 102,
+      "fail": 0,
+      "retry": 0,
+      "avg_latency_ms": 26.87
+    }
+  },
+  "anomalies": [
+    "added_aliases_exceeded: 2000 > 400"
+  ]
+}

@@ -12,17 +12,10 @@ import pandas as pd
 import yaml
 
 from stockradar.config import get_indicators_daily_dir
+from stockradar.utils.core_indicators_csv import find_latest_core_indicators_csv
 from stockradar.event_causes.selection_rules import filter_dataframe, resolve_selection_rules
 
 UNKNOWN_CAUSE_TEXT = "材料不明・需給起因疑い"
-
-
-def _find_latest_indicators(base: Path) -> Path | None:
-    d = get_indicators_daily_dir(base)
-    if not d.exists():
-        return None
-    files = sorted(d.glob("indicators_*.csv"))
-    return files[-1] if files else None
 
 
 def _auto_pick_z_column(df: pd.DataFrame) -> str:
@@ -121,7 +114,7 @@ def main(argv: list[str] | None = None) -> None:
     if args.indicators:
         indicators_path = _resolve_path(base, args.indicators)
     else:
-        indicators_path = _find_latest_indicators(base)
+        indicators_path = find_latest_core_indicators_csv(base)
         if indicators_path is None:
             print("エラー: indicators_*.csv が見つかりません", file=sys.stderr)
             sys.exit(1)

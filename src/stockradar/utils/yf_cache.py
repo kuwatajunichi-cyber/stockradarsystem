@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -21,7 +21,59 @@ from stockradar.config import (
 )
 
 MANIFEST_FILENAME = "_manifest.jsonl"
+# ユニバース一括取得用（日次 Job が触らない）
+MANIFEST_UNIVERSE_FILENAME = "_manifest_universe.jsonl"
 _REQUIRED_OHLCV_COLUMNS = ("Open", "High", "Low", "Close", "Volume")
+
+ERROR_INSUFFICIENT_BARS = "insufficient_bars"
+ERROR_MISSING_BAR_FOR_RUN_DATE = "missing_bar_for_run_date"
+
+
+def classify_cache_row_status(
+    n_bars: int,
+    required_days: int,
+    last_date: date | None,
+    run_date: date | None,
+) -> tuple[str, str | None]:
+    """
+    キャッシュ1本の行数と最終日から status / error を決める。
+
+    - insufficient: 歴史本数不足のみ（fetched_bars < required_days）
+    - stale: run_date あり・本数十分だが max(index).date() < run_date
+    - ok: 上記以外で十分かつ run_date なし、または last_date >= run_date
+    """
+    if n_bars < required_days:
+        return "insufficient", ERROR_INSUFFICIENT_BARS
+    if run_date is None:
+        return "ok", None
+    if last_date is None:
+        return "stale", ERROR_MISSING_BAR_FOR_RUN_DATE
+    if last_date < run_date:
+        return "stale", ERROR_MISSING_BAR_FOR_RUN_DATE
+    return "ok", None
+
+
+def build_manifest_entry(
+    symbol: str,
+    *,
+    requested_days: int,
+    fetched_bars: int,
+    status: str,
+    error: str | None,
+    fetched_at: str,
+    newly_fetched_days: int,
+) -> dict:
+    """日次 manifest 用: code と symbol を同一値で保持（JSONL 1行契約）。"""
+    return {
+        "code": symbol,
+        "symbol": symbol,
+        "requested_days": requested_days,
+        "fetched_bars": fetched_bars,
+        "status": status,
+        "error": error,
+        "fetched_at": fetched_at,
+        "newly_fetched_days": newly_fetched_days,
+    }
 
 
 def _missing_required_ohlcv_columns(df: pd.DataFrame | None) -> list[str]:
@@ -239,13 +291,15 @@ def ensure_cache_with_incremental_fetch(
     cached_df = None
     need_full_fetch = False
     schema_mismatch_reason: str | None = None
+    # ディスク上の旧スキーマ起因でフル取得した場合、修復後も error に残してログ集計できるようにする
+    schema_repair_reason: str | None = None
 
     # manifestチェック（force時はスキップ）
+    # status==ok でも CSV 実体の last_date / 本数を必ず照合（manifest のみの誤 ok を防ぐ）
     if not force:
         ent = manifest.get(symbol)
         if ent is not None:
             if ent.get("status") == "ok" and ent.get("fetched_bars", 0) >= required_days:
-                # 差分取得チェック
                 cached_df = load_cache(cache_path)
                 if cached_df is not None and len(cached_df) > 0:
                     missing_cols = _missing_required_ohlcv_columns(cached_df)
@@ -253,62 +307,67 @@ def ensure_cache_with_incremental_fetch(
                     if has_schema_mismatch:
                         schema_mismatch_reason = f"schema_mismatch_missing_ohlcv:{','.join(missing_cols)}"
                     last_date = cached_df.index.max().date()
-                    if run_date and last_date >= run_date and not has_schema_mismatch:
-                        # 既に最新まで取得済み
-                        # 戻り値にnewly_fetched_daysを追加（既存のentを更新）
-                        ent = ent.copy()
-                        ent["newly_fetched_days"] = 0
-                        return ent
-                    # 差分取得を試みる
-                    if run_date and last_date < run_date and not has_schema_mismatch:
-                        # 差分取得: 最後の日付+1日からrun_dateまでを取得
+                    n_disk = len(cached_df)
+                    st, err = classify_cache_row_status(
+                        n_disk, required_days, last_date, run_date
+                    )
+                    if st == "ok" and not has_schema_mismatch:
+                        out = build_manifest_entry(
+                            symbol,
+                            requested_days=required_days,
+                            fetched_bars=n_disk,
+                            status="ok",
+                            error=None,
+                            fetched_at=now_iso,
+                            newly_fetched_days=0,
+                        )
+                        manifest[symbol] = out
+                        return out
+                    if has_schema_mismatch:
+                        schema_repair_reason = schema_mismatch_reason
+                        need_full_fetch = True
+                    elif st == "insufficient":
+                        need_full_fetch = True
+                    elif st == "stale" and run_date:
                         start_date = last_date + timedelta(days=1)
                         new_df = fetch_yf_data(
-                            ticker, 
-                            required_days, 
-                            run_date, 
+                            ticker,
+                            required_days,
+                            run_date,
                             start_date=start_date,
-                            retry_max=1, 
-                            backoff_sec=[5]
+                            retry_max=1,
+                            backoff_sec=[5],
                         )
                         if new_df is not None and len(new_df) > 0:
-                            # 既存データより新しい日付のみを抽出
                             new_df_filtered = new_df[new_df.index.date > last_date]
                             if len(new_df_filtered) > 0:
-                                # マージ
                                 combined = pd.concat([cached_df, new_df_filtered])
-                                combined = combined[~combined.index.duplicated(keep="last")]  # 同日は新しい方を優先
+                                combined = combined[
+                                    ~combined.index.duplicated(keep="last")
+                                ]
                                 combined = combined.sort_index()
                                 save_cache(cache_path, combined)
                                 n_bars = len(combined)
                                 newly_fetched_days = len(new_df_filtered)
-                                status = "ok" if n_bars >= required_days else "insufficient"
-                                ent = {
-                                    "symbol": symbol,
-                                    "requested_days": required_days,
-                                    "fetched_bars": n_bars,
-                                    "status": status,
-                                    "error": None if n_bars >= required_days else "insufficient_bars",
-                                    "fetched_at": now_iso,
-                                    "newly_fetched_days": newly_fetched_days,
-                                }
-                                manifest[symbol] = ent
-                                return ent
-                        # 差分取得失敗 → フル取得に進む（次のパスに進まない）
+                                ld = combined.index.max().date()
+                                st2, err2 = classify_cache_row_status(
+                                    n_bars, required_days, ld, run_date
+                                )
+                                out = build_manifest_entry(
+                                    symbol,
+                                    requested_days=required_days,
+                                    fetched_bars=n_bars,
+                                    status=st2,
+                                    error=err2,
+                                    fetched_at=now_iso,
+                                    newly_fetched_days=newly_fetched_days,
+                                )
+                                manifest[symbol] = out
+                                return out
                         need_full_fetch = True
-                    else:
-                        if has_schema_mismatch:
-                            # 旧スキーマ/欠損列キャッシュは自己修復のためフル取得に進む
-                            need_full_fetch = True
-                        else:
-                            # 既に最新まで取得済みの場合は、次のパスに進まない
-                            return ent
-                else:
-                    # キャッシュが空の場合は次のパスに進む
-                    pass
-            else:
-                # manifestにエントリがない、または不足している場合は次のパスに進む
-                pass
+                # キャッシュが空 → 次パスへ
+            # manifest にエントリがない、または manifest 上不足 → 次パスへ
+            pass
 
     # キャッシュ読み込み（最初のパスで既に読み込んでいる場合は再利用）
     if cached_df is None:
@@ -322,6 +381,7 @@ def ensure_cache_with_incremental_fetch(
             missing_cols = _missing_required_ohlcv_columns(cached_df)
             if missing_cols:
                 schema_mismatch_reason = f"schema_mismatch_missing_ohlcv:{','.join(missing_cols)}"
+                schema_repair_reason = schema_mismatch_reason
                 need_full_fetch = True
             n_bars = len(cached_df)
             if not need_full_fetch and n_bars < required_days:
@@ -350,18 +410,21 @@ def ensure_cache_with_incremental_fetch(
                             save_cache(cache_path, combined)
                             n_bars = len(combined)
                             newly_fetched_days = len(new_df_filtered)
-                            status = "ok" if n_bars >= required_days else "insufficient"
-                            ent = {
-                                "symbol": symbol,
-                                "requested_days": required_days,
-                                "fetched_bars": n_bars,
-                                "status": status,
-                                "error": None if n_bars >= required_days else "insufficient_bars",
-                                "fetched_at": now_iso,
-                                "newly_fetched_days": newly_fetched_days,
-                            }
-                            manifest[symbol] = ent
-                            return ent
+                            ld = combined.index.max().date()
+                            st_m, err_m = classify_cache_row_status(
+                                n_bars, required_days, ld, run_date
+                            )
+                            out = build_manifest_entry(
+                                symbol,
+                                requested_days=required_days,
+                                fetched_bars=n_bars,
+                                status=st_m,
+                                error=err_m,
+                                fetched_at=now_iso,
+                                newly_fetched_days=newly_fetched_days,
+                            )
+                            manifest[symbol] = out
+                            return out
                     # 差分取得失敗 → フル取得
                     need_full_fetch = True
 
@@ -369,46 +432,64 @@ def ensure_cache_with_incremental_fetch(
     if need_full_fetch or force:
         df = fetch_yf_data(ticker, required_days, run_date)
         if df is None or df.empty:
-            ent = {
-                "symbol": symbol,
-                "requested_days": required_days,
-                "fetched_bars": 0,
-                "status": "failed",
-                "error": "fetch_failed",
-                "fetched_at": now_iso,
-                "newly_fetched_days": 0,  # 取得失敗の場合は0
-            }
+            ent = build_manifest_entry(
+                symbol,
+                requested_days=required_days,
+                fetched_bars=0,
+                status="failed",
+                error="fetch_failed",
+                fetched_at=now_iso,
+                newly_fetched_days=0,
+            )
             manifest[symbol] = ent
             return ent
         save_cache(cache_path, df)
         n_bars = len(df)
-        status = "ok" if n_bars >= required_days else "insufficient"
-        ent = {
-            "symbol": symbol,
-            "requested_days": required_days,
-            "fetched_bars": n_bars,
-            "status": status,
-            "error": (
-                schema_mismatch_reason
-                if status == "ok" and schema_mismatch_reason is not None
-                else (None if n_bars >= required_days else "insufficient_bars")
-            ),
-            "fetched_at": now_iso,
-            "newly_fetched_days": n_bars,  # フル取得の場合は全データが新規
-        }
+        last_date = df.index.max().date()
+        miss_after = _missing_required_ohlcv_columns(df)
+        schema_after: str | None = (
+            f"schema_mismatch_missing_ohlcv:{','.join(miss_after)}"
+            if miss_after
+            else None
+        )
+        st, err = classify_cache_row_status(
+            n_bars, required_days, last_date, run_date
+        )
+        if st == "ok" and schema_after is not None:
+            final_err: str | None = schema_after
+        elif st == "ok" and schema_repair_reason is not None:
+            final_err = schema_repair_reason
+        elif st == "ok":
+            final_err = None
+        else:
+            final_err = err
+        ent = build_manifest_entry(
+            symbol,
+            requested_days=required_days,
+            fetched_bars=n_bars,
+            status=st,
+            error=final_err,
+            fetched_at=now_iso,
+            newly_fetched_days=n_bars,
+        )
         manifest[symbol] = ent
         return ent
 
-    # 既存キャッシュが十分
+    # 既存キャッシュが十分（マージ・フル取得が不要な場合）
+    assert cached_df is not None
     n_bars = len(cached_df)
-    ent = {
-        "symbol": symbol,
-        "requested_days": required_days,
-        "fetched_bars": n_bars,
-        "status": "ok" if n_bars >= required_days else "insufficient",
-        "error": None if n_bars >= required_days else "insufficient_bars",
-        "fetched_at": now_iso,
-        "newly_fetched_days": 0,  # 既存キャッシュが十分な場合は新規取得なし
-    }
+    last_date = cached_df.index.max().date()
+    st, err = classify_cache_row_status(
+        n_bars, required_days, last_date, run_date
+    )
+    ent = build_manifest_entry(
+        symbol,
+        requested_days=required_days,
+        fetched_bars=n_bars,
+        status=st,
+        error=None if st == "ok" else err,
+        fetched_at=now_iso,
+        newly_fetched_days=0,
+    )
     manifest[symbol] = ent
     return ent

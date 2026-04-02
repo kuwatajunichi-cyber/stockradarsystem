@@ -78,6 +78,7 @@ def test_rank_turnover_event_causes_job_outputs_files(tmp_path: Path, monkeypatc
     assert len(summary_df) == 1
     assert summary_df.loc[0, "code"] == 7203 or str(summary_df.loc[0, "code"]) == "7203"
     assert summary_df.loc[0, "cause_type"] == "A"
+    assert summary_df.loc[0, "ohlc_as_of"] == "2026-03-06"
 
 
 def test_rank_turnover_event_causes_respects_selection_rules(tmp_path: Path, monkeypatch) -> None:
