@@ -388,9 +388,9 @@ python -m stockradar.jobs.resolve_trading_day --date 2026-02-11
 ```
 
 #### Job2: ensure_index_cache
-- ベンチETFのキャッシュ確保（BOTHが標準）
-  - TOPIX proxy: 1306.T
-  - Nikkei225 proxy: 1321.T
+- ベンチマークのキャッシュ確保（BOTHが標準）
+  - TOPIX: 1475.T
+  - Nikkei225: ^N225
 - 不足時のみ重い取得、通常は差分取得
 - **`update_manifest` 直前**に各ベンチ `*.csv` を読み直し、**ディスクを真実として `_manifest.jsonl` を1行ずつ再構築**（`rebuild_manifest_entry_from_disk`）。メモリ内の status 取りこぼしを防ぐ。
 - `--run-date` 指定時に `stale` が残る銘柄だけ、`STALE_RETRY_SLEEP_SEC` 間隔で待機しつつ最大 `STALE_RETRY_MAX_PASSES` パス（初回は全銘柄・続くパスは stale のみ）。**最終的に `stale` が残る場合は終了コード 2**（GitHub Actions では赤／人手または翌営業日の再実行を想定）。`insufficient` / `failed` はこの待機リトライの対象外。
@@ -433,7 +433,7 @@ python -m stockradar.jobs.compute_indicators_for_core --input data/universe/jpx/
 
 - **内部キャッシュ（非配布）**
   - `data/cache/yf_daily/{code}.csv`（銘柄別OHLCV、最低Close/Volume）
-  - `data/cache/yf_index/{bench}.csv`（ベンチETF）
+  - `data/cache/yf_index/{bench}.csv`（ベンチマーク OHLC）
 - **日次指標（分析用・配布前の生）**
   - `data/indicators/daily/indicators_YYYYMMDD.csv`（縦持ち：date, code, indicators...）。**派生**の `indicators_event_enriched_*.csv` はイベント要因付与用で、他ジョブが「最新コア指標」を選ぶ対象外。
     - 列例: `date`, `code`, `name`（任意）, `turnover_yen`, `z_turnover_{Z_LOOKBACK_DAYS}`, `rs63_topix`, `rs126_topix`, `rs252_topix`, `rs63_nikkei`, `rs126_nikkei`, `rs252_nikkei`, `n_bars_used`

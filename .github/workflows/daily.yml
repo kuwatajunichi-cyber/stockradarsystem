@@ -2,6 +2,11 @@ name: Daily Indicators
 
 on:
   workflow_dispatch:  # 手動実行
+    inputs:
+      force_index:
+        description: "ensure_index_cache に --force（ベンチティッカー変更後のキャッシュ取り直し用）"
+        type: boolean
+        default: false
   schedule:
     # 毎営業日 15:37 JST（UTC 06:37）
     # 注: GitHub ActionsのcronはUTC基準
@@ -79,7 +84,13 @@ jobs:
           RS_WINDOWS: ${{ secrets.RS_WINDOWS || '31,63,126,252' }}
           BUFFER_DAYS: ${{ secrets.BUFFER_DAYS || '20' }}
         run: |
-          python -m stockradar.jobs.ensure_index_cache --run-date ${{ needs.resolve_trading_day.outputs.run_date }}
+          set -e
+          RD="${{ needs.resolve_trading_day.outputs.run_date }}"
+          if [ "${{ github.event.inputs.force_index }}" = "true" ]; then
+            python -m stockradar.jobs.ensure_index_cache --run-date "$RD" --force
+          else
+            python -m stockradar.jobs.ensure_index_cache --run-date "$RD"
+          fi
 
   ensure_core_cache:
     needs: [resolve_trading_day]
