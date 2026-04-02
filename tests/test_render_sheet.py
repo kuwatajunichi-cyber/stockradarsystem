@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 from openpyxl import load_workbook
+from openpyxl.utils.cell import range_boundaries
 from openpyxl.workbook.defined_name import DefinedName
 
 # プロジェクトルートを path に追加（render_sheet が scripts を import するため）
@@ -70,7 +71,7 @@ def test_run_with_fake_drive_adapter() -> None:
 
 
 def test_sheet_protection_enabled() -> None:
-    """sheet_protection: True のとき、全シートに保護がかかり、ソート・フィルタ許可、データ範囲は unlock。"""
+    """sheet_protection: True のとき、全シートに保護がかかり、ソート・フィルタ許可、オートフィルタ範囲まるごと unlock。"""
     config = load_config(_repo_root / "config" / "render_sheet.yaml")
     template_path_str = config.get("template_path")
     if not template_path_str:
@@ -123,6 +124,14 @@ def test_sheet_protection_enabled() -> None:
         if unlocked_found:
             break
     assert unlocked_found, "データ範囲セル（7203）が unlock であること"
+
+    for ws in wb.worksheets:
+        if not ws.auto_filter or not ws.auto_filter.ref:
+            continue
+        min_col, min_row, max_col, max_row = range_boundaries(ws.auto_filter.ref)
+        assert ws.cell(row=max_row, column=min_col).protection.locked is False, (
+            f"オートフィルタ下端 {ws.auto_filter.ref} が unlock であること"
+        )
 
 
 def test_sheet_protection_disabled() -> None:
