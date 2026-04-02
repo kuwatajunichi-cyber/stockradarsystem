@@ -76,6 +76,56 @@ def build_manifest_entry(
     }
 
 
+def rebuild_manifest_entry_from_disk(
+    symbol: str,
+    cache_path: Path,
+    *,
+    requested_days: int,
+    run_date: date | None,
+    fetched_at: str,
+) -> dict:
+    """
+    ディスク上のキャッシュ CSV を唯一の真実として manifest 1 行を組み立て直す。
+
+    ensure のメモリ内更新・分岐取りこぼし・manifest 手編集と実ファイルの差を、
+    update_manifest の直前に解消する。
+    """
+    df = load_cache(cache_path)
+    if df is None or df.empty:
+        return build_manifest_entry(
+            symbol,
+            requested_days=requested_days,
+            fetched_bars=0,
+            status="insufficient",
+            error=ERROR_INSUFFICIENT_BARS,
+            fetched_at=fetched_at,
+            newly_fetched_days=0,
+        )
+    missing_cols = _missing_required_ohlcv_columns(df)
+    n_bars = len(df)
+    last_date = df.index.max().date()
+    if missing_cols:
+        return build_manifest_entry(
+            symbol,
+            requested_days=requested_days,
+            fetched_bars=n_bars,
+            status="insufficient",
+            error=f"schema_mismatch_missing_ohlcv:{','.join(missing_cols)}",
+            fetched_at=fetched_at,
+            newly_fetched_days=0,
+        )
+    st, err = classify_cache_row_status(n_bars, requested_days, last_date, run_date)
+    return build_manifest_entry(
+        symbol,
+        requested_days=requested_days,
+        fetched_bars=n_bars,
+        status=st,
+        error=None if st == "ok" else err,
+        fetched_at=fetched_at,
+        newly_fetched_days=0,
+    )
+
+
 def _missing_required_ohlcv_columns(df: pd.DataFrame | None) -> list[str]:
     """キャッシュDataFrameに不足している必須OHLCV列を返す。"""
     if df is None:

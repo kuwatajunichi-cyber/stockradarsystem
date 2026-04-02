@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 from stockradar.utils.cli_parse import parse_run_date_opt
@@ -25,6 +26,7 @@ from stockradar.utils.yf_cache import (
     MANIFEST_FILENAME,
     ensure_cache_with_incremental_fetch,
     load_manifest,
+    rebuild_manifest_entry_from_disk,
     update_manifest,
 )
 
@@ -144,6 +146,32 @@ def main(argv: list[str] | None = None) -> None:
                 f"insufficient={s0['insufficient']} failed={s0['failed']}",
                 file=sys.stderr,
             )
+
+    reconcile_at = datetime.now(timezone.utc).isoformat()
+    reconcile_changes = 0
+    for bn in bench_order:
+        ticker = BENCHMARKS[bn]
+        cache_path = cache_dir / f"{bn}.csv"
+        rebuilt = rebuild_manifest_entry_from_disk(
+            ticker,
+            cache_path,
+            requested_days=required_days,
+            run_date=run_date,
+            fetched_at=reconcile_at,
+        )
+        old = manifest.get(ticker)
+        if old is None or (
+            old.get("status") != rebuilt.get("status")
+            or old.get("fetched_bars") != rebuilt.get("fetched_bars")
+            or (old.get("error") or "") != (rebuilt.get("error") or "")
+        ):
+            reconcile_changes += 1
+        manifest[ticker] = rebuilt
+    if reconcile_changes > 0:
+        print(
+            f"ensure_index_cache: ディスク照合で manifest を {reconcile_changes} 件同期修正",
+            file=sys.stderr,
+        )
 
     # manifestをまとめて更新（1回だけ）
     print(f"manifest更新中: {len(manifest)}エントリ", file=sys.stderr)
