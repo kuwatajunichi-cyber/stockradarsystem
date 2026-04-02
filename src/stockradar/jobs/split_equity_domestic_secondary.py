@@ -1,6 +1,6 @@
 """
 equity_domestic を ipo / illiquid / core に二次分割するジョブ。
-入力: equity_domestic.csv と data/cache/yf_daily/（キャッシュ＋manifest）
+入力: equity_domestic.csv と data/cache/yf_daily/（キャッシュ＋_manifest_universe.jsonl）
 出力: data/universe/jpx/sets_secondary_YYYYMMDD/
   - equity_domestic_ipo.csv, equity_domestic_illiquid.csv, equity_domestic_core.csv（code のみ）
   - equity_domestic_ipo_with_name.csv 等（code, name, 外部リンクURL列）。銘柄名は JPX processed CSV をマスタとし、
@@ -33,7 +33,7 @@ from stockradar.utils.paths import (
     get_universe_jpx_dir,
 )
 from stockradar.utils.stock_name_shortener import shorten_stock_name
-from stockradar.utils.yf_cache import MANIFEST_FILENAME
+from stockradar.utils.yf_cache import MANIFEST_UNIVERSE_FILENAME
 
 
 def _infer_ymd_from_path(path: Path) -> str | None:
@@ -83,7 +83,7 @@ def main(argv: list[str] | None = None) -> None:
 
     base = Path.cwd()
     cache_dir = get_yf_daily_cache_dir(base)
-    manifest_path = cache_dir / MANIFEST_FILENAME
+    manifest_path = cache_dir / MANIFEST_UNIVERSE_FILENAME
 
     if args.input:
         input_path = Path(args.input)
@@ -112,7 +112,11 @@ def main(argv: list[str] | None = None) -> None:
             file=sys.stderr,
         )
         print(
-            "  python -m stockradar.jobs.fetch_yf_daily_for_universe --input data/universe/jpx/sets_YYYYMMDD/equity_domestic.csv",
+            "  python -m stockradar.jobs.fetch_yf_daily_for_universe --input .../equity_domestic.csv",
+            file=sys.stderr,
+        )
+        print(
+            "（manifest は _manifest_universe.jsonl。日次の _manifest.jsonl とは別です）",
             file=sys.stderr,
         )
         print(
@@ -178,7 +182,11 @@ def main(argv: list[str] | None = None) -> None:
     s = result.summary
     print("--- ログサマリ ---", file=sys.stderr)
     print(f"対象銘柄数: {s['total']}", file=sys.stderr)
-    print(f"取得ok: {s['fetch_ok']}  取得失敗: {s['fetch_failed']}  bars不足: {s['bars_insufficient']}", file=sys.stderr)
+    print(
+        f"取得ok: {s['fetch_ok']}  取得失敗: {s['fetch_failed']}  bars不足: {s['bars_insufficient']}  "
+        f"stale(run_date): {s.get('n_stale_run_date', 0)}",
+        file=sys.stderr,
+    )
     print(f"分割結果  ipo: {s['ipo_count']}  illiquid: {s['illiquid_count']}  core: {s['core_count']}", file=sys.stderr)
     print(f"illiquid 判定  期間(営業日): {s['liq_lookback_days']}  閾値(円): {s['liq_min_median_turnover_yen']}", file=sys.stderr)
     print(f"出力: {out_dir}", file=sys.stderr)

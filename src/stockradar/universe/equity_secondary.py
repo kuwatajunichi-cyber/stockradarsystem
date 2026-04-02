@@ -21,7 +21,7 @@ class SecondarySplitResult:
 
 
 def _load_manifest_entries(manifest_path: Path) -> dict[str, dict]:
-    """_manifest.jsonl を読んで code -> エントリ。"""
+    """ユニバース用 manifest JSONL を読んで code -> エントリ（code 無し行は symbol を鍵に）。"""
     import json
 
     out: dict[str, dict] = {}
@@ -34,9 +34,9 @@ def _load_manifest_entries(manifest_path: Path) -> dict[str, dict]:
                 continue
             try:
                 ent = json.loads(line)
-                code = ent.get("code")
+                code = ent.get("code") or ent.get("symbol")
                 if code:
-                    out[code] = ent
+                    out[str(code).strip()] = ent
             except json.JSONDecodeError:
                 continue
     return out
@@ -88,6 +88,7 @@ def split_equity_domestic_secondary(
     n_ok = 0
     n_failed = 0
     n_insufficient_bars = 0
+    n_stale_run_date = 0
 
     for code in codes:
         ent = manifest.get(code)
@@ -98,13 +99,19 @@ def split_equity_domestic_secondary(
             n_failed += 1
             ipo.append(code)
             continue
-        if status != "ok" or fetched_bars < ipo_lookback_days:
-            # insufficient or bars 不足 → ipo 寄せ
+        # 日次 manifest の stale（run_date 当日バー未到達）と区別: ユニバース取得では基本発生しないが、
+        # 将来の混読に備え、本数が IPO 十分なら IPO に寄せず流動性判定へ回す。
+        if status == "stale" and fetched_bars >= ipo_lookback_days:
+            n_stale_run_date += 1
+            n_ok += 1
+        elif status != "ok" or fetched_bars < ipo_lookback_days:
+            # insufficient / failed 以外の不足・本数不足 → ipo 寄せ
             n_insufficient_bars += 1
             ipo.append(code)
             continue
+        else:
+            n_ok += 1
 
-        n_ok += 1
         # IPO でない → illiquid 判定
         csv_path = cache_dir / f"{code}.csv"
         median_turnover = _median_turnover_yen(csv_path, liq_lookback_days)
@@ -118,6 +125,7 @@ def split_equity_domestic_secondary(
         "fetch_ok": n_ok,
         "fetch_failed": n_failed,
         "bars_insufficient": n_insufficient_bars,
+        "n_stale_run_date": n_stale_run_date,
         "ipo_count": len(ipo),
         "illiquid_count": len(illiquid),
         "core_count": len(core),

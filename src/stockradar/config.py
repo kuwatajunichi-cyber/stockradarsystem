@@ -190,6 +190,19 @@ def get_buffer_days() -> int:
     return _env_int("BUFFER_DAYS", 20)
 
 
+def get_stale_retry_max_passes() -> int:
+    """
+    run_date 指定時、manifest が stale の銘柄に対する再試行を含めた最大パス数。
+    環境変数 STALE_RETRY_MAX_PASSES（default=3: 初回 + 待機後最大2回）。
+    """
+    return _env_int("STALE_RETRY_MAX_PASSES", 3)
+
+
+def get_stale_retry_sleep_sec() -> int:
+    """stale 再試行前の待機秒。環境変数 STALE_RETRY_SLEEP_SEC（default=300=5分）。"""
+    return _env_int("STALE_RETRY_SLEEP_SEC", 300)
+
+
 def get_yf_index_cache_dir(base_dir: Path) -> Path:
     """yfinance 指数キャッシュのルート。data/cache/yf_index/。"""
     return base_dir / "data" / "cache" / "yf_index"

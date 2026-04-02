@@ -16,7 +16,7 @@ from pathlib import Path
 import pandas as pd
 import yaml
 
-from stockradar.config import get_indicators_daily_dir
+from stockradar.utils.core_indicators_csv import find_latest_core_indicators_csv
 from stockradar.event_causes import (
     CandidateEvent,
     ScoreWeights,
@@ -25,14 +25,6 @@ from stockradar.event_causes import (
 )
 from stockradar.event_causes.selection_rules import filter_dataframe, resolve_selection_rules
 from stockradar.utils.stock_name_shortener import shorten_stock_name
-
-
-def _find_latest_indicators(base: Path) -> Path | None:
-    d = get_indicators_daily_dir(base)
-    if not d.exists():
-        return None
-    candidates = sorted(d.glob("indicators_*.csv"))
-    return candidates[-1] if candidates else None
 
 
 def _load_events_jsonl(path: Path) -> list[CandidateEvent]:
@@ -220,7 +212,7 @@ def main(argv: list[str] | None = None) -> None:
         if not indicators_path.is_absolute():
             indicators_path = base / indicators_path
     else:
-        indicators_path = _find_latest_indicators(base)
+        indicators_path = find_latest_core_indicators_csv(base)
         if indicators_path is None:
             print("エラー: indicators_*.csv が見つかりません", file=sys.stderr)
             sys.exit(1)
@@ -285,6 +277,9 @@ def main(argv: list[str] | None = None) -> None:
     for _, row in filtered.iterrows():
         code = str(row["code"]).strip()
         name = str(row.get("name", "")).strip()
+        ohlc_as_of = ""
+        if "date" in row.index and pd.notna(row["date"]):
+            ohlc_as_of = str(row["date"]).strip()
         price_change_pct = None
         if "price_change_pct" in row and pd.notna(row["price_change_pct"]):
             try:
@@ -310,6 +305,7 @@ def main(argv: list[str] | None = None) -> None:
         summary_rows.append(
             {
                 "date": run_date.isoformat(),
+                "ohlc_as_of": ohlc_as_of,
                 "code": code,
                 "name": name,
                 "z_column": z_col,
@@ -327,6 +323,7 @@ def main(argv: list[str] | None = None) -> None:
         for rank, cand in enumerate(ranked, start=1):
             rec = {
                 "date": run_date.isoformat(),
+                "ohlc_as_of": ohlc_as_of,
                 "code": code,
                 "name": name,
                 "rank": rank,

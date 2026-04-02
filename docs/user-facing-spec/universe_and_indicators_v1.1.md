@@ -49,9 +49,15 @@
 
 | 区分 | 内容 |
 | ---- | ---- |
-| **ipo** | キャッシュ取得が失敗している、または取得済みバー数が IPO 判定に必要な営業日数**未満**の銘柄 |
+| **ipo** | キャッシュ取得が失敗している、または取得済みバー数が IPO 判定に必要な営業日数**未満**の銘柄（`insufficient` を含む） |
 | **illiquid** | ipo 以外で、直近の営業日における売買代金（終値×出来高）の**中央値**が、所定の閾値**未満**の銘柄 |
 | **core** | ipo・illiquid 以外 |
+
+**manifest（二次分割が参照するもの）**
+
+- 二次分割は **`data/cache/yf_daily/_manifest_universe.jsonl` のみ**を読む（`fetch_yf_daily_for_universe` が更新）。日次ジョブの `_manifest.jsonl`（`ensure_*` が `run_date` 鮮度を記録）とは**別ファイル**であり、日次の `stale` や run_date 整合は二次分割の IPO 判定に混ぜない。
+- JSONL 1行は **`code` を主キー**とする。`symbol` のみの行も `code` 扱いで読める（実装: `equity_secondary._load_manifest_entries`）。
+- manifest の `status` が **`stale`**（日次側の語義で乗ってきた場合）かつ **`fetched_bars` が IPO 必要本数以上**のとき、二次分割では **IPO に回さず**流動性（中央値）判定へ回す。サマリに `n_stale_run_date` を出す。
 
 **判定パラメータ（参照値）**
 
@@ -73,6 +79,8 @@
 
 以下はすべて **equity_domestic_core** の銘柄を対象とする。  
 各小節の末尾に、**日次指標 CSV**（`compute_indicators_for_core` の出力）と**配布用 XLSX**（テンプレ v1.2 に `render_sheet` で流し込んだ列）の有無を記す。
+
+**`date` 列とファイル名**: 各銘柄行の **`date`** は、その銘柄の**参照した実OHLCの最新日**（run_date 当日のバーが無い場合は前営業日等になる）。出力ファイル名の `indicators_YYYYMMDD.csv` の `YYYYMMDD` は処理の **run_date** 名義で付与される（ファイル名と行の観測日が異なりうる）。
 
 ### 3.1 売買代金（turnover_yen）
 

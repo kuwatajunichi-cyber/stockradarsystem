@@ -2,6 +2,8 @@
 
 他リポジトリで **yfinance により日足 OHLCV（Open/High/Low/Close/Volume）を取得する機能** を実装する際の参考用です。このフォルダには stockradarsystem プロジェクトから抜粋したコードとスニペットを置いています。
 
+> **注意**: この `docs/yfinance_reference/` 内のコピーは本番実装より更新が遅れることがあります。**挙動・契約の正は `src/stockradar/utils/yf_cache.py` および本番ジョブ**を参照してください（例: 日次 `_manifest.jsonl` とユニバース一括 `_manifest_universe.jsonl` の分離、`stale` / `insufficient` の区別）。
+
 ## 含まれるファイル
 
 | ファイル | 説明 |

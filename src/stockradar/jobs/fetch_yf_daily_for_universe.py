@@ -4,8 +4,8 @@ equity_domestic 銘柄リストを入力に、yfinance で日次（Close, Volume
 
 入力: equity_domestic.csv（--input で指定。未指定なら最新 sets_YYYYMMDD から探索）
 required_days = max(IPO_LOOKBACK_DAYS, LIQ_LOOKBACK_DAYS)
-キャッシュ: data/cache/yf_daily/{code}.csv
-manifest: data/cache/yf_daily/_manifest.jsonl（1行1銘柄: code, requested_days, fetched_bars, status, error, fetched_at）
+キャッシュ: data/cache/yf_daily/{code}.csv（ensure_core_cache / 日次ジョブと共有）
+manifest: data/cache/yf_daily/_manifest_universe.jsonl（ユニバース一括専用。日次の _manifest.jsonl は上書きしない）
 """
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ from stockradar.utils.paths import (
     ticker_for_code,
 )
 from stockradar.utils.yf_cache import (
-    MANIFEST_FILENAME,
+    MANIFEST_UNIVERSE_FILENAME,
     period_for_required_days,
     start_end_for_required_days,
 )
@@ -55,9 +55,9 @@ def _load_manifest(manifest_path: Path) -> dict[str, dict]:
                 continue
             try:
                 ent = json.loads(line)
-                code = ent.get("code")
+                code = ent.get("code") or ent.get("symbol")
                 if code:
-                    out[code] = ent
+                    out[str(code).strip()] = ent
             except json.JSONDecodeError:
                 continue
     return out
@@ -173,7 +173,7 @@ def main(argv: list[str] | None = None) -> None:
 
     base = Path.cwd()
     cache_dir = get_yf_daily_cache_dir(base)
-    manifest_path = cache_dir / MANIFEST_FILENAME
+    manifest_path = cache_dir / MANIFEST_UNIVERSE_FILENAME
 
     if args.input:
         input_path = Path(args.input)

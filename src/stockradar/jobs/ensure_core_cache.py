@@ -15,6 +15,8 @@ from stockradar.utils.cli_parse import parse_run_date_opt
 from stockradar.config import (
     get_buffer_days,
     get_rs_windows,
+    get_stale_retry_max_passes,
+    get_stale_retry_sleep_sec,
     get_yf_batch_size,
     get_yf_daily_cache_dir,
     get_yf_sleep_sec_between_batches,
@@ -108,44 +110,82 @@ def main(argv: list[str] | None = None) -> None:
     manifest = load_manifest(manifest_path)
     print(f"manifest読み込み完了: {len(manifest)}エントリ", file=sys.stderr)
 
-    # バッチ処理
-    ok_count = 0
-    fail_count = 0
-    insuf_count = 0
-    newly_fetched_days_list = []  # 新規取得日数を記録
+    max_passes = get_stale_retry_max_passes()
+    stale_sleep = get_stale_retry_sleep_sec()
+    newly_fetched_days_list: list[int] = []
     schema_repair_count = 0
 
-    for i in range(0, len(codes), batch_size):
-        batch = codes[i : i + batch_size]
-        for code in batch:
-            ticker = ticker_for_code(code)
-            cache_path = cache_dir / f"{code}.csv"
-            ent = ensure_cache_with_incremental_fetch(
-                symbol=code,
-                ticker=ticker,
-                cache_path=cache_path,
-                manifest=manifest,  # manifestを渡す（更新される）
-                required_days=required_days,
-                run_date=run_date,
-                force=args.force,
-            )
-            status = ent.get("status", "unknown")
-            if status == "ok":
-                ok_count += 1
-            elif status == "failed":
-                fail_count += 1
+    def _summarize_status() -> dict[str, int]:
+        ok_c = fail_c = insuf_c = stale_c = 0
+        for code in codes:
+            st = manifest.get(code, {}).get("status", "missing")
+            if st == "ok":
+                ok_c += 1
+            elif st == "failed":
+                fail_c += 1
+            elif st == "stale":
+                stale_c += 1
             else:
-                insuf_count += 1
-            err = str(ent.get("error") or "")
-            if err.startswith("schema_mismatch_missing_ohlcv:"):
-                schema_repair_count += 1
-            
-            # 新規取得日数を記録（取得が行われた場合のみ）
-            newly_fetched = ent.get("newly_fetched_days", 0)
-            if newly_fetched > 0:
-                newly_fetched_days_list.append(newly_fetched)
-        if i + batch_size < len(codes):
-            time.sleep(sleep_sec)
+                insuf_c += 1
+        return {
+            "ok": ok_c,
+            "failed": fail_c,
+            "insufficient": insuf_c,
+            "stale": stale_c,
+        }
+
+    for pass_i in range(max_passes):
+        if pass_i > 0:
+            if run_date is None:
+                break
+            stale_codes = [
+                c for c in codes if manifest.get(c, {}).get("status") == "stale"
+            ]
+            stats = _summarize_status()
+            print(
+                f"ensure_core_cache: stale 再試行 {pass_i + 1}/{max_passes} "
+                f"対象銘柄数={len(stale_codes)} "
+                f"(現状 ok={stats['ok']} stale={stats['stale']} "
+                f"insufficient={stats['insufficient']} failed={stats['failed']})",
+                file=sys.stderr,
+            )
+            if not stale_codes:
+                break
+            time.sleep(stale_sleep)
+            pending = stale_codes
+        else:
+            pending = list(codes)
+
+        for i in range(0, len(pending), batch_size):
+            batch = pending[i : i + batch_size]
+            for code in batch:
+                ticker = ticker_for_code(code)
+                cache_path = cache_dir / f"{code}.csv"
+                ent = ensure_cache_with_incremental_fetch(
+                    symbol=code,
+                    ticker=ticker,
+                    cache_path=cache_path,
+                    manifest=manifest,
+                    required_days=required_days,
+                    run_date=run_date,
+                    force=args.force,
+                )
+                err = str(ent.get("error") or "")
+                if err.startswith("schema_mismatch_missing_ohlcv:"):
+                    schema_repair_count += 1
+                newly_fetched = int(ent.get("newly_fetched_days", 0) or 0)
+                if newly_fetched > 0:
+                    newly_fetched_days_list.append(newly_fetched)
+            if i + batch_size < len(pending):
+                time.sleep(sleep_sec)
+
+        if pass_i == 0 and run_date is not None:
+            s0 = _summarize_status()
+            print(
+                f"ensure_core_cache: 初回パス完了 ok={s0['ok']} stale={s0['stale']} "
+                f"insufficient={s0['insufficient']} failed={s0['failed']}",
+                file=sys.stderr,
+            )
 
     # manifestをまとめて更新（1回だけ）
     print(f"manifest更新中: {len(manifest)}エントリ", file=sys.stderr)
@@ -165,8 +205,24 @@ def main(argv: list[str] | None = None) -> None:
     else:
         print("新規取得統計: 取得銘柄数=0（すべてキャッシュから読み込み）", file=sys.stderr)
 
+    final = _summarize_status()
+    ok_count = final["ok"]
+    fail_count = final["failed"]
+    insuf_count = final["insufficient"]
+    stale_count = final["stale"]
+
     print(f"スキーマ自己修復: {schema_repair_count}銘柄", file=sys.stderr)
-    print(f"完了: ok={ok_count} failed={fail_count} insufficient={insuf_count}", file=sys.stderr)
+    print(
+        f"完了: ok={ok_count} failed={fail_count} insufficient={insuf_count} stale={stale_count}",
+        file=sys.stderr,
+    )
+    if run_date is not None and stale_count > 0:
+        print(
+            f"エラー: run_date={run_date.isoformat()} に対し stale が {stale_count} 銘柄残存 "
+            f"（データ未反映・遅延の可能性。人手確認または翌営業日に再実行）",
+            file=sys.stderr,
+        )
+        sys.exit(2)
 
     if ok_count == 0:
         print("警告: すべての銘柄取得に失敗しました", file=sys.stderr)

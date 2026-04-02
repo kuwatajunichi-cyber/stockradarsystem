@@ -42,7 +42,7 @@ def run(
     指定ファイルを有効なターゲットにアップロードする。
     戻り値: 常に 0（アップロード失敗は警告出力のみ）。
     """
-    month, day = _parse_run_date(run_date)
+    _month, _day = _parse_run_date(run_date)
     run_d = datetime.strptime(run_date, "%Y-%m-%d").date()
     # ルーティング:
     # - CSV: work の日フォルダ（0011_work/YYYY-MM/YYYY-MM-DD/）
@@ -53,25 +53,51 @@ def run(
     results: dict[str, str] = {}
     failed_targets: set[str] = set()
 
-    if "drive" in targets:
-        try:
-            from scripts.gdrive.upload_to_work import run as drive_run
-
-            file_ids = [str(f) for f in files]
-            last_id = drive_run(month, file_ids, day=run_date)
-            if last_id:
-                results["drive_file_id"] = last_id
-        except Exception as e:
-            print(f"[Drive] エラー: {e}", file=sys.stderr)
-            # Drive は凍結や認証エラーがあっても他 3 系統が動けばよい前提のため、
-            # エラーはログに残すのみで致命扱いにはしない。
-            failed_targets.add("drive")
-
     def _dest_path_for(f: Path) -> str:
         suf = f.suffix.lower()
         if suf in (".xlsx", ".xls"):
             return paid_month_path
         return work_day_path
+
+    if "drive" in targets:
+        try:
+            from scripts.gdrive.drive_client import (
+                GoogleDriveAdapter,
+                build_service,
+                get_credentials,
+                get_folder_id_paid,
+                get_folder_id_work,
+            )
+
+            service = build_service(get_credentials())
+            adapter = GoogleDriveAdapter(service)
+
+            for f in files:
+                content = f.read_bytes()
+                dest_path = _dest_path_for(f).strip("/")
+                parts = [p for p in dest_path.split("/") if p]
+                if not parts:
+                    raise ValueError(f"Drive宛先パスが不正です: {dest_path}")
+                root = parts[0]
+                if root == "0011_work":
+                    parent_id = get_folder_id_work()
+                elif root == "0012_paid":
+                    parent_id = get_folder_id_paid()
+                else:
+                    raise ValueError(f"Drive宛先プレフィックスが不正です: {root}")
+
+                for folder_name in parts[1:]:
+                    parent_id = adapter.get_or_create_folder(parent_id, folder_name)
+
+                file_id, _ = adapter.upload_file(
+                    parent_id, f.name, content, mime_type=_mime_for(f)
+                )
+                results["drive_file_id"] = file_id
+        except Exception as e:
+            print(f"[Drive] エラー: {e}", file=sys.stderr)
+            # Drive は凍結や認証エラーがあっても他 3 系統が動けばよい前提のため、
+            # エラーはログに残すのみで致命扱いにはしない。
+            failed_targets.add("drive")
 
     if "r2" in targets:
         try:
