@@ -186,6 +186,35 @@ jobs:
         run: |
           python -m stockradar.jobs.ensure_core_cache --input "${{ steps.download_core.outputs.core_csv }}" --run-date ${{ needs.resolve_trading_day.outputs.run_date }}
 
+      - name: Write ensure_core_cache summary
+        if: always()
+        env:
+          RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          summary_path = Path(os.environ["GITHUB_STEP_SUMMARY"])
+          run_date = os.environ.get("RUN_DATE", "")
+          exclusions = Path("data/cache/yf_daily/_stale_exclusions.json")
+          lines = ["## ensure_core_cache summary", f"- run_date: `{run_date}`"]
+          if exclusions.exists():
+            payload = json.loads(exclusions.read_text(encoding="utf-8"))
+            stale_count = int(payload.get("stale_count", 0) or 0)
+            threshold = int(payload.get("threshold", 0) or 0)
+            stale_codes = payload.get("stale_codes") or []
+            preview = ", ".join(str(c) for c in stale_codes[:20])
+            if len(stale_codes) > 20:
+              preview += ", ..."
+            lines.append(f"- stale_count: `{stale_count}` (continue_threshold: `{threshold}`)")
+            lines.append(f"- stale_codes_preview: `{preview or '-'}`")
+          else:
+            lines.append("- stale exclusions file: `not found`")
+          summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+          PY
+
       - name: Archive OHLC store to zip
         env:
           PYTHONPATH: src
@@ -202,6 +231,15 @@ jobs:
           path: data/cache/ohlc_store_archive/ohlc_store.zip
           retention-days: 3
           if-no-files-found: error
+
+      - name: Upload stale exclusions artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stale-exclusions-${{ github.run_id }}
+          path: data/cache/yf_daily/_stale_exclusions.json
+          retention-days: 3
+          if-no-files-found: ignore
 
       - name: Cache OHLC store zip
         uses: actions/cache@v4
@@ -233,6 +271,13 @@ jobs:
         with:
           name: daily-ohlc-store-${{ github.run_id }}
           path: data/cache/ohlc_store_archive/
+
+      - name: Download stale exclusions artifact (optional)
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: stale-exclusions-${{ github.run_id }}
+          path: data/cache/yf_daily/
 
       - name: Cache index data
         uses: actions/cache@v4
@@ -304,6 +349,39 @@ jobs:
           RS_BENCHMARK: ${{ secrets.RS_BENCHMARK || 'BOTH' }}
         run: |
           python -m stockradar.jobs.compute_indicators_for_core --input "${{ steps.download_core.outputs.core_csv }}" --run-date ${{ needs.resolve_trading_day.outputs.run_date }}
+
+      - name: Write compute_indicators summary
+        if: always()
+        env:
+          RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          summary_path = Path(os.environ["GITHUB_STEP_SUMMARY"])
+          run_date = os.environ.get("RUN_DATE", "")
+          exclusions = Path("data/cache/yf_daily/_stale_exclusions.json")
+          lines = ["## compute_indicators summary", f"- run_date: `{run_date}`"]
+          if exclusions.exists():
+            payload = json.loads(exclusions.read_text(encoding="utf-8"))
+            file_run_date = str(payload.get("run_date") or "")
+            stale_count = int(payload.get("stale_count", 0) or 0)
+            codes = payload.get("stale_codes") or []
+            applicable = file_run_date == run_date
+            lines.append(f"- stale_exclusions_file_run_date: `{file_run_date or '-'}'")
+            lines.append(f"- stale_exclusions_applicable: `{applicable}`")
+            lines.append(f"- excluded_by_stale_policy_expected: `{stale_count if applicable else 0}`")
+            preview = ", ".join(str(c) for c in codes[:20])
+            if len(codes) > 20:
+              preview += ", ..."
+            lines.append(f"- stale_codes_preview: `{preview or '-'}`")
+          else:
+            lines.append("- stale exclusions file: `not found`")
+          with summary_path.open("a", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+          PY
 
       - name: Upload indicators artifact
         uses: actions/upload-artifact@v4

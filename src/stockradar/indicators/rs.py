@@ -8,9 +8,13 @@ from datetime import date
 import pandas as pd
 
 from stockradar.indicators.date_anchor import (
+    AsofSeries,
+    AnchorContext,
     anchored_return,
+    build_anchor_context,
     merged_close,
     nth_business_anchor,
+    prepare_asof_series,
     resolve_run_anchor_date,
 )
 
@@ -20,6 +24,19 @@ def compute_rs(
     bench_df: pd.DataFrame,
     windows: list[int],
     run_date: date,
+) -> pd.DataFrame:
+    merged = merged_close(stock_df, bench_df)
+    return compute_rs_from_merged(merged, windows, run_date)
+
+
+def compute_rs_from_merged(
+    merged: pd.DataFrame,
+    windows: list[int],
+    run_date: date,
+    *,
+    anchor_ctx: AnchorContext | None = None,
+    stock_asof: AsofSeries | None = None,
+    bench_asof: AsofSeries | None = None,
 ) -> pd.DataFrame:
     """
     RS（B方式：期間リターン差）を計算。
@@ -32,20 +49,22 @@ def compute_rs(
     Returns:
         DataFrame（rs_T列）
     """
-    merged = merged_close(stock_df, bench_df)
-    run_anchor = resolve_run_anchor_date(merged.index, run_date)
+    ctx = anchor_ctx or build_anchor_context(merged.index)
+    run_anchor = resolve_run_anchor_date(ctx, run_date)
     cols = [f"rs{T}" for T in windows]
     if run_anchor is None:
         return pd.DataFrame([{c: None for c in cols}], index=[pd.Timestamp(run_date)])
+    stock_ready = stock_asof or prepare_asof_series(merged["stock_close"])
+    bench_ready = bench_asof or prepare_asof_series(merged["bench_close"])
 
     row: dict[str, float | None] = {}
     for T in windows:
-        start_anchor = nth_business_anchor(merged.index, run_anchor, T)
+        start_anchor = nth_business_anchor(ctx, run_anchor, T)
         if start_anchor is None:
             row[f"rs{T}"] = None
             continue
-        stock_ret = anchored_return(merged["stock_close"], run_anchor, start_anchor)
-        bench_ret = anchored_return(merged["bench_close"], run_anchor, start_anchor)
+        stock_ret = anchored_return(stock_ready, run_anchor, start_anchor)
+        bench_ret = anchored_return(bench_ready, run_anchor, start_anchor)
         if stock_ret is None or bench_ret is None:
             row[f"rs{T}"] = None
         else:
@@ -61,6 +80,25 @@ def compute_rs_acceleration(
     short_window: int = 31,
     long_window: int = 252,
 ) -> pd.Series:
+    merged = merged_close(stock_df, bench_df)
+    return compute_rs_acceleration_from_merged(
+        merged,
+        run_date,
+        short_window=short_window,
+        long_window=long_window,
+    )
+
+
+def compute_rs_acceleration_from_merged(
+    merged: pd.DataFrame,
+    run_date: date,
+    *,
+    short_window: int = 31,
+    long_window: int = 252,
+    anchor_ctx: AnchorContext | None = None,
+    stock_asof: AsofSeries | None = None,
+    bench_asof: AsofSeries | None = None,
+) -> pd.Series:
     """
     短期RS加速（Short-term RS Acceleration）を計算。
     短期RSと長期RSの差を算出。
@@ -74,20 +112,22 @@ def compute_rs_acceleration(
     Returns:
         Series（rs_acceleration）
     """
-    merged = merged_close(stock_df, bench_df)
-    run_anchor = resolve_run_anchor_date(merged.index, run_date)
+    ctx = anchor_ctx or build_anchor_context(merged.index)
+    run_anchor = resolve_run_anchor_date(ctx, run_date)
     if run_anchor is None:
         return pd.Series([None], index=[pd.Timestamp(run_date)])
+    stock_ready = stock_asof or prepare_asof_series(merged["stock_close"])
+    bench_ready = bench_asof or prepare_asof_series(merged["bench_close"])
 
-    short_anchor = nth_business_anchor(merged.index, run_anchor, short_window)
-    long_anchor = nth_business_anchor(merged.index, run_anchor, long_window)
+    short_anchor = nth_business_anchor(ctx, run_anchor, short_window)
+    long_anchor = nth_business_anchor(ctx, run_anchor, long_window)
     if short_anchor is None or long_anchor is None:
         return pd.Series([None], index=[run_anchor])
 
-    stock_ret_short = anchored_return(merged["stock_close"], run_anchor, short_anchor)
-    bench_ret_short = anchored_return(merged["bench_close"], run_anchor, short_anchor)
-    stock_ret_long = anchored_return(merged["stock_close"], run_anchor, long_anchor)
-    bench_ret_long = anchored_return(merged["bench_close"], run_anchor, long_anchor)
+    stock_ret_short = anchored_return(stock_ready, run_anchor, short_anchor)
+    bench_ret_short = anchored_return(bench_ready, run_anchor, short_anchor)
+    stock_ret_long = anchored_return(stock_ready, run_anchor, long_anchor)
+    bench_ret_long = anchored_return(bench_ready, run_anchor, long_anchor)
     if (
         stock_ret_short is None
         or bench_ret_short is None
@@ -109,6 +149,27 @@ def compute_rs_acceleration_zscore(
     short_window: int = 31,
     long_window: int = 252,
 ) -> pd.Series:
+    merged = merged_close(stock_df, bench_df)
+    return compute_rs_acceleration_zscore_from_merged(
+        merged,
+        run_date,
+        lookback_days=lookback_days,
+        short_window=short_window,
+        long_window=long_window,
+    )
+
+
+def compute_rs_acceleration_zscore_from_merged(
+    merged: pd.DataFrame,
+    run_date: date,
+    *,
+    lookback_days: int,
+    short_window: int = 31,
+    long_window: int = 252,
+    anchor_ctx: AnchorContext | None = None,
+    stock_asof: AsofSeries | None = None,
+    bench_asof: AsofSeries | None = None,
+) -> pd.Series:
     """
     短期RS加速のzscoreを計算。
     短期RS加速を標準化窓で標準化した値。
@@ -123,24 +184,25 @@ def compute_rs_acceleration_zscore(
     Returns:
         Series（rs_acceleration_zscore）
     """
-    merged = merged_close(stock_df, bench_df)
-    run_anchor = resolve_run_anchor_date(merged.index, run_date)
+    ctx = anchor_ctx or build_anchor_context(merged.index)
+    run_anchor = resolve_run_anchor_date(ctx, run_date)
     if run_anchor is None:
         return pd.Series([None], index=[pd.Timestamp(run_date)])
+    stock_ready = stock_asof or prepare_asof_series(merged["stock_close"])
+    bench_ready = bench_asof or prepare_asof_series(merged["bench_close"])
 
-    all_idx = pd.to_datetime(merged.index).sort_values().unique()
-    eligible = all_idx[all_idx <= run_anchor]
+    eligible = ctx.index[ctx.index <= run_anchor]
     sample = eligible[-lookback_days:]
     values: list[float] = []
     for dt in sample:
-        short_anchor = nth_business_anchor(all_idx, dt, short_window)
-        long_anchor = nth_business_anchor(all_idx, dt, long_window)
+        short_anchor = nth_business_anchor(ctx, dt, short_window)
+        long_anchor = nth_business_anchor(ctx, dt, long_window)
         if short_anchor is None or long_anchor is None:
             continue
-        stock_ret_short = anchored_return(merged["stock_close"], dt, short_anchor)
-        bench_ret_short = anchored_return(merged["bench_close"], dt, short_anchor)
-        stock_ret_long = anchored_return(merged["stock_close"], dt, long_anchor)
-        bench_ret_long = anchored_return(merged["bench_close"], dt, long_anchor)
+        stock_ret_short = anchored_return(stock_ready, dt, short_anchor)
+        bench_ret_short = anchored_return(bench_ready, dt, short_anchor)
+        stock_ret_long = anchored_return(stock_ready, dt, long_anchor)
+        bench_ret_long = anchored_return(bench_ready, dt, long_anchor)
         if (
             stock_ret_short is None
             or bench_ret_short is None

@@ -373,6 +373,7 @@ python -m stockradar.jobs.split_equity_domestic_secondary
 | STALE_RETRY_MAX_PASSES | `--run-date` 指定時、`stale` 銘柄を含む最大パス数（初回＋待機後再試行） | 3 |
 | STALE_RETRY_SLEEP_SEC | `stale` 再試行前の待機秒 | 300 |
 | STALE_ALLOW_CONTINUE_MAX_COUNT | 再試行後に `stale` が残ったとき、処理継続を許容する最大件数（`<=` で継続） | 9 |
+| INDICATORS_MAX_WORKERS | 指標算出の並列ワーカー上限（未設定時は `CPU-1` 自動） | 自動 |
 
 ### ジョブ構成
 
@@ -419,6 +420,7 @@ python -m stockradar.jobs.ensure_core_cache --input data/universe/jpx/sets_secon
 - 入力: `equity_domestic_core_with_name.csv`、`data/cache/yf_daily/`、`data/cache/yf_index/`
 - 出力: `data/indicators/daily/indicators_YYYYMMDD.csv`（ファイル名・行 `date` ともに `run_date` 基準。`stale` 除外銘柄は出力しない）
 - **ガード**: `ensure_core_cache` の stale 除外対象以外で **OHLC 最新日が `run_date` 未満**の銘柄があれば、成果物は出さず終了コード 2。
+- 実行方式: 銘柄単位の並列処理（ProcessPool）。出力順序は `code` ソートで固定。
 - 指標:
   - 出来高zscore（売買代金近似ベース）
   - RS（日付アンカー方式：`run_date` と T営業日前アンカーの日付差分）

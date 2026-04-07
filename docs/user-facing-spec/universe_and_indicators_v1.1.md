@@ -83,6 +83,7 @@
 **`date` 列とファイル名**: 出力ファイル名 `indicators_YYYYMMDD.csv` の `YYYYMMDD` は **run_date**。行の `date` も `run_date` 基準で算出し、run_date 未達（stale）銘柄は日次除外ポリシーに従って行を出力しない。
 
 **stale 除外ポリシー（日次）**: `ensure_core_cache` で再試行後 stale が残っても、件数が閾値（既定 9 件）以下なら継続し、`_stale_exclusions.json` に当日除外コードを記録する。`compute_indicators_for_core` は **同一 run_date の除外集合のみ**を適用し、それ以外の stale 検出は失敗扱いにする。
+**実行性能**: 日次指標算出は銘柄単位並列（ProcessPool）で実行する。並列化は性能目的のみで、算出式・欠損時契約・出力順（code昇順）は不変とする。
 
 ### 3.1 売買代金（turnover_yen）
 

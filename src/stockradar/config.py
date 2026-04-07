@@ -221,6 +221,21 @@ def get_indicators_daily_dir(base_dir: Path) -> Path:
     return base_dir / "data" / "indicators" / "daily"
 
 
+def get_indicators_max_workers() -> int | None:
+    """
+    指標算出の並列ワーカー上限。環境変数 INDICATORS_MAX_WORKERS（未設定時は自動）。
+    1未満や不正値は None（自動）扱い。
+    """
+    v = os.environ.get("INDICATORS_MAX_WORKERS", "").strip()
+    if not v:
+        return None
+    try:
+        n = int(v)
+    except ValueError:
+        return None
+    return n if n >= 1 else None
+
+
 def get_universe_jpx_dir(base_dir: Path) -> Path:
     """ユニバースJPXディレクトリ。data/universe/jpx/。"""
     return base_dir / "data" / "universe" / "jpx"

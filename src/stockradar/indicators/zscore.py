@@ -9,6 +9,8 @@ import numpy as np
 import pandas as pd
 
 from stockradar.indicators.date_anchor import (
+    AnchorContext,
+    build_anchor_context,
     nth_business_anchor,
     resolve_run_anchor_date,
 )
@@ -18,6 +20,25 @@ def compute_zscore_turnover(
     df: pd.DataFrame,
     lookback_days: int,
     run_date: date,
+) -> pd.Series:
+    out = df.copy()
+    out.index = pd.to_datetime(out.index)
+    out = out.sort_index()
+    ctx = build_anchor_context(out.index)
+    return compute_zscore_turnover_from_prepared(
+        out,
+        lookback_days,
+        run_date,
+        anchor_ctx=ctx,
+    )
+
+
+def compute_zscore_turnover_from_prepared(
+    out: pd.DataFrame,
+    lookback_days: int,
+    run_date: date,
+    *,
+    anchor_ctx: AnchorContext | None = None,
 ) -> pd.Series:
     """
     出来高zscore（売買代金近似ベース）を計算。
@@ -29,13 +50,11 @@ def compute_zscore_turnover(
     Returns:
         Series（z_turnover）
     """
-    out = df.copy()
-    out.index = pd.to_datetime(out.index)
-    out = out.sort_index()
-    run_anchor = resolve_run_anchor_date(out.index, run_date)
+    ctx = anchor_ctx or build_anchor_context(out.index)
+    run_anchor = resolve_run_anchor_date(ctx, run_date)
     if run_anchor is None:
         return pd.Series([None], index=[pd.Timestamp(run_date)])
-    start_anchor = nth_business_anchor(out.index, run_anchor, lookback_days)
+    start_anchor = nth_business_anchor(ctx, run_anchor, lookback_days)
     if start_anchor is None:
         return pd.Series([None], index=[run_anchor])
 

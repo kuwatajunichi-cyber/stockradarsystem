@@ -16,8 +16,10 @@
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import json
 import sys
+import time
 from datetime import date
 from pathlib import Path
 
@@ -26,20 +28,24 @@ import pandas as pd
 from stockradar.utils.cli_parse import parse_run_date_opt
 from stockradar.config import (
     get_indicators_daily_dir,
+    get_indicators_max_workers,
     get_rs_benchmark,
     get_rs_windows,
     get_yf_daily_cache_dir,
     get_yf_index_cache_dir,
     get_z_lookback_days,
 )
-from stockradar.indicators import (
-    compute_beta_adjusted_rs,
-    compute_information_ratio,
-    compute_rs,
-    compute_rs_acceleration,
-    compute_rs_acceleration_zscore,
-    compute_zscore_turnover,
+from stockradar.indicators.date_anchor import build_anchor_context, prepare_asof_series, merged_close
+from stockradar.indicators.risk_adjusted import (
+    compute_beta_adjusted_rs_from_merged,
+    compute_information_ratio_from_merged,
 )
+from stockradar.indicators.rs import (
+    compute_rs_acceleration_from_merged,
+    compute_rs_acceleration_zscore_from_merged,
+    compute_rs_from_merged,
+)
+from stockradar.indicators.zscore import compute_zscore_turnover_from_prepared
 from stockradar.utils.external_links import build_external_links
 from stockradar.utils.paths import (
     PATTERN_SETS_SECONDARY,
@@ -49,6 +55,7 @@ from stockradar.utils.paths import (
 from stockradar.utils.yf_cache import load_cache
 
 STALE_EXCLUSIONS_FILENAME = "_stale_exclusions.json"
+_WORKER_CTX: dict = {}
 
 # candle_descriptorのインポート（オプション）
 try:
@@ -98,6 +105,145 @@ def load_stale_exclusions(cache_dir: Path, run_date: date) -> set[str]:
     if not isinstance(raw_codes, list):
         return set()
     return {str(c).strip() for c in raw_codes if str(c).strip()}
+
+
+def _init_worker(ctx: dict) -> None:
+    global _WORKER_CTX
+    _WORKER_CTX = ctx
+
+
+def _compute_one_code(task: tuple[str, str]) -> dict:
+    code, name = task
+    run_date: date = _WORKER_CTX["run_date"]
+    daily_cache_dir = Path(_WORKER_CTX["daily_cache_dir"])
+    z_lookback_days = int(_WORKER_CTX["z_lookback_days"])
+    rs_windows: list[int] = list(_WORKER_CTX["rs_windows"])
+    benchmarks: dict[str, pd.DataFrame] = _WORKER_CTX["benchmarks"]
+    compute_candle = bool(_WORKER_CTX["compute_candle"])
+
+    stock_cache_path = daily_cache_dir / f"{code}.csv"
+    stock_df = load_cache(stock_cache_path)
+    if stock_df is None or stock_df.empty:
+        return {"status": "missing"}
+    stock_df = stock_df[stock_df.index.date <= run_date]
+    if stock_df.empty:
+        return {"status": "missing"}
+
+    latest_idx = stock_df.index.max()
+    latest_date = latest_idx.date()
+    if latest_date < run_date:
+        return {"status": "stale_ohlc", "code": code}
+
+    z_ctx = build_anchor_context(stock_df.index)
+    z_turnover = compute_zscore_turnover_from_prepared(
+        stock_df,
+        z_lookback_days,
+        run_date,
+        anchor_ctx=z_ctx,
+    )
+    turnover_yen = stock_df["Close"] * stock_df["Volume"]
+
+    result_row = {
+        "date": latest_date.isoformat(),
+        "code": code,
+        "turnover_yen": turnover_yen.loc[latest_idx] if latest_idx in turnover_yen.index else None,
+        f"z_turnover_{z_lookback_days}": z_turnover.iloc[0] if not z_turnover.empty else None,
+        **build_external_links(code, "link_prefix"),
+        "n_bars_used": len(stock_df),
+    }
+    if name:
+        result_row["name"] = name
+
+    if compute_candle and all(col in stock_df.columns for col in ["Open", "High", "Low", "Close"]):
+        try:
+            candle_labels, price_text = compute_candle_descriptors(stock_df)
+            result_row["candle_labels"] = candle_labels
+            result_row["price_text"] = price_text
+        except Exception:
+            result_row["candle_labels"] = None
+            result_row["price_text"] = None
+    else:
+        result_row["candle_labels"] = None
+        result_row["price_text"] = None
+
+    nan_count = 1 if pd.isna(result_row[f"z_turnover_{z_lookback_days}"]) else 0
+    for bench_name, bench_df_filtered in benchmarks.items():
+        if bench_df_filtered.empty:
+            continue
+        merged = merged_close(stock_df, bench_df_filtered)
+        anchor_ctx = build_anchor_context(merged.index)
+        stock_asof = prepare_asof_series(merged["stock_close"])
+        bench_asof = prepare_asof_series(merged["bench_close"])
+
+        rs_df = compute_rs_from_merged(
+            merged,
+            rs_windows,
+            run_date,
+            anchor_ctx=anchor_ctx,
+            stock_asof=stock_asof,
+            bench_asof=bench_asof,
+        )
+        if not rs_df.empty:
+            for T in rs_windows:
+                col_name = f"rs{T}_{bench_name}"
+                value = rs_df.iloc[0][f"rs{T}"]
+                result_row[col_name] = value
+                if pd.isna(value):
+                    nan_count += 1
+
+        rs_accel = compute_rs_acceleration_from_merged(
+            merged,
+            run_date,
+            short_window=31,
+            long_window=252,
+            anchor_ctx=anchor_ctx,
+            stock_asof=stock_asof,
+            bench_asof=bench_asof,
+        )
+        result_row[f"rs_acceleration_{bench_name}"] = rs_accel.iloc[0] if not rs_accel.empty else None
+        if pd.isna(result_row[f"rs_acceleration_{bench_name}"]):
+            nan_count += 1
+
+        rs_accel_zscore = compute_rs_acceleration_zscore_from_merged(
+            merged,
+            run_date,
+            lookback_days=z_lookback_days,
+            short_window=31,
+            long_window=252,
+            anchor_ctx=anchor_ctx,
+            stock_asof=stock_asof,
+            bench_asof=bench_asof,
+        )
+        result_row[f"rs_acceleration_zscore_{bench_name}"] = (
+            rs_accel_zscore.iloc[0] if not rs_accel_zscore.empty else None
+        )
+        if pd.isna(result_row[f"rs_acceleration_zscore_{bench_name}"]):
+            nan_count += 1
+
+        beta_adj_rs = compute_beta_adjusted_rs_from_merged(
+            merged,
+            run_date,
+            beta_window=126,
+            return_window=252,
+            anchor_ctx=anchor_ctx,
+            stock_asof=stock_asof,
+            bench_asof=bench_asof,
+        )
+        result_row[f"beta_adjusted_rs_{bench_name}"] = beta_adj_rs.iloc[0] if not beta_adj_rs.empty else None
+        if pd.isna(result_row[f"beta_adjusted_rs_{bench_name}"]):
+            nan_count += 1
+
+        info_ratio = compute_information_ratio_from_merged(
+            merged,
+            run_date,
+            window=63,
+            anchor_ctx=anchor_ctx,
+        )
+        result_row[f"information_ratio_{bench_name}"] = info_ratio.iloc[0] if not info_ratio.empty else None
+        if pd.isna(result_row[f"information_ratio_{bench_name}"]):
+            nan_count += 1
+
+    return {"status": "ok", "row": result_row, "nan_count": nan_count}
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -152,6 +298,8 @@ def main(argv: list[str] | None = None) -> None:
     z_lookback_days = get_z_lookback_days()
     rs_windows = get_rs_windows()
     rs_benchmark = get_rs_benchmark()
+    configured_workers = get_indicators_max_workers()
+    max_workers = configured_workers or max(1, (os.cpu_count() or 2) - 1)
 
     print(f"入力: {input_path} 銘柄数={len(codes_df)}", file=sys.stderr)
     print(f"z_lookback_days={z_lookback_days}, rs_windows={rs_windows}, rs_benchmark={rs_benchmark}", file=sys.stderr)
@@ -195,150 +343,52 @@ def main(argv: list[str] | None = None) -> None:
                 file=sys.stderr,
             )
             sys.exit(2)
+    benchmarks_filtered = {
+        k: v[v.index.date <= run_date] for k, v in benchmarks.items()
+    }
 
     # 各銘柄の指標を計算
+    started = time.perf_counter()
     results = []
     nan_count = 0
     missing_count = 0
     stale_ohlc_codes: list[str] = []
-
+    tasks: list[tuple[str, str]] = []
     for _, row in codes_df.iterrows():
         code = str(row["code"]).strip()
-        name = row.get("name", "")
         if code in excluded_by_stale:
             continue
+        tasks.append((code, str(row.get("name", ""))))
 
-        # 銘柄データ読み込み
-        stock_cache_path = daily_cache_dir / f"{code}.csv"
-        stock_df = load_cache(stock_cache_path)
-        if stock_df is None or stock_df.empty:
+    worker_ctx = {
+        "run_date": run_date,
+        "daily_cache_dir": str(daily_cache_dir),
+        "z_lookback_days": z_lookback_days,
+        "rs_windows": rs_windows,
+        "benchmarks": benchmarks_filtered,
+        "compute_candle": compute_candle_descriptors is not None,
+    }
+
+    if max_workers <= 1:
+        _init_worker(worker_ctx)
+        raw_out = [_compute_one_code(t) for t in tasks]
+    else:
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=max_workers,
+            initializer=_init_worker,
+            initargs=(worker_ctx,),
+        ) as ex:
+            raw_out = list(ex.map(_compute_one_code, tasks, chunksize=8))
+
+    for out in raw_out:
+        status = out.get("status")
+        if status == "missing":
             missing_count += 1
-            continue
-
-        # run_dateでフィルタ
-        stock_df = stock_df[stock_df.index.date <= run_date]
-        if stock_df.empty:
-            missing_count += 1
-            continue
-
-        # 出来高zscore計算
-        z_turnover = compute_zscore_turnover(stock_df, z_lookback_days, run_date)
-        turnover_yen = stock_df["Close"] * stock_df["Volume"]
-
-        # 最新日の値を取得（run_dateでフィルタ後の最新日）
-        latest_idx = stock_df.index.max()
-        latest_date = stock_df.index.max().date()
-
-        # run_date 名義の日次 job では当日バー未達のまま出力すると前営業日と全行一致する事故になるため、行を出さず失敗扱いに集約する
-        if latest_date < run_date:
-            stale_ohlc_codes.append(code)
-            continue
-
-        result_row = {
-            "date": latest_date.isoformat(),  # latest_idx（実データ最新日）を使用
-            "code": code,
-            "turnover_yen": turnover_yen.loc[latest_idx] if latest_idx in turnover_yen.index else None,
-            f"z_turnover_{z_lookback_days}": z_turnover.loc[latest_idx] if latest_idx in z_turnover.index else None,
-            **build_external_links(code, "link_prefix"),
-        }
-        if "name" in codes_df.columns:
-            result_row["name"] = name
-
-        # candle_labelsとprice_textを計算（Open, High, Lowが必要）
-        if compute_candle_descriptors is not None and all(col in stock_df.columns for col in ["Open", "High", "Low", "Close"]):
-            try:
-                candle_labels, price_text = compute_candle_descriptors(stock_df)
-                result_row["candle_labels"] = candle_labels
-                result_row["price_text"] = price_text
-            except Exception as e:
-                print(f"警告: {code} のcandle descriptor計算に失敗: {type(e).__name__}: {e}", file=sys.stderr)
-                import traceback
-                traceback.print_exc(file=sys.stderr)
-                result_row["candle_labels"] = None
-                result_row["price_text"] = None
-        else:
-            # Open, High, Lowが無い場合、またはインポート失敗時はスキップ
-            result_row["candle_labels"] = None
-            result_row["price_text"] = None
-
-        # RS計算
-        for bench_name, bench_df in benchmarks.items():
-            bench_df_filtered = bench_df[bench_df.index.date <= run_date]
-            if bench_df_filtered.empty:
-                continue
-            rs_df = compute_rs(stock_df, bench_df_filtered, rs_windows, run_date)
-            if not rs_df.empty and latest_idx in rs_df.index:
-                for T in rs_windows:
-                    col_name = f"rs{T}_{bench_name}"
-                    value = rs_df.loc[latest_idx, f"rs{T}"]
-                    result_row[col_name] = value
-                    if pd.isna(value):
-                        nan_count += 1
-
-            # 短期RS加速（Short-term RS Acceleration）
-            rs_accel = compute_rs_acceleration(
-                stock_df,
-                bench_df_filtered,
-                run_date,
-                short_window=31,
-                long_window=252,
-            )
-            if not rs_accel.empty and latest_idx in rs_accel.index:
-                col_name = f"rs_acceleration_{bench_name}"
-                value = rs_accel.loc[latest_idx]
-                result_row[col_name] = value
-                if pd.isna(value):
-                    nan_count += 1
-
-            # 短期RS加速のzscore
-            rs_accel_zscore = compute_rs_acceleration_zscore(
-                stock_df,
-                bench_df_filtered,
-                run_date,
-                lookback_days=z_lookback_days,
-                short_window=31,
-                long_window=252,
-            )
-            if not rs_accel_zscore.empty and latest_idx in rs_accel_zscore.index:
-                col_name = f"rs_acceleration_zscore_{bench_name}"
-                value = rs_accel_zscore.loc[latest_idx]
-                result_row[col_name] = value
-                if pd.isna(value):
-                    nan_count += 1
-
-            # β調整RS（Market-adjusted Excess Return）
-            beta_adj_rs = compute_beta_adjusted_rs(
-                stock_df,
-                bench_df_filtered,
-                run_date,
-                beta_window=126,
-                return_window=252,
-            )
-            if not beta_adj_rs.empty and latest_idx in beta_adj_rs.index:
-                col_name = f"beta_adjusted_rs_{bench_name}"
-                value = beta_adj_rs.loc[latest_idx]
-                result_row[col_name] = value
-                if pd.isna(value):
-                    nan_count += 1
-
-            # 情報比率（Information Ratio）
-            info_ratio = compute_information_ratio(
-                stock_df,
-                bench_df_filtered,
-                run_date,
-                window=63,
-            )
-            if not info_ratio.empty and latest_idx in info_ratio.index:
-                col_name = f"information_ratio_{bench_name}"
-                value = info_ratio.loc[latest_idx]
-                result_row[col_name] = value
-                if pd.isna(value):
-                    nan_count += 1
-
-        # n_bars_used（監査用）
-        result_row["n_bars_used"] = len(stock_df)
-
-        results.append(result_row)
+        elif status == "stale_ohlc":
+            stale_ohlc_codes.append(str(out.get("code", "")))
+        elif status == "ok":
+            nan_count += int(out.get("nan_count", 0))
+            results.append(out["row"])
 
     if stale_ohlc_codes:
         preview = stale_ohlc_codes[:40]
@@ -356,8 +406,15 @@ def main(argv: list[str] | None = None) -> None:
         print("エラー: 計算結果が0件です", file=sys.stderr)
         sys.exit(1)
 
+    elapsed_sec = time.perf_counter() - started
+    print(
+        f"性能: processed={len(tasks)} workers={max_workers} elapsed_sec={elapsed_sec:.2f}",
+        file=sys.stderr,
+    )
+
     # DataFrame化
     result_df = pd.DataFrame(results)
+    result_df = result_df.sort_values("code").reset_index(drop=True)
 
     # 出力
     indicators_dir.mkdir(parents=True, exist_ok=True)
