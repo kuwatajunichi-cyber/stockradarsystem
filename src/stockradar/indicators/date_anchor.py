@@ -30,9 +30,14 @@ class AsofSeries(NamedTuple):
     values: np.ndarray
 
 
+def _to_ns_i8(index_like: pd.Index) -> np.ndarray:
+    idx = pd.to_datetime(index_like)
+    return idx.astype("datetime64[ns]").view("i8")
+
+
 def build_anchor_context(index: pd.Index) -> AnchorContext:
     idx = pd.to_datetime(index).sort_values().unique()
-    return AnchorContext(index=idx, index_ns=idx.view("i8"))
+    return AnchorContext(index=idx, index_ns=_to_ns_i8(idx))
 
 
 def resolve_run_anchor_date(index: pd.Index | AnchorContext, run_date: date) -> pd.Timestamp | None:
@@ -62,7 +67,7 @@ def prepare_asof_series(series: pd.Series) -> AsofSeries:
     s = series.dropna().sort_index()
     if s.empty:
         return AsofSeries(index_ns=np.array([], dtype=np.int64), values=np.array([], dtype=float))
-    return AsofSeries(index_ns=s.index.view("i8"), values=s.to_numpy(dtype=float, copy=False))
+    return AsofSeries(index_ns=_to_ns_i8(s.index), values=s.to_numpy(dtype=float, copy=False))
 
 
 def asof_value(series: pd.Series | AsofSeries, anchor: pd.Timestamp) -> float | None:
