@@ -244,9 +244,12 @@ def main(argv: list[str] | None = None) -> None:
         file=sys.stderr,
     )
     if run_date is not None and stale_count > 0:
+        stale_codes = [c for c in codes if manifest.get(c, {}).get("status") == "stale"]
+        stale_codes_str = ",".join(stale_codes)
         print(
             f"エラー: run_date={run_date.isoformat()} に対し stale が {stale_count} 銘柄残存 "
-            f"（データ未反映・遅延の可能性。人手確認または翌営業日に再実行）",
+            f"（データ未反映・遅延の可能性。人手確認または翌営業日に再実行） "
+            f"stale_codes=[{stale_codes_str}]",
             file=sys.stderr,
         )
         sys.exit(2)
