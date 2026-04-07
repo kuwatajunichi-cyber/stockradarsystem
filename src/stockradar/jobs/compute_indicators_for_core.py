@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from datetime import date
 from pathlib import Path
@@ -47,6 +48,8 @@ from stockradar.utils.paths import (
 )
 from stockradar.utils.yf_cache import load_cache
 
+STALE_EXCLUSIONS_FILENAME = "_stale_exclusions.json"
+
 # candle_descriptorのインポート（オプション）
 try:
     from stockradar.utils.candle_descriptor import compute_candle_descriptors
@@ -73,6 +76,28 @@ def max_ohlc_date_on_or_before(df: pd.DataFrame | None, run_date: date) -> date 
     if sub.empty:
         return None
     return pd.Timestamp(sub.index.max()).date()
+
+
+def load_stale_exclusions(cache_dir: Path, run_date: date) -> set[str]:
+    path = cache_dir / STALE_EXCLUSIONS_FILENAME
+    if not path.exists():
+        return set()
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        print(f"警告: stale除外ファイルのJSON形式が不正です: {path}", file=sys.stderr)
+        return set()
+    file_run_date = str(payload.get("run_date") or "").strip()
+    if file_run_date != run_date.isoformat():
+        print(
+            f"警告: stale除外ファイルの run_date が不一致のため無効化します: file={file_run_date}, run_date={run_date.isoformat()}",
+            file=sys.stderr,
+        )
+        return set()
+    raw_codes = payload.get("stale_codes")
+    if not isinstance(raw_codes, list):
+        return set()
+    return {str(c).strip() for c in raw_codes if str(c).strip()}
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -130,6 +155,14 @@ def main(argv: list[str] | None = None) -> None:
 
     print(f"入力: {input_path} 銘柄数={len(codes_df)}", file=sys.stderr)
     print(f"z_lookback_days={z_lookback_days}, rs_windows={rs_windows}, rs_benchmark={rs_benchmark}", file=sys.stderr)
+    excluded_by_stale = load_stale_exclusions(daily_cache_dir, run_date)
+    if excluded_by_stale:
+        preview = sorted(excluded_by_stale)[:40]
+        more = "..." if len(excluded_by_stale) > len(preview) else ""
+        print(
+            f"stale除外ポリシー適用: excluded_by_stale_policy={len(excluded_by_stale)} codes={preview}{more}",
+            file=sys.stderr,
+        )
 
     # ベンチマーク読み込み
     benchmarks = {}
@@ -172,6 +205,8 @@ def main(argv: list[str] | None = None) -> None:
     for _, row in codes_df.iterrows():
         code = str(row["code"]).strip()
         name = row.get("name", "")
+        if code in excluded_by_stale:
+            continue
 
         # 銘柄データ読み込み
         stock_cache_path = daily_cache_dir / f"{code}.csv"
@@ -187,7 +222,7 @@ def main(argv: list[str] | None = None) -> None:
             continue
 
         # 出来高zscore計算
-        z_turnover = compute_zscore_turnover(stock_df, z_lookback_days)
+        z_turnover = compute_zscore_turnover(stock_df, z_lookback_days, run_date)
         turnover_yen = stock_df["Close"] * stock_df["Volume"]
 
         # 最新日の値を取得（run_dateでフィルタ後の最新日）
@@ -231,7 +266,7 @@ def main(argv: list[str] | None = None) -> None:
             bench_df_filtered = bench_df[bench_df.index.date <= run_date]
             if bench_df_filtered.empty:
                 continue
-            rs_df = compute_rs(stock_df, bench_df_filtered, rs_windows)
+            rs_df = compute_rs(stock_df, bench_df_filtered, rs_windows, run_date)
             if not rs_df.empty and latest_idx in rs_df.index:
                 for T in rs_windows:
                     col_name = f"rs{T}_{bench_name}"
@@ -241,7 +276,13 @@ def main(argv: list[str] | None = None) -> None:
                         nan_count += 1
 
             # 短期RS加速（Short-term RS Acceleration）
-            rs_accel = compute_rs_acceleration(stock_df, bench_df_filtered, short_window=31, long_window=252)
+            rs_accel = compute_rs_acceleration(
+                stock_df,
+                bench_df_filtered,
+                run_date,
+                short_window=31,
+                long_window=252,
+            )
             if not rs_accel.empty and latest_idx in rs_accel.index:
                 col_name = f"rs_acceleration_{bench_name}"
                 value = rs_accel.loc[latest_idx]
@@ -251,7 +292,12 @@ def main(argv: list[str] | None = None) -> None:
 
             # 短期RS加速のzscore
             rs_accel_zscore = compute_rs_acceleration_zscore(
-                stock_df, bench_df_filtered, lookback_days=z_lookback_days, short_window=31, long_window=252
+                stock_df,
+                bench_df_filtered,
+                run_date,
+                lookback_days=z_lookback_days,
+                short_window=31,
+                long_window=252,
             )
             if not rs_accel_zscore.empty and latest_idx in rs_accel_zscore.index:
                 col_name = f"rs_acceleration_zscore_{bench_name}"
@@ -261,7 +307,13 @@ def main(argv: list[str] | None = None) -> None:
                     nan_count += 1
 
             # β調整RS（Market-adjusted Excess Return）
-            beta_adj_rs = compute_beta_adjusted_rs(stock_df, bench_df_filtered, beta_window=126, return_window=252)
+            beta_adj_rs = compute_beta_adjusted_rs(
+                stock_df,
+                bench_df_filtered,
+                run_date,
+                beta_window=126,
+                return_window=252,
+            )
             if not beta_adj_rs.empty and latest_idx in beta_adj_rs.index:
                 col_name = f"beta_adjusted_rs_{bench_name}"
                 value = beta_adj_rs.loc[latest_idx]
@@ -270,7 +322,12 @@ def main(argv: list[str] | None = None) -> None:
                     nan_count += 1
 
             # 情報比率（Information Ratio）
-            info_ratio = compute_information_ratio(stock_df, bench_df_filtered, window=63)
+            info_ratio = compute_information_ratio(
+                stock_df,
+                bench_df_filtered,
+                run_date,
+                window=63,
+            )
             if not info_ratio.empty and latest_idx in info_ratio.index:
                 col_name = f"information_ratio_{bench_name}"
                 value = info_ratio.loc[latest_idx]
@@ -314,6 +371,8 @@ def main(argv: list[str] | None = None) -> None:
     total_indicators = len(result_df) * (len(rs_windows) + 4) * len(benchmarks)
     nan_ratio = nan_count / total_indicators if total_indicators > 0 else 0
     print(f"サマリ: 計算成功={len(result_df)}, 欠損銘柄={missing_count}, NaN比率={nan_ratio:.2%}", file=sys.stderr)
+    if excluded_by_stale:
+        print(f"サマリ: excluded_by_stale_policy={len(excluded_by_stale)}", file=sys.stderr)
 
     if nan_ratio > 0.5:
         print(f"警告: NaN比率が高いです ({nan_ratio:.2%})", file=sys.stderr)

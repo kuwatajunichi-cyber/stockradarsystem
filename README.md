@@ -372,6 +372,7 @@ python -m stockradar.jobs.split_equity_domestic_secondary
 | YF_RETRY_BACKOFF_SEC | 再試行待機秒（カンマ区切り） | 5,15,30 |
 | STALE_RETRY_MAX_PASSES | `--run-date` 指定時、`stale` 銘柄を含む最大パス数（初回＋待機後再試行） | 3 |
 | STALE_RETRY_SLEEP_SEC | `stale` 再試行前の待機秒 | 300 |
+| STALE_ALLOW_CONTINUE_MAX_COUNT | 再試行後に `stale` が残ったとき、処理継続を許容する最大件数（`<=` で継続） | 9 |
 
 ### ジョブ構成
 
@@ -405,7 +406,7 @@ python -m stockradar.jobs.ensure_index_cache --run-date 2026-02-11
 - 各銘柄のOHLCVキャッシュを確保（不足時のみ重い取得）
 - 分割取得 + インターバル + リトライ + 途中再開（`_manifest.jsonl`）
 - **`update_manifest` 直前**に入力銘柄ごとの `yf_daily/{code}.csv` を読み直し、**ディスクを真実として manifest を再構築**（`rebuild_manifest_entry_from_disk`）。memory / 分岐の取りこぼしで `ok` 偽装されるのを防ぐ。
-- **stale 再試行・終了コード 2** は Job2 と同様（`ensure_index_cache` 参照）
+- `stale` 再試行後、残存件数が `STALE_ALLOW_CONTINUE_MAX_COUNT` 以下なら継続し、`data/cache/yf_daily/_stale_exclusions.json` に除外対象を保存。閾値超過時は終了コード 2。
 
 ```powershell
 $env:PYTHONPATH = "src"
@@ -416,11 +417,11 @@ python -m stockradar.jobs.ensure_core_cache --input data/universe/jpx/sets_secon
 
 #### Job4: compute_indicators_for_core
 - 入力: `equity_domestic_core_with_name.csv`、`data/cache/yf_daily/`、`data/cache/yf_index/`
-- 出力: `data/indicators/daily/indicators_YYYYMMDD.csv`（**ファイル名の日付は `run_date`、行の `date` 列は各銘柄の実OHLC最新日**）
-- **ガード**: ベンチマークまたはいずれかの銘柄で **OHLC 最新日が `run_date` 未満**のとき、**成果物は出さず終了コード 2**（前営業日データで `run_date` 名義ファイルを出さない）
+- 出力: `data/indicators/daily/indicators_YYYYMMDD.csv`（ファイル名・行 `date` ともに `run_date` 基準。`stale` 除外銘柄は出力しない）
+- **ガード**: `ensure_core_cache` の stale 除外対象以外で **OHLC 最新日が `run_date` 未満**の銘柄があれば、成果物は出さず終了コード 2。
 - 指標:
   - 出来高zscore（売買代金近似ベース）
-  - RS（B方式：期間リターン差）
+  - RS（日付アンカー方式：`run_date` と T営業日前アンカーの日付差分）
 
 ```powershell
 $env:PYTHONPATH = "src"

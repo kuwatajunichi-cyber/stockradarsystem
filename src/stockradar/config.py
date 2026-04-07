@@ -203,6 +203,14 @@ def get_stale_retry_sleep_sec() -> int:
     return _env_int("STALE_RETRY_SLEEP_SEC", 300)
 
 
+def get_stale_allow_continue_max_count() -> int:
+    """
+    stale 残存時に処理継続を許容する上限件数。
+    環境変数 STALE_ALLOW_CONTINUE_MAX_COUNT（default=9）。
+    """
+    return _env_int("STALE_ALLOW_CONTINUE_MAX_COUNT", 9)
+
+
 def get_yf_index_cache_dir(base_dir: Path) -> Path:
     """yfinance 指数キャッシュのルート。data/cache/yf_index/。"""
     return base_dir / "data" / "cache" / "yf_index"

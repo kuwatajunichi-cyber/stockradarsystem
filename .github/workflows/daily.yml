@@ -182,6 +182,7 @@ jobs:
           YF_SLEEP_SEC_BETWEEN_BATCHES: ${{ secrets.YF_SLEEP_SEC_BETWEEN_BATCHES || '5' }}
           YF_RETRY_MAX: ${{ secrets.YF_RETRY_MAX || '3' }}
           YF_RETRY_BACKOFF_SEC: ${{ secrets.YF_RETRY_BACKOFF_SEC || '5,15,30' }}
+          STALE_ALLOW_CONTINUE_MAX_COUNT: ${{ secrets.STALE_ALLOW_CONTINUE_MAX_COUNT || '9' }}
         run: |
           python -m stockradar.jobs.ensure_core_cache --input "${{ steps.download_core.outputs.core_csv }}" --run-date ${{ needs.resolve_trading_day.outputs.run_date }}
 
