@@ -8,6 +8,7 @@ equity_domestic_coreのOHLCVキャッシュ確保ジョブ（Job3）。
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import time
 from datetime import datetime, timezone
@@ -17,6 +18,7 @@ from stockradar.utils.cli_parse import parse_run_date_opt
 from stockradar.config import (
     get_buffer_days,
     get_rs_windows,
+    get_stale_allow_continue_max_count,
     get_stale_retry_max_passes,
     get_stale_retry_sleep_sec,
     get_yf_batch_size,
@@ -38,6 +40,9 @@ from stockradar.utils.yf_cache import (
     rebuild_manifest_entry_from_disk,
     update_manifest,
 )
+
+
+STALE_EXCLUSIONS_FILENAME = "_stale_exclusions.json"
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -113,6 +118,7 @@ def main(argv: list[str] | None = None) -> None:
 
     max_passes = get_stale_retry_max_passes()
     stale_sleep = get_stale_retry_sleep_sec()
+    stale_continue_max_count = get_stale_allow_continue_max_count()
     newly_fetched_days_list: list[int] = []
     schema_repair_count = 0
 
@@ -244,12 +250,40 @@ def main(argv: list[str] | None = None) -> None:
         file=sys.stderr,
     )
     if run_date is not None and stale_count > 0:
+        stale_codes = [c for c in codes if manifest.get(c, {}).get("status") == "stale"]
+        stale_codes_str = ",".join(stale_codes)
+        exclusions_path = cache_dir / STALE_EXCLUSIONS_FILENAME
+        payload = {
+            "run_date": run_date.isoformat(),
+            "threshold": stale_continue_max_count,
+            "stale_count": stale_count,
+            "stale_codes": stale_codes,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        exclusions_path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        print(f"stale除外ファイル出力: {exclusions_path}", file=sys.stderr)
+        if stale_count <= stale_continue_max_count:
+            print(
+                f"警告: stale が {stale_count} 件残存しましたが、閾値({stale_continue_max_count})以下のため継続します "
+                f"stale_codes=[{stale_codes_str}]",
+                file=sys.stderr,
+            )
+            return
         print(
             f"エラー: run_date={run_date.isoformat()} に対し stale が {stale_count} 銘柄残存 "
-            f"（データ未反映・遅延の可能性。人手確認または翌営業日に再実行）",
+            f"（データ未反映・遅延の可能性。人手確認または翌営業日に再実行） "
+            f"stale_codes=[{stale_codes_str}]",
             file=sys.stderr,
         )
         sys.exit(2)
+    if run_date is not None and stale_count == 0:
+        exclusions_path = cache_dir / STALE_EXCLUSIONS_FILENAME
+        if exclusions_path.exists():
+            exclusions_path.unlink()
+            print(f"stale除外ファイル削除: {exclusions_path}", file=sys.stderr)
 
     if ok_count == 0:
         print("警告: すべての銘柄取得に失敗しました", file=sys.stderr)

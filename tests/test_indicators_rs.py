@@ -4,6 +4,8 @@ compute_rs, compute_rs_acceleration, compute_rs_acceleration_zscore を検証す
 """
 from __future__ import annotations
 
+from datetime import date
+
 import pandas as pd
 import pytest
 
@@ -41,10 +43,10 @@ def bench_df() -> pd.DataFrame:
 def test_compute_rs_returns_dataframe_with_rs_columns(
     stock_df: pd.DataFrame, bench_df: pd.DataFrame
 ) -> None:
-    """compute_rs が DataFrame を返し、index が merge と一致し rs1/rs2 列が存在すること。"""
-    result = compute_rs(stock_df, bench_df, windows=[1, 2])
+    """compute_rs が run_date アンカー1行の DataFrame を返し rs列が存在すること。"""
+    result = compute_rs(stock_df, bench_df, windows=[1, 2], run_date=date(2026, 1, 14))
     assert isinstance(result, pd.DataFrame)
-    assert result.index.equals(stock_df.index)
+    assert len(result) == 1
     assert "rs1" in result.columns
     assert "rs2" in result.columns
 
@@ -53,42 +55,39 @@ def test_compute_rs_one_period_return_difference(
     stock_df: pd.DataFrame, bench_df: pd.DataFrame
 ) -> None:
     """1期リターン差が期待値と一致すること（銘柄+2%、ベンチ+1% → rs1=0.01）。"""
-    result = compute_rs(stock_df, bench_df, windows=[1])
-    # 2日目: 銘柄 (102/100 - 1)=0.02, ベンチ (101/100 - 1)=0.01 → rs1 = 0.01
-    rs1_day2 = result["rs1"].iloc[1]
-    assert rs1_day2 == pytest.approx(0.01, rel=1e-9)
+    result = compute_rs(stock_df, bench_df, windows=[1], run_date=date(2026, 1, 14))
+    rs1 = result["rs1"].iloc[0]
+    assert rs1 == pytest.approx(118 / 116 - 109 / 108, rel=1e-9)
 
 
 def test_compute_rs_acceleration_returns_series(
     stock_df: pd.DataFrame, bench_df: pd.DataFrame
 ) -> None:
-    """compute_rs_acceleration が Series を返し長さが入力と整合すること。"""
+    """compute_rs_acceleration が run_date アンカー1点の Series を返すこと。"""
     result = compute_rs_acceleration(
-        stock_df, bench_df, short_window=1, long_window=2
+        stock_df, bench_df, date(2026, 1, 14), short_window=1, long_window=2
     )
     assert isinstance(result, pd.Series)
-    assert len(result) == len(stock_df)
-    assert result.index.equals(stock_df.index)
+    assert len(result) == 1
 
 
 def test_compute_rs_acceleration_zscore_returns_series(
     stock_df: pd.DataFrame, bench_df: pd.DataFrame
 ) -> None:
     """compute_rs_acceleration_zscore が Series を返すこと。"""
-    # min_periods = max(20, int(lookback_days*0.7)) のため lookback_days >= 21 が必要
+    # データが短いため min_periods を満たせず None になるが、返り型は維持
     result = compute_rs_acceleration_zscore(
-        stock_df, bench_df, lookback_days=21, short_window=1, long_window=2
+        stock_df, bench_df, date(2026, 1, 14), lookback_days=21, short_window=1, long_window=2
     )
     assert isinstance(result, pd.Series)
-    assert len(result) == len(stock_df)
+    assert len(result) == 1
 
 
 def test_compute_rs_acceleration_zscore_leading_nan(
     stock_df: pd.DataFrame, bench_df: pd.DataFrame
 ) -> None:
-    """窓不足で先頭が NaN になること。"""
+    """窓不足時はアンカー値が NaN/None になること。"""
     result = compute_rs_acceleration_zscore(
-        stock_df, bench_df, lookback_days=21, short_window=1, long_window=2
+        stock_df, bench_df, date(2026, 1, 14), lookback_days=21, short_window=1, long_window=2
     )
-    # shift(long_window) と rolling(min_periods) のため先頭は NaN
     assert pd.isna(result.iloc[0])

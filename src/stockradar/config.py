@@ -203,6 +203,14 @@ def get_stale_retry_sleep_sec() -> int:
     return _env_int("STALE_RETRY_SLEEP_SEC", 300)
 
 
+def get_stale_allow_continue_max_count() -> int:
+    """
+    stale 残存時に処理継続を許容する上限件数。
+    環境変数 STALE_ALLOW_CONTINUE_MAX_COUNT（default=9）。
+    """
+    return _env_int("STALE_ALLOW_CONTINUE_MAX_COUNT", 9)
+
+
 def get_yf_index_cache_dir(base_dir: Path) -> Path:
     """yfinance 指数キャッシュのルート。data/cache/yf_index/。"""
     return base_dir / "data" / "cache" / "yf_index"
@@ -211,6 +219,21 @@ def get_yf_index_cache_dir(base_dir: Path) -> Path:
 def get_indicators_daily_dir(base_dir: Path) -> Path:
     """日次指標出力ディレクトリ。data/indicators/daily/。"""
     return base_dir / "data" / "indicators" / "daily"
+
+
+def get_indicators_max_workers() -> int | None:
+    """
+    指標算出の並列ワーカー上限。環境変数 INDICATORS_MAX_WORKERS（未設定時は自動）。
+    1未満や不正値は None（自動）扱い。
+    """
+    v = os.environ.get("INDICATORS_MAX_WORKERS", "").strip()
+    if not v:
+        return None
+    try:
+        n = int(v)
+    except ValueError:
+        return None
+    return n if n >= 1 else None
 
 
 def get_universe_jpx_dir(base_dir: Path) -> Path:
