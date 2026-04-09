@@ -48,3 +48,17 @@ def test_compute_zscore_turnover_leading_nan_with_small_lookback(
         run_date=date(2026, 1, 12),
     )
     assert pd.isna(result.iloc[0])
+
+
+def test_compute_zscore_turnover_with_timezone_aware_index() -> None:
+    idx = pd.to_datetime(
+        ["2026-01-01 15:00:00+09:00", "2026-01-02 15:00:00+09:00", "2026-01-05 15:00:00+09:00"],
+        utc=True,
+    )
+    df = pd.DataFrame(
+        {"Close": [100.0, 101.0, 102.0], "Volume": [1000.0, 1100.0, 1200.0]},
+        index=idx,
+    )
+    out = compute_zscore_turnover(df, lookback_days=2, run_date=date(2026, 1, 5))
+    assert isinstance(out, pd.Series)
+    assert len(out) == 1
