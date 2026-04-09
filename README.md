@@ -1,7 +1,10 @@
 # Stock Radar System
 
 ## Document
-https://raw.githubusercontent.com/kuwatajunichi-cyber/stockradarsystem/refs/heads/main/docs/INDEX.md
+
+- **ドキュメント索引（正本）**: [docs/INDEX.md](docs/INDEX.md)  
+  Raw: https://raw.githubusercontent.com/kuwatajunichi-cyber/stockradarsystem/refs/heads/main/docs/INDEX.md
+- **品質ゲート・契約（開発ガバナンス）**: 原則・運用基準・契約の一覧は [docs/INDEX.md](docs/INDEX.md) の「品質ゲート・契約（開発ガバナンス）」を参照。Cursor 向けの原則ルールは [.cursor/rules/quality-governance.mdc](.cursor/rules/quality-governance.mdc)。
 
 ## 概要
 
