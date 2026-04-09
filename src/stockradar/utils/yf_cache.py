@@ -17,7 +17,6 @@ import yfinance as yf
 from stockradar.config import (
     get_yf_retry_backoff_sec,
     get_yf_retry_max,
-    get_yf_sleep_sec_between_batches,
 )
 
 MANIFEST_FILENAME = "_manifest.jsonl"
@@ -250,7 +249,6 @@ def fetch_yf_data(
         start_dt, _ = start_end_for_required_days(required_days)
         use_period = True
 
-    last_error: str | None = None
     for attempt in range(retry_max + 1):
         try:
             t = yf.Ticker(ticker)
@@ -273,7 +271,6 @@ def fetch_yf_data(
                     auto_adjust=True,
                 )
             if hist is None or hist.empty:
-                last_error = "empty_history"
                 if attempt < retry_max:
                     time.sleep(backoff_sec[min(attempt, len(backoff_sec) - 1)])
                 continue
@@ -283,7 +280,6 @@ def fetch_yf_data(
                 if hist.columns.nlevels > 1:
                     hist.columns = hist.columns.get_level_values(0)
             if "Close" not in hist.columns or "Volume" not in hist.columns:
-                last_error = "missing_columns"
                 if attempt < retry_max:
                     time.sleep(backoff_sec[min(attempt, len(backoff_sec) - 1)])
                 continue
@@ -291,7 +287,6 @@ def fetch_yf_data(
             required_cols = ["Open", "High", "Low", "Close", "Volume"]
             available_cols = [col for col in required_cols if col in hist.columns]
             if len(available_cols) < 2:  # CloseとVolumeは最低限必要
-                last_error = "missing_columns"
                 if attempt < retry_max:
                     time.sleep(backoff_sec[min(attempt, len(backoff_sec) - 1)])
                 continue
@@ -303,8 +298,7 @@ def fetch_yf_data(
             if run_date:
                 df = df[df.index.date <= run_date]
             return df
-        except Exception as e:
-            last_error = str(e)
+        except Exception:
             if attempt < retry_max:
                 time.sleep(backoff_sec[min(attempt, len(backoff_sec) - 1)])
 

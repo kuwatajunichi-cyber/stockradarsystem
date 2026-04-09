@@ -120,7 +120,6 @@ def _classify_polarity(title: str) -> str:
 
 
 def _classify_scope(source: str, title: str) -> tuple[str, str]:
-    t = title.lower()
     if source == "tdnet":
         return "issuer", "company"
     if "本日の【" in title or "レーティング日報" in title or "話題株" in title:

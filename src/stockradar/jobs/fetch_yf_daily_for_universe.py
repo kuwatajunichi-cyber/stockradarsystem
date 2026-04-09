@@ -175,6 +175,7 @@ def main(argv: list[str] | None = None) -> None:
     cache_dir = get_yf_daily_cache_dir(base)
     manifest_path = cache_dir / MANIFEST_UNIVERSE_FILENAME
 
+    input_path: Path | None
     if args.input:
         input_path = Path(args.input)
         if not input_path.is_absolute():
@@ -190,6 +191,7 @@ def main(argv: list[str] | None = None) -> None:
                 file=sys.stderr,
             )
             raise SystemExit(1)
+    assert input_path is not None
 
     if not input_path.exists():
         print(f"エラー: 入力が存在しません: {input_path}", file=sys.stderr)

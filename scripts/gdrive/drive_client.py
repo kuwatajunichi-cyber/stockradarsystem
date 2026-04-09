@@ -13,6 +13,7 @@ from __future__ import annotations
 import os
 import sys
 import uuid
+import importlib.util
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -59,16 +60,15 @@ DRIVE_SCOPE = "https://www.googleapis.com/auth/drive"
 
 
 def _ensure_deps() -> None:
-    try:
-        from google.oauth2.credentials import Credentials
-        from googleapiclient.discovery import build
-    except ImportError as e:
+    has_creds = importlib.util.find_spec("google.oauth2.credentials") is not None
+    has_discovery = importlib.util.find_spec("googleapiclient.discovery") is not None
+    if not (has_creds and has_discovery):
         print(
             "エラー: Google Drive API 用の依存関係がありません。"
             " pip install google-api-python-client google-auth を実行してください。",
             file=sys.stderr,
         )
-        raise SystemExit(1) from e
+        raise SystemExit(1)
 
 
 def get_credentials(extra_scopes: list[str] | None = None) -> Any:

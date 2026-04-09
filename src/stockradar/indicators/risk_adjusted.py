@@ -16,15 +16,9 @@ from stockradar.indicators.date_anchor import (
     merged_close,
     nth_business_anchor,
     prepare_asof_series,
+    normalize_utc_naive_index,
     resolve_run_anchor_date,
 )
-
-
-def _to_naive_utc_index(index: pd.Index) -> pd.DatetimeIndex:
-    idx = pd.DatetimeIndex(pd.to_datetime(index))
-    if idx.tz is not None:
-        idx = idx.tz_convert("UTC").tz_localize(None)
-    return idx
 
 
 def compute_beta_adjusted_rs(
@@ -67,7 +61,7 @@ def compute_beta_adjusted_rs_from_merged(
         Series（beta_adjusted_rs）
     """
     merged_local = merged.copy()
-    merged_local.index = _to_naive_utc_index(merged_local.index)
+    merged_local.index = normalize_utc_naive_index(merged_local.index)
     ctx = anchor_ctx or build_anchor_context(merged_local.index)
     run_anchor = resolve_run_anchor_date(ctx, run_date)
     if run_anchor is None:
@@ -76,7 +70,6 @@ def compute_beta_adjusted_rs_from_merged(
     if start_anchor is None:
         return pd.Series([None], index=[run_anchor])
 
-    idx = ctx.index
     beta_end = start_anchor
     beta_start = nth_business_anchor(ctx, beta_end, beta_window)
     if beta_start is None:
@@ -141,7 +134,7 @@ def compute_information_ratio_from_merged(
         Series（information_ratio）
     """
     merged_local = merged.copy()
-    merged_local.index = _to_naive_utc_index(merged_local.index)
+    merged_local.index = normalize_utc_naive_index(merged_local.index)
     ctx = anchor_ctx or build_anchor_context(merged_local.index)
     run_anchor = resolve_run_anchor_date(ctx, run_date)
     if run_anchor is None:

@@ -65,6 +65,7 @@ def main(argv: list[str] | None = None) -> None:
 
     print(f"キャッシュ出力: {cache_dir}", file=sys.stderr)
     print(f"required_days={required_days} (rs_max={rs_max}, z_days={z_days}, buffer={buffer_days})", file=sys.stderr)
+    print(f"整合確認: run_date={run_date.isoformat() if run_date else 'today'}", file=sys.stderr)
 
     # manifestを1回だけ読み込む
     manifest = load_manifest(manifest_path)

@@ -11,6 +11,7 @@ import pandas as pd
 from stockradar.indicators.date_anchor import (
     AnchorContext,
     build_anchor_context,
+    normalize_utc_naive_index,
     nth_business_anchor,
     resolve_run_anchor_date,
 )
@@ -22,7 +23,7 @@ def compute_zscore_turnover(
     run_date: date,
 ) -> pd.Series:
     out = df.copy()
-    out.index = pd.to_datetime(out.index)
+    out.index = normalize_utc_naive_index(out.index)
     out = out.sort_index()
     ctx = build_anchor_context(out.index)
     return compute_zscore_turnover_from_prepared(
@@ -51,10 +52,7 @@ def compute_zscore_turnover_from_prepared(
         Series（z_turnover）
     """
     out_local = out.copy()
-    idx = pd.to_datetime(out_local.index)
-    if getattr(idx, "tz", None) is not None:
-        idx = idx.tz_convert("UTC").tz_localize(None)
-    out_local.index = idx
+    out_local.index = normalize_utc_naive_index(out_local.index)
 
     ctx = anchor_ctx or build_anchor_context(out_local.index)
     run_anchor = resolve_run_anchor_date(ctx, run_date)

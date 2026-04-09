@@ -7,6 +7,7 @@ import argparse
 import sys
 from datetime import date
 from pathlib import Path
+from typing import Any, cast
 
 import pandas as pd
 import yaml
@@ -111,6 +112,7 @@ def main(argv: list[str] | None = None) -> None:
     base = Path.cwd()
     run_date = date.fromisoformat(args.run_date) if args.run_date else date.today()
 
+    indicators_path: Path | None
     if args.indicators:
         indicators_path = _resolve_path(base, args.indicators)
     else:
@@ -118,6 +120,7 @@ def main(argv: list[str] | None = None) -> None:
         if indicators_path is None:
             print("エラー: indicators_*.csv が見つかりません", file=sys.stderr)
             sys.exit(1)
+    assert indicators_path is not None
     if not indicators_path.exists():
         print(f"エラー: indicators が存在しません: {indicators_path}", file=sys.stderr)
         sys.exit(1)
@@ -139,7 +142,11 @@ def main(argv: list[str] | None = None) -> None:
 
     cfg_path = _resolve_path(base, args.selection_config)
     daily_cfg = _load_daily_cfg(cfg_path)
-    selection_rules = daily_cfg.get("selection_rules") if isinstance(daily_cfg.get("selection_rules"), dict) else None
+    selection_rules = (
+        cast(dict[str, Any], daily_cfg.get("selection_rules"))
+        if isinstance(daily_cfg.get("selection_rules"), dict)
+        else None
+    )
     resolved_rules = resolve_selection_rules(selection_rules, z_column=z_col, z_threshold=args.z_threshold)
     target_df = filter_dataframe(indicators_df, resolved_rules)
     target_codes = {_norm_code(x) for x in target_df["code"].tolist() if _norm_code(x)}

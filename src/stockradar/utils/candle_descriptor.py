@@ -5,8 +5,6 @@
 """
 from __future__ import annotations
 
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
 
@@ -306,9 +304,6 @@ def compute_candle_labels(
     latest_tr = df.loc[latest_idx, "TR"]
     latest_gap_atr_val = gap_atr.loc[latest_idx] if latest_idx in gap_atr.index else np.nan
     latest_gap = df.loc[latest_idx, "gap"]
-    latest_hit_high = df.loc[latest_idx, "hit_high"]
-    latest_hit_low = df.loc[latest_idx, "hit_low"]
-    latest_close_pos = df.loc[latest_idx, "close_pos"]
     latest_open = df.loc[latest_idx, "Open"]
 
     # 制限値幅テーブルを使った判定（S高・S安はレンジ0より優先）

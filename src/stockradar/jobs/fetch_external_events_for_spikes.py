@@ -151,6 +151,7 @@ def main(argv: list[str] | None = None) -> None:
     run_date = date.fromisoformat(args.run_date) if args.run_date else date.today()
     cutoff_dt = _parse_cutoff_datetime(run_date, args.cutoff_time) if args.cutoff_time.strip() else None
 
+    indicators_path: Path | None
     if args.indicators:
         indicators_path = Path(args.indicators)
         if not indicators_path.is_absolute():
@@ -160,6 +161,7 @@ def main(argv: list[str] | None = None) -> None:
         if indicators_path is None:
             print("エラー: indicators_*.csv が見つかりません", file=sys.stderr)
             sys.exit(1)
+    assert indicators_path is not None
     if not indicators_path.exists():
         print(f"エラー: indicators が存在しません: {indicators_path}", file=sys.stderr)
         sys.exit(1)
@@ -212,23 +214,23 @@ def main(argv: list[str] | None = None) -> None:
             print(f"警告: TDnet取得失敗 date={d.isoformat()}: {type(e).__name__}: {e}", file=sys.stderr)
             d += timedelta(days=1)
             continue
-        tdnet_events.extend([e for e in day_events if e.code in target_codes])
+        tdnet_events.extend([ev for ev in day_events if ev.code in target_codes])
         d += timedelta(days=1)
 
     all_events = kabutan_events + tdnet_events
-    all_events = [e for e in all_events if _is_within_cutoff(e, cutoff_dt)]
+    all_events = [ev for ev in all_events if _is_within_cutoff(ev, cutoff_dt)]
     filtered_count = len(all_events)
 
     # 重複除去（code, published_at, title）
     # 株探とTDnetで重複する場合はTDnetを優先する。
     dedup_map: dict[tuple[str, str, str], ScrapedEvent] = {}
-    for e in all_events:
-        k = _event_identity_key(e)
+    for ev in all_events:
+        k = _event_identity_key(ev)
         prev = dedup_map.get(k)
         if prev is None:
-            dedup_map[k] = e
+            dedup_map[k] = ev
             continue
-        dedup_map[k] = _prefer_event(prev, e)
+        dedup_map[k] = _prefer_event(prev, ev)
     uniq = list(dedup_map.values())
     dedup_removed = filtered_count - len(uniq)
     uniq.sort(key=lambda x: (x.code, x.published_at, x.source))
@@ -238,8 +240,8 @@ def main(argv: list[str] | None = None) -> None:
         output_path = base / output_path
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8") as f:
-        for e in uniq:
-            f.write(json.dumps(_event_to_record(e), ensure_ascii=False) + "\n")
+        for ev in uniq:
+            f.write(json.dumps(_event_to_record(ev), ensure_ascii=False) + "\n")
 
     print(f"入力 indicators: {indicators_path}", file=sys.stderr)
     print(f"抽出設定: {selection_cfg_path if selection_cfg_path.exists() else '(default z-threshold)'}", file=sys.stderr)

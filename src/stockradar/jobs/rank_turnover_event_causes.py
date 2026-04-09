@@ -207,6 +207,7 @@ def main(argv: list[str] | None = None) -> None:
     base = Path.cwd()
     run_date = date.fromisoformat(args.run_date) if args.run_date else date.today()
 
+    indicators_path: Path | None
     if args.indicators:
         indicators_path = Path(args.indicators)
         if not indicators_path.is_absolute():
@@ -216,6 +217,7 @@ def main(argv: list[str] | None = None) -> None:
         if indicators_path is None:
             print("エラー: indicators_*.csv が見つかりません", file=sys.stderr)
             sys.exit(1)
+    assert indicators_path is not None
 
     if not indicators_path.exists():
         print(f"エラー: indicators ファイルが見つかりません: {indicators_path}", file=sys.stderr)
@@ -261,10 +263,12 @@ def main(argv: list[str] | None = None) -> None:
 
     decision_threshold = args.decision_threshold
     if decision_threshold is None:
-        decision_threshold = float(daily_cfg.get("decision_threshold", 0.55))
+        raw_decision = daily_cfg.get("decision_threshold", 0.55)
+        decision_threshold = float(raw_decision if isinstance(raw_decision, (int, float, str)) else 0.55)
     a_threshold = args.a_threshold
     if a_threshold is None:
-        a_threshold = float(daily_cfg.get("a_threshold", 0.72))
+        raw_a = daily_cfg.get("a_threshold", 0.72)
+        a_threshold = float(raw_a if isinstance(raw_a, (int, float, str)) else 0.72)
 
     alias_cfg_path = Path(args.name_alias_config)
     if not alias_cfg_path.is_absolute():
