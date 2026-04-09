@@ -63,6 +63,33 @@
 
 ---
 
+## 品質ゲート・契約（開発ガバナンス）
+
+CI・ワークフロー・ジョブの変更に関わる「原則」「運用基準」「契約」を階層分離して整理する。詳細は各ファイルの本文に従う。
+
+### Project Rules（Cursor / エディタ向け・原則）
+
+- [.cursor/rules/quality-governance.mdc](../.cursor/rules/quality-governance.mdc)
+
+### Policies（運用基準・レビュー観点）
+
+- [docs/policies/quality-gate-standards.md](policies/quality-gate-standards.md)
+- [docs/policies/quality-change-checklist.md](policies/quality-change-checklist.md)
+
+### Contracts（仕様レベルの約束事）
+
+- [docs/contracts/exit_codes.md](contracts/exit_codes.md)
+- [docs/contracts/datetime_normalization.md](contracts/datetime_normalization.md)
+- [docs/contracts/determinism_and_idempotency.md](contracts/determinism_and_idempotency.md)
+- [docs/contracts/workflow_preflight_contract.md](contracts/workflow_preflight_contract.md)
+
+### 補助（スコープ・テスト配置）
+
+- [docs/plans/quality_gate_scope_lock.md](plans/quality_gate_scope_lock.md)
+- [tests/TEST_RELOCATION_MAP.md](../tests/TEST_RELOCATION_MAP.md)
+
+---
+
 ## 運用ルール（重要）
 - 個別ドキュメントのURL共有は不要  
 - 本 INDEX の URL のみ共有すれば十分  
