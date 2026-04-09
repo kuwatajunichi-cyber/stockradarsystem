@@ -10,7 +10,7 @@ from stockradar.jobs.compute_indicators_for_core import _compute_one_code, _init
 
 
 def test_compute_one_code_parallel_matches_serial(tmp_path: Path) -> None:
-    idx = pd.to_datetime(["2026-04-04", "2026-04-07", "2026-04-08"])
+    idx = pd.to_datetime(["2026-04-04", "2026-04-07", "2026-04-08"], utc=True)
     stock_df = pd.DataFrame(
         {
             "Open": [100.0, 101.0, 102.0],

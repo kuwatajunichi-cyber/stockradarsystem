@@ -30,13 +30,24 @@ class AsofSeries(NamedTuple):
     values: np.ndarray
 
 
+def _to_naive_utc_index(index_like: pd.Index) -> pd.DatetimeIndex:
+    """
+    DatetimeIndex を UTC基準の timezone-naive に正規化する。
+    tz-aware / tz-naive の双方を受け入れる。
+    """
+    idx = pd.DatetimeIndex(pd.to_datetime(index_like))
+    if idx.tz is not None:
+        idx = idx.tz_convert("UTC").tz_localize(None)
+    return idx
+
+
 def _to_ns_i8(index_like: pd.Index) -> np.ndarray:
-    idx = pd.to_datetime(index_like)
-    return idx.astype("datetime64[ns]").view("i8")
+    idx = _to_naive_utc_index(index_like)
+    return idx.view("i8")
 
 
 def build_anchor_context(index: pd.Index) -> AnchorContext:
-    idx = pd.to_datetime(index).sort_values().unique()
+    idx = _to_naive_utc_index(index).sort_values().unique()
     return AnchorContext(index=idx, index_ns=_to_ns_i8(idx))
 
 
@@ -44,7 +55,7 @@ def resolve_run_anchor_date(index: pd.Index | AnchorContext, run_date: date) -> 
     if isinstance(index, AnchorContext):
         idx = index.index
     else:
-        idx = pd.to_datetime(index)
+        idx = _to_naive_utc_index(index)
     candidates = idx[idx.date <= run_date]
     if len(candidates) == 0:
         return None
