@@ -50,7 +50,13 @@ def compute_zscore_turnover_from_prepared(
     Returns:
         Series（z_turnover）
     """
-    ctx = anchor_ctx or build_anchor_context(out.index)
+    out_local = out.copy()
+    idx = pd.to_datetime(out_local.index)
+    if getattr(idx, "tz", None) is not None:
+        idx = idx.tz_convert("UTC").tz_localize(None)
+    out_local.index = idx
+
+    ctx = anchor_ctx or build_anchor_context(out_local.index)
     run_anchor = resolve_run_anchor_date(ctx, run_date)
     if run_anchor is None:
         return pd.Series([None], index=[pd.Timestamp(run_date)])
@@ -58,7 +64,7 @@ def compute_zscore_turnover_from_prepared(
     if start_anchor is None:
         return pd.Series([None], index=[run_anchor])
 
-    window_df = out[(out.index > start_anchor) & (out.index <= run_anchor)]
+    window_df = out_local[(out_local.index > start_anchor) & (out_local.index <= run_anchor)]
     turnover_yen = window_df["Close"] * window_df["Volume"]
     log_turnover = np.log1p(turnover_yen)
     min_periods = max(20, int(lookback_days * 0.7))
