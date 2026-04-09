@@ -68,3 +68,16 @@ def test_compute_information_ratio_sign_when_excess_positive(
     valid = result.dropna()
     assert len(valid) > 0
     assert (valid > 0).all()
+
+
+def test_risk_adjusted_metrics_accept_timezone_aware_index() -> None:
+    idx = pd.to_datetime(
+        ["2026-01-01 15:00:00+09:00", "2026-01-02 15:00:00+09:00", "2026-01-05 15:00:00+09:00"] * 20,
+        utc=True,
+    )[:60]
+    stock = pd.DataFrame({"Close": [100.0 * (1.01**i) for i in range(len(idx))]}, index=idx)
+    bench = pd.DataFrame({"Close": [100.0 * (1.005**i) for i in range(len(idx))]}, index=idx)
+    out1 = compute_beta_adjusted_rs(stock, bench, date(2026, 3, 27), beta_window=21, return_window=21)
+    out2 = compute_information_ratio(stock, bench, date(2026, 3, 27), window=21)
+    assert isinstance(out1, pd.Series) and len(out1) == 1
+    assert isinstance(out2, pd.Series) and len(out2) == 1
