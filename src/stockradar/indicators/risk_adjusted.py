@@ -20,6 +20,13 @@ from stockradar.indicators.date_anchor import (
 )
 
 
+def _to_naive_utc_index(index: pd.Index) -> pd.DatetimeIndex:
+    idx = pd.DatetimeIndex(pd.to_datetime(index))
+    if idx.tz is not None:
+        idx = idx.tz_convert("UTC").tz_localize(None)
+    return idx
+
+
 def compute_beta_adjusted_rs(
     stock_df: pd.DataFrame,
     bench_df: pd.DataFrame,
@@ -59,7 +66,9 @@ def compute_beta_adjusted_rs_from_merged(
     Returns:
         Series（beta_adjusted_rs）
     """
-    ctx = anchor_ctx or build_anchor_context(merged.index)
+    merged_local = merged.copy()
+    merged_local.index = _to_naive_utc_index(merged_local.index)
+    ctx = anchor_ctx or build_anchor_context(merged_local.index)
     run_anchor = resolve_run_anchor_date(ctx, run_date)
     if run_anchor is None:
         return pd.Series([None], index=[pd.Timestamp(run_date)])
@@ -73,7 +82,9 @@ def compute_beta_adjusted_rs_from_merged(
     if beta_start is None:
         return pd.Series([None], index=[run_anchor])
 
-    beta_slice = merged[(merged.index > beta_start) & (merged.index <= beta_end)]
+    beta_slice = merged_local[
+        (merged_local.index > beta_start) & (merged_local.index <= beta_end)
+    ]
     stock_ret = beta_slice["stock_close"].ffill().pct_change().dropna()
     bench_ret = beta_slice["bench_close"].ffill().pct_change().dropna()
     rets = pd.concat([stock_ret, bench_ret], axis=1, join="inner").dropna()
@@ -86,8 +97,8 @@ def compute_beta_adjusted_rs_from_merged(
     cov = float(np.cov(rets.iloc[:, 0].to_numpy(), rets.iloc[:, 1].to_numpy(), ddof=0)[0, 1])
     beta = cov / bench_var
 
-    stock_ready = stock_asof or prepare_asof_series(merged["stock_close"])
-    bench_ready = bench_asof or prepare_asof_series(merged["bench_close"])
+    stock_ready = stock_asof or prepare_asof_series(merged_local["stock_close"])
+    bench_ready = bench_asof or prepare_asof_series(merged_local["bench_close"])
     stock_cumret = anchored_return(stock_ready, run_anchor, start_anchor)
     bench_cumret = anchored_return(bench_ready, run_anchor, start_anchor)
     if stock_cumret is None or bench_cumret is None:
@@ -129,7 +140,9 @@ def compute_information_ratio_from_merged(
     Returns:
         Series（information_ratio）
     """
-    ctx = anchor_ctx or build_anchor_context(merged.index)
+    merged_local = merged.copy()
+    merged_local.index = _to_naive_utc_index(merged_local.index)
+    ctx = anchor_ctx or build_anchor_context(merged_local.index)
     run_anchor = resolve_run_anchor_date(ctx, run_date)
     if run_anchor is None:
         return pd.Series([None], index=[pd.Timestamp(run_date)])
@@ -137,7 +150,9 @@ def compute_information_ratio_from_merged(
     if start_anchor is None:
         return pd.Series([None], index=[run_anchor])
 
-    window_slice = merged[(merged.index > start_anchor) & (merged.index <= run_anchor)]
+    window_slice = merged_local[
+        (merged_local.index > start_anchor) & (merged_local.index <= run_anchor)
+    ]
     stock_ret = window_slice["stock_close"].ffill().pct_change().dropna()
     bench_ret = window_slice["bench_close"].ffill().pct_change().dropna()
     excess = pd.concat([stock_ret, bench_ret], axis=1, join="inner").dropna()
