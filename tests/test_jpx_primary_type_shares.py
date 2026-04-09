@@ -9,8 +9,6 @@ from pathlib import Path
 
 import pandas as pd
 
-import pytest
-
 from stockradar.universe.jpx_primary import (
     InMemoryCategoryCache,
     _has_five_or_more_digits,

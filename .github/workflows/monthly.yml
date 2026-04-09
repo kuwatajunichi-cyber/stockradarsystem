@@ -6,7 +6,11 @@ on:
     - cron: "0 2 1 * *"  # 毎月1日 02:00 UTC（日本時間 11:00）
 
 jobs:
+  preflight:
+    uses: ./.github/workflows/reusable_quality_gate.yml
+
   build:
+    needs: preflight
     runs-on: ubuntu-latest
     permissions:
       contents: write  # Release作成に必要

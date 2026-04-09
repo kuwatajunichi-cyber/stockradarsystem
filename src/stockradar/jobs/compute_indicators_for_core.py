@@ -23,6 +23,7 @@ import sys
 import time
 from datetime import date
 from pathlib import Path
+from collections.abc import Callable
 
 import pandas as pd
 
@@ -59,8 +60,10 @@ STALE_EXCLUSIONS_FILENAME = "_stale_exclusions.json"
 _WORKER_CTX: dict = {}
 
 # candle_descriptorのインポート（オプション）
+compute_candle_descriptors: Callable[[pd.DataFrame], tuple[str, str]] | None
 try:
-    from stockradar.utils.candle_descriptor import compute_candle_descriptors
+    from stockradar.utils.candle_descriptor import compute_candle_descriptors as _compute_candle_descriptors
+    compute_candle_descriptors = _compute_candle_descriptors
 except ImportError:
     compute_candle_descriptors = None
 
@@ -157,6 +160,8 @@ def _compute_one_code(task: tuple[str, str]) -> dict:
 
     if compute_candle and all(col in stock_df.columns for col in ["Open", "High", "Low", "Close"]):
         try:
+            if compute_candle_descriptors is None:
+                raise RuntimeError("candle descriptor is unavailable")
             candle_labels, price_text = compute_candle_descriptors(stock_df)
             result_row["candle_labels"] = candle_labels
             result_row["price_text"] = price_text
@@ -266,6 +271,7 @@ def main(argv: list[str] | None = None) -> None:
     index_cache_dir = get_yf_index_cache_dir(base)
     indicators_dir = get_indicators_daily_dir(base)
 
+    input_path: Path | None
     if args.input:
         input_path = Path(args.input)
         if not input_path.is_absolute():
@@ -283,6 +289,7 @@ def main(argv: list[str] | None = None) -> None:
                 file=sys.stderr,
             )
             sys.exit(1)
+    assert input_path is not None
 
     if not input_path.exists():
         print(f"エラー: 入力が存在しません: {input_path}", file=sys.stderr)
@@ -301,6 +308,12 @@ def main(argv: list[str] | None = None) -> None:
     rs_benchmark = get_rs_benchmark()
     configured_workers = get_indicators_max_workers()
     max_workers = configured_workers or max(1, (os.cpu_count() or 2) - 1)
+    if configured_workers is not None and (configured_workers < 1 or configured_workers > 8):
+        print(
+            f"警告: INDICATORS_MAX_WORKERS={configured_workers} は推奨範囲(1-8)外です。"
+            " 実行環境のCPU/メモリに応じて見直してください。",
+            file=sys.stderr,
+        )
 
     print(f"入力: {input_path} 銘柄数={len(codes_df)}", file=sys.stderr)
     print(f"z_lookback_days={z_lookback_days}, rs_windows={rs_windows}, rs_benchmark={rs_benchmark}", file=sys.stderr)
@@ -347,6 +360,10 @@ def main(argv: list[str] | None = None) -> None:
     benchmarks_filtered = {
         k: v[v.index.date <= run_date] for k, v in benchmarks.items()
     }
+    print(
+        f"整合確認: benchmarks={list(benchmarks_filtered.keys())} run_date={run_date.isoformat()}",
+        file=sys.stderr,
+    )
 
     # 各銘柄の指標を計算
     started = time.perf_counter()

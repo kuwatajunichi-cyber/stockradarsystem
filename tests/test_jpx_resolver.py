@@ -4,8 +4,6 @@ extract_excel_urls_from_html を HTML 文字列のみで検証する。
 """
 from __future__ import annotations
 
-import pytest
-
 from stockradar.sources.jpx_resolver import extract_excel_urls_from_html
 
 

@@ -72,6 +72,7 @@ def main(argv: list[str] | None = None) -> None:
     cache_dir = get_yf_daily_cache_dir(base)
     manifest_path = cache_dir / MANIFEST_FILENAME
 
+    input_path: Path | None
     if args.input:
         input_path = Path(args.input)
         if not input_path.is_absolute():
@@ -89,6 +90,7 @@ def main(argv: list[str] | None = None) -> None:
                 file=sys.stderr,
             )
             sys.exit(1)
+    assert input_path is not None
 
     if not input_path.exists():
         print(f"エラー: 入力が存在しません: {input_path}", file=sys.stderr)
@@ -111,6 +113,7 @@ def main(argv: list[str] | None = None) -> None:
 
     print(f"キャッシュ出力: {cache_dir}", file=sys.stderr)
     print(f"入力: {input_path} 銘柄数={len(codes)} required_days={required_days}", file=sys.stderr)
+    print(f"整合確認: run_date={run_date.isoformat() if run_date else 'today'}", file=sys.stderr)
 
     # manifestを1回だけ読み込む
     manifest = load_manifest(manifest_path)

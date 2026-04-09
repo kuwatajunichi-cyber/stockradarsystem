@@ -51,6 +51,7 @@ def main(argv: list[str] | None = None) -> None:
 
     base = Path.cwd()
 
+    input_path: Path | None
     if args.input:
         input_path = Path(args.input)
         if not input_path.is_absolute():
@@ -64,6 +65,7 @@ def main(argv: list[str] | None = None) -> None:
                 file=sys.stderr,
             )
             raise SystemExit(1)
+    assert input_path is not None
 
     if not input_path.exists():
         print(f"エラー: 入力CSVが存在しません: {input_path}", file=sys.stderr)

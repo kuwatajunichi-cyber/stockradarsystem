@@ -20,8 +20,6 @@ from scripts.gdrive.drive_client import (
     build_service,
     get_folder_id_work,
     get_credentials,
-    get_or_create_folder,
-    upload_file,
 )
 
 

@@ -20,7 +20,11 @@ permissions:
   contents: write
 
 jobs:
+  preflight:
+    uses: ./.github/workflows/reusable_quality_gate.yml
+
   resolve_trading_day:
+    needs: preflight
     runs-on: ubuntu-latest
     outputs:
       run_date: ${{ steps.resolve.outputs.run_date }}
@@ -212,6 +216,7 @@ jobs:
             lines.append(f"- stale_codes_preview: `{preview or '-'}`")
           else:
             lines.append("- stale exclusions file: `not found`")
+          lines.append("- idempotency_contract: `checked in preflight tests`")
           summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
           PY
 
@@ -379,6 +384,7 @@ jobs:
             lines.append(f"- stale_codes_preview: `{preview or '-'}`")
           else:
             lines.append("- stale exclusions file: `not found`")
+          lines.append("- performance_contract: `processed/workers/elapsed_sec logged by job`")
           with summary_path.open("a", encoding="utf-8") as f:
             f.write("\n".join(lines) + "\n")
           PY

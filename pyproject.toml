@@ -36,6 +36,13 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+addopts = "--strict-markers"
+markers = [
+    "unit: fast pure/unit tests",
+    "job_integration: integration tests for batch jobs",
+    "smoke: CLI and contract smoke tests",
+    "slow: long-running tests excluded from default local runs",
+]
 
 [tool.ruff]
 target-version = "py311"
@@ -47,3 +54,4 @@ select = ["F401", "F841"]
 python_version = "3.11"
 ignore_missing_imports = true
 disallow_untyped_defs = false
+disable_error_code = ["import-untyped"]

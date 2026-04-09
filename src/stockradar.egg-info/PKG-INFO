@@ -15,8 +15,11 @@ Requires-Dist: beautifulsoup4>=4.12.0
 Requires-Dist: yfinance>=0.2.0
 Requires-Dist: exchange-calendars>=4.3.0
 Requires-Dist: pytz>=2023.3
+Requires-Dist: python-dotenv>=1.0.0
 Provides-Extra: dev
 Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: ruff>=0.4.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
 
 # Stock Radar System
 
@@ -64,10 +67,7 @@ Stock Radar System は、日本株市場を対象に、相対的に注目度が�
 [銘柄マスター/補助情報] + [市場データ] -> [ユニバース生成] -> [指標算出]
 |
 v
-[XLSX/CSV/manifest生成] -> [Drive格納]
-
-yaml
-コードをコピーする
+[XLSX/CSV/manifest生成] -> [4系統ミラー: Drive / R2 / Dropbox / GitHub Release]
 
 ---
 
@@ -109,6 +109,30 @@ yaml
 - 日付 × 銘柄 × ユニバースの縦持ち
 - 欠損は空欄、理由は flags に集約
 
+成果物の管理は、次の2つの直交する軸で整理する。
+
+- Pipeline（確定性）
+  - Staging: 検証ゲート未通過。`data/output/staging/<run_id>/` に格納。
+  - Committed: 検証ゲート通過済み。`data/output/latest/LATEST_RUN_ID.txt` がポインタ。
+  - Release への添付や GDrive へのアップロードは Committed 後に行う。
+- Visibility（公開範囲）
+  - Work（0011_work）: 内部用。CSV 等の中間・最終成果物を月/日フォルダで管理。
+  - Paid（0012_paid）: 顧客向け。XLSX レポートを月フォルダで管理。
+
+### 日次成果物の4系統ミラーと保持期間
+
+日次パイプラインの成果物（指標CSV・enriched CSV・Daily XLSX）は、次の4系統にミラーリングされる。
+
+1. **Google Drive**（0011_work / 0012_paid）: 凍結時はスキップ。解除後に再有効化可能。
+2. **Cloudflare R2**: 無料枠を前提。顧客への「月フォルダ共有」は R2 上のプレフィックス＋簡易一覧等で対応可能。
+3. **Dropbox**: 無料枠を前提。月フォルダ共有リンクを顧客に渡す運用を想定。
+4. **GitHub Releases**: タグ `daily-YYYYMM` に日次ファイルを添付。Private リポジトリでは管理用・バックアップ用。
+
+外部ストレージへのアップロードは、日次・月次ともに **`scripts/upload_to_all_targets.py`** に集約する。
+今後ミラーリング系統を追加する場合は、このスクリプトに Adapter を追加するだけで workflow 変更を最小限にできる。
+
+**3か月保持ポリシー**: 全系統で「直近3か月分を保持し、4か月目に削除」する。月1回のクリーンアップ Workflow（`cleanup_r2.yml` / `cleanup_dropbox.yml` / `cleanup_releases.yml` / `cleanup_drive_work.yml`）で自動削除する。
+
 ---
 
 ## 実行・運用方針
@@ -117,6 +141,7 @@ yaml
 - 欠損や取得失敗は flags / manifest で可視化
 - 成果物は staging -> latest の原子更新
 - 実行ID（run_id）とログを保存
+- 日次成果物は Committed 後に 4 系統へ一括アップロード（`scripts/upload_to_all_targets.py`）。Drive 凍結時は R2 / Dropbox / Release の3系統で継続可能
 
 ---
 
@@ -289,23 +314,33 @@ python -m stockradar.jobs.build_universe_from_jpx
 |------|------|--------|
 | IPO_LOOKBACK_DAYS | IPO判定に必要な営業日数 | 252 |
 | LIQ_LOOKBACK_DAYS | 流動性判定の直近営業日数 | 60 |
-| LIQ_MIN_MEDIAN_TURNOVER_YEN | 中央値がこれ未満なら illiquid（**必須**） | なし |
+| LIQ_MIN_MEDIAN_TURNOVER_YEN | 中央値がこれ未満なら illiquid | 20,000,000 |
 | YF_BATCH_SIZE | 取得バッチサイズ | 100 |
 | YF_SLEEP_SEC_BETWEEN_BATCHES | バッチ間スリープ秒 | 5 |
 | YF_RETRY_MAX | 銘柄あたり最大再試行回数 | 3 |
 | YF_RETRY_BACKOFF_SEC | 再試行待機秒（カンマ区切り） | 5,15,30 |
 
+**yfinance manifest（2種類）**
+
+| ファイル | 更新ジョブ | 意味 |
+|----------|------------|------|
+| `_manifest_universe.jsonl` | `fetch_yf_daily_for_universe`（月次一括） | ユニバース一括取得の進捗。**本数・成否中心**（`run_date` 整合・`stale` は書かない） |
+| `_manifest.jsonl` | `ensure_core_cache` / `ensure_index_cache`（日次） | **run_date 当日バーまで**の鮮度を含む。`ok` / `insufficient` / `stale` / `failed`（`stale`＝本数は足りるが最終日が `run_date` 未満） |
+
+- 日次 manifest の JSONL 1行には `code` と `symbol` を同一値で含める（後方互換・検証用）。
+- `split_equity_domestic_secondary`（二次分割）は **`_manifest_universe.jsonl` のみ**参照する（日次の鮮度と意味論を混ぜない）。
+
 ### ジョブ A: yfinance 日次取得（fetch_yf_daily_for_universe）
 
 - **入力**: `equity_domestic.csv`（`--input` で指定。未指定時は `data/universe/jpx/sets_YYYYMMDD/equity_domestic.csv` の最新を自動選択）
 - **required_days**: `max(IPO_LOOKBACK_DAYS, LIQ_LOOKBACK_DAYS)` 分のデータを取得
-- **キャッシュ**: `data/cache/yf_daily/{code}.csv`（Close, Volume、日付 index）
-- **manifest**: `data/cache/yf_daily/_manifest.jsonl`（code, requested_days, fetched_bars, status, error, fetched_at）
+- **キャッシュ**: `data/cache/yf_daily/{code}.csv`（`ensure_core_cache` と共有ディレクトリ）
+- **manifest**: `data/cache/yf_daily/_manifest_universe.jsonl`（**日次の `_manifest.jsonl` とは別**）
 - **途中再開**: manifest で `status=ok` かつ `fetched_bars >= required_days` の銘柄はスキップ。`--force` で全件再取得。
 
 ```powershell
 $env:PYTHONPATH = "src"
-$env:LIQ_MIN_MEDIAN_TURNOVER_YEN = "10000000"   # 分類ジョブ用（取得ジョブでは不要）
+$env:LIQ_MIN_MEDIAN_TURNOVER_YEN = "10000000"   # 任意（未設定時は 20,000,000）
 
 python -m stockradar.jobs.fetch_yf_daily_for_universe --input data/universe/jpx/sets_20260207/equity_domestic.csv
 # または入力省略で最新 sets_* から自動選択
@@ -316,7 +351,7 @@ python -m stockradar.jobs.fetch_yf_daily_for_universe --force
 
 ### ジョブ B: 二次分割（split_equity_domestic_secondary）
 
-- **入力**: `equity_domestic.csv` と `data/cache/yf_daily/`（キャッシュ＋manifest）
+- **入力**: `equity_domestic.csv` と `data/cache/yf_daily/`（キャッシュ＋`_manifest_universe.jsonl`）
 - **出力**: `data/universe/jpx/sets_secondary_YYYYMMDD/`
   - `equity_domestic_ipo.csv`, `equity_domestic_illiquid.csv`, `equity_domestic_core.csv`（いずれも `code` 1列・ヘッダ付き）
   - 上記に銘柄名列を加えた `*_with_name.csv`（`code`, `name`）。銘柄名のマスタは JPX processed CSV（`data/processed/jpx/jpx_list_YYYYMMDD.csv`）。該当 CSV が無い場合は銘柄名付きは出力しない。
@@ -324,7 +359,7 @@ python -m stockradar.jobs.fetch_yf_daily_for_universe --force
 
 ```powershell
 $env:PYTHONPATH = "src"
-$env:LIQ_MIN_MEDIAN_TURNOVER_YEN = "10000000"   # 必須
+$env:LIQ_MIN_MEDIAN_TURNOVER_YEN = "10000000"   # 任意（未設定時は 20,000,000）
 
 python -m stockradar.jobs.split_equity_domestic_secondary --input data/universe/jpx/sets_20260207/equity_domestic.csv
 # または入力省略で最新 sets_* から自動選択
@@ -335,9 +370,9 @@ python -m stockradar.jobs.split_equity_domestic_secondary
 
 1. 一次ユニバース生成で `sets_YYYYMMDD/equity_domestic.csv` を用意する。
 2. **ジョブ A** で yfinance を取得（キャッシュ・manifest ができる）。**必ずプロジェクトルートをカレントにして実行**すること（キャッシュパスの一貫性のため）。
-3. **ジョブ B** で ipo / illiquid / core に分割（同じくプロジェクトルートで実行。`LIQ_MIN_MEDIAN_TURNOVER_YEN` を設定してから実行）。
+3. **ジョブ B** で ipo / illiquid / core に分割（同じくプロジェクトルートで実行。`LIQ_MIN_MEDIAN_TURNOVER_YEN` 未設定時は 20,000,000 が使用される）。
 
-**「全件取得失敗」になる場合**: ジョブ B は `data/cache/yf_daily/_manifest.jsonl` を参照します。manifest が無い（ジョブ A をまだ実行していない、または別ディレクトリで実行した）場合は全銘柄が ipo に分類されます。先にジョブ A をプロジェクトルートで実行し、取得が完了してからジョブ B を実行してください。ジョブ A では `period` で空になる場合に `start/end` で再試行するフォールバックを入れています。
+**「全件取得失敗」になる場合**: ジョブ B は `data/cache/yf_daily/_manifest_universe.jsonl` を参照します。manifest が無い（ジョブ A をまだ実行していない、または別ディレクトリで実行した）場合は全銘柄が ipo に分類されます。先にジョブ A をプロジェクトルートで実行し、取得が完了してからジョブ B を実行してください。ジョブ A では `period` で空になる場合に `start/end` で再試行するフォールバックを入れています。
 
 ---
 
@@ -358,6 +393,10 @@ python -m stockradar.jobs.split_equity_domestic_secondary
 | YF_SLEEP_SEC_BETWEEN_BATCHES | バッチ間スリープ秒 | 5 |
 | YF_RETRY_MAX | 銘柄あたり最大再試行回数 | 3 |
 | YF_RETRY_BACKOFF_SEC | 再試行待機秒（カンマ区切り） | 5,15,30 |
+| STALE_RETRY_MAX_PASSES | `--run-date` 指定時、`stale` 銘柄を含む最大パス数（初回＋待機後再試行） | 3 |
+| STALE_RETRY_SLEEP_SEC | `stale` 再試行前の待機秒 | 300 |
+| STALE_ALLOW_CONTINUE_MAX_COUNT | 再試行後に `stale` が残ったとき、処理継続を許容する最大件数（`<=` で継続） | 9 |
+| INDICATORS_MAX_WORKERS | 指標算出の並列ワーカー上限（未設定時は `CPU-1` 自動） | 自動 |
 
 ### ジョブ構成
 
@@ -374,10 +413,12 @@ python -m stockradar.jobs.resolve_trading_day --date 2026-02-11
 ```
 
 #### Job2: ensure_index_cache
-- ベンチETFのキャッシュ確保（BOTHが標準）
-  - TOPIX proxy: 1306.T
-  - Nikkei225 proxy: 1321.T
+- ベンチマークのキャッシュ確保（BOTHが標準）
+  - TOPIX: 1475.T
+  - Nikkei225: ^N225
 - 不足時のみ重い取得、通常は差分取得
+- **`update_manifest` 直前**に各ベンチ `*.csv` を読み直し、**ディスクを真実として `_manifest.jsonl` を1行ずつ再構築**（`rebuild_manifest_entry_from_disk`）。メモリ内の status 取りこぼしを防ぐ。
+- `--run-date` 指定時に `stale` が残る銘柄だけ、`STALE_RETRY_SLEEP_SEC` 間隔で待機しつつ最大 `STALE_RETRY_MAX_PASSES` パス（初回は全銘柄・続くパスは stale のみ）。**最終的に `stale` が残る場合は終了コード 2**（GitHub Actions では赤／人手または翌営業日の再実行を想定）。`insufficient` / `failed` はこの待機リトライの対象外。
 
 ```powershell
 $env:PYTHONPATH = "src"
@@ -387,7 +428,9 @@ python -m stockradar.jobs.ensure_index_cache --run-date 2026-02-11
 #### Job3: ensure_core_cache
 - 入力: `equity_domestic_core_with_name.csv`（最新 sets_secondary_YYYYMMDD から自動選択）
 - 各銘柄のOHLCVキャッシュを確保（不足時のみ重い取得）
-- 分割取得 + インターバル + リトライ + 途中再開（manifest）
+- 分割取得 + インターバル + リトライ + 途中再開（`_manifest.jsonl`）
+- **`update_manifest` 直前**に入力銘柄ごとの `yf_daily/{code}.csv` を読み直し、**ディスクを真実として manifest を再構築**（`rebuild_manifest_entry_from_disk`）。memory / 分岐の取りこぼしで `ok` 偽装されるのを防ぐ。
+- `stale` 再試行後、残存件数が `STALE_ALLOW_CONTINUE_MAX_COUNT` 以下なら継続し、`data/cache/yf_daily/_stale_exclusions.json` に除外対象を保存。閾値超過時は終了コード 2。
 
 ```powershell
 $env:PYTHONPATH = "src"
@@ -398,10 +441,12 @@ python -m stockradar.jobs.ensure_core_cache --input data/universe/jpx/sets_secon
 
 #### Job4: compute_indicators_for_core
 - 入力: `equity_domestic_core_with_name.csv`、`data/cache/yf_daily/`、`data/cache/yf_index/`
-- 出力: `data/indicators/daily/indicators_YYYYMMDD.csv`
+- 出力: `data/indicators/daily/indicators_YYYYMMDD.csv`（ファイル名・行 `date` ともに `run_date` 基準。`stale` 除外銘柄は出力しない）
+- **ガード**: `ensure_core_cache` の stale 除外対象以外で **OHLC 最新日が `run_date` 未満**の銘柄があれば、成果物は出さず終了コード 2。
+- 実行方式: 銘柄単位の並列処理（ProcessPool）。出力順序は `code` ソートで固定。
 - 指標:
   - 出来高zscore（売買代金近似ベース）
-  - RS（B方式：期間リターン差）
+  - RS（日付アンカー方式：`run_date` と T営業日前アンカーの日付差分）
 
 ```powershell
 $env:PYTHONPATH = "src"
@@ -414,19 +459,20 @@ python -m stockradar.jobs.compute_indicators_for_core --input data/universe/jpx/
 
 - **内部キャッシュ（非配布）**
   - `data/cache/yf_daily/{code}.csv`（銘柄別OHLCV、最低Close/Volume）
-  - `data/cache/yf_index/{bench}.csv`（ベンチETF）
+  - `data/cache/yf_index/{bench}.csv`（ベンチマーク OHLC）
 - **日次指標（分析用・配布前の生）**
-  - `data/indicators/daily/indicators_YYYYMMDD.csv`（縦持ち：date, code, indicators...）
+  - `data/indicators/daily/indicators_YYYYMMDD.csv`（縦持ち：date, code, indicators...）。**派生**の `indicators_event_enriched_*.csv` はイベント要因付与用で、他ジョブが「最新コア指標」を選ぶ対象外。
     - 列例: `date`, `code`, `name`（任意）, `turnover_yen`, `z_turnover_{Z_LOOKBACK_DAYS}`, `rs63_topix`, `rs126_topix`, `rs252_topix`, `rs63_nikkei`, `rs126_nikkei`, `rs252_nikkei`, `n_bars_used`
 
 ### GitHub Actions での実行
 
-`.github/workflows/daily.yml` が毎営業日 16:00 JST 以降に自動実行されます。
+`.github/workflows/daily.yml` が毎営業日 15:37 JST に自動実行されます。
 
-- schedule: 毎営業日 16:00 JST 以降（当日バー反映後）
+- schedule: 毎営業日 15:37 JST（月〜金、UTC 06:37）
 - concurrency: 同一workflowの多重起動禁止
-- fetch系は部分成功を許容しつつmanifestに残す
-- computeで対象銘柄の有効計算率が極端に低い場合はfail
+- 主なジョブ: resolve_trading_day（営業日判定）→ ensure_index_cache ∥ ensure_core_cache → **compute_indicators は ensure_core_cache が作った `ohlc_store.zip` を artifact で受け取り復元**（別ランナー間の `actions/cache` の取り違え防止。ウォーム用キャッシュは ensure 側でも引き続き利用可）→ compute_indicators_for_core → 0011_work へアップロード → render_sheet 等
+- fetch系は部分成功を許容しつつ manifest に残す
+- compute で対象銘柄の有効計算率が極端に低い場合は fail
 
 ### ローカル実行例（全ジョブ順次実行）
 

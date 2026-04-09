@@ -77,6 +77,8 @@ except ImportError as e:
 
 RUN_ID_PREFIX = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
 RUN_ID = f"{RUN_ID_PREFIX}_{uuid.uuid4().hex[:8]}"
+EXIT_CONTRACT = 1
+EXIT_RUNTIME = 2
 
 STAGING_DIR = Path("data/output/staging") / RUN_ID
 LATEST_DIR = Path("data/output/latest")
@@ -257,7 +259,7 @@ def main() -> None:
         print(f"初期化エラー: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
         import traceback
         traceback.print_exc(file=sys.stderr)
-        sys.exit(2)
+    sys.exit(EXIT_RUNTIME)
 
     # 1. update_jpx_url_cache
     log("1/5: update_jpx_url_cache")
@@ -265,7 +267,7 @@ def main() -> None:
     log(f"出力:\n{output}")
     if code != 0:
         log(f"エラー: update_jpx_url_cache が失敗 (code={code})")
-        sys.exit(2)
+        sys.exit(EXIT_RUNTIME)
 
     # 2. fetch_jpx_list
     log("2/5: fetch_jpx_list")
@@ -273,7 +275,7 @@ def main() -> None:
     log(f"出力:\n{output}")
     if code != 0:
         log(f"エラー: fetch_jpx_list が失敗 (code={code})")
-        sys.exit(2)
+        sys.exit(EXIT_RUNTIME)
 
     # 3. build_universe_from_jpx
     log("3/5: build_universe_from_jpx")
@@ -281,7 +283,7 @@ def main() -> None:
     log(f"出力:\n{output}")
     if code != 0:
         log(f"エラー: build_universe_from_jpx が失敗 (code={code})")
-        sys.exit(2)
+        sys.exit(EXIT_RUNTIME)
 
     # 4. fetch_yf_daily_for_universe
     log("4/5: fetch_yf_daily_for_universe")
@@ -289,7 +291,7 @@ def main() -> None:
     log(f"出力:\n{output}")
     if code != 0:
         log(f"エラー: fetch_yf_daily_for_universe が失敗 (code={code})")
-        sys.exit(2)
+        sys.exit(EXIT_RUNTIME)
 
     # 5. split_equity_domestic_secondary
     log("5/5: split_equity_domestic_secondary")
@@ -297,7 +299,7 @@ def main() -> None:
     log(f"出力:\n{output}")
     if code != 0:
         log(f"エラー: split_equity_domestic_secondary が失敗 (code={code})")
-        sys.exit(2)
+        sys.exit(EXIT_RUNTIME)
 
     # 最新の sets_secondary_* から 3CSV を staging にコピー
     log("成果物を staging にコピー中...")
@@ -307,7 +309,7 @@ def main() -> None:
     if len(secondary_outputs) != 3:
         log(f"エラー: 3CSV が見つかりません (見つかった数={len(secondary_outputs)}, 期待=3)")
         log(f"見つかったファイル: {list(secondary_outputs.keys())}")
-        sys.exit(2)
+        sys.exit(EXIT_CONTRACT)
 
     try:
         inputs = collect_inputs_for_manifest()
@@ -316,7 +318,7 @@ def main() -> None:
         log(f"入力収集エラー: {type(e).__name__}: {e}")
         import traceback
         log(traceback.format_exc())
-        sys.exit(2)
+        sys.exit(EXIT_RUNTIME)
 
     flags_summary: dict[str, str] = {}
 
@@ -325,7 +327,7 @@ def main() -> None:
             log(f"処理中: {csv_name} (source={source_path})")
             if not source_path.exists():
                 log(f"エラー: ソースファイルが存在しません: {source_path}")
-                sys.exit(2)
+                sys.exit(EXIT_CONTRACT)
             dest_path = copy_to_staging(source_path, csv_name)
             log(f"コピー完了: {source_path} -> {dest_path}")
 
@@ -347,7 +349,7 @@ def main() -> None:
             log(traceback.format_exc())
             print(f"エラー ({csv_name}): {type(e).__name__}: {e}", file=sys.stderr, flush=True)
             traceback.print_exc(file=sys.stderr)
-            sys.exit(2)
+            sys.exit(EXIT_RUNTIME)
 
     # 検証ゲート
     try:
@@ -357,7 +359,7 @@ def main() -> None:
             log("検証ゲート失敗:")
             for err in errors:
                 log(f"  - {err}")
-            sys.exit(2)
+            sys.exit(EXIT_CONTRACT)
         log("検証ゲート通過")
     except Exception as e:
         log(f"検証ゲート実行エラー: {type(e).__name__}: {e}")
@@ -365,7 +367,7 @@ def main() -> None:
         log(traceback.format_exc())
         print(f"検証ゲート実行エラー: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
         traceback.print_exc(file=sys.stderr)
-        sys.exit(2)
+        sys.exit(EXIT_RUNTIME)
 
     # latest ポインタ更新
     try:
@@ -379,7 +381,7 @@ def main() -> None:
         log(traceback.format_exc())
         print(f"latest ポインタ更新エラー: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
         traceback.print_exc(file=sys.stderr)
-        sys.exit(2)
+        sys.exit(EXIT_RUNTIME)
 
     log("=== 月次実行完了 ===")
     print(f"run_id={RUN_ID}")
@@ -402,4 +404,4 @@ if __name__ == "__main__":
         import traceback
 
         traceback.print_exc(file=sys.stderr)
-        sys.exit(2)
+        sys.exit(EXIT_RUNTIME)

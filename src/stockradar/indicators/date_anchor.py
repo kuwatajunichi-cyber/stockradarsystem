@@ -9,7 +9,7 @@ import pandas as pd
 
 def _normalize_index(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
-    out.index = pd.to_datetime(out.index)
+    out.index = normalize_utc_naive_index(out.index)
     return out.sort_index()
 
 
@@ -30,7 +30,7 @@ class AsofSeries(NamedTuple):
     values: np.ndarray
 
 
-def _to_naive_utc_index(index_like: pd.Index) -> pd.DatetimeIndex:
+def normalize_utc_naive_index(index_like: pd.Index) -> pd.DatetimeIndex:
     """
     DatetimeIndex を UTC基準の timezone-naive に正規化する。
     tz-aware / tz-naive の双方を受け入れる。
@@ -42,14 +42,14 @@ def _to_naive_utc_index(index_like: pd.Index) -> pd.DatetimeIndex:
 
 
 def _to_ns_i8(index_like: pd.Index) -> np.ndarray:
-    idx = _to_naive_utc_index(index_like)
+    idx = normalize_utc_naive_index(index_like)
     # pandas の内部解像度差（us/ns）に依存しないよう、常に datetime64[ns] に正規化。
     arr = idx.to_numpy(dtype="datetime64[ns]")
     return arr.view("i8")
 
 
 def build_anchor_context(index: pd.Index) -> AnchorContext:
-    idx = _to_naive_utc_index(index).sort_values().unique()
+    idx = normalize_utc_naive_index(index).sort_values().unique()
     return AnchorContext(index=idx, index_ns=_to_ns_i8(idx))
 
 
@@ -57,7 +57,7 @@ def resolve_run_anchor_date(index: pd.Index | AnchorContext, run_date: date) -> 
     if isinstance(index, AnchorContext):
         idx = index.index
     else:
-        idx = _to_naive_utc_index(index)
+        idx = normalize_utc_naive_index(index)
     candidates = idx[idx.date <= run_date]
     if len(candidates) == 0:
         return None

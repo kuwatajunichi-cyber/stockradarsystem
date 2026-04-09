@@ -39,9 +39,6 @@ from scripts.gdrive.drive_client import (
     build_service,
     get_credentials,
     get_folder_id_paid,
-    get_file_metadata,
-    get_or_create_folder,
-    upload_file,
 )
 
 logger = logging.getLogger(__name__)
