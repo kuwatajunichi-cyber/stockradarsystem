@@ -27,3 +27,20 @@ def test_asof_value_uses_dropna_sort_and_latest_before_anchor() -> None:
     prepared = prepare_asof_series(s)
     assert asof_value(prepared, pd.Timestamp("2026-01-04")) == 10.0
     assert asof_value(prepared, pd.Timestamp("2026-01-05")) == 11.0
+
+
+def test_build_anchor_context_accepts_timezone_aware_index() -> None:
+    idx = pd.to_datetime(["2026-01-01 15:00:00+09:00", "2026-01-02 15:00:00+09:00"], utc=True)
+    ctx = build_anchor_context(idx)
+    assert len(ctx.index) == 2
+    # timezone-naive に正規化されること
+    assert ctx.index.tz is None
+
+
+def test_asof_value_with_timezone_aware_series() -> None:
+    s = pd.Series(
+        [10.0, 11.0],
+        index=pd.to_datetime(["2026-01-01 00:00:00+00:00", "2026-01-05 00:00:00+00:00"], utc=True),
+    )
+    prepared = prepare_asof_series(s)
+    assert asof_value(prepared, pd.Timestamp("2026-01-04")) == 10.0
