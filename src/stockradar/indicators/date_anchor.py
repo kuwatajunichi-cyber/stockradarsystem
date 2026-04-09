@@ -43,8 +43,9 @@ def _to_naive_utc_index(index_like: pd.Index) -> pd.DatetimeIndex:
 
 def _to_ns_i8(index_like: pd.Index) -> np.ndarray:
     idx = _to_naive_utc_index(index_like)
-    # pandas の内部解像度差（us/ns）に依存しないよう、常に ns 基準の asi8 を使う。
-    return idx.asi8
+    # pandas の内部解像度差（us/ns）に依存しないよう、常に datetime64[ns] に正規化。
+    arr = idx.to_numpy(dtype="datetime64[ns]")
+    return arr.view("i8")
 
 
 def build_anchor_context(index: pd.Index) -> AnchorContext:
