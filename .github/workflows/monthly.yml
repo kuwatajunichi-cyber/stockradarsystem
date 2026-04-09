@@ -55,12 +55,13 @@ jobs:
         id: get_run_id
         if: success()
         run: |
-          RUN_ID=$(cat data/output/latest/LATEST_RUN_ID.txt 2>/dev/null || echo "")
+          set -euo pipefail
+          RUN_ID="$(cat data/output/latest/LATEST_RUN_ID.txt 2>/dev/null || echo "")"
           if [ -z "$RUN_ID" ]; then
             # fallback: 最新のstagingディレクトリから取得
-            RUN_ID=$(ls -td data/output/staging/*/ 2>/dev/null | head -1 | xargs basename || echo "")
+            RUN_ID="$(find data/output/staging -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | sort -r | head -1 || echo "")"
           fi
-          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
           echo "Found RUN_ID: $RUN_ID"
           
           # ファイルの存在確認
@@ -75,7 +76,9 @@ jobs:
       - name: Resolve build date
         id: build_date
         if: success() && steps.get_run_id.outputs.run_id != ''
-        run: echo "date=$(TZ=Asia/Tokyo date +%Y%m%d)" >> $GITHUB_OUTPUT
+        run: |
+          set -euo pipefail
+          echo "date=$(TZ=Asia/Tokyo date +%Y%m%d)" >> "$GITHUB_OUTPUT"
 
       - name: Create Release
         if: success() && steps.get_run_id.outputs.run_id != ''

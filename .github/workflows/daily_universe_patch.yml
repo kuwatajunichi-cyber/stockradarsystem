@@ -35,11 +35,12 @@ jobs:
         env:
           PYTHONPATH: src
         run: |
+          set -euo pipefail
           OUTPUT=$(python -m stockradar.jobs.resolve_trading_day)
           RUN_DATE=$(echo "$OUTPUT" | grep "^run_date=" | cut -d= -f2)
           IS_OPEN=$(echo "$OUTPUT" | grep "^is_open=" | cut -d= -f2)
-          echo "run_date=$RUN_DATE" >> $GITHUB_OUTPUT
-          echo "is_open=$IS_OPEN" >> $GITHUB_OUTPUT
+          echo "run_date=$RUN_DATE" >> "$GITHUB_OUTPUT"
+          echo "is_open=$IS_OPEN" >> "$GITHUB_OUTPUT"
           echo "Resolved: run_date=$RUN_DATE, is_open=$IS_OPEN"
 
   patch_universe:
@@ -65,12 +66,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
           LATEST_RELEASE=$(gh release list --limit 100 --json tagName --jq '.[] | select(.tagName | startswith("monthly-")) | .tagName' | head -1)
           if [ -z "$LATEST_RELEASE" ]; then
             echo "エラー: 月次Release（monthly-*）が見つかりません"
             exit 1
           fi
-          echo "release=$LATEST_RELEASE" >> $GITHUB_OUTPUT
+          echo "release=$LATEST_RELEASE" >> "$GITHUB_OUTPUT"
           mkdir -p data/universe/jpx/latest_release
           if ! gh release download "$LATEST_RELEASE" \
             --pattern "equity_domestic_core_with_name.csv" \
@@ -85,10 +87,13 @@ jobs:
         env:
           PYTHONPATH: src
         run: |
+          set -euo pipefail
+          RUN_DATE="${{ needs.resolve_trading_day.outputs.run_date }}"
+          BASE_RELEASE="${{ steps.monthly.outputs.release }}"
           python -m stockradar.jobs.patch_universe_daily \
             --input data/universe/jpx/latest_release/equity_domestic_core_with_name.csv \
-            --run-date ${{ needs.resolve_trading_day.outputs.run_date }} \
-            --base-release ${{ steps.monthly.outputs.release }}
+            --run-date "$RUN_DATE" \
+            --base-release "$BASE_RELEASE"
 
       - name: Save patched universe cache
         uses: actions/cache@v4

@@ -48,11 +48,12 @@ jobs:
         env:
           PYTHONPATH: src
         run: |
+          set -euo pipefail
           OUTPUT=$(python -m stockradar.jobs.resolve_trading_day)
           RUN_DATE=$(echo "$OUTPUT" | grep "^run_date=" | cut -d= -f2)
           IS_OPEN=$(echo "$OUTPUT" | grep "^is_open=" | cut -d= -f2)
-          echo "run_date=$RUN_DATE" >> $GITHUB_OUTPUT
-          echo "is_open=$IS_OPEN" >> $GITHUB_OUTPUT
+          echo "run_date=$RUN_DATE" >> "$GITHUB_OUTPUT"
+          echo "is_open=$IS_OPEN" >> "$GITHUB_OUTPUT"
           echo "Resolved: run_date=$RUN_DATE, is_open=$IS_OPEN"
 
   ensure_index_cache:
@@ -141,6 +142,7 @@ jobs:
           PYTHONPATH: src
           RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
         run: |
+          set -euo pipefail
           LATEST_RELEASE=$(gh release list --limit 100 --json tagName --jq '.[] | select(.tagName | startswith("monthly-")) | .tagName' | head -1)
           if [ -z "$LATEST_RELEASE" ]; then
             echo "エラー: 月次Release（monthly-*）が見つかりません"
@@ -174,7 +176,7 @@ jobs:
               --run-date "$RUN_DATE" \
               --base-release "$LATEST_RELEASE"
           fi
-          echo "core_csv=data/universe/jpx/patched_cache/equity_domestic_core_with_name.csv" >> $GITHUB_OUTPUT
+          echo "core_csv=data/universe/jpx/patched_cache/equity_domestic_core_with_name.csv" >> "$GITHUB_OUTPUT"
 
       - name: Ensure core cache
         env:
@@ -188,7 +190,9 @@ jobs:
           YF_RETRY_BACKOFF_SEC: ${{ secrets.YF_RETRY_BACKOFF_SEC || '5,15,30' }}
           STALE_ALLOW_CONTINUE_MAX_COUNT: ${{ secrets.STALE_ALLOW_CONTINUE_MAX_COUNT || '9' }}
         run: |
-          python -m stockradar.jobs.ensure_core_cache --input "${{ steps.download_core.outputs.core_csv }}" --run-date ${{ needs.resolve_trading_day.outputs.run_date }}
+          set -euo pipefail
+          RUN_DATE="${{ needs.resolve_trading_day.outputs.run_date }}"
+          python -m stockradar.jobs.ensure_core_cache --input "${{ steps.download_core.outputs.core_csv }}" --run-date "$RUN_DATE"
 
       - name: Write ensure_core_cache summary
         if: always()
@@ -311,6 +315,7 @@ jobs:
           PYTHONPATH: src
           RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
         run: |
+          set -euo pipefail
           LATEST_RELEASE=$(gh release list --limit 100 --json tagName --jq '.[] | select(.tagName | startswith("monthly-")) | .tagName' | head -1)
           if [ -z "$LATEST_RELEASE" ]; then
             echo "エラー: 月次Release（monthly-*）が見つかりません"
@@ -344,7 +349,7 @@ jobs:
               --run-date "$RUN_DATE" \
               --base-release "$LATEST_RELEASE"
           fi
-          echo "core_csv=data/universe/jpx/patched_cache/equity_domestic_core_with_name.csv" >> $GITHUB_OUTPUT
+          echo "core_csv=data/universe/jpx/patched_cache/equity_domestic_core_with_name.csv" >> "$GITHUB_OUTPUT"
 
       - name: Compute indicators
         env:
@@ -353,7 +358,9 @@ jobs:
           RS_WINDOWS: ${{ secrets.RS_WINDOWS || '31,63,126,252' }}
           RS_BENCHMARK: ${{ secrets.RS_BENCHMARK || 'BOTH' }}
         run: |
-          python -m stockradar.jobs.compute_indicators_for_core --input "${{ steps.download_core.outputs.core_csv }}" --run-date ${{ needs.resolve_trading_day.outputs.run_date }}
+          set -euo pipefail
+          RUN_DATE="${{ needs.resolve_trading_day.outputs.run_date }}"
+          python -m stockradar.jobs.compute_indicators_for_core --input "${{ steps.download_core.outputs.core_csv }}" --run-date "$RUN_DATE"
 
       - name: Write compute_indicators summary
         if: always()
@@ -462,7 +469,7 @@ jobs:
           PYTHONPATH: .
           RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
         run: |
-          RUN_DATE="$RUN_DATE"
+          set -euo pipefail
           RUN_DATE_COMPACT="${RUN_DATE//-/}"
           ENRICHED="data/indicators/daily/indicators_event_enriched_${RUN_DATE_COMPACT}.csv"
           BASE="data/indicators/daily/indicators_${RUN_DATE_COMPACT}.csv"
@@ -509,7 +516,7 @@ jobs:
           GDRIVE_OAUTH_REFRESH_TOKEN: ${{ secrets.GDRIVE_OAUTH_REFRESH_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          RUN_DATE="$RUN_DATE"
+          set -euo pipefail
           CSV_PATH="${{ steps.render.outputs.csv_path }}"
           XLSX_PATH="${{ steps.render.outputs.xlsx_path }}"
           TARGETS="r2,dropbox,github"

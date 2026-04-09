@@ -29,4 +29,5 @@ jobs:
           DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
           DROPBOX_BASE_FOLDER: ${{ secrets.DROPBOX_BASE_FOLDER }}
         run: |
-          python scripts/storage/dropbox_cleanup.py --today $(date -u +%Y-%m-%d)
+          set -euo pipefail
+          python scripts/storage/dropbox_cleanup.py --today "$(date -u +%Y-%m-%d)"
