@@ -31,4 +31,5 @@ jobs:
           R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
-          python scripts/storage/r2_cleanup.py --today $(date -u +%Y-%m-%d)
+          set -euo pipefail
+          python scripts/storage/r2_cleanup.py --today "$(date -u +%Y-%m-%d)"

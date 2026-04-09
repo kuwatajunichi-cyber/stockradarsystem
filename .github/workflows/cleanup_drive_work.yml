@@ -29,4 +29,5 @@ jobs:
           GDRIVE_OAUTH_CLIENT_SECRET: ${{ secrets.GDRIVE_OAUTH_CLIENT_SECRET }}
           GDRIVE_OAUTH_REFRESH_TOKEN: ${{ secrets.GDRIVE_OAUTH_REFRESH_TOKEN }}
         run: |
-          python scripts/gdrive/cleanup_work.py --today $(date -u +%Y-%m-%d)
+          set -euo pipefail
+          python scripts/gdrive/cleanup_work.py --today "$(date -u +%Y-%m-%d)"
