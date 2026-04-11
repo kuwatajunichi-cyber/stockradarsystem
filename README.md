@@ -446,7 +446,7 @@ python -m stockradar.jobs.compute_indicators_for_core --input data/universe/jpx/
 
 ### GitHub Actions での実行
 
-`.github/workflows/daily.yml` が毎営業日 15:37 JST に自動実行されます。
+`.github/workflows/daily.yml` が毎営業日 15:37 JST に自動実行されます。手動で過去営業日をやり直す **replay** は同ワークフローの `workflow_dispatch` で `run_date`（`YYYY-MM-DD`）を指定します（**東京日付で今日と異なる日のみ replay**。許容は過去 **3 カレンダー月以内**。契約は `docs/contracts/daily_replay_and_monthly_universe.md`）。`skip_publish: true` でレンダー・アップロードのみスキップできます。
 
 - schedule: 毎営業日 15:37 JST（月〜金、UTC 06:37）
 - concurrency: 同一workflowの多重起動禁止

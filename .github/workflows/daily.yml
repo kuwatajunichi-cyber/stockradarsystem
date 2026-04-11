@@ -3,6 +3,14 @@ name: Daily Indicators
 on:
   workflow_dispatch:  # 手動実行
     inputs:
+      run_date:
+        description: "日次アンカー YYYY-MM-DD（空=今日。今日以外は replay: 過去3カレンダー月以内のみ）"
+        required: false
+        default: ""
+      skip_publish:
+        description: "true のとき render / upload をスキップ（既定は公開する）"
+        type: boolean
+        default: false
       force_index:
         description: "ensure_index_cache に --force（ベンチティッカー変更後のキャッシュ取り直し用）"
         type: boolean
@@ -29,6 +37,7 @@ jobs:
     outputs:
       run_date: ${{ steps.resolve.outputs.run_date }}
       is_open: ${{ steps.resolve.outputs.is_open }}
+      is_replay: ${{ steps.validate_dispatch.outputs.is_replay }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -43,13 +52,31 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Resolve trading day
-        id: resolve
+      - name: Validate dispatch run_date and is_replay
+        id: validate_dispatch
         env:
+          INPUT_RUN_DATE: ${{ github.event.inputs.run_date || '' }}
           PYTHONPATH: src
         run: |
           set -euo pipefail
-          OUTPUT=$(python -m stockradar.jobs.resolve_trading_day)
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            python -m stockradar.jobs.validate_daily_dispatch_run_date
+          else
+            echo "is_replay=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Resolve trading day
+        id: resolve
+        env:
+          INPUT_RUN_DATE: ${{ github.event.inputs.run_date || '' }}
+          PYTHONPATH: src
+        run: |
+          set -euo pipefail
+          if [ -n "${INPUT_RUN_DATE:-}" ]; then
+            OUTPUT=$(python -m stockradar.jobs.resolve_trading_day --date "$INPUT_RUN_DATE")
+          else
+            OUTPUT=$(python -m stockradar.jobs.resolve_trading_day)
+          fi
           RUN_DATE=$(echo "$OUTPUT" | grep "^run_date=" | cut -d= -f2)
           IS_OPEN=$(echo "$OUTPUT" | grep "^is_open=" | cut -d= -f2)
           echo "run_date=$RUN_DATE" >> "$GITHUB_OUTPUT"
@@ -69,8 +96,8 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Cache index data
-        uses: actions/cache@v4
+      - name: Restore index cache
+        uses: actions/cache/restore@v4
         with:
           path: data/cache/yf_index/
           key: yf-index-${{ github.run_number }}
@@ -97,6 +124,13 @@ jobs:
             python -m stockradar.jobs.ensure_index_cache --run-date "$RD"
           fi
 
+      - name: Save index cache
+        if: success() && needs.resolve_trading_day.outputs.is_replay != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: data/cache/yf_index/
+          key: yf-index-${{ github.run_number }}
+
   ensure_core_cache:
     needs: [resolve_trading_day]
     if: needs.resolve_trading_day.outputs.is_open == 'True'
@@ -110,8 +144,8 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Cache OHLC store zip
-        uses: actions/cache@v4
+      - name: Restore OHLC store zip
+        uses: actions/cache/restore@v4
         with:
           path: data/cache/ohlc_store_archive/ohlc_store.zip
           key: ohlc-store-zip-v2
@@ -130,7 +164,7 @@ jobs:
           python -m stockradar.jobs.restore_ohlc_store
 
       - name: Restore patched universe cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: data/universe/jpx/patched_cache
           key: universe-patched-${{ needs.resolve_trading_day.outputs.run_date }}
@@ -143,30 +177,37 @@ jobs:
           RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
         run: |
           set -euo pipefail
-          LATEST_RELEASE=$(gh release list --limit 100 --json tagName --jq '.[] | select(.tagName | startswith("monthly-")) | .tagName' | head -1)
-          if [ -z "$LATEST_RELEASE" ]; then
-            echo "エラー: 月次Release（monthly-*）が見つかりません"
+          gh release list --limit 200 --json tagName --template '{{range .}}{{.tagName}}{{"\n"}}{{end}}' > /tmp/gh_all_tags.txt
+          grep '^monthly-' /tmp/gh_all_tags.txt > /tmp/monthly_tags.txt || true
+          if [ ! -s /tmp/monthly_tags.txt ]; then
+            echo "エラー: monthly-* Release が見つかりません"
             exit 1
           fi
-          echo "Latest monthly release: $LATEST_RELEASE"
+          RESOLVE_OUT=$(python -m stockradar.jobs.resolve_monthly_release_for_run_date \
+            --run-date "$RUN_DATE" \
+            --tags-file /tmp/monthly_tags.txt)
+          echo "$RESOLVE_OUT"
+          MONTHLY_TAG=$(echo "$RESOLVE_OUT" | grep '^monthly_tag=' | cut -d= -f2-)
+          UV_RES=$(echo "$RESOLVE_OUT" | grep '^universe_resolution=' | cut -d= -f2-)
+          REASON=$(echo "$RESOLVE_OUT" | sed -n 's/^resolution_reason=//p')
+          echo "Selected monthly_tag=$MONTHLY_TAG universe_resolution=$UV_RES"
           mkdir -p data/universe/jpx/latest_release
-          if ! gh release download "$LATEST_RELEASE" \
+          if ! gh release download "$MONTHLY_TAG" \
             --pattern "equity_domestic_core_with_name.csv" \
             --dir "data/universe/jpx/latest_release" \
             --repo "${{ github.repository }}"; then
-            echo "エラー: Releaseからのダウンロードに失敗しました: $LATEST_RELEASE"
-            gh release view "$LATEST_RELEASE" --repo "${{ github.repository }}" --json assets --jq '.assets[].name' || true
+            echo "エラー: Release からのダウンロードに失敗しました: $MONTHLY_TAG"
+            gh release view "$MONTHLY_TAG" --repo "${{ github.repository }}" --json assets --jq '.assets[].name' || true
             exit 1
           fi
-          RELEASE_DATE="${LATEST_RELEASE#monthly-}"
-          RELEASE_DATE="${RELEASE_DATE:0:4}-${RELEASE_DATE:4:2}-${RELEASE_DATE:6:2}"
           mkdir -p data/universe/jpx/patched_cache
           USE_PATCHED_CACHE=false
+          CHOSEN="$MONTHLY_TAG"
           if [ -f data/universe/jpx/patched_cache/manifest.json ] && [ -f data/universe/jpx/patched_cache/equity_domestic_core_with_name.csv ]; then
-            BASE_DATE=$(jq -r .base_release_date data/universe/jpx/patched_cache/manifest.json)
-            if [ "$BASE_DATE" = "$RELEASE_DATE" ] && [ "$BASE_DATE" != "null" ]; then
+            CACHED=$(jq -r '.chosen_monthly_tag // .base_release // empty' data/universe/jpx/patched_cache/manifest.json)
+            if [ "$CACHED" = "$CHOSEN" ] && [ -n "$CACHED" ] && [ "$CACHED" != "null" ]; then
               USE_PATCHED_CACHE=true
-              echo "Using patched cache (base_release_date=$BASE_DATE)"
+              echo "Using patched cache (chosen_monthly_tag=$CACHED)"
             fi
           fi
           if [ "$USE_PATCHED_CACHE" != "true" ]; then
@@ -174,9 +215,19 @@ jobs:
             python -m stockradar.jobs.patch_universe_daily \
               --input data/universe/jpx/latest_release/equity_domestic_core_with_name.csv \
               --run-date "$RUN_DATE" \
-              --base-release "$LATEST_RELEASE"
+              --base-release "$MONTHLY_TAG" \
+              --chosen-monthly-tag "$MONTHLY_TAG" \
+              --universe-resolution "$UV_RES" \
+              --resolution-reason "$REASON"
           fi
           echo "core_csv=data/universe/jpx/patched_cache/equity_domestic_core_with_name.csv" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Monthly universe resolution"
+            echo "- run_date: $RUN_DATE"
+            echo "- monthly_tag: $MONTHLY_TAG"
+            echo "- universe_resolution: $UV_RES"
+            echo "- resolution_reason: $REASON"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Ensure core cache
         env:
@@ -250,12 +301,19 @@ jobs:
           retention-days: 3
           if-no-files-found: ignore
 
-      - name: Cache OHLC store zip
-        uses: actions/cache@v4
-        if: success()
+      - name: Save OHLC store zip
+        uses: actions/cache/save@v4
+        if: success() && needs.resolve_trading_day.outputs.is_replay != 'true'
         with:
           path: data/cache/ohlc_store_archive/ohlc_store.zip
           key: ohlc-store-zip-v2
+
+      - name: Save patched universe cache
+        uses: actions/cache/save@v4
+        if: success() && needs.resolve_trading_day.outputs.is_replay != 'true'
+        with:
+          path: data/universe/jpx/patched_cache
+          key: universe-patched-${{ needs.resolve_trading_day.outputs.run_date }}
 
   compute_indicators:
     needs: [resolve_trading_day, ensure_index_cache, ensure_core_cache]
@@ -288,8 +346,8 @@ jobs:
           name: stale-exclusions-${{ github.run_id }}
           path: data/cache/yf_daily/
 
-      - name: Cache index data
-        uses: actions/cache@v4
+      - name: Restore index cache
+        uses: actions/cache/restore@v4
         with:
           path: data/cache/yf_index/
           key: yf-index-${{ github.run_number }}
@@ -303,7 +361,7 @@ jobs:
           python -m stockradar.jobs.restore_ohlc_store
 
       - name: Restore patched universe cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: data/universe/jpx/patched_cache
           key: universe-patched-${{ needs.resolve_trading_day.outputs.run_date }}
@@ -316,30 +374,37 @@ jobs:
           RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
         run: |
           set -euo pipefail
-          LATEST_RELEASE=$(gh release list --limit 100 --json tagName --jq '.[] | select(.tagName | startswith("monthly-")) | .tagName' | head -1)
-          if [ -z "$LATEST_RELEASE" ]; then
-            echo "エラー: 月次Release（monthly-*）が見つかりません"
+          gh release list --limit 200 --json tagName --template '{{range .}}{{.tagName}}{{"\n"}}{{end}}' > /tmp/gh_all_tags.txt
+          grep '^monthly-' /tmp/gh_all_tags.txt > /tmp/monthly_tags.txt || true
+          if [ ! -s /tmp/monthly_tags.txt ]; then
+            echo "エラー: monthly-* Release が見つかりません"
             exit 1
           fi
-          echo "Latest monthly release: $LATEST_RELEASE"
+          RESOLVE_OUT=$(python -m stockradar.jobs.resolve_monthly_release_for_run_date \
+            --run-date "$RUN_DATE" \
+            --tags-file /tmp/monthly_tags.txt)
+          echo "$RESOLVE_OUT"
+          MONTHLY_TAG=$(echo "$RESOLVE_OUT" | grep '^monthly_tag=' | cut -d= -f2-)
+          UV_RES=$(echo "$RESOLVE_OUT" | grep '^universe_resolution=' | cut -d= -f2-)
+          REASON=$(echo "$RESOLVE_OUT" | sed -n 's/^resolution_reason=//p')
+          echo "Selected monthly_tag=$MONTHLY_TAG universe_resolution=$UV_RES"
           mkdir -p data/universe/jpx/latest_release
-          if ! gh release download "$LATEST_RELEASE" \
+          if ! gh release download "$MONTHLY_TAG" \
             --pattern "equity_domestic_core_with_name.csv" \
             --dir "data/universe/jpx/latest_release" \
             --repo "${{ github.repository }}"; then
-            echo "エラー: Releaseからのダウンロードに失敗しました: $LATEST_RELEASE"
-            gh release view "$LATEST_RELEASE" --repo "${{ github.repository }}" --json assets --jq '.assets[].name' || true
+            echo "エラー: Release からのダウンロードに失敗しました: $MONTHLY_TAG"
+            gh release view "$MONTHLY_TAG" --repo "${{ github.repository }}" --json assets --jq '.assets[].name' || true
             exit 1
           fi
-          RELEASE_DATE="${LATEST_RELEASE#monthly-}"
-          RELEASE_DATE="${RELEASE_DATE:0:4}-${RELEASE_DATE:4:2}-${RELEASE_DATE:6:2}"
           mkdir -p data/universe/jpx/patched_cache
           USE_PATCHED_CACHE=false
+          CHOSEN="$MONTHLY_TAG"
           if [ -f data/universe/jpx/patched_cache/manifest.json ] && [ -f data/universe/jpx/patched_cache/equity_domestic_core_with_name.csv ]; then
-            BASE_DATE=$(jq -r .base_release_date data/universe/jpx/patched_cache/manifest.json)
-            if [ "$BASE_DATE" = "$RELEASE_DATE" ] && [ "$BASE_DATE" != "null" ]; then
+            CACHED=$(jq -r '.chosen_monthly_tag // .base_release // empty' data/universe/jpx/patched_cache/manifest.json)
+            if [ "$CACHED" = "$CHOSEN" ] && [ -n "$CACHED" ] && [ "$CACHED" != "null" ]; then
               USE_PATCHED_CACHE=true
-              echo "Using patched cache (base_release_date=$BASE_DATE)"
+              echo "Using patched cache (chosen_monthly_tag=$CACHED)"
             fi
           fi
           if [ "$USE_PATCHED_CACHE" != "true" ]; then
@@ -347,9 +412,19 @@ jobs:
             python -m stockradar.jobs.patch_universe_daily \
               --input data/universe/jpx/latest_release/equity_domestic_core_with_name.csv \
               --run-date "$RUN_DATE" \
-              --base-release "$LATEST_RELEASE"
+              --base-release "$MONTHLY_TAG" \
+              --chosen-monthly-tag "$MONTHLY_TAG" \
+              --universe-resolution "$UV_RES" \
+              --resolution-reason "$REASON"
           fi
           echo "core_csv=data/universe/jpx/patched_cache/equity_domestic_core_with_name.csv" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Monthly universe resolution (compute job)"
+            echo "- run_date: $RUN_DATE"
+            echo "- monthly_tag: $MONTHLY_TAG"
+            echo "- universe_resolution: $UV_RES"
+            echo "- resolution_reason: $REASON"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Compute indicators
         env:
@@ -411,9 +486,16 @@ jobs:
         run: |
           python -m stockradar.jobs.archive_ohlc_store
 
-      - name: Cache OHLC store zip
-        uses: actions/cache@v4
-        if: success()
+      - name: Save index cache
+        uses: actions/cache/save@v4
+        if: success() && needs.resolve_trading_day.outputs.is_replay != 'true'
+        with:
+          path: data/cache/yf_index/
+          key: yf-index-${{ github.run_number }}
+
+      - name: Save OHLC store zip
+        uses: actions/cache/save@v4
+        if: success() && needs.resolve_trading_day.outputs.is_replay != 'true'
         with:
           path: data/cache/ohlc_store_archive/ohlc_store.zip
           key: ohlc-store-zip-v2
@@ -433,7 +515,8 @@ jobs:
     if: |
       always() &&
       needs.resolve_trading_day.outputs.is_open == 'True' &&
-      needs.compute_indicators.result == 'success'
+      needs.compute_indicators.result == 'success' &&
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_publish != 'true')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -538,8 +621,8 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Cache OHLC store zip
-        uses: actions/cache@v4
+      - name: Restore OHLC store zip
+        uses: actions/cache/restore@v4
         with:
           path: data/cache/ohlc_store_archive/ohlc_store.zip
           key: ohlc-store-zip-v2
@@ -563,9 +646,9 @@ jobs:
         run: |
           python -m stockradar.jobs.archive_ohlc_store
 
-      - name: Cache OHLC store zip
-        uses: actions/cache@v4
-        if: success()
+      - name: Save OHLC store zip
+        uses: actions/cache/save@v4
+        if: success() && needs.resolve_trading_day.outputs.is_replay != 'true'
         with:
           path: data/cache/ohlc_store_archive/ohlc_store.zip
           key: ohlc-store-zip-v2

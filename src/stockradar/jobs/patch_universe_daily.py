@@ -56,7 +56,26 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "--base-release",
         type=str,
-        help="使用した月次Releaseタグ（例: monthly-20260207）。manifest に記録し指標側の比較に利用。",
+        help="使用した月次Releaseタグ（例: monthly-20260207-123）。manifest に記録。",
+    )
+    parser.add_argument(
+        "--chosen-monthly-tag",
+        type=str,
+        default="",
+        help="選定した月次タグ全文（省略時は --base-release と同一扱い）。patched cache 再利用の exact 一致に使用。",
+    )
+    parser.add_argument(
+        "--universe-resolution",
+        type=str,
+        choices=["time_series_ok", "fallback_latest"],
+        default="time_series_ok",
+        help="月次解決の結果区分（監査用）。",
+    )
+    parser.add_argument(
+        "--resolution-reason",
+        type=str,
+        default="",
+        help="フォールバック等の人可読理由（空可）。",
     )
     args = parser.parse_args(argv)
 
@@ -103,11 +122,15 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(1)
 
     base_release_date = _parse_base_release_date(args.base_release) if args.base_release else None
+    chosen_tag = (args.chosen_monthly_tag or args.base_release or "").strip() or None
     manifest = {
         "base_release": args.base_release or None,
         "base_release_date": base_release_date,
+        "chosen_monthly_tag": chosen_tag,
         "run_date": run_date.isoformat(),
         "delisted_removed_count": removed,
+        "universe_resolution": args.universe_resolution,
+        "reason": (args.resolution_reason or "").strip(),
     }
     manifest_path = output_path.parent / MANIFEST_FILENAME
     try:
