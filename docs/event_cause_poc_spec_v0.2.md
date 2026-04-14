@@ -19,19 +19,23 @@
 ## 3. 入出力
 
 ### 入力
+
 - 指標CSV: `indicators_YYYYMMDD.csv`
 - 対象条件: `z_turnover_* > z-threshold`
 
 ### 中間出力
+
 - `data/external/events/news_tdnet_events_YYYYMMDD.jsonl`
 
 ### 最終出力
+
 - `data/analysis/event_causes_poc/event_cause_summary_YYYYMMDD[_suffix].csv`
 - `data/analysis/event_causes_poc/event_cause_candidates_YYYYMMDD[_suffix].csv`
 
 ## 4. 取得仕様（確定）
 
 ### 4.1 株探
+
 - URL: `https://kabutan.jp/stock/news?code=XXXX&nmode=0&date=YYYYMM00`
 - 取得メタデータ:
   - `published_at`（行先頭日時）
@@ -40,6 +44,7 @@
   - `url`（`stock/news?...&b=n...` または `disclosures/pdf/...`）
 
 ### 4.2 TDnet
+
 - URL: `https://www.release.tdnet.info/inbs/I_list_XXX_YYYYMMDD.html`
 - 取得メタデータ:
   - `published_at`（時刻 + run_date）
@@ -51,11 +56,13 @@
   - `url`（PDFリンク）
 
 ### 4.3 取得フィルタ
+
 - 期間: `run_date - lookback_days` ～ `run_date`
 - 当日カットオフ: `--cutoff-time HH:MM`（例: `15:30`）
 - 株探カテゴリ除外: `--exclude-kabutan-categories`（既定: `特集,注目`）
 
 ### 4.4 重複除外
+
 - 同一イベントキー: `code + published_at + title`
 - 重複時の優先:
   1. `tdnet` を優先
@@ -64,35 +71,42 @@
 ## 5. メタデータ付与仕様（現行）
 
 ### 5.1 `event_type`（タイトルの軽量ルール）
+
 - 例: `決算短信 -> earnings`, `自己株式取得 -> share_buyback`, `業績予想の修正 -> earnings_revision_up`
 - 非該当は `other`
 - 注意: ルールの肥大化は避ける方針（将来のLLM/Agent導入で再検討）
 
 ### 5.2 `event_scope` / `issuer_specificity`
+
 - `source=tdnet` は `issuer/company`
 - 株探の市場総括系（例: 本日の【, 話題株, レーティング日報）を `market/low`
 - その他は `issuer/company`
 
 ### 5.3 `novelty_level`
+
 - 「訂正」-> `low`
 - 「経過」-> `followup`
 - それ以外 -> `new`
 
 ### 5.4 `event_polarity`
+
 - 文脈依存の誤判定を避けるため、**現行は一律 `neutral`**
 - したがって `price_alignment` は実質的に順位差を作らない（v2重みは0）
 
 ### 5.5 `originality` / `confidence_base`
+
 - `tdnet`: `primary`, `0.9`
 - `kabutan`: `recap`, `0.7`
 
 ## 6. スコアリング
 
 ## 6.1 v1（従来）
+
 - `time_proximity`, `issuer_specificity`, `material_strength`, `primary_source`, `novelty`, `price_alignment`, `confidence_base`
 - 既存比較のため維持
 
 ### 6.1.1 `time_proximity` の基準
+
 - 当日: `1.0`
 - 1日前: `0.9`
 - 2〜5日前: `0.6`
@@ -106,6 +120,7 @@
 `--scoring-mode v2` で有効。
 
 ### 6.2.1 v2 中間スコア
+
 - `score_time_proximity`
 - `score_source_reliability`（source/originality）
 - `score_issuer_specificity`（source + URL種別 + category）
@@ -117,6 +132,7 @@
 - `score_price_alignment`（v2では重み0）
 
 ### 6.2.2 `score_name_match`
+
 - 入力:
   - 指標CSVの `name`
   - `shorten_stock_name(name)` の短縮名
@@ -126,6 +142,7 @@
   - それ以外 `0.0`
 
 ### 6.2.3 重み（現行）
+
 `config/event_cause_poc.yaml > weights_v2`
 
 - `time_proximity`: `0.22`
@@ -139,16 +156,19 @@
 - `price_alignment`: `0.00`
 
 ### 6.2.4 総合スコア式
+
 `cause_score = Σ(score_i * weight_i)`（小数点6桁丸め）
 
 ## 7. 判定ロジック
 
 ### 7.1 v1
+
 - `C`: 候補なし or `top_score < decision_threshold`（既定 `0.55`）
 - `A`: 上記以外で `top.score_issuer_specificity >= 0.8` かつ `top.score_material_strength >= 0.6`
 - `B`: 上記以外
 
 ### 7.2 v2
+
 - `C`: 候補なし or `top_score < decision_threshold`
 - `A`: `top_score >= a_threshold` かつ
   - `score_disclosure_channel >= 0.75`
@@ -166,6 +186,7 @@
   - `top_source` 変更: `4/20`
 
 比較ファイル:
+
 - `data/analysis/event_causes_poc/event_cause_summary_compare_20260227_v1_nm_vs_v2_nm.csv`
 
 ## 9. 既知課題
