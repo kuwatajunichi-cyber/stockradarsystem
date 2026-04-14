@@ -2,7 +2,7 @@
 # workflow inputs で上書き可能な項目は inputs を優先
 
 # テンプレート（ローカル XLSX ファイル、repo ルートからの相対パス）
-template_path: "config/templates/indicators_template_v1.2.xlsx"
+template_path: "config/templates/indicators_template_v1.3.xlsx"
 
 # （非推奨）特定のシートに限定したい場合のみ CLI の --header-anchor-sheet-name を使用してください。
 
@@ -25,8 +25,8 @@ sheet_protection_password: "Powerhorn03"
 # 列名はテンプレヘッダー名（CSVヘッダー名）と完全一致
 link_label_map:
   link_kabutan: "概要"
-  link_kabutan_chart: "チャート"
-  link_kabutan_news: "ニュース"
+  link_kabutan_chart: "ﾁｬｰﾄ"
+  link_kabutan_news: "ﾆｭｰｽ"
   link_buffett: "Bcode"
   # 将来拡張例:
   # link_minkabu: "みんかぶ"
