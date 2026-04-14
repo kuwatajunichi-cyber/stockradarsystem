@@ -2,17 +2,21 @@
 
 他リポジトリで **yfinance により日足 OHLCV（Open/High/Low/Close/Volume）を取得する機能** を実装する際の参考用です。このフォルダには stockradarsystem プロジェクトから抜粋したコードとスニペットを置いています。
 
-> **注意**: この `docs/yfinance_reference/` 内のコピーは本番実装より更新が遅れることがあります。**挙動・契約の正は `src/stockradar/utils/yf_cache.py` および本番ジョブ**を参照してください（例: 日次 `_manifest.jsonl` とユニバース一括 `_manifest_universe.jsonl` の分離、`stale` / `insufficient` の区別）。
+> **注意**: この `docs/yfinance_reference/` 内のコピーは本番実装より
+> 更新が遅れることがあります。**挙動・契約の正は
+> `src/stockradar/utils/yf_cache.py` および本番ジョブ**を参照してください
+> （例: 日次 `_manifest.jsonl` とユニバース一括
+> `_manifest_universe.jsonl` の分離、`stale` / `insufficient` の区別）。
 
 ## 含まれるファイル
 
-| ファイル | 説明 |
+|ファイル|説明|
 |----------|------|
-| **yf_cache.py** | コア実装。1ティッカー取得・リトライ・キャッシュ/マニフェスト I/O・差分取得のロジック。**ここを最優先で参照すること。** |
-| **fetch_yf_daily_for_universe.py** | 銘柄リストを入力にバッチで一括取得するジョブ。バッチ間スリープ・manifest による途中再開。 |
-| **ensure_core_cache.py** | キャッシュが不足している銘柄だけ取得し、既存は差分更新するジョブ。`yf_cache.ensure_cache_with_incremental_fetch` の利用例。 |
-| **config_snippet.py** | yfinance 用の設定のみ（環境変数 YF_* とキャッシュディレクトリ）。他プロジェクトではこの形で定数/設定に差し替え可能。 |
-| **paths_snippet.py** | 日本株ティッカー変換（`7203` → `7203.T`）と CSV から銘柄コードを読む関数。他プロジェクトでそのまま or 簡略化して利用可能。 |
+|**yf_cache.py**|コア実装。1ティッカー取得・リトライ・キャッシュ/マニフェスト I/O・差分取得のロジック。**ここを最優先で参照すること。**|
+|**fetch_yf_daily_for_universe.py**|銘柄リストを入力にバッチで一括取得するジョブ。バッチ間スリープ・manifest による途中再開。|
+|**ensure_core_cache.py**|キャッシュが不足している銘柄だけ取得し、既存は差分更新するジョブ。`yf_cache.ensure_cache_with_incremental_fetch` の利用例。|
+|**config_snippet.py**|yfinance 用の設定のみ（環境変数 YF_* とキャッシュディレクトリ）。他プロジェクトではこの形で定数/設定に差し替え可能。|
+|**paths_snippet.py**|日本株ティッカー変換（`7203` → `7203.T`）と CSV から銘柄コードを読む関数。他プロジェクトでそのまま or 簡略化して利用可能。|
 
 ## 実装時のポイント（yfinance 仕様・落とし穴）
 

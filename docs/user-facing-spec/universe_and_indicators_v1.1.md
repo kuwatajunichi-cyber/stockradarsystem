@@ -22,22 +22,22 @@
 ### 2.1 一次ユニバース（JPX銘柄一覧ベース）
 
 **データソース**: JPX（日本取引所グループ）が公表する銘柄一覧の Excel。  
-取得元ページ: https://www.jpx.co.jp/markets/statistics-equities/misc/01.html（コード上の既定 URL は `stockradar.config.DEFAULT_JPX_PAGE_URL` と一致）
+取得元ページ: <https://www.jpx.co.jp/markets/statistics-equities/misc/01.html（コード上の既定> URL は `stockradar.config.DEFAULT_JPX_PAGE_URL` と一致）
 
 **分類の仕方**: 銘柄一覧の「市場・商品区分」列の文字列を、次のルールで `universe_primary` にマッピングする。  
 （**部分一致**と**完全一致**が混在する。以下は実装どおりの優先順である。）
 
-| universe_primary      | 判定（実装） |
-| --------------------- | ------------ |
-| equity_domestic       | 区分文字列に **「内国株式」** を含む |
-| equity_foreign        | 区分文字列に **「外国株式」** を含む |
-| etf_etn               | 区分文字列が **`ETF・ETN`** と**完全一致** |
-| reit_funds            | 区分文字列が **`REIT・ベンチャーファンド・カントリーファンド・インフラファンド`** と**完全一致** |
-| pro_market            | 区分に **「PRO Market」** または **「TOKYO PRO Market」** を含む |
-| investment_securities | 区分文字列が **`出資証券`** と**完全一致** |
-| unknown               | 空欄、または上記のいずれにも該当しない |
+|universe_primary|判定（実装）|
+|---------------------|------------|
+|equity_domestic|区分文字列に **「内国株式」** を含む|
+|equity_foreign|区分文字列に **「外国株式」** を含む|
+|etf_etn|区分文字列が **`ETF・ETN`** と**完全一致**|
+|reit_funds|区分文字列が **`REIT・ベンチャーファンド・カントリーファンド・インフラファンド`** と**完全一致**|
+|pro_market|区分に **「PRO Market」** または **「TOKYO PRO Market」** を含む|
+|investment_securities|区分文字列が **`出資証券`** と**完全一致**|
+|unknown|空欄、または上記のいずれにも該当しない|
 
-**除外ルール**
+#### 除外ルール
 
 - 銘柄コードに**数字が5桁以上**含まれる銘柄（種類株など）は一次ユニバースから除外する（アルファベット混在の4桁コードは対象外）。
 
@@ -47,19 +47,23 @@
 
 一次ユニバースのうち **equity_domestic（内国株式）** を、次の3つに**排他的**に分割する。
 
-| 区分 | 内容 |
-| ---- | ---- |
-| **ipo** | キャッシュ取得が失敗している、または取得済みバー数が IPO 判定に必要な営業日数**未満**の銘柄（`insufficient` を含む） |
-| **illiquid** | ipo 以外で、直近の営業日における売買代金（終値×出来高）の**中央値**が、所定の閾値**未満**の銘柄 |
-| **core** | ipo・illiquid 以外 |
+|区分|内容|
+|----|----|
+|**ipo**|キャッシュ取得が失敗している、または取得済みバー数が IPO 判定に必要な営業日数**未満**の銘柄（`insufficient` を含む）|
+|**illiquid**|ipo 以外で、直近の営業日における売買代金（終値×出来高）の**中央値**が、所定の閾値**未満**の銘柄|
+|**core**|ipo・illiquid 以外|
 
-**manifest（二次分割が参照するもの）**
+#### manifest（二次分割が参照するもの）
 
-- 二次分割は **`data/cache/yf_daily/_manifest_universe.jsonl` のみ**を読む（`fetch_yf_daily_for_universe` が更新）。日次ジョブの `_manifest.jsonl`（`ensure_*` が `run_date` 鮮度を記録）とは**別ファイル**であり、日次の `stale` や run_date 整合は二次分割の IPO 判定に混ぜない。
+- 二次分割は **`data/cache/yf_daily/_manifest_universe.jsonl` のみ**を読む
+  （`fetch_yf_daily_for_universe` が更新）。日次ジョブの
+  `_manifest.jsonl`（`ensure_*` が `run_date` 鮮度を記録）とは
+  **別ファイル**であり、日次の `stale` や run_date 整合は
+  二次分割の IPO 判定に混ぜない。
 - JSONL 1行は **`code` を主キー**とする。`symbol` のみの行も `code` 扱いで読める（実装: `equity_secondary._load_manifest_entries`）。
 - manifest の `status` が **`stale`**（日次側の語義で乗ってきた場合）かつ **`fetched_bars` が IPO 必要本数以上**のとき、二次分割では **IPO に回さず**流動性（中央値）判定へ回す。サマリに `n_stale_run_date` を出す。
 
-**判定パラメータ（参照値）**
+#### 判定パラメータ（参照値）
 
 - IPO 判定に必要な営業日数: **252**（環境変数 `IPO_LOOKBACK_DAYS`）
 - 流動性判定の直近営業日数: **60**（`LIQ_LOOKBACK_DAYS`）
@@ -179,7 +183,11 @@
 
 `build_external_links` により、株探（概要・チャート・ニュース）、みんかぶ、バフェットコード、Yahoo! ファイナンスの URL を生成する。キーは [externalLink_v1.0.md](externalLink_v1.0.md) と整合。日次 CSV では `link_kabutan` 等の列名で出力される。
 
-**日次 CSV / 配布 XLSX**: v1.2 テンプレに載るのは **`link_kabutan`・`link_kabutan_chart`・`link_kabutan_news`・`link_buffett`** の 4 列。セル表示は `config/render_sheet.yaml` の `link_label_map` に従い（例: 概要 / チャート / ニュース / Bcode）、URL はハイパーリンク。**みんかぶ・Yahoo は CSV には列があるが v1.2 シートには列がない**。
+**日次 CSV / 配布 XLSX**: v1.2 テンプレに載るのは
+**`link_kabutan`・`link_kabutan_chart`・`link_kabutan_news`・`link_buffett`**
+の 4 列。セル表示は `config/render_sheet.yaml` の `link_label_map` に従い
+（例: 概要 / チャート / ニュース / Bcode）、URL はハイパーリンク。
+**みんかぶ・Yahoo は CSV には列があるが v1.2 シートには列がない**。
 
 ---
 

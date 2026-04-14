@@ -1,5 +1,5 @@
-actionlint
-==========
+# actionlint
+
 [![CI Status][ci-badge]][ci]
 [![API Document][apidoc-badge]][apidoc]
 
@@ -19,7 +19,7 @@ Features:
 
 See the [full list][checks] of checks done by actionlint.
 
-<img src="https://github.com/rhysd/ss/blob/master/actionlint/main.gif?raw=true" alt="actionlint reports 7 errors" width="806" height="492"/>
+![actionlint reports 7 errors](https://github.com/rhysd/ss/blob/master/actionlint/main.gif?raw=true)
 
 **Example of broken workflow:**
 
@@ -51,7 +51,7 @@ jobs:
 
 **actionlint reports 7 errors:**
 
-```
+```text
 test.yaml:3:5: unexpected key "branch" for "push" section. expected one of "branches", "branches-ignore", "paths", "paths-ignore", "tags", "tags-ignore", "types", "workflows" [syntax-check]
   |
 3 |     branch: main

@@ -255,7 +255,7 @@ actionlint checks types of expressions in `${{ }}` placeholders of templates. Th
 checker.
 
 | Type          | Description                                                                                | Notation                 |
-|---------------|--------------------------------------------------------------------------------------------|--------------------------|
+| --------------- | -------------------------------------------------------------------------------------------- | -------------------------- |
 | Any           | Any value like `any` type in TypeScript. Fallback type when a value can no longer be typed | `any`                    |
 | Number        | Number value (integer or float)                                                            | `number`                 |
 | Bool          | Boolean value                                                                              | `bool`                   |
@@ -1339,7 +1339,7 @@ actionlint validates the Webhook configurations:
     (see the following table).
 
 | Filter name       | Events where the filter is available                                         |
-|-------------------|------------------------------------------------------------------------------|
+| ------------------- | ------------------------------------------------------------------------------ |
 | `paths`           | `push`, `pull_request`, `pull_request_target`                                |
 | `paths-ignore`    | `push`, `pull_request`, `pull_request_target`                                |
 | `branches`        | `merge_group`, `push`, `pull_request`, `pull_request_target`, `workflow_run` |

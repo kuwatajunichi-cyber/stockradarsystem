@@ -1,15 +1,16 @@
+# externalLink v1.0
+
 前提：  
 用途は「スクリーニング後に複数銘柄を高速確認するための外部リンク整備」。  
 評価軸は ①役割の明確性 ②重複の少なさ ③URLのルール生成可否。
 
 * * *
 
-1. 株探
-   =====
+## 株探
 
 ### 役割
 
-**一次確認ハブ（価格＋材料）**
+#### 一次確認ハブ（価格＋材料）
 
 * ロウソク足・出来高を即表示
 
@@ -35,24 +36,23 @@
 
 基本ページ
 
-https://kabutan.jp/stock/?code={code}
+<https://kabutan.jp/stock/?code={code}>
 
 チャート直
 
-https://kabutan.jp/stock/chart?code={code}
+<https://kabutan.jp/stock/chart?code={code}>
 
 ニュース直
 
-https://kabutan.jp/stock/news?code={code}
+<https://kabutan.jp/stock/news?code={code}>
 
 * * *
 
-2. みんかぶ
-   =======
+## みんかぶ
 
 ### 役割
 
-**会社概要・四季報要約確認**
+#### 会社概要・四季報要約確認
 
 * 主力事業の一文要約
 
@@ -74,16 +74,15 @@ https://kabutan.jp/stock/news?code={code}
 
 ### URLフォーマット
 
-https://minkabu.jp/stock/{code}
+<https://minkabu.jp/stock/{code}>
 
 * * *
 
-3. バフェット・コード
-   ============
+## バフェット・コード
 
 ### 役割
 
-**財務構造の検証**
+#### 財務構造の検証
 
 * ROE推移
 
@@ -107,16 +106,15 @@ https://minkabu.jp/stock/{code}
 
 ### URLフォーマット
 
-https://www.buffett-code.com/company/{code}
+<https://www.buffett-code.com/company/{code}>
 
 * * *
 
-4. Yahoo!ファイナンス
-   ===============
+## Yahoo!ファイナンス
 
 ### 役割
 
-**総合ポータル（仁義枠＋基準参照）**
+#### 総合ポータル（仁義枠＋基準参照）
 
 * yfinanceのデータソース
 
@@ -140,24 +138,22 @@ https://www.buffett-code.com/company/{code}
 
 ### URLフォーマット
 
-https://finance.yahoo.co.jp/quote/{code}.T
+<https://finance.yahoo.co.jp/quote/{code}.T>
 
 * * *
 
-機能分離マップ
-=======
+## 機能分離マップ
 
-| サイト      | 主用途   | フェーズ | 重複度 |
-| -------- | ----- | ---- | --- |
-| 株探       | 価格＋材料 | 初期判断 | 低   |
-| みんかぶ     | 事業理解  | 補助理解 | 中   |
-| バフェットコード | 財務検証  | 深掘り  | 低   |
-| Yahoo    | 総合参照  | 補完   | 中   |
+|サイト|主用途|フェーズ|重複度|
+|--------|-----|----|---|
+|株探|価格＋材料|初期判断|低|
+|みんかぶ|事業理解|補助理解|中|
+|バフェットコード|財務検証|深掘り|低|
+|Yahoo|総合参照|補完|中|
 
 * * *
 
-推奨表示順（現在の設計思想に整合）
-=================
+## 推奨表示順（現在の設計思想に整合）
 
 1. 株探（チャート＋材料）
 
@@ -169,14 +165,13 @@ https://finance.yahoo.co.jp/quote/{code}.T
 
 * * *
 
-ルールベースURL生成まとめ
-==============
+## ルールベースURL生成まとめ
 
-kabutan_main  = f"https://kabutan.jp/stock/?code={code}"  
-kabutan_chart = f"https://kabutan.jp/stock/chart?code={code}"
-kabutan_news = f"https://kabutan.jp/stock/news?code={code}"
-minkabu       = f"https://minkabu.jp/stock/{code}"  
-buffett       = f"https://www.buffett-code.com/company/{code}"  
-yahoo         = f"https://finance.yahoo.co.jp/quote/{code}.T"
+kabutan_main  = f"<https://kabutan.jp/stock/?code={code}>"  
+kabutan_chart = f"<https://kabutan.jp/stock/chart?code={code}>"
+kabutan_news = f"<https://kabutan.jp/stock/news?code={code}>"
+minkabu       = f"<https://minkabu.jp/stock/{code}>"  
+buffett       = f"<https://www.buffett-code.com/company/{code}>"  
+yahoo         = f"<https://finance.yahoo.co.jp/quote/{code}.T>"
 
 すべて銘柄コード（4桁整数）から自動生成可能。

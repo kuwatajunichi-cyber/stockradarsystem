@@ -133,7 +133,7 @@ The sequence can be traversed with `range` action, which is like `for ... = rang
 The error object has the following fields.
 
 | Field                | Description                                           | Example                                                          |
-|----------------------|-------------------------------------------------------|------------------------------------------------------------------|
+| ---------------------- | ------------------------------------------------------- | ------------------------------------------------------------------ |
 | `{{$err.Message}}`   | Body of error message                                 | `property "platform" is not defined in object type {os: string}` |
 | `{{$err.Snippet}}`   | Code snippet to indicate error position               | `          node_version: 16.x\n          ^~~~~~~~~~~~~`          |
 | `{{$err.Kind}}`      | Name of rule the error belongs to                     | `expression`                                                     |
@@ -147,7 +147,7 @@ there are a few custom actions defined by actionlint. Most useful action would b
 example. List of all custom actions are as follows:
 
 | Action           | Description                                                                      | Example usage                             |
-|------------------|----------------------------------------------------------------------------------|-------------------------------------------|
+| ------------------ | ---------------------------------------------------------------------------------- | ------------------------------------------- |
 | `json x`         | Serialize `x` as JSON string followed by newline character                       | `{{json $err}}`                           |
 | `replace x y z`  | Replace string `y` with `z` in `x`                                               | `{{replace $err.Filepath "\\" "/"}}`      |
 | `toPascalCase x` | Convert `x` into PascalCase (e.g. 'foo-bar' to 'FooBar')                         | `{{toPascalCase $err.Kind}}`              |
@@ -157,7 +157,7 @@ example. List of all custom actions are as follows:
 The kind object returned from `allKinds` action has the following fields.
 
 | Field                   | Description                   | Example                                     |
-|-------------------------|-------------------------------|---------------------------------------------|
+| ------------------------- | ------------------------------- | --------------------------------------------- |
 | `{{$kind.Name}}`        | Name of the kind              | `syntax-check`                              |
 | `{{$kind.Description}}` | Short description of the kind | `Checks for GitHub Actions workflow syntax` |
 
@@ -183,7 +183,7 @@ Note that special characters escaped with backslash like `\n` in the format stri
 `actionlint` command exits with one of the following exit statuses.
 
 | Status | Description                                             |
-|--------|---------------------------------------------------------|
+| -------- | --------------------------------------------------------- |
 | `0`    | The command ran successfully and no problem was found   |
 | `1`    | The command ran successfully and some problem was found |
 | `2`    | The command failed due to invalid command line option   |
