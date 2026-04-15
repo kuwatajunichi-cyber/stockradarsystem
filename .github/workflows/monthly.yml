@@ -164,7 +164,7 @@ jobs:
             data/output/staging/*/*.manifest.json
             data/output/latest/LATEST_RUN_ID.txt
             logs/*/run.log
-          retention-days: 90
+          retention-days: 30
           if-no-files-found: warn
 
       - name: Upload logs (debug)

@@ -477,7 +477,8 @@ jobs:
         with:
           name: daily-indicators-${{ needs.resolve_trading_day.outputs.run_date }}
           path: data/indicators/daily/indicators_*.csv
-          retention-days: 90
+          # 同一 run の後続ジョブと短期リカバリ用。長期保管は R2 / Release 等へ。
+          retention-days: 7
           if-no-files-found: warn
 
       - name: Archive OHLC store to zip

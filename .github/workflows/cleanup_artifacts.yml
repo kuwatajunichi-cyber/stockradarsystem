@@ -39,7 +39,8 @@ jobs:
       - name: Cleanup artifacts by prefix and age
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DRY_RUN: ${{ github.event.inputs.dry_run || 'true' }}
+          # schedule では既定で実削除（手動 dispatch は dry_run 既定 true で安全側）
+          DRY_RUN: ${{ github.event_name == 'schedule' && 'false' || (github.event.inputs.dry_run || 'true') }}
           KEEP_DAYS: ${{ github.event.inputs.keep_days || '2' }}
           TARGET_PREFIX: ${{ github.event.inputs.target_prefix || 'ohlc-store-' }}
           MAX_DELETE: ${{ github.event.inputs.max_delete || '200' }}
