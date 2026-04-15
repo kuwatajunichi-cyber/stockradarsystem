@@ -100,3 +100,4 @@ jobs:
         with:
           name: enriched-csv-${{ inputs.run_date }}
           path: data/indicators/daily/
+          retention-days: 7
