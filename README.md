@@ -481,11 +481,7 @@ python -m stockradar.jobs.compute_indicators_for_core --input data/universe/jpx/
 
 - schedule: 毎営業日 15:37 JST（月〜金、UTC 06:37）
 - concurrency: 同一workflowの多重起動禁止
-- 主なジョブ: resolve_trading_day（営業日判定）→ ensure_index_cache
-  ∥ ensure_core_cache →
-  **compute_indicators は ensure_core_cache が作った `ohlc_store.zip` を
-  artifact で受け取り復元**（別ランナー間の `actions/cache` の取り違え防止。
-  ウォーム用キャッシュは ensure 側でも引き続き利用可）→
+- 主なジョブ: resolve_trading_day（営業日判定）→ **resolve_core_csv**（月次タグ解決・patched cache 選定・`daily-core-csv-*` / `daily-core-quality-*` artifact）と **ensure_index_cache** を並列 → **ensure_core_cache**（上記 core artifact を `--input`、OHLC を `daily-ohlc-store-*` artifact と固定キー `ohlc-store-zip-v2` に反映）→ **compute_indicators**（同一 run の **OHLC・index・core** をいずれも **artifact 経由で復元**して算出。`daily.yml` 内では `patch_universe_daily` を起動せず、OHLC/index の `actions/cache/save` も行わない。ウォーム用の cache save は各 ensure ジョブのみ。詳細は `docs/contracts/daily_replay_and_monthly_universe.md`）→
   compute_indicators_for_core → 0011_work へアップロード → render_sheet 等
 - fetch系は部分成功を許容しつつ manifest に残す
 - compute で対象銘柄の有効計算率が極端に低い場合は fail
@@ -502,9 +498,10 @@ python -m stockradar.jobs.resolve_trading_day --date $RUN_DATE
 # Job2: ベンチマークキャッシュ確保
 python -m stockradar.jobs.ensure_index_cache --run-date $RUN_DATE
 
-# Job3: 銘柄キャッシュ確保
+# Job3: 銘柄キャッシュ確保（本番と同じ core CSV を使う場合は、先に resolve_core_csv 等で
+# `data/universe/jpx/core_selected_staging/equity_domestic_core_with_name.csv` を用意し --input で渡す）
 python -m stockradar.jobs.ensure_core_cache --run-date $RUN_DATE
 
-# Job4: 指標算出
+# Job4: 指標算出（同上、必要なら --input で core CSV を明示）
 python -m stockradar.jobs.compute_indicators_for_core --run-date $RUN_DATE
 ```

@@ -47,6 +47,9 @@ jobs:
     needs: resolve_trading_day
     if: needs.resolve_trading_day.outputs.is_open == 'True'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -61,27 +64,39 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Download latest monthly release
+      - name: Resolve monthly tag for run_date
         id: monthly
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PYTHONPATH: src
+          RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
         run: |
           set -euo pipefail
-          LATEST_RELEASE=$(gh release list --limit 100 --json tagName --jq '.[] | select(.tagName | startswith("monthly-")) | .tagName' | head -1)
-          if [ -z "$LATEST_RELEASE" ]; then
-            echo "エラー: 月次Release（monthly-*）が見つかりません"
+          gh release list --limit 200 --json tagName --template '{{range .}}{{.tagName}}{{"\n"}}{{end}}' > /tmp/gh_all_tags.txt
+          grep '^monthly-' /tmp/gh_all_tags.txt > /tmp/monthly_tags.txt || true
+          if [ ! -s /tmp/monthly_tags.txt ]; then
+            echo "error: no monthly-* release tags"
             exit 1
           fi
-          echo "release=$LATEST_RELEASE" >> "$GITHUB_OUTPUT"
+          RESOLVE_OUT=$(python -m stockradar.jobs.resolve_monthly_release_for_run_date \
+            --run-date "$RUN_DATE" \
+            --tags-file /tmp/monthly_tags.txt)
+          echo "$RESOLVE_OUT"
+          MONTHLY_TAG=$(echo "$RESOLVE_OUT" | grep '^monthly_tag=' | cut -d= -f2-)
+          UV_RES=$(echo "$RESOLVE_OUT" | grep '^universe_resolution=' | cut -d= -f2-)
+          REASON=$(echo "$RESOLVE_OUT" | sed -n 's/^resolution_reason=//p')
+          mkdir -p .tmp
+          printf '%s' "$REASON" > .tmp/resolution_reason.txt
+          echo "monthly_tag=$MONTHLY_TAG" >> "$GITHUB_OUTPUT"
+          echo "universe_resolution=$UV_RES" >> "$GITHUB_OUTPUT"
           mkdir -p data/universe/jpx/latest_release
-          if ! gh release download "$LATEST_RELEASE" \
+          if ! gh release download "$MONTHLY_TAG" \
             --pattern "equity_domestic_core_with_name.csv" \
             --dir "data/universe/jpx/latest_release" \
             --repo "${{ github.repository }}"; then
-            echo "エラー: Releaseからのダウンロードに失敗しました: $LATEST_RELEASE"
+            echo "error: gh release download failed: $MONTHLY_TAG"
             exit 1
           fi
-          echo "Downloaded: $LATEST_RELEASE"
 
       - name: Patch universe (delisted removal)
         env:
@@ -89,14 +104,31 @@ jobs:
         run: |
           set -euo pipefail
           RUN_DATE="${{ needs.resolve_trading_day.outputs.run_date }}"
-          BASE_RELEASE="${{ steps.monthly.outputs.release }}"
+          MONTHLY_TAG="${{ steps.monthly.outputs.monthly_tag }}"
+          UV_RES="${{ steps.monthly.outputs.universe_resolution }}"
+          REASON="$(cat .tmp/resolution_reason.txt)"
           python -m stockradar.jobs.patch_universe_daily \
             --input data/universe/jpx/latest_release/equity_domestic_core_with_name.csv \
             --run-date "$RUN_DATE" \
-            --base-release "$BASE_RELEASE"
+            --base-release "$MONTHLY_TAG" \
+            --chosen-monthly-tag "$MONTHLY_TAG" \
+            --universe-resolution "$UV_RES" \
+            --resolution-reason "$REASON"
+
+      - name: Delete patched cache key if exists (fixed key rotation)
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          MONTHLY_TAG="${{ steps.monthly.outputs.monthly_tag }}"
+          RUN_DATE="${{ needs.resolve_trading_day.outputs.run_date }}"
+          KEY="universe-patched-${MONTHLY_TAG}-${RUN_DATE}"
+          python -m stockradar.jobs.cache_ops delete-key --repo "${{ github.repository }}" --key "$KEY" || true
 
       - name: Save patched universe cache
-        uses: actions/cache@v4
+        uses: actions/cache/save@v4
+        if: success()
         with:
           path: data/universe/jpx/patched_cache
-          key: universe-patched-${{ needs.resolve_trading_day.outputs.run_date }}
+          key: universe-patched-${{ steps.monthly.outputs.monthly_tag }}-${{ needs.resolve_trading_day.outputs.run_date }}

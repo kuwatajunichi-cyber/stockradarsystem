@@ -1,0 +1,18 @@
+# GitHub Actions artifact cleanup rules (used by scripts/cleanup_artifacts.py)
+rules:
+  - prefix: daily-core-csv-
+    keep_days: 2
+    enabled: true
+    max_delete: 200
+  - prefix: daily-core-quality-
+    keep_days: 2
+    enabled: true
+    max_delete: 200
+  - prefix: daily-index-store-
+    keep_days: 2
+    enabled: true
+    max_delete: 200
+  - prefix: daily-ohlc-store-
+    keep_days: 2
+    enabled: true
+    max_delete: 200

@@ -75,7 +75,7 @@
 
 指標は **equity_domestic_core**（二次ユニバースの core）に対して算出される。
 
-日次運用では、月次で生成した core に**上場廃止銘柄の除外パッチ**を適用した CSV（`patch_universe_daily` 等）を入力に用いることがある。
+日次運用では、月次で生成した core に**上場廃止銘柄の除外パッチ**を適用した CSVを入力に用いることがある。適用済み CSV は **`daily_universe_patch.yml`** が Actions cache に書き込み、**`daily.yml`** 側の **`resolve_core_csv`** が同一ルールで月次タグを解決したうえで cache から復元するか、候補が無ければ月次リリースの core にフォールバックする（**`daily.yml` 内では `patch_universe_daily` を実行しない**）。
 
 ---
 

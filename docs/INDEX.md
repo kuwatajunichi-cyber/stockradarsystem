@@ -88,6 +88,7 @@ CI・ワークフロー・ジョブの変更に関わる「原則」「運用基
 - [docs/contracts/datetime_normalization.md](contracts/datetime_normalization.md)
 - [docs/contracts/determinism_and_idempotency.md](contracts/determinism_and_idempotency.md)
 - [docs/contracts/workflow_preflight_contract.md](contracts/workflow_preflight_contract.md)
+- [docs/contracts/daily_replay_and_monthly_universe.md](contracts/daily_replay_and_monthly_universe.md) — 日次 replay / patched cache / `daily.yml` の artifact・cache 契約
 
 ### 補助（スコープ・テスト配置）
 
