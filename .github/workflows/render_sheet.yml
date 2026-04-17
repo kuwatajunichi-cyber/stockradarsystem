@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       csv_drive_file_id:
-        description: "CSV の Drive ファイル ID または共有リンク（必須）"
+        description: "Google Drive 上の指標 CSV のファイル ID または共有リンク（本ワークフロー経由の Drive 入力モードで必須。ローカル CSV は render_sheet.py --input-csv）"
         required: true
         type: string
       output_folder_id:
@@ -32,7 +32,7 @@ on:
   workflow_call:
     inputs:
       csv_drive_file_id:
-        description: "CSV の Drive ファイル ID または共有リンク（必須）"
+        description: "Google Drive 上の指標 CSV のファイル ID または共有リンク（本ワークフロー経由の Drive 入力モードで必須）"
         required: true
         type: string
       output_folder_id:

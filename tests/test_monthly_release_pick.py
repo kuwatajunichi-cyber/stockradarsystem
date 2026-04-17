@@ -11,6 +11,8 @@ from stockradar.universe.monthly_release_pick import (
     subtract_calendar_months,
 )
 
+pytestmark = pytest.mark.unit
+
 
 def test_parse_monthly_tag_ok() -> None:
     assert parse_monthly_tag("monthly-20260207-99") == (date(2026, 2, 7), 99)

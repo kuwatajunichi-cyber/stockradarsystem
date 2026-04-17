@@ -259,7 +259,7 @@ def main() -> None:
         print(f"初期化エラー: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
         import traceback
         traceback.print_exc(file=sys.stderr)
-    sys.exit(EXIT_RUNTIME)
+        sys.exit(EXIT_RUNTIME)
 
     # 1. update_jpx_url_cache
     log("1/5: update_jpx_url_cache")

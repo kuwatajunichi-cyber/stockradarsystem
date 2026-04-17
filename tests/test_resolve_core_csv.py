@@ -12,6 +12,8 @@ from stockradar.jobs import resolve_core_csv as mod
 from stockradar.jobs.patch_universe_daily import MANIFEST_FILENAME as PATCH_MANIFEST_NAME
 from stockradar.jobs.resolve_core_csv import CORE_CSV_NAME, QUALITY_JSON_NAME, STATE_FILENAME
 
+pytestmark = pytest.mark.job_integration
+
 
 @pytest.fixture
 def tags_file(tmp_path: Path) -> Path:

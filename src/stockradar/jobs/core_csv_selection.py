@@ -2,6 +2,9 @@
 Pure logic: pick patched universe cache key from listed keys.
 
 Contract: key format ``universe-patched-{MONTHLY_TAG}-{YYYY-MM-DD}`` (date suffix at end).
+
+配置: I/O を持たないため ``stockradar.utils`` に置けるが、日次の
+``resolve_core_csv`` からのみ参照される補助ロジックとして ``jobs`` 配下に置いている。
 """
 from __future__ import annotations
 

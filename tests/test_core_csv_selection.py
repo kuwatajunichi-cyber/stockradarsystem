@@ -1,10 +1,14 @@
 from datetime import date
 
+import pytest
+
 from stockradar.jobs.core_csv_selection import (
     count_unparseable_patched_prefixed_keys,
     parse_universe_patched_key,
     select_patched_cache_key,
 )
+
+pytestmark = pytest.mark.unit
 
 
 def test_count_unparseable_patched_prefixed_keys() -> None:

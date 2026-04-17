@@ -4,8 +4,13 @@ equity_domestic 銘柄リストを入力に、yfinance で日次（Close, Volume
 
 入力: equity_domestic.csv（--input で指定。未指定なら最新 sets_YYYYMMDD から探索）
 required_days = max(IPO_LOOKBACK_DAYS, LIQ_LOOKBACK_DAYS)
-キャッシュ: data/cache/yf_daily/{code}.csv（ensure_core_cache / 日次ジョブと共有）
-manifest: data/cache/yf_daily/_manifest_universe.jsonl（ユニバース一括専用。日次の _manifest.jsonl は上書きしない）
+
+**キャッシュと manifest（日次ジョブとの関係）**
+- **物理キャッシュ**は `data/cache/yf_daily/{code}.csv` で日次の `ensure_core_cache` と **同一ディレクトリを共有**する。
+- **意味論（進捗・鮮度）**は manifest で分離する: 本ジョブは
+  `data/cache/yf_daily/_manifest_universe.jsonl` のみを用い、日次の `_manifest.jsonl` には触れない。
+- **取得・再試行・キャッシュ更新の owner** は `stockradar.utils.yf_cache` を正とする（新規ロジックはそこに集約する運用）。
+  本モジュールはユニバース一括のオーケストレーションと manifest I/O を担う。
 """
 from __future__ import annotations
 

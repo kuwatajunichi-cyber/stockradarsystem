@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""並列ワーカー数の違いで main 出力が一致すること（旧 tests/test_compute_indicators_parallel_contract の代替）。"""
+
 from pathlib import Path
 
 import pandas as pd

@@ -115,6 +115,10 @@ v
 外部ストレージへのアップロードは、日次・月次ともに **`scripts/upload_to_all_targets.py`** に集約する。
 今後ミラーリング系統を追加する場合は、このスクリプトに Adapter を追加するだけで workflow 変更を最小限にできる。
 
+**ミラー配布の成功契約（`upload_to_all_targets.py`）**: `--targets` で有効にした各系統のうち、**少なくとも 1 系統が成功すれば終了コード 0**（全成功は `upload_status=ok`、一部失敗は `upload_status=degraded`）。**指定した全系統が失敗したときのみ非 0**（終了コード 2）。stdout の末尾に常に `upload_status=...` と `upload_failed_targets=...` の 2 行が付く（失敗が無いときは `upload_failed_targets=-`）。stderr の `upload_warnings=` は従来どおり。CI の成否判定はこの終了コードを主とする。
+
+**ストレージ抽象と補助 CLI**: 日次・月次パイプラインの **4 系統ミラーの正系**は上記 `upload_to_all_targets.py`（Drive / R2 / Dropbox / GitHub Release を一括オーケストレーション）。**`scripts/storage/base.py` の `StorageAdapter`** は R2 / Dropbox 等の **プロトコルとしての抽象**であり、Drive と GitHub Release は **この Protocol 外の統合実装**として同スクリプト内に置いている。Drive の 0011_work への **単体アップロード**用に **`scripts/gdrive/upload_to_work.py`** があり、細かいパス操作や手動・他スクリプトからの利用向けの **補助経路**（ミラー本番の代替ではない）。
+
 **3か月保持ポリシー**: 全系統で「直近3か月分を保持し、4か月目に削除」する。月1回のクリーンアップ Workflow（`cleanup_r2.yml` / `cleanup_dropbox.yml` / `cleanup_releases.yml` / `cleanup_drive_work.yml`）で自動削除する。
 
 ---
@@ -125,7 +129,7 @@ v
 - 欠損や取得失敗は flags / manifest で可視化
 - 成果物は staging -> latest の原子更新
 - 実行ID（run_id）とログを保存
-- 日次成果物は Committed 後に 4 系統へ一括アップロード（`scripts/upload_to_all_targets.py`）。Drive 凍結時は R2 / Dropbox / Release の3系統で継続可能
+- 日次成果物は Committed 後に 4 系統へ一括アップロード（`scripts/upload_to_all_targets.py`）。Drive 凍結時は R2 / Dropbox / Release の3系統で継続可能（いずれかが成功すれば当該ステップは成功終了）
 
 ---
 
