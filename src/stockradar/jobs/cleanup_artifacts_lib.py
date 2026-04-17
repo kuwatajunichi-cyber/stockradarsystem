@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 from datetime import datetime, timedelta, timezone
 
 
@@ -11,6 +12,28 @@ class CleanupRule:
     keep_days: int
     enabled: bool = True
     max_delete: int = 200
+
+
+def coerce_yaml_bool(value: Any, *, field: str) -> bool:
+    """Parse YAML/config booleans without Python ``bool("false") == True`` pitfalls."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        if value == 1:
+            return True
+        if value == 0:
+            return False
+        raise ValueError(f"{field}: expected 0 or 1 for integer bool, got {value!r}")
+    if isinstance(value, str):
+        s = value.strip().lower()
+        if s in ("true", "yes", "1", "on"):
+            return True
+        if s in ("false", "no", "0", "off"):
+            return False
+        if s == "":
+            raise ValueError(f"{field}: empty string is not a valid boolean")
+        raise ValueError(f"{field}: invalid boolean string {value!r}")
+    raise ValueError(f"{field}: expected bool, 0/1, or string, got {type(value).__name__}")
 
 
 def parse_github_datetime(created_at: str) -> float:

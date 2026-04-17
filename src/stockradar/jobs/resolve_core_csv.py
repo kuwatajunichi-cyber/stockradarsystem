@@ -231,15 +231,20 @@ def run_materialize(
     patched_csv = args.patched_dir / CORE_CSV_NAME
     patched_manifest = args.patched_dir / PATCH_MANIFEST_NAME
 
-    use_patched = isinstance(patched_key, str) and patched_key.strip() != ""
+    patched_key_str = patched_key.strip() if isinstance(patched_key, str) else ""
+    want_patched = patched_key_str != ""
+    patched_files_ready = want_patched and patched_csv.is_file() and patched_manifest.is_file()
 
-    if use_patched:
-        if not patched_csv.is_file():
-            print(f"error: patched cache restore expected csv at {patched_csv}", file=sys.stderr)
-            sys.exit(1)
-        if not patched_manifest.is_file():
-            print(f"error: patched cache requires manifest at {patched_manifest}", file=sys.stderr)
-            sys.exit(1)
+    if want_patched and not patched_files_ready:
+        print(
+            f"warning: patched cache key={patched_key_str!r} was selected but "
+            f"expected files are missing under {args.patched_dir} "
+            "(eviction, restore miss, or race); using monthly release CSV "
+            "(degraded_without_delisted_patch).",
+            file=sys.stderr,
+        )
+
+    if patched_files_ready:
         manifest_tag: str | None = None
         try:
             man = json.loads(patched_manifest.read_text(encoding="utf-8"))
@@ -258,7 +263,7 @@ def run_materialize(
             out_quality,
             core_source="patched_cache",
             delisted_patch_applied=True,
-            selected_cache_key=patched_key.strip(),
+            selected_cache_key=patched_key_str,
             monthly_tag=monthly_tag,
             run_date=run_date,
             quality_tier="full",

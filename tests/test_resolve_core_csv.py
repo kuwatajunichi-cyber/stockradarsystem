@@ -141,8 +141,6 @@ def test_run_select_skips_patched_key_not_on_allowed_refs(
     mod.run_select(args, list_cache_entries=entries)
     state = json.loads(state_path.read_text(encoding="utf-8"))
     assert state["patched_cache_key"] is None
-    state = json.loads(state_path.read_text(encoding="utf-8"))
-    assert state["patched_cache_key"] is None
 
 
 def test_run_materialize_patched_ok(tmp_path: Path) -> None:
@@ -178,6 +176,47 @@ def test_run_materialize_patched_ok(tmp_path: Path) -> None:
     assert q["selected_cache_key"] == key
     assert q["quality_tier"] == "full"
     assert (staging / CORE_CSV_NAME).read_text(encoding="utf-8").startswith("code,name")
+
+
+def test_run_materialize_patched_missing_files_falls_back_to_monthly(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    staging = tmp_path / "staging"
+    patched = tmp_path / "patched"
+    staging.mkdir()
+    patched.mkdir()
+    monthly = "monthly-20260207-1"
+    key = f"universe-patched-{monthly}-2026-04-10"
+    (staging / STATE_FILENAME).write_text(
+        json.dumps(
+            {
+                "monthly_tag": monthly,
+                "universe_resolution": "time_series_ok",
+                "resolution_reason": "",
+                "run_date": "2026-04-15",
+                "patched_cache_key": key,
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    def fake_dl(cmd: list[str]) -> subprocess.CompletedProcess[str]:
+        i = cmd.index("--dir")
+        d = Path(cmd[i + 1])
+        d.mkdir(parents=True, exist_ok=True)
+        (d / CORE_CSV_NAME).write_text("a,b\n", encoding="utf-8")
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    args = Namespace(repo="o/r", staging_dir=staging, patched_dir=patched)
+    mod.run_materialize(args, gh_release_download=fake_dl)
+    err = capsys.readouterr().err
+    assert "warning:" in err and key in err
+    q = json.loads((staging / QUALITY_JSON_NAME).read_text(encoding="utf-8"))
+    assert q["core_source"] == "monthly_fallback"
+    assert q["delisted_patch_applied"] is False
+    assert q["selected_cache_key"] is None
+    assert q["quality_tier"] == "degraded_without_delisted_patch"
 
 
 def test_run_materialize_manifest_mismatch_exits(tmp_path: Path) -> None:

@@ -18,7 +18,12 @@ from pathlib import Path
 
 import yaml
 
-from stockradar.jobs.cleanup_artifacts_lib import CleanupRule, cutoff_epoch_utc, should_delete_artifact
+from stockradar.jobs.cleanup_artifacts_lib import (
+    CleanupRule,
+    coerce_yaml_bool,
+    cutoff_epoch_utc,
+    should_delete_artifact,
+)
 
 
 def _load_rules(path: Path) -> list[CleanupRule]:
@@ -28,11 +33,18 @@ def _load_rules(path: Path) -> list[CleanupRule]:
     for i, ent in enumerate(rules_raw):
         if not isinstance(ent, dict):
             raise ValueError(f"rules[{i}] must be a mapping")
+        if "enabled" in ent:
+            raw_en = ent["enabled"]
+            if raw_en is None:
+                raise ValueError(f"rules[{i}].enabled must not be null")
+            enabled = coerce_yaml_bool(raw_en, field=f"rules[{i}].enabled")
+        else:
+            enabled = True
         out.append(
             CleanupRule(
                 prefix=str(ent["prefix"]),
                 keep_days=int(ent["keep_days"]),
-                enabled=bool(ent.get("enabled", True)),
+                enabled=enabled,
                 max_delete=int(ent.get("max_delete", 200)),
             )
         )
