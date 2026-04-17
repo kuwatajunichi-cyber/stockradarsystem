@@ -41,9 +41,14 @@ def _escape_kv(s: str) -> str:
     return s.replace("%", "%25").replace("\n", "%0A").replace("\r", "%0D")
 
 
-def list_action_cache_keys(repo: str) -> list[str]:
-    """Paginate GitHub Actions caches via gh api; return all keys."""
-    keys: list[str] = []
+def list_action_cache_entries(repo: str) -> list[tuple[str, str]]:
+    """Paginate GitHub Actions caches via gh api; return (key, ref) per entry.
+
+    ``ref`` is the branch/tag ref GitHub associates with the cache (e.g. ``refs/heads/main``).
+    ``actions/cache/restore`` only restores entries visible for the current workflow ref scope;
+    callers should filter by allowed refs before selecting a key.
+    """
+    entries: list[tuple[str, str]] = []
     page = 1
     while True:
         proc = subprocess.run(
@@ -65,21 +70,34 @@ def list_action_cache_keys(repo: str) -> list[str]:
             break
         for ent in batch:
             k = ent.get("key")
-            if isinstance(k, str) and k:
-                keys.append(k)
+            if not isinstance(k, str) or not k:
+                continue
+            r = ent.get("ref")
+            ref_s = r.strip() if isinstance(r, str) else ""
+            entries.append((k, ref_s))
         if len(batch) < 100:
             break
         page += 1
         if page > 500:
             print("error: actions caches pagination exceeded safety cap (500 pages)", file=sys.stderr)
             sys.exit(1)
-    return keys
+    return entries
+
+
+def cache_keys_for_allowed_refs(
+    entries: list[tuple[str, str]],
+    allowed_refs: frozenset[str],
+) -> list[str]:
+    """Keep cache keys whose ``ref`` is restorable for this workflow run."""
+    if not allowed_refs:
+        return [k for k, _r in entries]
+    return [k for k, r in entries if r in allowed_refs]
 
 
 def run_select(
     args: argparse.Namespace,
     *,
-    list_cache_keys: Callable[[str], list[str]] | None = None,
+    list_cache_entries: Callable[[str], list[tuple[str, str]]] | None = None,
 ) -> None:
     repo = args.repo.strip()
     if not repo:
@@ -107,8 +125,13 @@ def run_select(
         print(f"error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    lister = list_cache_keys or list_action_cache_keys
-    cache_keys = lister(repo)
+    allowed = frozenset(
+        x.strip()
+        for x in (getattr(args, "patched_cache_allowed_ref", None) or [])
+        if isinstance(x, str) and x.strip()
+    )
+    lister = list_cache_entries or list_action_cache_entries
+    cache_keys = cache_keys_for_allowed_refs(lister(repo), allowed)
     bad_pref = count_unparseable_patched_prefixed_keys(cache_keys)
     if bad_pref:
         print(
@@ -296,6 +319,17 @@ def main(argv: list[str] | None = None) -> None:
     p_sel.add_argument("--run-date", required=True)
     p_sel.add_argument("--tags-file", type=Path, required=True)
     p_sel.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", "").strip())
+    p_sel.add_argument(
+        "--patched-cache-allowed-ref",
+        action="append",
+        dest="patched_cache_allowed_ref",
+        default=None,
+        help=(
+            "Restrict patched-cache key listing to caches tied to this ref (repeatable). "
+            "In GitHub Actions pass the workflow ref and default branch ref "
+            "(e.g. refs/heads/feature-x and refs/heads/main) so restore can hit the entry."
+        ),
+    )
     p_sel.add_argument(
         "--state-path",
         type=Path,

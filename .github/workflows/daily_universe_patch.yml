@@ -119,6 +119,7 @@ jobs:
         if: success()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PYTHONPATH: src
         run: |
           set -euo pipefail
           MONTHLY_TAG="${{ steps.monthly.outputs.monthly_tag }}"

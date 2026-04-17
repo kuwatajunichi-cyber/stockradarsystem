@@ -22,7 +22,7 @@ def tags_file(tmp_path: Path) -> Path:
     return p
 
 
-def test_list_action_cache_keys_paginates(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_list_action_cache_entries_paginates(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[int] = []
 
     def fake_run(cmd: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
@@ -33,13 +33,13 @@ def test_list_action_cache_keys_paginates(monkeypatch: pytest.MonkeyPatch) -> No
         assert m is not None, page_part
         page_n = int(m.group(1))
         if page_n == 1:
-            caches = [{"key": f"k{i}"} for i in range(100)]
+            caches = [{"key": f"k{i}", "ref": "refs/heads/main"} for i in range(100)]
             calls.append(1)
             return subprocess.CompletedProcess(
                 cmd, 0, stdout=json.dumps({"actions_caches": caches}), stderr=""
             )
         if page_n == 2:
-            caches = [{"key": "last"}]
+            caches = [{"key": "last", "ref": "refs/heads/main"}]
             calls.append(2)
             return subprocess.CompletedProcess(
                 cmd, 0, stdout=json.dumps({"actions_caches": caches}), stderr=""
@@ -47,13 +47,14 @@ def test_list_action_cache_keys_paginates(monkeypatch: pytest.MonkeyPatch) -> No
         raise AssertionError(page_part)
 
     monkeypatch.setattr(mod.subprocess, "run", fake_run)
-    keys = mod.list_action_cache_keys("o/r")
+    entries = mod.list_action_cache_entries("o/r")
+    keys = [k for k, _r in entries]
     assert keys[0] == "k0" and keys[-1] == "last"
     assert len(keys) == 101
     assert calls == [1, 2]
 
 
-def test_list_action_cache_keys_gh_failure_exits(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_list_action_cache_entries_gh_failure_exits(monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_run(*_a: object, **_k: object) -> subprocess.CompletedProcess[str]:
         return subprocess.CompletedProcess(
             ["gh"], 1, stdout="", stderr="boom"
@@ -61,8 +62,22 @@ def test_list_action_cache_keys_gh_failure_exits(monkeypatch: pytest.MonkeyPatch
 
     monkeypatch.setattr(mod.subprocess, "run", fake_run)
     with pytest.raises(SystemExit) as exc:
-        mod.list_action_cache_keys("o/r")
+        mod.list_action_cache_entries("o/r")
     assert exc.value.code == 1
+
+
+def test_cache_keys_for_allowed_refs_filters() -> None:
+    rows = [
+        ("universe-patched-m-2026-04-01", "refs/heads/other"),
+        ("universe-patched-m-2026-04-02", "refs/heads/main"),
+    ]
+    assert mod.cache_keys_for_allowed_refs(rows, frozenset()) == [
+        "universe-patched-m-2026-04-01",
+        "universe-patched-m-2026-04-02",
+    ]
+    assert mod.cache_keys_for_allowed_refs(
+        rows, frozenset({"refs/heads/main"})
+    ) == ["universe-patched-m-2026-04-02"]
 
 
 def test_run_select_warns_on_unparseable_prefix(
@@ -70,10 +85,10 @@ def test_run_select_warns_on_unparseable_prefix(
 ) -> None:
     state_path = tmp_path / STATE_FILENAME
 
-    def keys(_repo: str) -> list[str]:
+    def entries(_repo: str) -> list[tuple[str, str]]:
         return [
-            "universe-patched-bad-no-date",
-            "universe-patched-monthly-20260207-1-2026-04-10",
+            ("universe-patched-bad-no-date", "refs/heads/main"),
+            ("universe-patched-monthly-20260207-1-2026-04-10", "refs/heads/main"),
         ]
 
     args = Namespace(
@@ -82,7 +97,7 @@ def test_run_select_warns_on_unparseable_prefix(
         tags_file=tags_file,
         state_path=state_path,
     )
-    mod.run_select(args, list_cache_keys=keys)
+    mod.run_select(args, list_cache_entries=entries)
     err = capsys.readouterr().err
     assert "warning:" in err
     state = json.loads(state_path.read_text(encoding="utf-8"))
@@ -97,7 +112,35 @@ def test_run_select_no_patched_candidate(tmp_path: Path, tags_file: Path) -> Non
         tags_file=tags_file,
         state_path=state_path,
     )
-    mod.run_select(args, list_cache_keys=lambda _r: ["unrelated-key"])
+    mod.run_select(
+        args,
+        list_cache_entries=lambda _r: [("unrelated-key", "refs/heads/main")],
+    )
+
+
+def test_run_select_skips_patched_key_not_on_allowed_refs(
+    tmp_path: Path, tags_file: Path
+) -> None:
+    """Caches visible in repo-wide API but not restorable on this ref must not be chosen."""
+    state_path = tmp_path / STATE_FILENAME
+    good = "universe-patched-monthly-20260207-1-2026-04-10"
+
+    def entries(_repo: str) -> list[tuple[str, str]]:
+        return [(good, "refs/heads/some-other-branch")]
+
+    args = Namespace(
+        repo="o/r",
+        run_date="2026-04-15",
+        tags_file=tags_file,
+        state_path=state_path,
+        patched_cache_allowed_ref=[
+            "refs/heads/main",
+            "refs/heads/my-feature",
+        ],
+    )
+    mod.run_select(args, list_cache_entries=entries)
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    assert state["patched_cache_key"] is None
     state = json.loads(state_path.read_text(encoding="utf-8"))
     assert state["patched_cache_key"] is None
 

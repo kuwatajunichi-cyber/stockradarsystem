@@ -132,7 +132,9 @@ jobs:
           python -m stockradar.jobs.resolve_core_csv select \
             --run-date "$RUN_DATE" \
             --tags-file /tmp/monthly_tags.txt \
-            --repo "${{ github.repository }}"
+            --repo "${{ github.repository }}" \
+            --patched-cache-allowed-ref "${{ github.ref }}" \
+            --patched-cache-allowed-ref "refs/heads/${{ github.event.repository.default_branch }}"
 
       - name: Restore patched universe cache (optional)
         if: steps.core_sel.outputs.need_patched_restore == 'true'
