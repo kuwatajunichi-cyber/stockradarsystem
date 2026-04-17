@@ -8,6 +8,8 @@ import io
 from pathlib import Path
 
 import pytest
+
+pytestmark = pytest.mark.smoke
 from openpyxl import load_workbook
 from openpyxl.utils.cell import range_boundaries
 from openpyxl.workbook.defined_name import DefinedName
@@ -18,8 +20,9 @@ import sys
 if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
+import scripts.render_sheet.render_sheet as _render_sheet_mod
 from scripts.gdrive.drive_client import FakeDriveAdapter
-from scripts.render_sheet.render_sheet import load_config, run
+from scripts.render_sheet.render_sheet import load_config, run, run_local
 
 
 def _get_xlsx_from_fake(fake: FakeDriveAdapter) -> bytes:
@@ -275,4 +278,41 @@ def test_multiple_sheets_with_header_anchor_are_all_populated(tmp_path: Path) ->
     assert out_ws2["A2"].hyperlink.target == "https://example.com/news/1"
     assert out_ws2["A3"].value == "材料不明・需給起因疑い"
     assert out_ws2["A3"].hyperlink is None
+
+
+def test_run_local_writes_xlsx_under_patched_repo_root(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    """日次の --input-csv 相当。出力は _repo_root 配下のため、テストでは根を tmp に差し替える。"""
+    monkeypatch.setattr(_render_sheet_mod, "_repo_root", tmp_path)
+
+    from openpyxl import Workbook
+
+    template_path = tmp_path / "tpl_local.xlsx"
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "ind001"
+    ws["A1"] = "code"
+    ws["B1"] = "name"
+    wb.defined_names.add(DefinedName("headerAnchor", attr_text="'ind001'!$A$1"))
+    wb.save(template_path)
+
+    csv_path = tmp_path / "indicators_20260222.csv"
+    lines = ["code,name"] + [f"{9000 + i},Row{i}" for i in range(11)]
+    csv_path.write_text("\n".join(lines) + "\n", encoding="utf-8-sig")
+
+    cfg = {
+        "template_path": str(template_path),
+        "link_label_map": {},
+        "hyperlink_source_map": {},
+        "sort_column": None,
+        "sort_ascending": False,
+        "sheet_protection": False,
+        "sheet_protection_password": "",
+    }
+
+    out = run_local(csv_path, cfg)
+    assert out.parent == tmp_path / "data" / "indicators" / "daily"
+    assert out.name == "2026-02-22_Daily.xlsx"
+    assert out.exists() and out.stat().st_size > 0
 

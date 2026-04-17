@@ -16,6 +16,9 @@ if str(_repo_root) not in sys.path:
 
 from scripts.storage.paths import build_day_path, build_month_path
 
+# 要求した全ターゲットが失敗したときの終了コード（1 は CLI 引数エラー用のため避ける）
+EXIT_UPLOAD_ALL_TARGETS_FAILED = 2
+
 
 def _parse_run_date(s: str) -> tuple[str, str]:
     """YYYY-MM-DD -> (YYYY-MM, YYYY-MM-DD)。"""
@@ -40,7 +43,14 @@ def run(
 ) -> int:
     """
     指定ファイルを有効なターゲットにアップロードする。
-    戻り値: 常に 0（アップロード失敗は警告出力のみ）。
+
+    終了コード:
+        0 — 少なくとも 1 系統は成功（全成功または一部失敗の degraded）。
+        EXIT_UPLOAD_ALL_TARGETS_FAILED — targets が空でなく、要求した全ターゲットが失敗。
+
+    stdout の末尾に常に次の 2 行を出力する:
+        upload_status=ok|degraded|failed
+        upload_failed_targets=- または失敗したターゲット名をカンマ区切り（ソート済み）
     """
     _month, _day = _parse_run_date(run_date)
     run_d = datetime.strptime(run_date, "%Y-%m-%d").date()
@@ -177,7 +187,27 @@ def run(
 
     if failed_targets:
         print(f"upload_warnings={','.join(sorted(failed_targets))}", file=sys.stderr)
-    return 0
+
+    if not targets:
+        upload_status = "ok"
+        failed_csv = "-"
+        exit_code = 0
+    elif failed_targets == targets:
+        upload_status = "failed"
+        failed_csv = ",".join(sorted(failed_targets))
+        exit_code = EXIT_UPLOAD_ALL_TARGETS_FAILED
+    elif failed_targets:
+        upload_status = "degraded"
+        failed_csv = ",".join(sorted(failed_targets))
+        exit_code = 0
+    else:
+        upload_status = "ok"
+        failed_csv = "-"
+        exit_code = 0
+
+    print(f"upload_status={upload_status}")
+    print(f"upload_failed_targets={failed_csv}")
+    return exit_code
 
 
 def main() -> None:
@@ -209,6 +239,10 @@ def main() -> None:
     invalid = targets - valid
     if invalid:
         print(f"エラー: 不明なターゲット: {invalid}。有効: {valid}", file=sys.stderr)
+        sys.exit(1)
+
+    if not targets:
+        print("エラー: --targets が空です。少なくとも 1 つ指定してください。", file=sys.stderr)
         sys.exit(1)
 
     files = [Path(p) for p in args.files]

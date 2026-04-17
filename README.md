@@ -115,6 +115,10 @@ v
 外部ストレージへのアップロードは、日次・月次ともに **`scripts/upload_to_all_targets.py`** に集約する。
 今後ミラーリング系統を追加する場合は、このスクリプトに Adapter を追加するだけで workflow 変更を最小限にできる。
 
+**ミラー配布の成功契約（`upload_to_all_targets.py`）**: `--targets` で有効にした各系統のうち、**少なくとも 1 系統が成功すれば終了コード 0**（全成功は `upload_status=ok`、一部失敗は `upload_status=degraded`）。**指定した全系統が失敗したときのみ非 0**（終了コード 2）。stdout の末尾に常に `upload_status=...` と `upload_failed_targets=...` の 2 行が付く（失敗が無いときは `upload_failed_targets=-`）。stderr の `upload_warnings=` は従来どおり。CI の成否判定はこの終了コードを主とする。
+
+**ストレージ抽象と補助 CLI**: 日次・月次パイプラインの **4 系統ミラーの正系**は上記 `upload_to_all_targets.py`（Drive / R2 / Dropbox / GitHub Release を一括オーケストレーション）。**`scripts/storage/base.py` の `StorageAdapter`** は R2 / Dropbox 等の **プロトコルとしての抽象**であり、Drive と GitHub Release は **この Protocol 外の統合実装**として同スクリプト内に置いている。Drive の 0011_work への **単体アップロード**用に **`scripts/gdrive/upload_to_work.py`** があり、細かいパス操作や手動・他スクリプトからの利用向けの **補助経路**（ミラー本番の代替ではない）。
+
 **3か月保持ポリシー**: 全系統で「直近3か月分を保持し、4か月目に削除」する。月1回のクリーンアップ Workflow（`cleanup_r2.yml` / `cleanup_dropbox.yml` / `cleanup_releases.yml` / `cleanup_drive_work.yml`）で自動削除する。
 
 ---
@@ -125,7 +129,7 @@ v
 - 欠損や取得失敗は flags / manifest で可視化
 - 成果物は staging -> latest の原子更新
 - 実行ID（run_id）とログを保存
-- 日次成果物は Committed 後に 4 系統へ一括アップロード（`scripts/upload_to_all_targets.py`）。Drive 凍結時は R2 / Dropbox / Release の3系統で継続可能
+- 日次成果物は Committed 後に 4 系統へ一括アップロード（`scripts/upload_to_all_targets.py`）。Drive 凍結時は R2 / Dropbox / Release の3系統で継続可能（いずれかが成功すれば当該ステップは成功終了）
 
 ---
 
@@ -481,11 +485,7 @@ python -m stockradar.jobs.compute_indicators_for_core --input data/universe/jpx/
 
 - schedule: 毎営業日 15:37 JST（月〜金、UTC 06:37）
 - concurrency: 同一workflowの多重起動禁止
-- 主なジョブ: resolve_trading_day（営業日判定）→ ensure_index_cache
-  ∥ ensure_core_cache →
-  **compute_indicators は ensure_core_cache が作った `ohlc_store.zip` を
-  artifact で受け取り復元**（別ランナー間の `actions/cache` の取り違え防止。
-  ウォーム用キャッシュは ensure 側でも引き続き利用可）→
+- 主なジョブ: resolve_trading_day（営業日判定）→ **resolve_core_csv**（月次タグ解決・patched cache 選定・`daily-core-csv-*` / `daily-core-quality-*` artifact）と **ensure_index_cache** を並列 → **ensure_core_cache**（上記 core artifact を `--input`、OHLC を `daily-ohlc-store-*` artifact と固定キー `ohlc-store-zip-v2` に反映）→ **compute_indicators**（同一 run の **OHLC・index・core** をいずれも **artifact 経由で復元**して算出。`daily.yml` 内では `patch_universe_daily` を起動せず、OHLC/index の `actions/cache/save` も行わない。ウォーム用の cache save は各 ensure ジョブのみ。詳細は `docs/contracts/daily_replay_and_monthly_universe.md`）→
   compute_indicators_for_core → 0011_work へアップロード → render_sheet 等
 - fetch系は部分成功を許容しつつ manifest に残す
 - compute で対象銘柄の有効計算率が極端に低い場合は fail
@@ -502,9 +502,10 @@ python -m stockradar.jobs.resolve_trading_day --date $RUN_DATE
 # Job2: ベンチマークキャッシュ確保
 python -m stockradar.jobs.ensure_index_cache --run-date $RUN_DATE
 
-# Job3: 銘柄キャッシュ確保
+# Job3: 銘柄キャッシュ確保（本番と同じ core CSV を使う場合は、先に resolve_core_csv 等で
+# `data/universe/jpx/core_selected_staging/equity_domestic_core_with_name.csv` を用意し --input で渡す）
 python -m stockradar.jobs.ensure_core_cache --run-date $RUN_DATE
 
-# Job4: 指標算出
+# Job4: 指標算出（同上、必要なら --input で core CSV を明示）
 python -m stockradar.jobs.compute_indicators_for_core --run-date $RUN_DATE
 ```

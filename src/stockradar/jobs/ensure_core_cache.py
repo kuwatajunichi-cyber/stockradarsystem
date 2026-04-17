@@ -4,6 +4,12 @@ equity_domestic_coreのOHLCVキャッシュ確保ジョブ（Job3）。
 入力: equity_domestic_core_with_name.csv
 各銘柄のOHLCVキャッシュを確保（不足時のみ重い取得）。
 分割取得 + インターバル + リトライ + 途中再開（manifest）。
+
+**キャッシュと manifest（月次一括との関係）**
+- **物理キャッシュ**は `data/cache/yf_daily/{code}.csv` で月次の `fetch_yf_daily_for_universe` と **同一ディレクトリを共有**する。
+- **意味論**は `_manifest.jsonl`（本ジョブ・日次鮮度）と `_manifest_universe.jsonl`（月次一括）で **分離**する。
+  本ジョブは `_manifest.jsonl` のみを更新する。
+- **取得・差分更新の実装の中心**は `stockradar.utils.yf_cache`（`ensure_cache_with_incremental_fetch` 等）にある。
 """
 from __future__ import annotations
 

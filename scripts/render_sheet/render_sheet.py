@@ -378,10 +378,13 @@ def run_local(input_csv: Path, cfg: dict) -> Path:
     return _build_xlsx_from_df(cfg, df, run_date)
 
 
-# --- Drive モード（将来削除予定のため --csv-drive-file-id は暫定維持）---
+# --- Drive モード（手動再実行・render_sheet.yml 等、Drive 上の CSV を入力にするサポート経路）---
 def run(cfg: dict, drive_adapter: DriveAdapter | None = None) -> str:
     """
-    メイン処理（Drive モード）。戻り値は生成したファイルの Drive URL。
+    Drive 上の CSV をダウンロードして XLSX を生成し、Drive にアップロードする。
+    戻り値は生成したファイルの Drive URL。
+    CI の日次パイプラインでは通常 ``--input-csv`` のローカルモードを使い、本モードは
+    workflow_dispatch / workflow_call で Drive 入力が必要なときの正系として使う。
     drive_adapter 未指定時は get_credentials + build_service で本番接続する。
     テスト時は FakeDriveAdapter を渡して Secrets 不要で実行可能。
     """
@@ -436,7 +439,7 @@ def run(cfg: dict, drive_adapter: DriveAdapter | None = None) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="CSV を読み込み、XLSX テンプレに流し込んで日次レポートを生成（ローカル or Drive）"
+        description="CSV を読み込み、XLSX テンプレに流し込んで日次レポートを生成（ローカル CSV または Drive 上の CSV）"
     )
     parser.add_argument(
         "--input-csv",
@@ -447,7 +450,7 @@ def main() -> None:
     parser.add_argument(
         "--csv-drive-file-id",
         default=None,
-        help="CSV の Drive ファイル ID または共有リンク（ローカルモード時は不要。将来削除予定）",
+        help="Google Drive 上の指標 CSV のファイル ID または共有リンク（ローカルで --input-csv を使う場合は不要。render_sheet ワークフロー等の Drive 入力モードで使用）",
     )
     parser.add_argument(
         "--config",

@@ -216,6 +216,16 @@ def get_yf_index_cache_dir(base_dir: Path) -> Path:
     return base_dir / "data" / "cache" / "yf_index"
 
 
+def get_index_store_archive_dir(base_dir: Path) -> Path:
+    """指数ストア zip の保存ディレクトリ。data/cache/index_store_archive/。"""
+    return base_dir / "data" / "cache" / "index_store_archive"
+
+
+def get_index_store_archive_zip_path(base_dir: Path) -> Path:
+    """指数ストア zip ファイルパス（index_store.zip）。"""
+    return get_index_store_archive_dir(base_dir) / "index_store.zip"
+
+
 def get_indicators_daily_dir(base_dir: Path) -> Path:
     """日次指標出力ディレクトリ。data/indicators/daily/。"""
     return base_dir / "data" / "indicators" / "daily"

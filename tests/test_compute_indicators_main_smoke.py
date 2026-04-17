@@ -7,6 +7,8 @@ import pytest
 
 import stockradar.jobs.compute_indicators_for_core as job
 
+pytestmark = pytest.mark.smoke
+
 
 def test_compute_indicators_main_reaches_worker_config_path(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch

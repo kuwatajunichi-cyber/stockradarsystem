@@ -1,5 +1,10 @@
 name: Daily Indicators
 
+# Contract summary:
+# - Run handoff: OHLC/index/core use artifacts in this workflow; warm caches use fixed keys.
+# - actions/cache/save (this file only): index-store-zip-v1 + ohlc-store-zip-v2 (two writes on success).
+# - Patched universe cache is written only by daily_universe_patch.yml; daily.yml restores only.
+
 on:
   workflow_dispatch:  # 手動実行
     inputs:
@@ -83,10 +88,13 @@ jobs:
           echo "is_open=$IS_OPEN" >> "$GITHUB_OUTPUT"
           echo "Resolved: run_date=$RUN_DATE, is_open=$IS_OPEN"
 
-  ensure_index_cache:
+  resolve_core_csv:
     needs: resolve_trading_day
     if: needs.resolve_trading_day.outputs.is_open == 'True'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -96,18 +104,134 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Restore index cache
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build monthly tags list
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release list --limit 200 --json tagName --template '{{range .}}{{.tagName}}{{"\n"}}{{end}}' > /tmp/gh_all_tags.txt
+          grep '^monthly-' /tmp/gh_all_tags.txt > /tmp/monthly_tags.txt || true
+          if [ ! -s /tmp/monthly_tags.txt ]; then
+            echo "error: no monthly-* release tags"
+            exit 1
+          fi
+
+      - name: Select patched cache key (restore-only; no cache save)
+        id: core_sel
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PYTHONPATH: src
+          RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
+        run: |
+          set -euo pipefail
+          python -m stockradar.jobs.resolve_core_csv select \
+            --run-date "$RUN_DATE" \
+            --tags-file /tmp/monthly_tags.txt \
+            --repo "${{ github.repository }}" \
+            --patched-cache-allowed-ref "${{ github.ref }}" \
+            --patched-cache-allowed-ref "refs/heads/${{ github.event.repository.default_branch }}"
+
+      - name: Restore patched universe cache (optional)
+        if: steps.core_sel.outputs.need_patched_restore == 'true'
         uses: actions/cache/restore@v4
         with:
-          path: data/cache/yf_index/
-          key: yf-index-${{ github.run_number }}
+          path: data/universe/jpx/patched_cache
+          key: ${{ steps.core_sel.outputs.patched_cache_key }}
+
+      - name: Materialize core CSV + quality JSON
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PYTHONPATH: src
+        run: |
+          set -euo pipefail
+          python -m stockradar.jobs.resolve_core_csv materialize \
+            --repo "${{ github.repository }}"
+
+      - name: Upload core CSV artifact
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: daily-core-csv-${{ github.run_id }}
+          path: data/universe/jpx/core_selected_staging/equity_domestic_core_with_name.csv
+          retention-days: 3
+          if-no-files-found: error
+
+      - name: Upload core quality artifact
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: daily-core-quality-${{ github.run_id }}
+          path: data/universe/jpx/core_selected_staging/core_selection.json
+          retention-days: 3
+          if-no-files-found: error
+
+      - name: Write resolve_core_csv summary
+        if: always()
+        run: |
+          set -euo pipefail
+          Q=data/universe/jpx/core_selected_staging/core_selection.json
+          {
+            echo "## resolve_core_csv"
+            echo "- need_patched_restore: ${{ steps.core_sel.outputs.need_patched_restore }}"
+            echo "- patched_cache_key: ${{ steps.core_sel.outputs.patched_cache_key }}"
+            echo "- monthly_tag: ${{ steps.core_sel.outputs.monthly_tag }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ -f "$Q" ]; then
+            echo "### core_selection.json (high-signal)" >> "$GITHUB_STEP_SUMMARY"
+            python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+            import json
+            from pathlib import Path
+
+            q = json.loads(Path("data/universe/jpx/core_selected_staging/core_selection.json").read_text(encoding="utf-8"))
+            print(f"- core_source: `{q.get('core_source')}`")
+            print(f"- delisted_patch_applied: `{q.get('delisted_patch_applied')}`")
+            print(f"- quality_tier: `{q.get('quality_tier')}`")
+            print(f"- selected_cache_key: `{q.get('selected_cache_key')}`")
+            PY
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
+            cat "$Q" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  ensure_index_cache:
+    needs: resolve_trading_day
+    if: needs.resolve_trading_day.outputs.is_open == 'True'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Restore index store zip (warm cache)
+        uses: actions/cache/restore@v4
+        with:
+          path: data/cache/index_store_archive/index_store.zip
+          key: index-store-zip-v1
           restore-keys: |
-            yf-index-
+            index-store-zip-v1
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
+      - name: Restore index store from zip
+        env:
+          PYTHONPATH: src
+        run: |
+          python -m stockradar.jobs.restore_index_store
 
       - name: Ensure index cache
         env:
@@ -124,17 +248,62 @@ jobs:
             python -m stockradar.jobs.ensure_index_cache --run-date "$RD"
           fi
 
-      - name: Save index cache
+      - name: Archive index store to zip
+        env:
+          PYTHONPATH: src
+        run: |
+          python -m stockradar.jobs.archive_index_store
+
+      - name: Upload index store artifact for compute
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: daily-index-store-${{ github.run_id }}
+          path: data/cache/index_store_archive/index_store.zip
+          retention-days: 3
+          if-no-files-found: error
+
+      - name: Delete warm index cache key (avoid save race)
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PYTHONPATH: src
+        run: |
+          set -euo pipefail
+          python -m stockradar.jobs.cache_ops rotate-delete \
+            --repo "${{ github.repository }}" \
+            --key index-store-zip-v1 \
+            --is-replay "${{ needs.resolve_trading_day.outputs.is_replay }}"
+
+      - name: Save index store zip (sole index cache writer in this workflow)
         if: success() && needs.resolve_trading_day.outputs.is_replay != 'true'
         uses: actions/cache/save@v4
         with:
-          path: data/cache/yf_index/
-          key: yf-index-${{ github.run_number }}
+          path: data/cache/index_store_archive/index_store.zip
+          key: index-store-zip-v1
+
+      - name: Write ensure_index_cache summary
+        if: always()
+        env:
+          PYTHONPATH: src
+          RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## ensure_index_cache"
+            echo "- run_date: $RUN_DATE"
+            echo "- index_zip: data/cache/index_store_archive/index_store.zip"
+            echo "- warm_cache_key: index-store-zip-v1"
+            echo "- run_artifact: daily-index-store-${{ github.run_id }}"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   ensure_core_cache:
-    needs: [resolve_trading_day]
+    needs: [resolve_trading_day, resolve_core_csv]
     if: needs.resolve_trading_day.outputs.is_open == 'True'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -163,71 +332,17 @@ jobs:
         run: |
           python -m stockradar.jobs.restore_ohlc_store
 
-      - name: Restore patched universe cache
-        uses: actions/cache/restore@v4
+      - name: Download resolved core CSV artifact
+        uses: actions/download-artifact@v4
         with:
-          path: data/universe/jpx/patched_cache
-          key: universe-patched-${{ needs.resolve_trading_day.outputs.run_date }}
+          name: daily-core-csv-${{ github.run_id }}
+          path: data/universe/jpx/core_selected_staging/
 
-      - name: Download monthly release and resolve core CSV
-        id: download_core
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PYTHONPATH: src
-          RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
-        run: |
-          set -euo pipefail
-          gh release list --limit 200 --json tagName --template '{{range .}}{{.tagName}}{{"\n"}}{{end}}' > /tmp/gh_all_tags.txt
-          grep '^monthly-' /tmp/gh_all_tags.txt > /tmp/monthly_tags.txt || true
-          if [ ! -s /tmp/monthly_tags.txt ]; then
-            echo "エラー: monthly-* Release が見つかりません"
-            exit 1
-          fi
-          RESOLVE_OUT=$(python -m stockradar.jobs.resolve_monthly_release_for_run_date \
-            --run-date "$RUN_DATE" \
-            --tags-file /tmp/monthly_tags.txt)
-          echo "$RESOLVE_OUT"
-          MONTHLY_TAG=$(echo "$RESOLVE_OUT" | grep '^monthly_tag=' | cut -d= -f2-)
-          UV_RES=$(echo "$RESOLVE_OUT" | grep '^universe_resolution=' | cut -d= -f2-)
-          REASON=$(echo "$RESOLVE_OUT" | sed -n 's/^resolution_reason=//p')
-          echo "Selected monthly_tag=$MONTHLY_TAG universe_resolution=$UV_RES"
-          mkdir -p data/universe/jpx/latest_release
-          if ! gh release download "$MONTHLY_TAG" \
-            --pattern "equity_domestic_core_with_name.csv" \
-            --dir "data/universe/jpx/latest_release" \
-            --repo "${{ github.repository }}"; then
-            echo "エラー: Release からのダウンロードに失敗しました: $MONTHLY_TAG"
-            gh release view "$MONTHLY_TAG" --repo "${{ github.repository }}" --json assets --jq '.assets[].name' || true
-            exit 1
-          fi
-          mkdir -p data/universe/jpx/patched_cache
-          USE_PATCHED_CACHE=false
-          CHOSEN="$MONTHLY_TAG"
-          if [ -f data/universe/jpx/patched_cache/manifest.json ] && [ -f data/universe/jpx/patched_cache/equity_domestic_core_with_name.csv ]; then
-            CACHED=$(jq -r '.chosen_monthly_tag // .base_release // empty' data/universe/jpx/patched_cache/manifest.json)
-            if [ "$CACHED" = "$CHOSEN" ] && [ -n "$CACHED" ] && [ "$CACHED" != "null" ]; then
-              USE_PATCHED_CACHE=true
-              echo "Using patched cache (chosen_monthly_tag=$CACHED)"
-            fi
-          fi
-          if [ "$USE_PATCHED_CACHE" != "true" ]; then
-            echo "Applying delisted patch to monthly release"
-            python -m stockradar.jobs.patch_universe_daily \
-              --input data/universe/jpx/latest_release/equity_domestic_core_with_name.csv \
-              --run-date "$RUN_DATE" \
-              --base-release "$MONTHLY_TAG" \
-              --chosen-monthly-tag "$MONTHLY_TAG" \
-              --universe-resolution "$UV_RES" \
-              --resolution-reason "$REASON"
-          fi
-          echo "core_csv=data/universe/jpx/patched_cache/equity_domestic_core_with_name.csv" >> "$GITHUB_OUTPUT"
-          {
-            echo "## Monthly universe resolution"
-            echo "- run_date: $RUN_DATE"
-            echo "- monthly_tag: $MONTHLY_TAG"
-            echo "- universe_resolution: $UV_RES"
-            echo "- resolution_reason: $REASON"
-          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Download core quality metadata artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: daily-core-quality-${{ github.run_id }}
+          path: data/universe/jpx/core_selected_staging/
 
       - name: Ensure core cache
         env:
@@ -243,7 +358,12 @@ jobs:
         run: |
           set -euo pipefail
           RUN_DATE="${{ needs.resolve_trading_day.outputs.run_date }}"
-          python -m stockradar.jobs.ensure_core_cache --input "${{ steps.download_core.outputs.core_csv }}" --run-date "$RUN_DATE"
+          CORE_CSV="data/universe/jpx/core_selected_staging/equity_domestic_core_with_name.csv"
+          if [ ! -f "$CORE_CSV" ]; then
+            echo "error: core csv artifact not found at $CORE_CSV"
+            exit 1
+          fi
+          python -m stockradar.jobs.ensure_core_cache --input "$CORE_CSV" --run-date "$RUN_DATE"
 
       - name: Write ensure_core_cache summary
         if: always()
@@ -258,7 +378,17 @@ jobs:
           summary_path = Path(os.environ["GITHUB_STEP_SUMMARY"])
           run_date = os.environ.get("RUN_DATE", "")
           exclusions = Path("data/cache/yf_daily/_stale_exclusions.json")
+          quality = Path("data/universe/jpx/core_selected_staging/core_selection.json")
           lines = ["## ensure_core_cache summary", f"- run_date: `{run_date}`"]
+          if quality.exists():
+            q = json.loads(quality.read_text(encoding="utf-8"))
+            lines.append(f"- core_source: `{q.get('core_source')}`")
+            lines.append(f"- delisted_patch_applied: `{q.get('delisted_patch_applied')}`")
+            lines.append(f"- quality_tier: `{q.get('quality_tier')}`")
+            lines.append(f"- MONTHLY_TAG: `{q.get('MONTHLY_TAG')}`")
+            lines.append(f"- selected_cache_key: `{q.get('selected_cache_key')}`")
+          else:
+            lines.append("- core_selection.json: `not found`")
           if exclusions.exists():
             payload = json.loads(exclusions.read_text(encoding="utf-8"))
             stale_count = int(payload.get("stale_count", 0) or 0)
@@ -272,6 +402,9 @@ jobs:
           else:
             lines.append("- stale exclusions file: `not found`")
           lines.append("- idempotency_contract: `checked in preflight tests`")
+          lines.append("- warm_cache_key: `ohlc-store-zip-v2`")
+          rid = os.environ.get("GITHUB_RUN_ID", "")
+          lines.append(f"- run_artifact: `daily-ohlc-store-{rid}`")
           summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
           PY
 
@@ -281,8 +414,7 @@ jobs:
         run: |
           python -m stockradar.jobs.archive_ohlc_store
 
-      # compute_indicators は別ランナー。キャッシュの restore-keys だと過去 run の zip を引く取り違えがあり得るため、
-      # 同一 workflow の ensure で出来上がった zip を artifact で明示受け渡しする。
+      # compute は別ランナー。Run 内の入力は artifact で受け渡し（restore-keys の取り違え防止）。
       - name: Upload OHLC store zip for compute job
         uses: actions/upload-artifact@v4
         if: success()
@@ -301,22 +433,27 @@ jobs:
           retention-days: 3
           if-no-files-found: ignore
 
-      - name: Save OHLC store zip
+      - name: Delete warm OHLC cache key (avoid save race)
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PYTHONPATH: src
+        run: |
+          set -euo pipefail
+          python -m stockradar.jobs.cache_ops rotate-delete \
+            --repo "${{ github.repository }}" \
+            --key ohlc-store-zip-v2 \
+            --is-replay "${{ needs.resolve_trading_day.outputs.is_replay }}"
+
+      - name: Save OHLC store zip (sole OHLC cache writer in this workflow)
         uses: actions/cache/save@v4
         if: success() && needs.resolve_trading_day.outputs.is_replay != 'true'
         with:
           path: data/cache/ohlc_store_archive/ohlc_store.zip
           key: ohlc-store-zip-v2
 
-      - name: Save patched universe cache
-        uses: actions/cache/save@v4
-        if: success() && needs.resolve_trading_day.outputs.is_replay != 'true'
-        with:
-          path: data/universe/jpx/patched_cache
-          key: universe-patched-${{ needs.resolve_trading_day.outputs.run_date }}
-
   compute_indicators:
-    needs: [resolve_trading_day, ensure_index_cache, ensure_core_cache]
+    needs: [resolve_trading_day, resolve_core_csv, ensure_index_cache, ensure_core_cache]
     if: needs.resolve_trading_day.outputs.is_open == 'True'
     runs-on: ubuntu-latest
     steps:
@@ -346,13 +483,17 @@ jobs:
           name: stale-exclusions-${{ github.run_id }}
           path: data/cache/yf_daily/
 
-      - name: Restore index cache
-        uses: actions/cache/restore@v4
+      - name: Download index store artifact from ensure_index_cache
+        uses: actions/download-artifact@v4
         with:
-          path: data/cache/yf_index/
-          key: yf-index-${{ github.run_number }}
-          restore-keys: |
-            yf-index-
+          name: daily-index-store-${{ github.run_id }}
+          path: data/cache/index_store_archive/
+
+      - name: Restore index store from zip
+        env:
+          PYTHONPATH: src
+        run: |
+          python -m stockradar.jobs.restore_index_store
 
       - name: Restore OHLC store from zip
         env:
@@ -360,71 +501,17 @@ jobs:
         run: |
           python -m stockradar.jobs.restore_ohlc_store
 
-      - name: Restore patched universe cache
-        uses: actions/cache/restore@v4
+      - name: Download resolved core CSV artifact
+        uses: actions/download-artifact@v4
         with:
-          path: data/universe/jpx/patched_cache
-          key: universe-patched-${{ needs.resolve_trading_day.outputs.run_date }}
+          name: daily-core-csv-${{ github.run_id }}
+          path: data/universe/jpx/core_selected_staging/
 
-      - name: Download monthly release and resolve core CSV
-        id: download_core
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PYTHONPATH: src
-          RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
-        run: |
-          set -euo pipefail
-          gh release list --limit 200 --json tagName --template '{{range .}}{{.tagName}}{{"\n"}}{{end}}' > /tmp/gh_all_tags.txt
-          grep '^monthly-' /tmp/gh_all_tags.txt > /tmp/monthly_tags.txt || true
-          if [ ! -s /tmp/monthly_tags.txt ]; then
-            echo "エラー: monthly-* Release が見つかりません"
-            exit 1
-          fi
-          RESOLVE_OUT=$(python -m stockradar.jobs.resolve_monthly_release_for_run_date \
-            --run-date "$RUN_DATE" \
-            --tags-file /tmp/monthly_tags.txt)
-          echo "$RESOLVE_OUT"
-          MONTHLY_TAG=$(echo "$RESOLVE_OUT" | grep '^monthly_tag=' | cut -d= -f2-)
-          UV_RES=$(echo "$RESOLVE_OUT" | grep '^universe_resolution=' | cut -d= -f2-)
-          REASON=$(echo "$RESOLVE_OUT" | sed -n 's/^resolution_reason=//p')
-          echo "Selected monthly_tag=$MONTHLY_TAG universe_resolution=$UV_RES"
-          mkdir -p data/universe/jpx/latest_release
-          if ! gh release download "$MONTHLY_TAG" \
-            --pattern "equity_domestic_core_with_name.csv" \
-            --dir "data/universe/jpx/latest_release" \
-            --repo "${{ github.repository }}"; then
-            echo "エラー: Release からのダウンロードに失敗しました: $MONTHLY_TAG"
-            gh release view "$MONTHLY_TAG" --repo "${{ github.repository }}" --json assets --jq '.assets[].name' || true
-            exit 1
-          fi
-          mkdir -p data/universe/jpx/patched_cache
-          USE_PATCHED_CACHE=false
-          CHOSEN="$MONTHLY_TAG"
-          if [ -f data/universe/jpx/patched_cache/manifest.json ] && [ -f data/universe/jpx/patched_cache/equity_domestic_core_with_name.csv ]; then
-            CACHED=$(jq -r '.chosen_monthly_tag // .base_release // empty' data/universe/jpx/patched_cache/manifest.json)
-            if [ "$CACHED" = "$CHOSEN" ] && [ -n "$CACHED" ] && [ "$CACHED" != "null" ]; then
-              USE_PATCHED_CACHE=true
-              echo "Using patched cache (chosen_monthly_tag=$CACHED)"
-            fi
-          fi
-          if [ "$USE_PATCHED_CACHE" != "true" ]; then
-            echo "Applying delisted patch to monthly release"
-            python -m stockradar.jobs.patch_universe_daily \
-              --input data/universe/jpx/latest_release/equity_domestic_core_with_name.csv \
-              --run-date "$RUN_DATE" \
-              --base-release "$MONTHLY_TAG" \
-              --chosen-monthly-tag "$MONTHLY_TAG" \
-              --universe-resolution "$UV_RES" \
-              --resolution-reason "$REASON"
-          fi
-          echo "core_csv=data/universe/jpx/patched_cache/equity_domestic_core_with_name.csv" >> "$GITHUB_OUTPUT"
-          {
-            echo "## Monthly universe resolution (compute job)"
-            echo "- run_date: $RUN_DATE"
-            echo "- monthly_tag: $MONTHLY_TAG"
-            echo "- universe_resolution: $UV_RES"
-            echo "- resolution_reason: $REASON"
-          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Download core quality metadata artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: daily-core-quality-${{ github.run_id }}
+          path: data/universe/jpx/core_selected_staging/
 
       - name: Compute indicators
         env:
@@ -435,7 +522,12 @@ jobs:
         run: |
           set -euo pipefail
           RUN_DATE="${{ needs.resolve_trading_day.outputs.run_date }}"
-          python -m stockradar.jobs.compute_indicators_for_core --input "${{ steps.download_core.outputs.core_csv }}" --run-date "$RUN_DATE"
+          CORE_CSV="data/universe/jpx/core_selected_staging/equity_domestic_core_with_name.csv"
+          if [ ! -f "$CORE_CSV" ]; then
+            echo "error: core csv artifact not found at $CORE_CSV"
+            exit 1
+          fi
+          python -m stockradar.jobs.compute_indicators_for_core --input "$CORE_CSV" --run-date "$RUN_DATE"
 
       - name: Write compute_indicators summary
         if: always()
@@ -450,7 +542,16 @@ jobs:
           summary_path = Path(os.environ["GITHUB_STEP_SUMMARY"])
           run_date = os.environ.get("RUN_DATE", "")
           exclusions = Path("data/cache/yf_daily/_stale_exclusions.json")
+          quality = Path("data/universe/jpx/core_selected_staging/core_selection.json")
           lines = ["## compute_indicators summary", f"- run_date: `{run_date}`"]
+          if quality.exists():
+            q = json.loads(quality.read_text(encoding="utf-8"))
+            lines.append(f"- core_source: `{q.get('core_source')}`")
+            lines.append(f"- delisted_patch_applied: `{q.get('delisted_patch_applied')}`")
+            lines.append(f"- quality_tier: `{q.get('quality_tier')}`")
+            lines.append(f"- selected_cache_key: `{q.get('selected_cache_key')}`")
+          else:
+            lines.append("- core_selection.json: `not found`")
           if exclusions.exists():
             payload = json.loads(exclusions.read_text(encoding="utf-8"))
             file_run_date = str(payload.get("run_date") or "")
@@ -480,26 +581,6 @@ jobs:
           # 同一 run の後続ジョブと短期リカバリ用。長期保管は R2 / Release 等へ。
           retention-days: 7
           if-no-files-found: warn
-
-      - name: Archive OHLC store to zip
-        env:
-          PYTHONPATH: src
-        run: |
-          python -m stockradar.jobs.archive_ohlc_store
-
-      - name: Save index cache
-        uses: actions/cache/save@v4
-        if: success() && needs.resolve_trading_day.outputs.is_replay != 'true'
-        with:
-          path: data/cache/yf_index/
-          key: yf-index-${{ github.run_number }}
-
-      - name: Save OHLC store zip
-        uses: actions/cache/save@v4
-        if: success() && needs.resolve_trading_day.outputs.is_replay != 'true'
-        with:
-          path: data/cache/ohlc_store_archive/ohlc_store.zip
-          key: ohlc-store-zip-v2
 
   event_cause_enrichment:
     uses: ./.github/workflows/daily_event_cause_enrichment.yml
@@ -608,57 +689,3 @@ jobs:
             TARGETS="drive,r2,dropbox,github"
           fi
           python scripts/upload_to_all_targets.py --run-date "$RUN_DATE" --targets "$TARGETS" --files "$CSV_PATH" "$XLSX_PATH"
-
-  archive_ohlc_store:
-    needs: [resolve_trading_day, compute_indicators]
-    if: needs.resolve_trading_day.outputs.is_open == 'True'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Restore OHLC store zip
-        uses: actions/cache/restore@v4
-        with:
-          path: data/cache/ohlc_store_archive/ohlc_store.zip
-          key: ohlc-store-zip-v2
-          restore-keys: |
-            ohlc-store-zip-v2
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Restore OHLC store from zip
-        env:
-          PYTHONPATH: src
-        run: |
-          python -m stockradar.jobs.restore_ohlc_store
-
-      - name: Archive OHLC store
-        env:
-          PYTHONPATH: src
-        run: |
-          python -m stockradar.jobs.archive_ohlc_store
-
-      - name: Save OHLC store zip
-        uses: actions/cache/save@v4
-        if: success() && needs.resolve_trading_day.outputs.is_replay != 'true'
-        with:
-          path: data/cache/ohlc_store_archive/ohlc_store.zip
-          key: ohlc-store-zip-v2
-
-      - name: Upload OHLC zip backup artifact
-        uses: actions/upload-artifact@v4
-        if: success()
-        with:
-          name: ohlc-store-zip-${{ needs.resolve_trading_day.outputs.run_date }}
-          path: data/cache/ohlc_store_archive/ohlc_store.zip
-          retention-days: 7
-          if-no-files-found: error
