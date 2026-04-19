@@ -1,26 +1,3 @@
-Metadata-Version: 2.4
-Name: stockradar
-Version: 0.1.0
-Summary: Stock Radar System - data pipeline for Japanese equity market analysis
-Requires-Python: >=3.11
-Description-Content-Type: text/markdown
-Requires-Dist: requests>=2.28.0
-Requires-Dist: pandas>=2.0.0
-Requires-Dist: openpyxl>=3.1.0
-Requires-Dist: pyyaml>=6.0
-Requires-Dist: google-api-python-client>=2.0.0
-Requires-Dist: google-auth>=2.0.0
-Requires-Dist: xlrd>=2.0.0
-Requires-Dist: beautifulsoup4>=4.12.0
-Requires-Dist: yfinance>=0.2.0
-Requires-Dist: exchange-calendars>=4.3.0
-Requires-Dist: pytz>=2023.3
-Requires-Dist: python-dotenv>=1.0.0
-Provides-Extra: dev
-Requires-Dist: pytest>=7.0.0; extra == "dev"
-Requires-Dist: ruff>=0.4.0; extra == "dev"
-Requires-Dist: mypy>=1.0.0; extra == "dev"
-
 # Stock Radar System
 
 ## Document
@@ -96,10 +73,6 @@ v
   - 市場全体に対する相対パフォーマンスを順位/スコアとして提示する。
 - 出来高偏差
   - 銘柄固有の出来高分布に対する偏差を計算し、参加者急増の兆候を補助軸として提示する。
-- 売買代金の移動平均比
-  - 当日売買代金を、出来高 z と同じ営業日窓での売買代金平均で割った倍率。
-- 騰落率（前営業日比）
-  - 前営業日終値に対する当日終値の変化率（百分率）。
 
 ※ 指標は合成スコア化も可能だが、MVPでは個別指標を並列提示する。
 
@@ -403,7 +376,7 @@ python -m stockradar.jobs.split_equity_domestic_secondary
 
 ## 日次指標算出（equity_domestic_core 対象）
 
-月次で生成済みの `equity_domestic_core_with_name.csv` を対象に、日次で指標（出来高 zscore・売買代金の移動平均比・騰落率・RS 等）を算出します。
+月次で生成済みの `equity_domestic_core_with_name.csv` を対象に、日次で指標（出来高zscore/RS）を算出します。
 
 ### 環境変数
 
@@ -481,9 +454,7 @@ python -m stockradar.jobs.ensure_core_cache --input data/universe/jpx/sets_secon
 - **ガード**: `ensure_core_cache` の stale 除外対象以外で **OHLC 最新日が `run_date` 未満**の銘柄があれば、成果物は出さず終了コード 2。
 - 実行方式: 銘柄単位の並列処理（ProcessPool）。出力順序は `code` ソートで固定。
 - 指標:
-  - 出来高 zscore（売買代金近似ベース）
-  - 売買代金の移動平均比（当日 ÷ 直近 `Z_LOOKBACK_DAYS` 営業日平均、窓は出来高 z と同一）
-  - 騰落率（前営業日比、`price_change_pct`）
+  - 出来高zscore（売買代金近似ベース）
   - RS（日付アンカー方式：`run_date` と T営業日前アンカーの日付差分）
 
 ```powershell
@@ -500,7 +471,7 @@ python -m stockradar.jobs.compute_indicators_for_core --input data/universe/jpx/
   - `data/cache/yf_index/{bench}.csv`（ベンチマーク OHLC）
 - **日次指標（分析用・配布前の生）**
   - `data/indicators/daily/indicators_YYYYMMDD.csv`（縦持ち：date, code, indicators...）。**派生**の `indicators_event_enriched_*.csv` はイベント要因付与用で、他ジョブが「最新コア指標」を選ぶ対象外。
-    - 列例: `date`, `code`, `name`（任意）, `turnover_yen`, `z_turnover_{Z_LOOKBACK_DAYS}`, `turnover_ma_ratio_{Z_LOOKBACK_DAYS}`, `price_change_pct`, `rs63_topix`, `rs126_topix`, `rs252_topix`, `rs63_nikkei`, `rs126_nikkei`, `rs252_nikkei`, `n_bars_used`（その他 RS 加速・β 調整 RS・情報比率・外部リンク・ローソク記述子等。詳細は docs/user-facing-spec/universe_and_indicators_v1.2.md）
+    - 列例: `date`, `code`, `name`（任意）, `turnover_yen`, `z_turnover_{Z_LOOKBACK_DAYS}`, `rs63_topix`, `rs126_topix`, `rs252_topix`, `rs63_nikkei`, `rs126_nikkei`, `rs252_nikkei`, `n_bars_used`
 
 ### GitHub Actions での実行
 

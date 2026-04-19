@@ -201,15 +201,6 @@ Excel の `column_dimensions.width`（実測）。用途の参考値。
 
 日経平均版の 3 行目では、**`event_news_1_title` 等の末尾にスペースが入っているセル**が検出された（例: `"event_news_1_title "`）。CSV 側の列名と **完全一致しないと空欄扱い** になるため、テンプレ修正または CSV ヘッダー側の整合が必要。
 
-### 7.4 日次指標 CSV にのみ存在する列（テンプレ v1.2 未割当）
-
-`compute_indicators_for_core` が出力する列のうち、本テンプレートの機械可読ヘッダー（3 行目）に**まだ含まれない**ものは、`render_sheet` では書き込まれない（CSV にだけ残る）。
-
-| 機械列名（例） | 概要（詳細は [universe_and_indicators_v1.2.md](universe_and_indicators_v1.2.md)） |
-| --- | --- |
-| `turnover_ma_ratio_{Z_LOOKBACK_DAYS}` | 売買代金の移動平均比（参照列名 `turnover_ma_ratio_60`） |
-| `price_change_pct` | 前営業日比騰落率（%） |
-
 ---
 
 ## 8. 1〜2 行目の表示ラベル（TOPIX版の例）
@@ -271,7 +262,6 @@ Excel の `column_dimensions.width`（実測）。用途の参考値。
 
 | 日付 | 内容 |
 | --- | --- |
-| 2026-04-20 | 7.4 節を追加（`turnover_ma_ratio_*`・`price_change_pct` は CSV のみ）。本文書の対象テンプレート（v1.2.xlsx）は変更なし。 |
 | 2026-03-28 | v1.2 テンプレートを openpyxl で解析し初版作成。 |
 | 2026-03-28 | テンプレートの `headerAnchor` をブック単位の複数領域（`TOPIX版!$A$3` と `日経平均版!$A$3`）に修正。仕様説明と `render_sheet` コメントを追随。 |
 | 2026-03-28 | 条件付き書式（カラースケール・`price_text` の文字列条件・B4 等）を追記。 |

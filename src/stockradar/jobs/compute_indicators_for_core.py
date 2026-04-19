@@ -12,6 +12,8 @@
 - 短期RS加速のzscore：短期RS加速を標準化窓で標準化した値
 - β調整RS（Market-adjusted Excess Return）：市場寄与分を差し引いた純粋な銘柄固有要因の強さ
 - 情報比率（Information Ratio）：日次超過リターンの平均を標準偏差で割った値
+- 売買代金の移動平均比：当日売買代金 ÷ 直近 Z_LOOKBACK_DAYS 営業日の売買代金平均（窓は出来高 z と同一）
+- 騰落率（前日比）：終値の前営業日終値に対する変化率（百分率）
 """
 from __future__ import annotations
 
@@ -47,7 +49,10 @@ from stockradar.indicators.rs import (
     compute_rs_acceleration_zscore_from_merged,
     compute_rs_from_merged,
 )
-from stockradar.indicators.zscore import compute_zscore_turnover_from_prepared
+from stockradar.indicators.zscore import (
+    compute_turnover_ma_ratio_from_prepared,
+    compute_zscore_turnover_from_prepared,
+)
 from stockradar.utils.external_links import build_external_links
 from stockradar.utils.paths import (
     PATTERN_SETS_SECONDARY,
@@ -145,13 +150,32 @@ def _compute_one_code(task: tuple[str, str]) -> dict:
         run_date,
         anchor_ctx=z_ctx,
     )
+    turnover_ma_ratio = compute_turnover_ma_ratio_from_prepared(
+        stock_df,
+        z_lookback_days,
+        run_date,
+        anchor_ctx=z_ctx,
+    )
     turnover_yen = stock_df["Close"] * stock_df["Volume"]
+
+    close_series = stock_df["Close"].dropna()
+    if len(close_series) >= 2:
+        prev_close = float(close_series.iloc[-2])
+        cur_close = float(close_series.iloc[-1])
+        if prev_close != 0.0 and not (pd.isna(prev_close) or pd.isna(cur_close)):
+            price_change_pct = (cur_close / prev_close - 1.0) * 100.0
+        else:
+            price_change_pct = None
+    else:
+        price_change_pct = None
 
     result_row = {
         "date": latest_date.isoformat(),
         "code": code,
         "turnover_yen": turnover_yen.loc[latest_idx] if latest_idx in turnover_yen.index else None,
         f"z_turnover_{z_lookback_days}": z_turnover.iloc[0] if not z_turnover.empty else None,
+        f"turnover_ma_ratio_{z_lookback_days}": turnover_ma_ratio.iloc[0] if not turnover_ma_ratio.empty else None,
+        "price_change_pct": price_change_pct,
         **build_external_links(code, "link_prefix"),
         "n_bars_used": len(stock_df),
     }
@@ -172,7 +196,13 @@ def _compute_one_code(task: tuple[str, str]) -> dict:
         result_row["candle_labels"] = None
         result_row["price_text"] = None
 
-    nan_count = 1 if pd.isna(result_row[f"z_turnover_{z_lookback_days}"]) else 0
+    nan_count = 0
+    if pd.isna(result_row[f"z_turnover_{z_lookback_days}"]):
+        nan_count += 1
+    if pd.isna(result_row[f"turnover_ma_ratio_{z_lookback_days}"]):
+        nan_count += 1
+    if pd.isna(result_row["price_change_pct"]):
+        nan_count += 1
     for bench_name, bench_df_filtered in benchmarks.items():
         if bench_df_filtered.empty:
             continue

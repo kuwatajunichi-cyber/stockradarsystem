@@ -11,7 +11,7 @@
 
 | ファイル | 内容の目安 |
 | -------- | ---------- |
-| [universe_and_indicators_v1.1.md](universe_and_indicators_v1.1.md) | ユニバース・指標の平易な説明と、日次 XLSX との表示対応 |
+| [universe_and_indicators_v1.2.md](universe_and_indicators_v1.2.md) | ユニバース・指標の平易な説明と、日次 XLSX との表示対応 |
 | [indicators_template_v1.2_design.md](indicators_template_v1.2_design.md) | 日次レポート用テンプレートの列・見出し・条件付き書式などの説明 |
 | [price_behavior_judgement_guide.md](price_behavior_judgement_guide.md) | 価格挙動（文言・判定）の読み方ガイド |
 | [externalLink_v1.0.md](externalLink_v1.0.md) | 外部サイトリンクの役割と URL 規則 |

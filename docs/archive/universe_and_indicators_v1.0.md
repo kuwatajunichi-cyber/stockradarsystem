@@ -1,5 +1,5 @@
 > **アーカイブ（v1.0）**  
-> 最新版は [`../user-facing-spec/universe_and_indicators_v1.1.md`](../user-facing-spec/universe_and_indicators_v1.1.md) を参照してください。
+> 最新版は [`../user-facing-spec/universe_and_indicators_v1.2.md`](../user-facing-spec/universe_and_indicators_v1.2.md) を参照してください。
 
 ---
 
