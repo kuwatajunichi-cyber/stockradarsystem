@@ -66,7 +66,10 @@ def compute_zscore_turnover_from_prepared(
     turnover_yen = window_df["Close"] * window_df["Volume"]
     log_turnover = np.log1p(turnover_yen)
     min_periods = max(20, int(lookback_days * 0.7))
-    if len(log_turnover) < min_periods:
+    valid_n = int(turnover_yen.dropna().shape[0])
+    if valid_n < min_periods:
+        return pd.Series([None], index=[run_anchor])
+    if pd.isna(log_turnover.iloc[-1]):
         return pd.Series([None], index=[run_anchor])
     std = float(log_turnover.std())
     if std == 0 or np.isnan(std):
@@ -101,7 +104,8 @@ def compute_turnover_ma_ratio_from_prepared(
     window_df = out_local[(out_local.index > start_anchor) & (out_local.index <= run_anchor)]
     turnover_yen = window_df["Close"] * window_df["Volume"]
     min_periods = max(20, int(lookback_days * 0.7))
-    if len(turnover_yen) < min_periods:
+    valid_n = int(turnover_yen.dropna().shape[0])
+    if valid_n < min_periods:
         return pd.Series([None], index=[run_anchor])
 
     mean_v = float(turnover_yen.mean())

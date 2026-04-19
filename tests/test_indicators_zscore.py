@@ -74,6 +74,28 @@ def test_compute_turnover_ma_ratio_flat_window_is_one() -> None:
     assert result.iloc[0] == pytest.approx(1.0)
 
 
+def test_zscore_turnover_requires_non_null_turnover_count_not_only_row_count() -> None:
+    """行数が足りても売買代金が有効な本数が min_periods 未満なら欠損。"""
+    dates = pd.DatetimeIndex(pd.date_range("2026-01-01", periods=25, freq="B"), name="date")
+    close = [float("nan")] * 24 + [100.0]
+    vol = [1000.0] * 25
+    df = pd.DataFrame({"Close": close, "Volume": vol}, index=dates)
+    run_date = pd.Timestamp(dates.max()).date()
+    result = compute_zscore_turnover(df, lookback_days=21, run_date=run_date)
+    assert pd.isna(result.iloc[0])
+
+
+def test_turnover_ma_ratio_requires_non_null_turnover_count() -> None:
+    """倍率も有効な売買代金本数で min_periods を判定する。"""
+    dates = pd.DatetimeIndex(pd.date_range("2026-01-01", periods=25, freq="B"), name="date")
+    close = [float("nan")] * 24 + [100.0]
+    vol = [1000.0] * 25
+    df = pd.DataFrame({"Close": close, "Volume": vol}, index=dates)
+    run_date = pd.Timestamp(dates.max()).date()
+    result = compute_turnover_ma_ratio_from_prepared(df, lookback_days=21, run_date=run_date)
+    assert pd.isna(result.iloc[0])
+
+
 def test_compute_turnover_ma_ratio_spike_last_bar() -> None:
     """最終バーだけ売買代金が高いと倍率が 1 を超える。"""
     dates = pd.DatetimeIndex(pd.date_range("2026-01-01", periods=25, freq="B"), name="date")

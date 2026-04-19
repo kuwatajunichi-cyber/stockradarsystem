@@ -472,10 +472,11 @@ def main(argv: list[str] | None = None) -> None:
     result_df.to_csv(output_path, index=False, encoding="utf-8-sig")
     print(f"出力: {output_path} ({len(result_df)}行)", file=sys.stderr)
 
-    # サマリ
-    # RS指標: len(rs_windows)個 × ベンチマーク数
-    # 新規指標: 4個（短期RS加速、短期RS加速zscore、β調整RS、情報比率）× ベンチマーク数
-    total_indicators = len(result_df) * (len(rs_windows) + 4) * len(benchmarks)
+    # サマリ（nan_count と分母を整合）
+    # 銘柄共通: z_turnover, turnover_ma_ratio, price_change_pct の 3
+    # RS系: len(rs_windows) + 4（短期RS加速、短期RS加速zscore、β調整RS、情報比率）× ベンチマーク数
+    slots_per_row = 3 + (len(rs_windows) + 4) * len(benchmarks_filtered)
+    total_indicators = len(result_df) * slots_per_row
     nan_ratio = nan_count / total_indicators if total_indicators > 0 else 0
     print(f"サマリ: 計算成功={len(result_df)}, 欠損銘柄={missing_count}, NaN比率={nan_ratio:.2%}", file=sys.stderr)
     if excluded_by_stale:
