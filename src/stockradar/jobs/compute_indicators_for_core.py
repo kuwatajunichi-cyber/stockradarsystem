@@ -158,16 +158,18 @@ def _compute_one_code(task: tuple[str, str]) -> dict:
     )
     turnover_yen = stock_df["Close"] * stock_df["Volume"]
 
-    close_series = stock_df["Close"].dropna()
-    if len(close_series) >= 2:
-        prev_close = float(close_series.iloc[-2])
-        cur_close = float(close_series.iloc[-1])
-        if prev_close != 0.0 and not (pd.isna(prev_close) or pd.isna(cur_close)):
-            price_change_pct = (cur_close / prev_close - 1.0) * 100.0
-        else:
-            price_change_pct = None
-    else:
+    # run_date 当日バー（iloc[-1]）の終値が無効なら欠損。dropna すると古いバー同士の比較になり誤計算になる。
+    cur_close_raw = stock_df["Close"].iloc[-1]
+    if pd.isna(cur_close_raw) or len(stock_df) < 2:
         price_change_pct = None
+    else:
+        prev_close_raw = stock_df["Close"].iloc[-2]
+        if pd.isna(prev_close_raw):
+            price_change_pct = None
+        else:
+            prev_close = float(prev_close_raw)
+            cur_close = float(cur_close_raw)
+            price_change_pct = None if prev_close == 0.0 else (cur_close / prev_close - 1.0) * 100.0
 
     result_row = {
         "date": latest_date.isoformat(),
