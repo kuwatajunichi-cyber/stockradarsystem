@@ -2,7 +2,7 @@
 # workflow inputs で上書き可能な項目は inputs を優先
 
 # テンプレート（ローカル XLSX ファイル、repo ルートからの相対パス）
-template_path: "config/templates/indicators_template_v1.3.xlsx"
+template_path: "config/templates/indicators_template_v1.4.xlsx"
 
 # （非推奨）特定のシートに限定したい場合のみ CLI の --header-anchor-sheet-name を使用してください。
 
