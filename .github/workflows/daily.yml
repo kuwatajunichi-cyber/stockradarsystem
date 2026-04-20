@@ -182,8 +182,9 @@ jobs:
             echo "- monthly_tag: ${{ steps.core_sel.outputs.monthly_tag }}"
           } >> "$GITHUB_STEP_SUMMARY"
           if [ -f "$Q" ]; then
-            echo "### core_selection.json (high-signal)" >> "$GITHUB_STEP_SUMMARY"
-          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "### core_selection.json (high-signal)"
+          python - <<'PY'
           import json
           from pathlib import Path
 
@@ -193,9 +194,10 @@ jobs:
           print(f"- quality_tier: `{q.get('quality_tier')}`")
           print(f"- selected_cache_key: `{q.get('selected_cache_key')}`")
           PY
-            echo '```json' >> "$GITHUB_STEP_SUMMARY"
-            cat "$Q" >> "$GITHUB_STEP_SUMMARY"
-            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo '```json'
+            cat "$Q"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
           fi
 
   ensure_index_cache:
