@@ -56,6 +56,8 @@ jobs:
       - name: Summary
         if: always()
         run: |
-          echo "## cleanup_artifacts" >> "$GITHUB_STEP_SUMMARY"
-          echo "- config: \`${{ github.event.inputs.config_path || 'config/cleanup_artifacts.yaml' }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- dry_run: \`${{ github.event_name == 'schedule' && 'false' || (github.event.inputs.dry_run || 'true') }}\`" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "## cleanup_artifacts"
+            echo "- config: \`${{ github.event.inputs.config_path || 'config/cleanup_artifacts.yaml' }}\`"
+            echo "- dry_run: \`${{ github.event_name == 'schedule' && 'false' || (github.event.inputs.dry_run || 'true') }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
