@@ -13,9 +13,10 @@ from stockradar.indicators.rs import (
     compute_rs_acceleration,
     compute_rs_acceleration_zscore,
 )
-from stockradar.indicators.zscore import compute_zscore_turnover
+from stockradar.indicators.zscore import compute_turnover_ma_ratio_from_prepared, compute_zscore_turnover
 
 __all__ = [
+    "compute_turnover_ma_ratio_from_prepared",
     "compute_zscore_turnover",
     "compute_rs",
     "compute_rs_acceleration",

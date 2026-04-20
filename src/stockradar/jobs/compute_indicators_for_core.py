@@ -12,6 +12,8 @@
 - 短期RS加速のzscore：短期RS加速を標準化窓で標準化した値
 - β調整RS（Market-adjusted Excess Return）：市場寄与分を差し引いた純粋な銘柄固有要因の強さ
 - 情報比率（Information Ratio）：日次超過リターンの平均を標準偏差で割った値
+- 売買代金の移動平均比：当日売買代金 ÷ 直近 Z_LOOKBACK_DAYS 営業日の売買代金平均（窓は出来高 z と同一）
+- 騰落率（前日比）：終値の前営業日終値に対する変化率（百分率）
 """
 from __future__ import annotations
 
@@ -47,7 +49,10 @@ from stockradar.indicators.rs import (
     compute_rs_acceleration_zscore_from_merged,
     compute_rs_from_merged,
 )
-from stockradar.indicators.zscore import compute_zscore_turnover_from_prepared
+from stockradar.indicators.zscore import (
+    compute_turnover_ma_ratio_from_prepared,
+    compute_zscore_turnover_from_prepared,
+)
 from stockradar.utils.external_links import build_external_links
 from stockradar.utils.paths import (
     PATTERN_SETS_SECONDARY,
@@ -145,13 +150,34 @@ def _compute_one_code(task: tuple[str, str]) -> dict:
         run_date,
         anchor_ctx=z_ctx,
     )
+    turnover_ma_ratio = compute_turnover_ma_ratio_from_prepared(
+        stock_df,
+        z_lookback_days,
+        run_date,
+        anchor_ctx=z_ctx,
+    )
     turnover_yen = stock_df["Close"] * stock_df["Volume"]
+
+    # run_date 当日バー（iloc[-1]）の終値が無効なら欠損。dropna すると古いバー同士の比較になり誤計算になる。
+    cur_close_raw = stock_df["Close"].iloc[-1]
+    if pd.isna(cur_close_raw) or len(stock_df) < 2:
+        price_change_pct = None
+    else:
+        prev_close_raw = stock_df["Close"].iloc[-2]
+        if pd.isna(prev_close_raw):
+            price_change_pct = None
+        else:
+            prev_close = float(prev_close_raw)
+            cur_close = float(cur_close_raw)
+            price_change_pct = None if prev_close == 0.0 else (cur_close / prev_close - 1.0) * 100.0
 
     result_row = {
         "date": latest_date.isoformat(),
         "code": code,
         "turnover_yen": turnover_yen.loc[latest_idx] if latest_idx in turnover_yen.index else None,
         f"z_turnover_{z_lookback_days}": z_turnover.iloc[0] if not z_turnover.empty else None,
+        f"turnover_ma_ratio_{z_lookback_days}": turnover_ma_ratio.iloc[0] if not turnover_ma_ratio.empty else None,
+        "price_change_pct": price_change_pct,
         **build_external_links(code, "link_prefix"),
         "n_bars_used": len(stock_df),
     }
@@ -172,7 +198,13 @@ def _compute_one_code(task: tuple[str, str]) -> dict:
         result_row["candle_labels"] = None
         result_row["price_text"] = None
 
-    nan_count = 1 if pd.isna(result_row[f"z_turnover_{z_lookback_days}"]) else 0
+    nan_count = 0
+    if pd.isna(result_row[f"z_turnover_{z_lookback_days}"]):
+        nan_count += 1
+    if pd.isna(result_row[f"turnover_ma_ratio_{z_lookback_days}"]):
+        nan_count += 1
+    if pd.isna(result_row["price_change_pct"]):
+        nan_count += 1
     for bench_name, bench_df_filtered in benchmarks.items():
         if bench_df_filtered.empty:
             continue
@@ -440,10 +472,11 @@ def main(argv: list[str] | None = None) -> None:
     result_df.to_csv(output_path, index=False, encoding="utf-8-sig")
     print(f"出力: {output_path} ({len(result_df)}行)", file=sys.stderr)
 
-    # サマリ
-    # RS指標: len(rs_windows)個 × ベンチマーク数
-    # 新規指標: 4個（短期RS加速、短期RS加速zscore、β調整RS、情報比率）× ベンチマーク数
-    total_indicators = len(result_df) * (len(rs_windows) + 4) * len(benchmarks)
+    # サマリ（nan_count と分母を整合）
+    # 銘柄共通: z_turnover, turnover_ma_ratio, price_change_pct の 3
+    # RS系: len(rs_windows) + 4（短期RS加速、短期RS加速zscore、β調整RS、情報比率）× ベンチマーク数
+    slots_per_row = 3 + (len(rs_windows) + 4) * len(benchmarks_filtered)
+    total_indicators = len(result_df) * slots_per_row
     nan_ratio = nan_count / total_indicators if total_indicators > 0 else 0
     print(f"サマリ: 計算成功={len(result_df)}, 欠損銘柄={missing_count}, NaN比率={nan_ratio:.2%}", file=sys.stderr)
     if excluded_by_stale:

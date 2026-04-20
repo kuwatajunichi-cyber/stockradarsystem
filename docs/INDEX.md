@@ -40,7 +40,7 @@
 
 ### 代表ドキュメント
 
-- ユニバース・指標（v1.1）: [docs/user-facing-spec/universe_and_indicators_v1.1.md](user-facing-spec/universe_and_indicators_v1.1.md)
+- ユニバース・指標（v1.2）: [docs/user-facing-spec/universe_and_indicators_v1.2.md](user-facing-spec/universe_and_indicators_v1.2.md)
 - 日次レポート XLSX テンプレ（v1.2）: [docs/user-facing-spec/indicators_template_v1.2_design.md](user-facing-spec/indicators_template_v1.2_design.md)
 - 価格挙動の読み方: [docs/user-facing-spec/price_behavior_judgement_guide.md](user-facing-spec/price_behavior_judgement_guide.md)
 - 旧ユニバース・指標（archive）: [docs/archive/universe_and_indicators_v1.0.md](archive/universe_and_indicators_v1.0.md)
