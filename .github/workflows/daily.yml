@@ -183,16 +183,16 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           if [ -f "$Q" ]; then
             echo "### core_selection.json (high-signal)" >> "$GITHUB_STEP_SUMMARY"
-            python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
-            import json
-            from pathlib import Path
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
 
-            q = json.loads(Path("data/universe/jpx/core_selected_staging/core_selection.json").read_text(encoding="utf-8"))
-            print(f"- core_source: `{q.get('core_source')}`")
-            print(f"- delisted_patch_applied: `{q.get('delisted_patch_applied')}`")
-            print(f"- quality_tier: `{q.get('quality_tier')}`")
-            print(f"- selected_cache_key: `{q.get('selected_cache_key')}`")
-            PY
+          q = json.loads(Path("data/universe/jpx/core_selected_staging/core_selection.json").read_text(encoding="utf-8"))
+          print(f"- core_source: `{q.get('core_source')}`")
+          print(f"- delisted_patch_applied: `{q.get('delisted_patch_applied')}`")
+          print(f"- quality_tier: `{q.get('quality_tier')}`")
+          print(f"- selected_cache_key: `{q.get('selected_cache_key')}`")
+          PY
             echo '```json' >> "$GITHUB_STEP_SUMMARY"
             cat "$Q" >> "$GITHUB_STEP_SUMMARY"
             echo '```' >> "$GITHUB_STEP_SUMMARY"
