@@ -1,7 +1,7 @@
 """
 ローソク足の特徴量計算とラベル生成（OHLC descriptor）。
 
-ドキュメント: docs/OHLC_desripter_v1.2.md
+ドキュメント: docs/OHLC_desripter_v1.3.md
 """
 from __future__ import annotations
 
@@ -451,29 +451,29 @@ def compute_price_text(df: pd.DataFrame, labels: str, q_sr: float | pd.Series) -
 
     # 窓（先頭）
     if "GAP_UP" in label_set:
-        parts.append("上窓つき")
+        parts.append("上窓＋")
     elif "GAP_DOWN" in label_set:
-        parts.append("下窓つき")
+        parts.append("下窓＋")
 
-    # サイズ（RANGE_NORMALは表示しない）
+    # サイズ（RANGE_NORMALは表示しない）— v1.3: 視認用に < > で囲む（極大／大／小／極小）
     if "RANGE_VERY_LARGE" in label_set:
-        parts.append("極大の")
+        parts.append("<極大>")
     elif "RANGE_LARGE" in label_set:
-        parts.append("大きな")
+        parts.append("<大>")
     elif "RANGE_SMALL" in label_set:
-        parts.append("小さな")
+        parts.append("<小>")
     elif "RANGE_VERY_SMALL" in label_set:
-        parts.append("極小の")
+        parts.append("<極小>")
 
     # ヒゲ
     if "WICK_BOTH_LONG" in label_set:
-        parts.append("長い上下ヒゲ")
+        parts.append("長上下ヒゲ")
     elif "WICK_BOTH_PRESENT" in label_set:
         parts.append("上下ヒゲ")
     elif "WICK_UPPER_LONG" in label_set:
-        parts.append("長い上ヒゲ")
+        parts.append("長上ヒゲ")
     elif "WICK_LOWER_LONG" in label_set:
-        parts.append("長い下ヒゲ")
+        parts.append("長下ヒゲ")
     elif "WICK_UPPER_PRESENT" in label_set:
         parts.append("上ヒゲ")
     elif "WICK_LOWER_PRESENT" in label_set:
@@ -573,11 +573,11 @@ def compute_candle_descriptors(
         today_high = today_row["High"]
         today_low = today_row["Low"]
         
-        # 前日の最高値 < 当日の最低値 → 下窓つき（ユーザー指定）
+        # 前日の最高値 < 当日の最低値 → 下窓＋（GAP_DOWN、price_text）
         if prev_high < today_low:
             if "GAP_DOWN" not in labels.split(","):
                 labels = labels + ",GAP_DOWN" if labels else "GAP_DOWN"
-        # 前日の最低値 > 当日の最高値 → 上窓つき（ユーザー指定）
+        # 前日の最低値 > 当日の最高値 → 上窓＋（GAP_UP、price_text）
         elif prev_low > today_high:
             if "GAP_UP" not in labels.split(","):
                 labels = labels + ",GAP_UP" if labels else "GAP_UP"
