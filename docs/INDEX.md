@@ -25,7 +25,7 @@
 
 ### OHLC 記述子・JPX 制限値幅（実装仕様の正）
 
-- [docs/OHLC_desripter_v1.2.md](OHLC_desripter_v1.2.md) — ローソク形状・ラベル・閾値（`candle_descriptor` と整合）
+- [docs/OHLC_desripter_v1.3.md](OHLC_desripter_v1.3.md) — ローソク形状・ラベル・閾値（`candle_descriptor` と整合）
 - [docs/JPX_limitTable.md](JPX_limitTable.md) — 制限値幅表（`config/jpx_limit_table.yaml` と対応）
 
 ---
