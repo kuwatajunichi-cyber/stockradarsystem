@@ -136,6 +136,7 @@ aliases_by_code:
   - JESCOホールディングス
   - JESCO
   - Jesco Holdings Inc
+  - JESCO HD
   '1435':
   - robot home
   - ロボホーム
@@ -300,6 +301,7 @@ aliases_by_code:
   - 第一カッター興業
   - Dai-Ichi Cutter Kogyo KK
   - Dai-Ichi Cutter Kogyo
+  - 第一カッター
   '1717':
   - 明豊ファシリ
   - 明豊ファシリティワークス
@@ -875,6 +877,7 @@ aliases_by_code:
   - ポスプラ
   - G-ポストプライム
   - PostPrime Inc
+  - ポストプライム
   '1992':
   - 神田通機
   - Kanda Tsushinki Co Ltd
@@ -1434,6 +1437,7 @@ aliases_by_code:
   - Arbeit-Times Co Ltd
   - Arbeit-Times
   - アルバイトタイムス
+  - アルバイトタイ
   '2342':
   - トランスジェニックグループ
   - TransGenic Group Inc
@@ -1522,6 +1526,7 @@ aliases_by_code:
   - Soiken
   - G-総医研
   - 総医研HD
+  - 総医研
   '2388':
   - ウェッジホールディングス
   - ウェッジHD
@@ -1547,6 +1552,7 @@ aliases_by_code:
   - 新日本科学
   - Shin Nippon Biomedical Laboratories Ltd
   - Shin Nippon Biomedical Laboratories
+  - 新日科学
   '2404':
   - TETSUJIN Holdings Inc
   - TETSUJIN
@@ -1567,6 +1573,7 @@ aliases_by_code:
   - Gendai Agency Inc
   - Gendai Agency
   - ゲンダイエージェンシー
+  - ゲンダイAG
   '2413':
   - M3 Inc
   - エムスリー
@@ -2074,6 +2081,7 @@ aliases_by_code:
   - パルHD
   - PAL Group Holdings Co Ltd
   - PAL
+  - パルグループHD
   '2730':
   - EDION Corp
   - EDION
@@ -2533,11 +2541,13 @@ aliases_by_code:
   - J Frontier Co Ltd
   - J Frontier
   - ジェイフロンティア
+  - Jフロンティア
   '2935':
   - ピックルスホールディングス
   - ピックルス
   - Pickles Holdings Co Ltd
   - Pickles
+  - ピックルスHD
   '2936':
   - BASE FOOD Inc
   - BASE FOOD
@@ -2874,6 +2884,7 @@ aliases_by_code:
   - MatsukiyoCocokara & Co
   - MatsukiyoCocokara &
   - マツキヨココカラ&カンパニー
+  - マツキヨココカラ
   '3089':
   - Tアルファ
   - Techno Alpha Co Ltd
@@ -2897,6 +2908,7 @@ aliases_by_code:
   - Ocean System Corp
   - Ocean System
   - オーシャンシステム
+  - オーシャン
   '3097':
   - 物語コーポレーション
   - 物語コーポ
@@ -4149,6 +4161,7 @@ aliases_by_code:
   - コーテクHD
   - Koei Tecmo Holdings Co Ltd
   - Koei Tecmo
+  - コーエーテクモ
   '3636':
   - 三菱総研
   - Mitsubishi Research Institute Inc
@@ -5336,6 +5349,7 @@ aliases_by_code:
   - Interfactory Inc
   - Interfactory
   - インターファクトリー
+  - インタファクトリ
   '4058':
   - Toyokumo Inc
   - Toyokumo
@@ -5466,6 +5480,7 @@ aliases_by_code:
   - Titan Kogyo Ltd
   - Titan Kogyo
   - チタン工業
+  - チタン工
   '4099':
   - 四国化成ホールディングス
   - 四国化HD
@@ -5601,6 +5616,7 @@ aliases_by_code:
   - カイゼン
   - Kaizen Platform Inc
   - G-KaizenPF
+  - KaizenPF
   '4171':
   - グローバルI
   - Global Information Inc
@@ -6187,6 +6203,7 @@ aliases_by_code:
   - Kufu Company Holdings Inc
   - Kufu Company
   - G-くふうカンパニー
+  - くふうカンパニー
   '4377':
   - One Career Inc
   - One Career
@@ -6352,6 +6369,7 @@ aliases_by_code:
   - Global Security Experts
   - G-グローバルセキュ
   - グローバルセキュリティエキスパート
+  - グローバルセキュ
   '4418':
   - JDSC
   - Japan Data Science Consortium Co Ltd
@@ -6423,6 +6441,7 @@ aliases_by_code:
   - ウイングアク
   - WingArc1st Inc
   - WingArc1st
+  - ウイングアーク
   '4433':
   - ヒト・コミュニケーションズ・ホールディングス
   - ヒトコムHD
@@ -6625,6 +6644,7 @@ aliases_by_code:
   - Cyber Security Cloud
   - G-サイバーセキュリ
   - サイバーセキュリティクラウド
+  - サイバーセキュリ
   '4494':
   - バリオ
   - Vario Secure Inc
@@ -6636,6 +6656,7 @@ aliases_by_code:
   - i Cubed Systems
   - G-アイキューブド
   - アイキューブドシステムズ
+  - アイキューブド
   '4496':
   - コマースOneホールディングス
   - コマースワン
@@ -7736,6 +7757,7 @@ aliases_by_code:
   - アジュバン
   - Adjuvant Holdings Co Ltd
   - Adjuvant
+  - アジュバンHD
   '4931':
   - Shinnihonseiyaku Co Ltd
   - Shinnihonseiyaku
@@ -7834,6 +7856,7 @@ aliases_by_code:
   - Toyo Drilube Co Ltd
   - Toyo Drilube
   - 東洋ドライルーブ
+  - ドライルーブ
   '4977':
   - Nitta Gelatin Inc
   - Nitta Gelatin
@@ -8329,6 +8352,7 @@ aliases_by_code:
   - Nippon Concrete Industries Co Ltd
   - Nippon Concrete Industries
   - 日本コンクリート工業
+  - 日コンクリ
   '5271':
   - トーヨアサノ
   - Toyo Asano Foundation Co Ltd
@@ -8448,6 +8472,7 @@ aliases_by_code:
   - Nippon Crucible
   - 日本坩堝
   - 日本ルツボ
+  - 日坩堝
   '5356':
   - 美濃窯
   - Mino Ceramic Co Ltd
@@ -8681,6 +8706,7 @@ aliases_by_code:
   - ARアドバン
   - AR Advanced Technology Inc
   - AR Advanced Technology
+  - ARアドバンスト
   '5580':
   - Prodelight Co Ltd
   - Prodelight
@@ -9640,6 +9666,7 @@ aliases_by_code:
   - Escrow Agent Japan Inc
   - Escrow Agent Japan
   - エスクロー・エージェント・ジャパン
+  - エスクローAJ
   '6094':
   - フリークアウト・ホールディングス
   - フリークHD
@@ -9747,6 +9774,7 @@ aliases_by_code:
   - Odawara Engineering Co Ltd
   - Odawara Engineering
   - 小田原エンジニアリング
+  - 小田原エン
   '6150':
   - タケダ機械
   - Takeda Machinery Co Ltd
@@ -9872,6 +9900,7 @@ aliases_by_code:
   - Virtualex Holdings Inc
   - Virtualex
   - G-バーチャレクス
+  - バーチャレクス
   '6194':
   - Atrae Inc
   - Atrae
@@ -9935,6 +9964,7 @@ aliases_by_code:
   - Tsudakoma Corp
   - Tsudakoma
   - 津田駒工業
+  - 津田駒工
   '6218':
   - エンシュウ
   - Enshu Ltd
@@ -10693,6 +10723,7 @@ aliases_by_code:
   - Maezawa Industries
   - 前沢工業
   - 前澤工業
+  - 前沢工
   '6490':
   - PILLAR
   - PILLAR Corp
@@ -11202,6 +11233,7 @@ aliases_by_code:
   - Adtec Plasma Technology Co Ltd
   - Adtec Plasma Technology
   - アドテック プラズマ テクノロジー
+  - アドテック プラズマ
   '6670':
   - MCJ
   - MCJ Co Ltd
@@ -12002,6 +12034,7 @@ aliases_by_code:
   - Inbound Tech Inc
   - Inbound Tech
   - インバウンドテック
+  - インバウンド
   '7033':
   - MSOL
   - Management Solutions Co Ltd
@@ -12103,6 +12136,7 @@ aliases_by_code:
   - Kyoei Security Service Co Ltd
   - Kyoei Security Service
   - 共栄セキュリティーサービス
+  - 共栄セキュリティ
   '7059':
   - コプロ・ホールディングス
   - コプロHD
@@ -12879,6 +12913,7 @@ aliases_by_code:
   - Ai Partners Financial
   - G-アイパートナーズ
   - アイ・パートナーズフィナンシャル
+  - アイパートナーズ
   '7347':
   - Mercuria Holdings Co Ltd
   - Mercuria
@@ -12898,6 +12933,7 @@ aliases_by_code:
   '7352':
   - TWOSTONE&Sons Inc
   - TWOSTONE&Sons
+  - TWOSTONE
   '7353':
   - KIYOラーニング
   - Kラーニング
@@ -13297,6 +13333,7 @@ aliases_by_code:
   - Aeon Hokkaido Corp
   - Aeon Hokkaido
   - イオン北海道
+  - イオン北海
   '7513':
   - Kojima Co Ltd
   - Kojima
@@ -13829,6 +13866,7 @@ aliases_by_code:
   - Asahi Intecc Co Ltd
   - Asahi Intecc
   - 朝日インテック
+  - アサヒインテック
   '7749':
   - Medikit Co Ltd
   - Medikit
@@ -14061,6 +14099,7 @@ aliases_by_code:
   - Endo Manufacturing Co Ltd
   - Endo Manufacturing
   - 遠藤製作所
+  - 遠藤製作
   '7844':
   - Marvelous Inc
   - Marvelous
@@ -14075,6 +14114,7 @@ aliases_by_code:
   - Graphite Design Inc
   - Graphite Design
   - グラファイトデザイン
+  - グラファイトD
   '7849':
   - Starts Publishing Corp
   - Starts Publishing
@@ -14382,6 +14422,7 @@ aliases_by_code:
   - Shin-Etsu Polymer Co Ltd
   - Shin-Etsu Polymer
   - 信越ポリマー
+  - 信越ポリマ
   '7971':
   - Toli Corp
   - Toli
@@ -14510,6 +14551,7 @@ aliases_by_code:
   - 4°Cホールデ
   - Yondoshi Holdings Inc
   - Yondoshi
+  - 4°C HD
   '8011':
   - 三陽商
   - Sanyo Shokai Ltd
@@ -15546,6 +15588,7 @@ aliases_by_code:
   - Kosei Securities Co Ltd
   - Kosei Securities
   - 光世証券
+  - 光世証
   '8622':
   - 水戸
   - Mito Securities Co Ltd
@@ -16388,6 +16431,7 @@ aliases_by_code:
   - ブリッジG
   - Bridge Consulting Group Inc
   - Bridge Consulting
+  - ブリッジコンサル
   '9227':
   - マイクロ波
   - Microwave Chemical Co Ltd
@@ -16469,6 +16513,7 @@ aliases_by_code:
   - 人・夢・技術
   - People Dreams & Technologies Group Co Ltd
   - People Dreams & Technologies
+  - 人・夢・技術G
   '9249':
   - Japan Ecosystem Co Ltd
   - Japan Ecosystem
@@ -16846,6 +16891,7 @@ aliases_by_code:
   - BSNHD
   - BSN Media Holdings Inc
   - BSN Media
+  - BSNメディアHD
   '9409':
   - テレビ朝日ホールディングス
   - テレ朝HD
@@ -17425,6 +17471,7 @@ aliases_by_code:
   - Nomura Co Ltd
   - Nomura
   - 乃村工藝社
+  - 乃村工芸
   '9719':
   - SCSK Corp
   - SCSK
@@ -17889,6 +17936,7 @@ aliases_by_code:
   - 文教堂GHD
   - Bunkyodo Group Holdings Co Ltd
   - Bunkyodo
+  - 文教堂HD
   '9979':
   - Daisyo Corp
   - Daisyo
@@ -17907,6 +17955,7 @@ aliases_by_code:
   - Fast Retailing Co Ltd
   - Fast Retailing
   - ファーストリテイリング
+  - ファーストリテ
   '9984':
   - ソフトバンクグループ
   - SBG
