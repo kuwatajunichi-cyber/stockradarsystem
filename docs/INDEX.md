@@ -55,6 +55,8 @@
   <https://github.com/kuwatajunichi-cyber/stockradarsystem/tree/main/docs/adr/>
 - ADR-001 監査用トレーサビリティ（温存・削除判断）:  
   [docs/adr/adr-001-audit-retention-and-removal.md](adr/adr-001-audit-retention-and-removal.md)
+- ADR-002 日次 MACD ヒストグラム・チャート寄り状態ラベル:  
+  [docs/adr/adr-002-macd-histogram-indicators.md](adr/adr-002-macd-histogram-indicators.md)
 
 ### Decision Candidates (Pre-ADR)
 
