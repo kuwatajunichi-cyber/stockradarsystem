@@ -100,7 +100,10 @@ def test_test_yml_matches_reusable_quality_gate_marker_pipeline() -> None:
     assert _step_named(preflight, "Smoke")["run"].strip() == _step_named(
         _job(workflow, "smoke"), "Smoke tests"
     )["run"].strip()
-    assert _step_named(preflight, "Actionlint")["uses"] == "raven-actions/actionlint@v2"
+    actionlint_run = _step_named(preflight, "Actionlint")["run"]
+    assert "rhysd/actionlint" in actionlint_run
+    assert "1.7.12" in actionlint_run
+    assert "./actionlint -color" in actionlint_run
 
 
 def test_monthly_yml_uses_preflight_and_publishes_latest_three_csvs() -> None:
