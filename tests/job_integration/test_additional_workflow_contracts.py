@@ -101,8 +101,8 @@ def test_test_yml_matches_reusable_quality_gate_marker_pipeline() -> None:
         _job(workflow, "smoke"), "Smoke tests"
     )["run"].strip()
     actionlint_run = _step_named(preflight, "Actionlint")["run"]
-    assert "rhysd/actionlint" in actionlint_run
-    assert "1.7.12" in actionlint_run
+    assert "rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash" in actionlint_run
+    assert 'bash -s -- "1.7.12"' in actionlint_run
     assert "./actionlint -color" in actionlint_run
 
 
