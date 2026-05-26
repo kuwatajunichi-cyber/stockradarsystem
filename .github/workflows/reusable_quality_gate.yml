@@ -33,4 +33,8 @@ jobs:
       - name: Smoke
         run: pytest --strict-markers -m "smoke" -v
       - name: Actionlint
-        uses: raven-actions/actionlint@v2
+        run: |
+          set -euo pipefail
+          # raven-actions/actionlint は codeload 取得失敗や @actions/tool-cache 破壊で不安定なため、公式バイナルを利用
+          curl -sSL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash | bash -s -- "1.7.12"
+          ./actionlint -color
