@@ -32,6 +32,12 @@ jobs:
         run: pytest --strict-markers -m "job_integration" -v
       - name: Smoke
         run: pytest --strict-markers -m "smoke" -v
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Worker cron dispatcher tests
+        run: npm test --prefix workers/github-cron-dispatcher
       - name: Actionlint
         run: |
           set -euo pipefail

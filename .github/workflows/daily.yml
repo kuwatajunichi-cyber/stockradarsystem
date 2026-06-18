@@ -20,10 +20,8 @@ on:
         description: "ensure_index_cache に --force（ベンチティッカー変更後のキャッシュ取り直し用）"
         type: boolean
         default: false
-  schedule:
-    # 毎営業日 15:37 JST（UTC 06:37）
-    # 注: GitHub ActionsのcronはUTC基準
-    - cron: "37 6 * * 1-5"  # 月曜〜金曜 06:37 UTC（日本時間 15:37）
+  # Phase 1 (Issue #93): 定時起動は Cloudflare Cron → workflow_dispatch が正系。
+  # GitHub schedule は二重起動防止のため削除。ロールバック手順: docs/operations/cloudflare_github_cron.md
 
 concurrency:
   group: daily-indicators

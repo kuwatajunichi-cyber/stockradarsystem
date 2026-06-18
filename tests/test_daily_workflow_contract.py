@@ -111,9 +111,12 @@ def test_daily_yml_render_and_upload_reads_indicators_and_enriched() -> None:
     assert "enriched-csv-${{ needs.resolve_trading_day.outputs.run_date }}" in download_names
 
 
-def test_daily_yml_schedule_cron_baseline_before_migration() -> None:
+def test_daily_yml_no_github_schedule_after_cloudflare_cutover() -> None:
+    """Phase 1: daily.yml schedule removed; Cloudflare Cron is canonical."""
     wf = yaml.safe_load((_repo_root() / ".github/workflows/daily.yml").read_text(encoding="utf-8"))
     on_block = wf.get("on") or wf.get(True) or {}
-    schedule = on_block.get("schedule") or []
-    crons = [entry["cron"] for entry in schedule if isinstance(entry, dict) and "cron" in entry]
-    assert crons == ["37 6 * * 1-5"]
+    schedule = on_block.get("schedule")
+    assert schedule is None or schedule == []
+    assert "workflow_dispatch" in on_block
+    assert wf["concurrency"]["group"] == "daily-indicators"
+    assert wf["concurrency"]["cancel-in-progress"] is False

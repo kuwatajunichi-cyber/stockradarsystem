@@ -79,9 +79,10 @@ def test_test_yml_matches_reusable_quality_gate_marker_pipeline() -> None:
     gate = _load_workflow("reusable_quality_gate.yml")
 
     jobs = workflow["jobs"]
-    assert list(jobs) == ["unit", "job_integration", "smoke"]
+    assert list(jobs) == ["unit", "job_integration", "smoke", "worker"]
     assert jobs["job_integration"]["needs"] == "unit"
     assert jobs["smoke"]["needs"] == "job_integration"
+    assert jobs["worker"]["needs"] == "smoke"
 
     unit = _job(workflow, "unit")
     assert _step_named(unit, "Set up Python")["with"]["python-version"] == "3.11"
@@ -99,6 +100,9 @@ def test_test_yml_matches_reusable_quality_gate_marker_pipeline() -> None:
     )["run"].strip()
     assert _step_named(preflight, "Smoke")["run"].strip() == _step_named(
         _job(workflow, "smoke"), "Smoke tests"
+    )["run"].strip()
+    assert _step_named(_job(workflow, "worker"), "Worker unit tests")["run"].strip() == _step_named(
+        preflight, "Worker cron dispatcher tests"
     )["run"].strip()
     actionlint_run = _step_named(preflight, "Actionlint")["run"]
     assert "rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash" in actionlint_run

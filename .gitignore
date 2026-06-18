@@ -12,6 +12,7 @@ data/raw/
 data/processed/
 data/cache/
 data/universe/
+data/indicators/
 data/output/staging/
 data/key
 logs/

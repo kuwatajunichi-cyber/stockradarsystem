@@ -41,6 +41,7 @@ markers = [
     "unit: fast pure/unit tests",
     "job_integration: integration tests for batch jobs",
     "smoke: CLI and contract smoke tests",
+    "live_dispatch: manual live API smoke (not CI required)",
     "slow: long-running tests excluded from default local runs",
 ]
 
