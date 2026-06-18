@@ -204,19 +204,6 @@ def fetch_nikkei_aliases_for_code(
     return out
 
 
-_RE_SUFFIX_WORD = re.compile(
-    r"\b(?:inc\.?|corp\.?|corporation|co\.?|ltd\.?|holdings|group|kk)\b$",
-    flags=re.I,
-)
-
-
-def _strip_reuters_suffix(name: str) -> str:
-    parts = normalize_alias(name).split(" ")
-    while parts and _RE_SUFFIX_WORD.search(parts[-1]):
-        parts.pop()
-    return normalize_alias(" ".join(parts))
-
-
 def fetch_reuters_aliases_for_code(
     code: str,
     *,
@@ -226,27 +213,9 @@ def fetch_reuters_aliases_for_code(
     host_next_ts: dict[str, float] | None = None,
     rng: Any | None = None,
 ) -> list[str]:
-    s = session or requests.Session()
-    if not session:
-        s.headers.update(_default_headers())
-    pol = policy or FetchPolicy()
-    st = stats or MediaStats()
-    host_map = host_next_ts if host_next_ts is not None else {}
-    url = f"https://jp.reuters.com/markets/companies/{code}.T"
-    text = _request_text(url=url, session=s, policy=pol, stats=st, host_next_ts=host_map, rng=rng)
-    if not text:
-        return []
-    soup = BeautifulSoup(text, "html.parser")
-    h1 = soup.find("h1")
-    if not h1:
-        return []
-    raw = normalize_alias(h1.get_text(" ", strip=True))
-    out: list[str] = []
-    for cand in [raw, _strip_reuters_suffix(raw)]:
-        s_c = normalize_alias(cand)
-        if s_c and is_valid_alias(s_c) and s_c not in out:
-            out.append(s_c)
-    return out
+    """Reuters 別称取得は jp.reuters.com の応答不安定のため無効化。"""
+    _ = (code, session, policy, stats, host_next_ts, rng)
+    return []
 
 
 def fetch_tdnet_issuer_counts(

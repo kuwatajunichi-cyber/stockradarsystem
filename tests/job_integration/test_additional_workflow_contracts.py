@@ -130,6 +130,30 @@ def test_monthly_yml_uses_preflight_and_publishes_latest_three_csvs() -> None:
     assert 'python scripts/upload_to_all_targets.py --run-date "$RUN_DATE" --targets "$TARGETS" --files "$IPO" "$ILLIQ" "$CORE"' in upload_step["run"]
 
 
+def test_monthly_yml_resolves_run_id_from_latest_and_staging() -> None:
+    workflow = _load_workflow("monthly.yml")
+    build = _job(workflow, "build")
+    run_id_step = _step_named(build, "Get run ID from output")
+    run_script = run_id_step["run"]
+    assert 'cat data/output/latest/LATEST_RUN_ID.txt' in run_script
+    assert "find data/output/staging -mindepth 1 -maxdepth 1 -type d" in run_script
+    assert 'STAGING_DIR="data/output/staging/$RUN_ID"' in run_script
+
+    release_step = _step_named(build, "Create Release")
+    release_files = release_step["with"]["files"]
+    assert "data/output/staging/${{ steps.get_run_id.outputs.run_id }}/equity_domestic_ipo_with_name.csv" in release_files
+    assert "data/output/staging/${{ steps.get_run_id.outputs.run_id }}/equity_domestic_core_with_name.csv" in release_files
+
+
+def test_daily_event_cause_enrichment_writes_enriched_csv_artifact() -> None:
+    workflow = _load_workflow("daily_event_cause_enrichment.yml")
+    enrich = _job(workflow, "enrich")
+    upload_step = _step_named(enrich, "Upload enriched CSV artifact")
+    assert upload_step["uses"] == "actions/upload-artifact@v4"
+    assert upload_step["with"]["name"] == "enriched-csv-${{ inputs.run_date }}"
+    assert upload_step["with"]["retention-days"] == 7
+
+
 def test_daily_universe_patch_yml_resolves_monthly_tag_and_writes_single_patched_cache() -> None:
     text = _workflow_text("daily_universe_patch.yml")
     workflow = _load_workflow("daily_universe_patch.yml")

@@ -1,0 +1,73 @@
+{
+  "run_date": "2026-06-17",
+  "resolved_monthly_tag": "monthly-20260601-26740041082",
+  "upstream_run_id": "",
+  "inputs": {
+    "core": "C:\\GitHub\\stockradarsystem\\data\\universe\\jpx\\latest_release\\equity_domestic_core_with_name.csv",
+    "illiquid": "C:\\GitHub\\stockradarsystem\\data\\universe\\jpx\\latest_release\\equity_domestic_illiquid_with_name.csv",
+    "ipo": "C:\\GitHub\\stockradarsystem\\data\\universe\\jpx\\latest_release\\equity_domestic_ipo_with_name.csv",
+    "base_alias_yaml": "C:\\GitHub\\stockradarsystem\\data\\alias_inputs\\prev\\kabutan_name_aliases.yaml",
+    "base_state_json": "C:\\GitHub\\stockradarsystem\\data\\alias_inputs\\prev\\alias_state.json"
+  },
+  "outputs": {
+    "alias_yaml": "C:\\GitHub\\stockradarsystem\\data\\alias_outputs\\kabutan_name_aliases.yaml",
+    "state_json": "C:\\GitHub\\stockradarsystem\\data\\alias_outputs\\alias_state.json",
+    "delta_csv": "C:\\GitHub\\stockradarsystem\\data\\alias_outputs\\alias_delta_2026-06-17.csv",
+    "summary_json": "C:\\GitHub\\stockradarsystem\\data\\alias_outputs\\alias_summary_2026-06-17.json"
+  },
+  "counts": {
+    "universe_codes": 3741,
+    "aliases_codes": 3784,
+    "added_aliases": 40,
+    "review_aliases": 3,
+    "delta_rows": 6455
+  },
+  "rates": {
+    "media_success_rate": 0.4035663262606487,
+    "effective_media_success_rate": 0.4035663262606487,
+    "low_ratio": 0.06976744186046512
+  },
+  "anomaly_context": {
+    "enforce_media_success_rate": true,
+    "eligible_media_for_success_rate": [
+      "kabutan",
+      "nikkei",
+      "reuters",
+      "tdnet"
+    ],
+    "min_requests_for_rate": 10
+  },
+  "media_stats": {
+    "kabutan": {
+      "requests": 3741,
+      "success": 3741,
+      "fail": 0,
+      "retry": 0,
+      "avg_latency_ms": 107.99
+    },
+    "nikkei": {
+      "requests": 3741,
+      "success": 3741,
+      "fail": 0,
+      "retry": 0,
+      "avg_latency_ms": 584.87
+    },
+    "reuters": {
+      "requests": 11191,
+      "success": 24,
+      "fail": 3717,
+      "retry": 7450,
+      "avg_latency_ms": 93.97
+    },
+    "tdnet": {
+      "requests": 226,
+      "success": 121,
+      "fail": 0,
+      "retry": 0,
+      "avg_latency_ms": 50.16
+    }
+  },
+  "anomalies": [
+    "media_success_rate_too_low: 0.4036 < 0.8500"
+  ]
+}

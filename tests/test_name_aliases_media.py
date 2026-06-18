@@ -40,7 +40,7 @@ class _DummySession:
         return vals[idx]
 
 
-def test_media_extractors_parse_kabutan_nikkei_reuters() -> None:
+def test_media_extractors_parse_kabutan_nikkei() -> None:
     session = _DummySession(
         {
             "https://kabutan.jp/stock/?code=7203": [
@@ -49,29 +49,34 @@ def test_media_extractors_parse_kabutan_nikkei_reuters() -> None:
             "https://www.nikkei.com/nkd/company/?scode=7203": [
                 _DummyResp("<html><head><title>【トヨタ自動車】業績・財務 最新ニュース[7203] | 日本経済新聞</title></head></html>")
             ],
-            "https://jp.reuters.com/markets/companies/7203.T": [
-                _DummyResp("<html><body><h1>Toyota Motor Corp</h1></body></html>")
-            ],
         }
     )
     policy = FetchPolicy(sleep_ms=0, sleep_jitter_ms=0, retry_max=1, retry_backoff_ms=[0])
     host_next: dict[str, float] = {}
     stats_k = MediaStats()
     stats_n = MediaStats()
-    stats_r = MediaStats()
     kab = fetch_kabutan_aliases_for_code(
         "7203", session=session, policy=policy, stats=stats_k, host_next_ts=host_next
     )
     nik = fetch_nikkei_aliases_for_code(
         "7203", session=session, policy=policy, stats=stats_n, host_next_ts=host_next
     )
-    reu = fetch_reuters_aliases_for_code(
-        "7203", session=session, policy=policy, stats=stats_r, host_next_ts=host_next
-    )
     assert "トヨタ" in kab
     assert "トヨタ自動車" in nik
-    assert "Toyota Motor Corp" in reu
-    assert "Toyota Motor" in reu
+
+
+def test_fetch_reuters_aliases_is_disabled() -> None:
+    session = _DummySession(
+        {
+            "https://jp.reuters.com/markets/companies/7203.T": [
+                _DummyResp("<html><body><h1>Toyota Motor Corp</h1></body></html>")
+            ],
+        }
+    )
+    stats = MediaStats()
+    out = fetch_reuters_aliases_for_code("7203", session=session, policy=FetchPolicy(), stats=stats, host_next_ts={})
+    assert out == []
+    assert stats.requests == 0
 
 
 def test_media_retry_success_counts_retry_and_success() -> None:

@@ -36,7 +36,6 @@ from stockradar.sources.name_aliases_media import (
     MediaStats,
     fetch_kabutan_aliases_for_code,
     fetch_nikkei_aliases_for_code,
-    fetch_reuters_aliases_for_code,
     fetch_tdnet_issuer_counts,
 )
 from stockradar.utils.stock_name_shortener import shorten_stock_name
@@ -153,12 +152,7 @@ def _collect_candidates(
     per_code: dict[str, list[Candidate]] = {}
     code_name: dict[str, str] = {str(r.code): str(r.name) for r in universe.itertuples(index=False)}
     codes = sorted(code_name.keys())
-    stats: dict[str, MediaStats] = {
-        "kabutan": MediaStats(),
-        "nikkei": MediaStats(),
-        "reuters": MediaStats(),
-        "tdnet": MediaStats(),
-    }
+    stats: dict[str, MediaStats] = {m: MediaStats() for m in media_list}
     host_next_ts: dict[str, float] = {}
     rng = random.Random(20260307)
     session = requests.Session()
@@ -226,11 +220,6 @@ def _collect_candidates(
                 code, session=session, policy=policy, stats=stats["nikkei"], host_next_ts=host_next_ts, rng=rng
             ):
                 add_obs(a, "nikkei")
-        if "reuters" in media_list:
-            for a in fetch_reuters_aliases_for_code(
-                code, session=session, policy=policy, stats=stats["reuters"], host_next_ts=host_next_ts, rng=rng
-            ):
-                add_obs(a, "reuters")
         if "tdnet" in media_list:
             counts = tdnet_counts.get(code, {})
             for a, cnt in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))[:2]:
@@ -385,7 +374,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--output-state-json", type=str, default="data/cache/name_aliases/alias_state.json")
     parser.add_argument("--output-delta-csv", type=str, default="data/analysis/event_causes_poc/alias_delta.csv")
     parser.add_argument("--output-summary-json", type=str, default="data/analysis/event_causes_poc/alias_summary.json")
-    parser.add_argument("--media", type=str, default="kabutan,nikkei,reuters,tdnet")
+    parser.add_argument("--media", type=str, default="kabutan,nikkei,tdnet")
     parser.add_argument("--sleep-ms", type=int, default=800)
     parser.add_argument("--sleep-jitter-ms", type=int, default=400)
     parser.add_argument("--retry-max", type=int, default=3)
@@ -424,7 +413,7 @@ def main(argv: list[str] | None = None) -> None:
     )
 
     media_list = [x.strip().lower() for x in args.media.split(",") if x.strip()]
-    allowed = {"kabutan", "nikkei", "reuters", "tdnet"}
+    allowed = {"kabutan", "nikkei", "tdnet"}
     media_list = [m for m in media_list if m in allowed]
     if not media_list:
         print("エラー: --media が空または不正です", file=sys.stderr)
