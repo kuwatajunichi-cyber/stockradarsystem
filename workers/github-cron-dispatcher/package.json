@@ -1,0 +1,11 @@
+{
+  "name": "github-cron-dispatcher",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
