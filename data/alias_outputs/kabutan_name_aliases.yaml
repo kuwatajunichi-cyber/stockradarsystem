@@ -8,6 +8,7 @@ aliases_by_code:
   - ウェリタス
   - G-VIS
   - Veritas In Silico Inc
+  - VIS
   '1332':
   - ニッスイ
   - Nissui Corp
@@ -20,6 +21,7 @@ aliases_by_code:
   - VRAIN Solution
   - ヴレインS
   - Vrain Solution Inc
+  - VRAIN
   '1375':
   - ユキグニ
   - ユキグニファクトリー
@@ -683,6 +685,7 @@ aliases_by_code:
   - Japan Foundation Engineering Co Ltd
   - Japan Foundation Engineering
   - 日本基礎技術
+  - 日基礎
   '1921':
   - 巴コーポレーション
   - Tomoe Corp
@@ -1484,6 +1487,7 @@ aliases_by_code:
   - Medinet Co Ltd
   - Medinet
   - G-MDNT
+  - MDNT
   '2371':
   - カカクコム
   - Kakaku.com Inc
@@ -2625,6 +2629,7 @@ aliases_by_code:
   - LAホールディングス
   - LAホールデ
   - LA Holdings Co Ltd
+  - LAHD
   298A:
   - GVA TECH
   - GVAテック
@@ -3151,6 +3156,7 @@ aliases_by_code:
   - ICDA
   - International Conglomerate of Distribution for Automobile
   - International Conglomerate of Distribution for Automobile Holdings Co Ltd
+  - ICDA・HD
   '3185':
   - Dream Vision Co Ltd
   - Dream Vision
@@ -3211,6 +3217,7 @@ aliases_by_code:
   - SFPホールディングス
   - SFP
   - SFP Holdings Co Ltd
+  - SFPHD
   '3199':
   - 綿半ホールディングス
   - 綿半HD
@@ -3578,6 +3585,7 @@ aliases_by_code:
   - ゼンムテック
   - G-Zenmu
   - ZenmuTech Inc
+  - Zenmu
   '3391':
   - ツルハホールディングス
   - ツルハHD
@@ -4639,6 +4647,7 @@ aliases_by_code:
   - The Why How Do Company Inc
   - The Why How Do Company
   - WHY HOW DO
+  - WHDC
   '3825':
   - Remixpoint Inc
   - Remixpoint
@@ -5211,6 +5220,7 @@ aliases_by_code:
   - ミット
   - MIT Holdings Co Ltd
   - MIT
+  - MITHD
   '4017':
   - Creema Ltd
   - Creema
@@ -6400,6 +6410,7 @@ aliases_by_code:
   - Valuenex Japan
   - G-VALUENEX
   - VALUENEX
+  - VNX
   '4424':
   - Amazia Inc
   - G-Amazia
@@ -6524,6 +6535,7 @@ aliases_by_code:
   - Power Solutions Ltd
   - Power Solutions
   - パワーソリューションズ
+  - PSOL
   '4452':
   - Kao Corp
   - Kao
@@ -6840,6 +6852,7 @@ aliases_by_code:
   - OncoTherapy Science
   - G-OTS
   - オンコセラピー・サイエンス
+  - OTS
   '4565':
   - ネクセラ
   - Nxera Pharma Co Ltd
@@ -6892,6 +6905,7 @@ aliases_by_code:
   - D.Western Therapeutics Institute
   - G-DWTI
   - デ・ウエスタン・セラピテクス研究所
+  - DWTI
   '4577':
   - Daito Pharmaceutical Co Ltd
   - Daito Pharmaceutical
@@ -7527,6 +7541,7 @@ aliases_by_code:
   - Weathernews Inc
   - Weathernews
   - ウェザーニューズ
+  - WNIウェザー
   '4826':
   - CIJ
   - Computer Institute of Japan Ltd
@@ -7636,6 +7651,7 @@ aliases_by_code:
   - サワイGHD
   - Sawai Group Holdings Co Ltd
   - Sawai
+  - サワイグループHD
   '4888':
   - ステラファ
   - Stella Pharma Corp
@@ -8198,6 +8214,8 @@ aliases_by_code:
   - Fuji Latex Co Ltd
   - Fuji Latex
   - 不二ラテックス
+  519A:
+  - ベーシック
   '5201':
   - AGC
   - AGC Inc
@@ -8216,6 +8234,9 @@ aliases_by_code:
   - Arisawa Mfg Co Ltd
   - Arisawa Mfg
   - 有沢製作所
+  520A:
+  - ジェイファーマ
+  - Jファーマ
   '5210':
   - 日山村硝
   - Nihon Yamamura Glass Co Ltd
@@ -8249,6 +8270,9 @@ aliases_by_code:
   - Nozawa Corp
   - Nozawa
   - ノザワ
+  523A:
+  - セイワHD
+  - セイワホールディングス
   '5240':
   - monoAI technology
   - monoAI
@@ -8330,6 +8354,7 @@ aliases_by_code:
   - BBD Initiative
   - BBDイニシアティブ
   - BBDイニシ
+  - BBDI
   '5261':
   - リソルホールディングス
   - リソル
@@ -8558,6 +8583,13 @@ aliases_by_code:
   - Tokyo Steel Manufacturing
   - 東京製鐵
   - 東製鉄
+  542A:
+  - ビタブリッドジャパン
+  - ビタブリッドJ
+  - ビタブリッド
+  543A:
+  - ARCHION
+  - ARCHIO
   '5440':
   - Kyoei Steel Ltd
   - Kyoei Steel
@@ -8583,6 +8615,8 @@ aliases_by_code:
   - Osaka Steel Co Ltd
   - Osaka Steel
   - 大阪製鐵
+  544A:
+  - GMSグループ
   '5451':
   - Yodoko Ltd
   - Yodoko
@@ -8593,6 +8627,8 @@ aliases_by_code:
   - Takasago Tekko
   - 高砂鐵工
   - 高砂鉄工
+  545A:
+  - トランヴィア
   '5461':
   - Chubu Steel Plate Co Ltd
   - Chubu Steel Plate
@@ -8606,11 +8642,18 @@ aliases_by_code:
   - Mory Industries Inc
   - Mory Industries
   - モリ工業
+  546A:
+  - MIRAINIホールディングス
+  - MIRAINI
+  - ミライニHD
   '5471':
   - 大同特鋼
   - Daido Steel Co Ltd
   - Daido Steel
   - 大同特殊鋼
+  547A:
+  - ムニノバHD
+  - ムニノバホールディングス
   '5480':
   - 冶金工
   - Nippon Yakin Kogyo Co Ltd
@@ -8626,11 +8669,20 @@ aliases_by_code:
   - Tohoku Steel Co Ltd
   - Tohoku Steel
   - 東北特殊鋼
+  548A:
+  - システムエグゼ
+  - シスエグゼ
   '5491':
   - 日金属
   - Nippon Kinzoku Co Ltd
   - Nippon Kinzoku
   - 日本金属
+  549A:
+  - ヒトトヒトホールディングス
+  - ヒトトヒトH
+  550A:
+  - ソフトテックス
+  - ソフトテック
   '5527':
   - property technologies
   - プロパテクノ
@@ -8668,10 +8720,14 @@ aliases_by_code:
   - Shinhokoku Material Corp
   - Shinhokoku Material
   - 新報国マテリアル
+  554A:
+  - バトンズ
   '5563':
   - Nippon Denko Co Ltd
   - Nippon Denko
   - 新日本電工
+  556A:
+  - 犬猫生活
   '5570':
   - Jenoba Co Ltd
   - Jenoba
@@ -8682,6 +8738,7 @@ aliases_by_code:
   - Excite
   - エキサイトホールディングス
   - エキサイト
+  - エキサイトHD
   '5572':
   - Ridge-i
   - リッジアイ
@@ -8740,6 +8797,9 @@ aliases_by_code:
   - Auto Server Co Ltd
   - Auto Server
   - オートサーバー
+  558A:
+  - SQUEEZE
+  - スクイーズ
   '5590':
   - ネットスタズ
   - Netstars Co Ltd
@@ -8768,6 +8828,8 @@ aliases_by_code:
   - S&J
   - S&J Corp
   - G-S&J
+  559A:
+  - 梅乃宿酒造
   '5602':
   - Kurimoto Ltd
   - Kurimoto
@@ -9667,6 +9729,8 @@ aliases_by_code:
   - Escrow Agent Japan
   - エスクロー・エージェント・ジャパン
   - エスクローAJ
+  - ミトラグループ
+  - ミトラG
   '6094':
   - フリークアウト・ホールディングス
   - フリークHD
@@ -11153,6 +11217,7 @@ aliases_by_code:
   - Mimaki Engineering Co Ltd
   - Mimaki Engineering
   - ミマキエンジニアリング
+  - Mimaki
   '6643':
   - 戸上電
   - Togami Electric Mfg Co Ltd
@@ -11228,6 +11293,7 @@ aliases_by_code:
   - River Eletec Corp
   - River Eletec
   - リバーエレテック
+  - リバーエレテク
   '6668':
   - ADプラズマ
   - Adtec Plasma Technology Co Ltd
@@ -11350,6 +11416,7 @@ aliases_by_code:
   - Japan Display Inc
   - Japan Display
   - ジャパンディスプレイ
+  - JDI
   '6741':
   - Nippon Signal Co Ltd
   - Nippon Signal
@@ -12049,6 +12116,7 @@ aliases_by_code:
   - and factory
   - アンファク
   - And Factory Inc
+  - anfac
   '7036':
   - EMネットJ
   - eMnet Japan Co Ltd
@@ -12934,11 +13002,13 @@ aliases_by_code:
   - TWOSTONE&Sons Inc
   - TWOSTONE&Sons
   - TWOSTONE
+  - TWOST
   '7353':
   - KIYOラーニング
   - Kラーニング
   - KIYO Learning Co Ltd
   - KIYO Learning
+  - KIYO
   '7354':
   - Dmミックス
   - Direct Marketing MiX Inc
@@ -13024,6 +13094,7 @@ aliases_by_code:
   - Interworks Confidence Inc
   - Interworks Confidence
   - コンフィデンス・インターワークス
+  - コンフィデンスI
   '7375':
   - リファインバースグループ
   - リファバスG
@@ -13512,6 +13583,7 @@ aliases_by_code:
   - Japan Medical Dynamic Marketing Inc
   - Japan Medical Dynamic Marketing
   - 日本エム・ディ・エム
+  - MDM
   '7601':
   - Poplar Co Ltd
   - Poplar
@@ -16364,6 +16436,7 @@ aliases_by_code:
   - ANAホールディングス
   - ANA Holdings Inc
   - ANA
+  - ANAHD
   '9204':
   - Skymark Airlines Inc
   - Skymark Airlines
@@ -16482,6 +16555,7 @@ aliases_by_code:
   - Future Link Network
   - G-FLN
   - フューチャーリンクネットワーク
+  - FLN
   '9242':
   - Media Research Institute Inc
   - Media Research Institute
@@ -17186,6 +17260,7 @@ aliases_by_code:
   - Quants Research Institute Holdings Inc
   - Quants Research Institute
   - クオンツ総研
+  - クオンツ総研HD
   '9553':
   - MicroAd Inc
   - MicroAd
@@ -17231,6 +17306,7 @@ aliases_by_code:
   - アトラスT
   - Atlas Technologies Corp
   - G-Atlas
+  - Atlas
   '9564':
   - FCE
   - FCE Inc
@@ -17612,6 +17688,7 @@ aliases_by_code:
   - 福井コン
   - Fukui Computer Holdings Inc
   - Fukui Computer
+  - 福井コンピ
   '9791':
   - Biken Techno Corp
   - Biken Techno

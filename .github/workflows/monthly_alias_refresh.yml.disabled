@@ -128,7 +128,7 @@ jobs:
             --output-delta-csv data/alias_outputs/alias_delta_${RUN_DATE}.csv \
             --output-summary-json data/alias_outputs/alias_summary_${RUN_DATE}.json \
             --run-date "$RUN_DATE" \
-            --media kabutan,nikkei,reuters,tdnet \
+            --media kabutan,nikkei,tdnet \
             --resolved-monthly-tag "${{ steps.resolve_release.outputs.tag }}" \
             --upstream-run-id "${{ steps.resolve_release.outputs.upstream_run_id }}"
           echo "run_date=$RUN_DATE" >> $GITHUB_OUTPUT

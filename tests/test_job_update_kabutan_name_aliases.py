@@ -31,15 +31,11 @@ def test_update_alias_job_adds_and_reviews(tmp_path: Path, monkeypatch) -> None:
 
     monkeypatch.setattr(
         "stockradar.jobs.update_kabutan_name_aliases.fetch_kabutan_aliases_for_code",
-        lambda code, **kwargs: {"7203": ["トヨタ自動車"], "9432": [], "130A": []}.get(code, []),
+        lambda code, **kwargs: {"7203": ["トヨタ自動車"], "9432": [], "130A": ["VIS"]}.get(code, []),
     )
     monkeypatch.setattr(
         "stockradar.jobs.update_kabutan_name_aliases.fetch_nikkei_aliases_for_code",
         lambda code, **kwargs: {"7203": ["トヨタ自動車"], "9432": [], "130A": []}.get(code, []),
-    )
-    monkeypatch.setattr(
-        "stockradar.jobs.update_kabutan_name_aliases.fetch_reuters_aliases_for_code",
-        lambda code, **kwargs: {"7203": ["Toyota Motor Corp"], "9432": ["NTT"], "130A": ["VIS"]}.get(code, []),
     )
     monkeypatch.setattr(
         "stockradar.jobs.update_kabutan_name_aliases.fetch_tdnet_issuer_counts",
@@ -73,7 +69,7 @@ def test_update_alias_job_adds_and_reviews(tmp_path: Path, monkeypatch) -> None:
             "--run-date",
             "2026-03-07",
             "--media",
-            "kabutan,nikkei,reuters,tdnet",
+            "kabutan,nikkei,tdnet",
             "--sleep-ms",
             "0",
             "--sleep-jitter-ms",
@@ -110,7 +106,6 @@ def test_update_alias_job_is_deterministic(tmp_path: Path, monkeypatch) -> None:
 
     monkeypatch.setattr("stockradar.jobs.update_kabutan_name_aliases.fetch_kabutan_aliases_for_code", lambda code, **kwargs: ["トヨタ自動車"])
     monkeypatch.setattr("stockradar.jobs.update_kabutan_name_aliases.fetch_nikkei_aliases_for_code", lambda code, **kwargs: ["トヨタ自動車"])
-    monkeypatch.setattr("stockradar.jobs.update_kabutan_name_aliases.fetch_reuters_aliases_for_code", lambda code, **kwargs: ["Toyota Motor Corp"])
     monkeypatch.setattr("stockradar.jobs.update_kabutan_name_aliases.fetch_tdnet_issuer_counts", lambda **kwargs: {"7203": {"トヨタ自動車": 1}})
 
     out_alias1 = tmp_path / "out1" / "kabutan_name_aliases.yaml"
@@ -178,7 +173,6 @@ def test_update_alias_job_fail_on_anomaly(tmp_path: Path, monkeypatch) -> None:
 
     monkeypatch.setattr("stockradar.jobs.update_kabutan_name_aliases.fetch_kabutan_aliases_for_code", lambda code, **kwargs: ["トヨタ自動車"])
     monkeypatch.setattr("stockradar.jobs.update_kabutan_name_aliases.fetch_nikkei_aliases_for_code", lambda code, **kwargs: ["トヨタ自動車"])
-    monkeypatch.setattr("stockradar.jobs.update_kabutan_name_aliases.fetch_reuters_aliases_for_code", lambda code, **kwargs: ["Toyota Motor Corp"])
     monkeypatch.setattr("stockradar.jobs.update_kabutan_name_aliases.fetch_tdnet_issuer_counts", lambda **kwargs: {"7203": {"トヨタ自動車": 1}})
 
     out_alias = tmp_path / "out" / "kabutan_name_aliases.yaml"
@@ -209,7 +203,7 @@ def test_update_alias_job_fail_on_anomaly(tmp_path: Path, monkeypatch) -> None:
                 "--run-date",
                 "2026-03-07",
                 "--media",
-                "kabutan,nikkei,reuters,tdnet",
+                "kabutan,nikkei,tdnet",
                 "--sleep-ms",
                 "0",
                 "--sleep-jitter-ms",
