@@ -20,7 +20,7 @@ const mock204 = () => ({ status: 204, ok: true, text: async () => "" });
 describe("constants and wrangler cron alignment", () => {
   it("DAILY_CRON matches wrangler.toml triggers.crons", () => {
     const wrangler = readFileSync(join(workerRoot, "wrangler.toml"), "utf8");
-    assert.match(wrangler, /crons\s*=\s*\["37 6 \* \* MON-FRI"\]/);
+    assert.match(wrangler, /crons\s*=\s*\["45 6 \* \* \*"\]/);
   });
 
   it("routing table registers daily.yml only for DAILY_CRON", () => {

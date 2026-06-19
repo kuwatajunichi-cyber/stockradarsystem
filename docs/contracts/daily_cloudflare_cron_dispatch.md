@@ -7,7 +7,7 @@ to Cloudflare Cron Trigger -> Worker -> GitHub workflow_dispatch.
 
 | Path | Canonical (Phase 1+) | Notes |
 |------|----------------------|-------|
-| Scheduled (weekdays) | Cloudflare Cron 37 6 * * MON-FRI (UTC) -> Worker -> workflow_dispatch | JST 15:37 Mon-Fri |
+| Scheduled (daily) | Cloudflare Cron 45 6 * * * (UTC) -> Worker -> workflow_dispatch | JST 15:45 every day |
 | Manual replay / debug | GitHub UI / gh workflow run workflow_dispatch | unchanged |
 | GitHub schedule | disabled (removed) | prevents double launch |
 
@@ -27,14 +27,14 @@ Ref: src/stockradar/jobs/validate_daily_dispatch_run_date.py
 
 ## Cron constant
 
-DAILY_CRON = "37 6 * * MON-FRI"
+DAILY_CRON = "45 6 * * *"
 
 Verified in:
 - workers/github-cron-dispatcher/wrangler.toml triggers.crons
 - workers/github-cron-dispatcher/src/constants.js DAILY_CRON
 - pytest and Worker npm test
 
-Former GitHub schedule baseline: 37 6 * * 1-5 (semantically MON-FRI).
+Former GitHub schedule baseline: 37 6 * * 1-5 (weekdays only; superseded by daily Cloudflare cron).
 
 ## Other workflows
 

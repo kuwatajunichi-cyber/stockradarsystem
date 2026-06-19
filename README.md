@@ -481,10 +481,10 @@ python -m stockradar.jobs.compute_indicators_for_core --input data/universe/jpx/
 
 ### GitHub Actions での実行
 
-定時実行（平日 15:37 JST）は **Cloudflare Cron** →
+定時実行（毎日 15:45 JST）は **Cloudflare Cron** →
 [`workers/github-cron-dispatcher`](workers/github-cron-dispatcher/) Worker が
 GitHub Actions `workflow_dispatch` で `.github/workflows/daily.yml` を起動します
-（Cron: UTC `37 6 * * MON-FRI`）。運用手順は
+（Cron: UTC `45 6 * * *`）。運用手順は
 [docs/operations/cloudflare_github_cron.md](docs/operations/cloudflare_github_cron.md)。
 
 手動で過去営業日をやり直す **replay** は同ワークフローの
@@ -494,7 +494,7 @@ GitHub Actions `workflow_dispatch` で `.github/workflows/daily.yml` を起動�
 `docs/contracts/daily_replay_and_monthly_universe.md`）。
 `skip_publish: true` でレンダー・アップロードのみスキップできます。
 
-- 定時起動: Cloudflare Cron（JST 15:37 月〜金）→ Worker → `daily.yml` workflow_dispatch
+- 定時起動: Cloudflare Cron（毎日 JST 15:45）→ Worker → `daily.yml` workflow_dispatch
 - concurrency: 同一workflowの多重起動禁止（`daily-indicators`, cancel-in-progress: false）
 - 主なジョブ: resolve_trading_day（営業日判定）→ **resolve_core_csv**（月次タグ解決・patched cache 選定・`daily-core-csv-*` / `daily-core-quality-*` artifact）と **ensure_index_cache** を並列 → **ensure_core_cache**（上記 core artifact を `--input`、OHLC を `daily-ohlc-store-*` artifact と固定キー `ohlc-store-zip-v2` に反映）→ **compute_indicators**（同一 run の **OHLC・index・core** をいずれも **artifact 経由で復元**して算出。`daily.yml` 内では `patch_universe_daily` を起動せず、OHLC/index の `actions/cache/save` も行わない。ウォーム用の cache save は各 ensure ジョブのみ。詳細は `docs/contracts/daily_replay_and_monthly_universe.md`）→
   compute_indicators_for_core → 0011_work へアップロード → render_sheet 等
