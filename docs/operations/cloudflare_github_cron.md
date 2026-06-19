@@ -4,13 +4,13 @@ Issue #93 Phase 1: daily.yml scheduled launch via Cloudflare Worker workflow_dis
 
 ## Architecture
 
-Cloudflare Cron (37 6 * * MON-FRI UTC)
+Cloudflare Cron (45 6 * * * UTC)
   -> workers/github-cron-dispatcher (scheduled handler)
   -> POST /repos/{owner}/{repo}/actions/workflows/daily.yml/dispatches
   -> .github/workflows/daily.yml (GitHub Actions compute runner)
 
-- JST: Mon-Fri 15:37 (UTC 06:37)
-- Constant: DAILY_CRON = "37 6 * * MON-FRI"
+- JST: daily 15:45 (UTC 06:45)
+- Constant: DAILY_CRON = "45 6 * * *"
 
 Contract: docs/contracts/daily_cloudflare_cron_dispatch.md
 
@@ -37,7 +37,7 @@ Optional: DISPATCH_SKIP_PUBLISH, DISPATCH_FORCE_INDEX, DRY_RUN
 
 | Cron | Workflow | inputs |
 |------|----------|--------|
-| 37 6 * * MON-FRI | daily.yml | none (no run_date) |
+| 45 6 * * * | daily.yml | none (no run_date) |
 
 ## Logging
 

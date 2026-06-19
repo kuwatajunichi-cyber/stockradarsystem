@@ -12,7 +12,7 @@ from stockradar.jobs.validate_daily_dispatch_run_date import validate_input
 
 pytestmark = pytest.mark.job_integration
 
-DAILY_CRON = "37 6 * * MON-FRI"
+DAILY_CRON = "45 6 * * *"
 WORKER_ROOT = Path(__file__).resolve().parents[2] / "workers" / "github-cron-dispatcher"
 
 
