@@ -232,18 +232,6 @@ def cmd_shadow_validate(args: argparse.Namespace) -> int:
         manifest = get_json(adapter, manifest_key)
         content = adapter.get_object(blob_key)
     except Exception as exc:
-        if optional:
-            _emit_result(
-                {
-                    "status": "skipped_optional_missing",
-                    "entry_id": args.entry_id,
-                    "reason": str(exc),
-                    "validated_count": 0,
-                    "degraded_reason": "optional_r2_missing",
-                },
-                json_output=args.json_output,
-            )
-            return 0
         print(f"error: R2 shadow validate failed: {exc}", file=sys.stderr)
         return 1
     local_sha = compute_sha256(local_path)

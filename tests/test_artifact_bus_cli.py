@@ -219,6 +219,26 @@ def test_shadow_validate_optional_missing_local_is_success(
     assert rc == 0
     payload = json.loads(capsys.readouterr().out.strip())
     assert payload["status"] == "skipped_optional_missing"
+    assert payload["degraded_reason"] == "optional_local_missing"
+
+
+def test_shadow_validate_optional_local_present_r2_missing_fails(tmp_path: Path) -> None:
+    local_path = tmp_path / "enriched.csv"
+    local_path.write_text("code,news\n1,event\n", encoding="utf-8")
+    rc = main(
+        [
+            "shadow-validate",
+            "--entry-id",
+            "artifact-enriched-csv",
+            "--run-id",
+            "777",
+            "--run-date",
+            "2026-06-13",
+            "--local-path",
+            str(local_path),
+        ]
+    )
+    assert rc == 1
 
 
 def test_shadow_validate_success_writes_json_output(tmp_path: Path) -> None:
