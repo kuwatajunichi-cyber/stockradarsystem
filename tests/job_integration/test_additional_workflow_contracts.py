@@ -149,13 +149,19 @@ def test_monthly_yml_resolves_run_id_from_latest_and_staging() -> None:
     assert "data/output/staging/${{ steps.get_run_id.outputs.run_id }}/equity_domestic_core_with_name.csv" in release_files
 
 
-def test_daily_event_cause_enrichment_writes_enriched_csv_artifact() -> None:
+def test_daily_event_cause_enrichment_writes_enriched_csv_to_r2() -> None:
     workflow = _load_workflow("daily_event_cause_enrichment.yml")
     enrich = _job(workflow, "enrich")
+    put_step = _step_named(enrich, "R2 shadow put enriched CSV staging")
+    assert "artifact_bus_cli.py put" in put_step["run"]
+    assert "--entry-id artifact-enriched-csv" in put_step["run"]
+    get_step = _step_named(enrich, "R2 shadow validate indicators staging")
+    assert "shadow-validate" in get_step["run"]
+    assert "--entry-id artifact-daily-indicators" in get_step["run"]
+    download_step = _step_named(enrich, "Download indicators artifact")
+    assert download_step["uses"] == "actions/download-artifact@v4"
     upload_step = _step_named(enrich, "Upload enriched CSV artifact")
     assert upload_step["uses"] == "actions/upload-artifact@v4"
-    assert upload_step["with"]["name"] == "enriched-csv-${{ inputs.run_date }}"
-    assert upload_step["with"]["retention-days"] == 7
 
 
 def test_daily_universe_patch_yml_resolves_monthly_tag_and_writes_single_patched_cache() -> None:
@@ -314,7 +320,13 @@ def test_storage_cleanup_workflows_call_expected_scripts(
 
     run_step = _step_named(cleanup, step_name)
     assert secret_keys.issubset(set(run_step["env"]))
-    assert run_step["run"].strip() == f"set -euo pipefail\n{script_path}"
+    run_body = run_step["run"].strip()
+    assert run_body.startswith("set -euo pipefail")
+    assert script_path in run_body
+    if workflow_name == "cleanup_r2.yml":
+        assert "python scripts/storage/runs_staging_cleanup.py --keep-days 14" in run_body
+    else:
+        assert run_body == f"set -euo pipefail\n{script_path}"
 
 
 def test_cleanup_releases_workflow_deletes_daily_tags_older_than_three_months() -> None:

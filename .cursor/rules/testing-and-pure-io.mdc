@@ -9,7 +9,7 @@ alwaysApply: true
 
 - 単体テストは **`tests/`** に配置する。
 - 実行: `pytest tests/ -v`
-- CI（`.github/workflows/test.yml` および reusable quality gate）は **`pytest --strict-markers -m "unit|job_integration|smoke"`** でマーカー付きサブセットを実行する。ローカルでは必要に応じて `pytest tests/ -v` で全件も可。いずれも **Secrets 不要**で通ることを前提とする。
+- CI（`.github/workflows/test.yml` および reusable quality gate）は **`pytest --strict-markers -m "unit or job_integration or smoke"`** でマーカー付きサブセットを実行する。ローカルでは必要に応じて `pytest tests/ -v` で全件も可。いずれも **Secrets 不要**で通ることを前提とする。
 
 ## 外部 I/O の分離
 

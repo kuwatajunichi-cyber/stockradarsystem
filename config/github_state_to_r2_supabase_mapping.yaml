@@ -1,8 +1,8 @@
 # Machine-readable mapping: GitHub Actions state -> R2 (blob) + Supabase (control plane).
 # Human-readable notes: docs/contracts/github_state_to_r2_supabase_mapping.md
 #
-# Phase 0: contract only. Workflows and upload paths are unchanged.
-schema_version: 1
+# Phase 2: artifact bus entries include structured optional; workflows use R2 runs/ staging.
+schema_version: 2
 
 scan_workflows:
   - daily.yml
@@ -16,6 +16,7 @@ required_fields:
   - target_r2_key_pattern
   - supabase_table
   - retention_policy
+  - optional
 
 # R2 namespace separation (do not mix with distribution prefixes 0011_work / 0012_paid):
 #   published/...  customer-facing blobs (post Phase 2)
@@ -28,54 +29,72 @@ entries:
     source_name_pattern: daily-core-csv-*
     writer_workflow: daily.yml
     writer_job: resolve_core_csv
+    reader_workflow: daily.yml
+    reader_job: ensure_core_cache
     target_r2_key_pattern: runs/daily/{run_id}/artifacts/daily-core-csv/equity_domestic_core_with_name.csv
     supabase_table: artifact_index
-    retention_policy: github_artifact_retention_days=3; cleanup_prefix_keep_days=2
+    retention_policy: r2_runs_staging_days=14
+    optional: false
 
   - id: artifact-daily-core-quality
     source_kind: artifact
     source_name_pattern: daily-core-quality-*
     writer_workflow: daily.yml
     writer_job: resolve_core_csv
+    reader_workflow: daily.yml
+    reader_job: ensure_core_cache
     target_r2_key_pattern: runs/daily/{run_id}/artifacts/daily-core-quality/core_selection.json
     supabase_table: artifact_index
-    retention_policy: github_artifact_retention_days=3; cleanup_prefix_keep_days=2
+    retention_policy: r2_runs_staging_days=14
+    optional: false
 
   - id: artifact-daily-index-store
     source_kind: artifact
     source_name_pattern: daily-index-store-*
     writer_workflow: daily.yml
     writer_job: ensure_index_cache
+    reader_workflow: daily.yml
+    reader_job: compute_indicators
     target_r2_key_pattern: runs/daily/{run_id}/artifacts/daily-index-store/index_store.zip
     supabase_table: artifact_index
-    retention_policy: github_artifact_retention_days=3; cleanup_prefix_keep_days=2
+    retention_policy: r2_runs_staging_days=14
+    optional: false
 
   - id: artifact-daily-ohlc-store
     source_kind: artifact
     source_name_pattern: daily-ohlc-store-*
     writer_workflow: daily.yml
     writer_job: ensure_core_cache
+    reader_workflow: daily.yml
+    reader_job: compute_indicators
     target_r2_key_pattern: runs/daily/{run_id}/artifacts/daily-ohlc-store/ohlc_store.zip
     supabase_table: artifact_index
-    retention_policy: github_artifact_retention_days=3; cleanup_prefix_keep_days=2
+    retention_policy: r2_runs_staging_days=14
+    optional: false
 
   - id: artifact-stale-exclusions
     source_kind: artifact
     source_name_pattern: stale-exclusions-*
     writer_workflow: daily.yml
     writer_job: ensure_core_cache
+    reader_workflow: daily.yml
+    reader_job: compute_indicators
     target_r2_key_pattern: runs/daily/{run_id}/artifacts/stale-exclusions/_stale_exclusions.json
     supabase_table: artifact_index
-    retention_policy: github_artifact_retention_days=3; optional_artifact=true
+    retention_policy: r2_runs_staging_days=14
+    optional: true
 
   - id: artifact-daily-indicators
     source_kind: artifact
     source_name_pattern: daily-indicators-*
     writer_workflow: daily.yml
     writer_job: compute_indicators
+    reader_workflow: daily_event_cause_enrichment.yml
+    reader_job: enrich
     target_r2_key_pattern: runs/daily/{run_id}/artifacts/daily-indicators/indicators_{run_date_compact}.csv
     supabase_table: artifact_index
-    retention_policy: github_artifact_retention_days=7
+    retention_policy: r2_runs_staging_days=14
+    optional: false
 
   - id: artifact-enriched-csv
     source_kind: artifact
@@ -86,7 +105,8 @@ entries:
     reader_job: render_and_upload
     target_r2_key_pattern: runs/daily/{run_id}/artifacts/enriched-csv/indicators_event_enriched_{run_date_compact}.csv
     supabase_table: artifact_index
-    retention_policy: github_artifact_retention_days=7
+    retention_policy: r2_runs_staging_days=14
+    optional: true
 
   - id: artifact-universe-outputs
     source_kind: artifact
@@ -96,6 +116,7 @@ entries:
     target_r2_key_pattern: runs/monthly/{run_id}/artifacts/universe-outputs/*
     supabase_table: artifact_index
     retention_policy: github_artifact_retention_days=30; debug_only=true
+    optional: false
 
   - id: artifact-debug-logs
     source_kind: artifact
@@ -105,6 +126,7 @@ entries:
     target_r2_key_pattern: runs/monthly/{run_id}/artifacts/debug-logs/*
     supabase_table: artifact_index
     retention_policy: github_artifact_retention_days=7; on_failure_only=true
+    optional: true
 
   - id: cache-index-store-zip-v1
     source_kind: cache
@@ -114,6 +136,7 @@ entries:
     target_r2_key_pattern: cache/index-store-zip-v1/index_store.zip
     supabase_table: cache_index
     retention_policy: warm_cache_rotate_delete_before_save; replay_no_save
+    optional: false
 
   - id: cache-ohlc-store-zip-v2
     source_kind: cache
@@ -123,6 +146,7 @@ entries:
     target_r2_key_pattern: cache/ohlc-store-zip-v2/ohlc_store.zip
     supabase_table: cache_index
     retention_policy: warm_cache_rotate_delete_before_save; replay_no_save
+    optional: false
 
   - id: cache-universe-patched
     source_kind: cache
@@ -134,6 +158,7 @@ entries:
     target_r2_key_pattern: cache/universe-patched/{monthly_tag}/{run_date}/*
     supabase_table: cache_index
     retention_policy: sole_writer=daily_universe_patch.yml; fixed_key_per_monthly_tag_and_run_date
+    optional: false
 
   - id: cache-jpx-url
     source_kind: cache
@@ -143,6 +168,7 @@ entries:
     target_r2_key_pattern: cache/jpx-url/{run_number}/jpx_latest_url.txt
     supabase_table: cache_index
     retention_policy: github_actions_cache_restore_keys=jpx-url-
+    optional: false
 
   - id: release-daily-yyyymm
     source_kind: release
@@ -153,6 +179,7 @@ entries:
     target_r2_key_pattern: published/{visibility}/{YYYY-MM}/{YYYY-MM-DD}/{filename}
     supabase_table: publish_status
     retention_policy: cleanup_releases_older_than_3_months; distribution_also_0011_work_0012_paid
+    optional: false
 
   - id: release-monthly-build
     source_kind: release
@@ -162,3 +189,4 @@ entries:
     target_r2_key_pattern: monthly/{monthly_tag}/equity_domestic_{ipo,illiquid,core}_with_name.csv
     supabase_table: monthly_snapshots
     retention_policy: immutable_per_github_run_id
+    optional: false

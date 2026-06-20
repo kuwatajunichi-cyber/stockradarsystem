@@ -9,9 +9,12 @@ from typing import Any
 import pytest
 import yaml
 
+from stockradar.storage.mapping_catalog import phase2_daily_artifact_entry_ids
+
 pytestmark = pytest.mark.job_integration
 
 MAPPING_PATH = "config/github_state_to_r2_supabase_mapping.yaml"
+PHASE2_DAILY_ENTRY_IDS = set(phase2_daily_artifact_entry_ids())
 SCAN_WORKFLOWS = (
     "daily.yml",
     "daily_universe_patch.yml",
@@ -24,6 +27,7 @@ REQUIRED_FIELDS = (
     "target_r2_key_pattern",
     "supabase_table",
     "retention_policy",
+    "optional",
 )
 
 
@@ -114,7 +118,25 @@ def _extract_release_patterns(workflow: Mapping[str, Any], workflow_text: str) -
     return patterns
 
 
+def _extract_artifact_bus_entry_ids(workflow_text: str) -> set[str]:
+    return set(re.findall(r"--entry-id\s+(artifact-[a-z0-9-]+)", workflow_text))
+
+
+def _entry_referenced_in_workflows(entry: dict[str, Any]) -> bool:
+    entry_id = entry["id"]
+    if entry_id in PHASE2_DAILY_ENTRY_IDS:
+        for wf in (entry.get("writer_workflow"), entry.get("reader_workflow")):
+            if not wf:
+                continue
+            text = _workflow_text(str(wf))
+            if f"--entry-id {entry_id}" in text or f'--entry-id "{entry_id}"' in text:
+                return True
+        return False
+    return False
+
+
 def _matches_any_pattern(value: str, patterns: list[str]) -> bool:
+    return any(fnmatch.fnmatch(value, _mapping_glob(pattern)) for pattern in patterns)
     return any(fnmatch.fnmatch(value, _mapping_glob(pattern)) for pattern in patterns)
 
 
@@ -138,7 +160,11 @@ def test_mapping_yaml_required_fields_on_all_entries() -> None:
     for entry in entries:
         assert isinstance(entry, dict)
         for field in REQUIRED_FIELDS:
-            assert field in entry and entry[field], f"{entry.get('id', '?')}: missing {field}"
+            assert field in entry, f"{entry.get('id', '?')}: missing {field}"
+            if field == "optional":
+                assert isinstance(entry[field], bool)
+            else:
+                assert entry[field], f"{entry.get('id', '?')}: empty {field}"
 
 
 def test_mapping_scan_workflows_match_contract() -> None:
@@ -180,6 +206,12 @@ def test_mapping_entries_exist_in_workflows() -> None:
             pytest.fail(f"{entry['id']}: unknown writer_workflow {writer!r}")
 
         if kind == "artifact":
+            if entry["id"] in PHASE2_DAILY_ENTRY_IDS:
+                if not _entry_referenced_in_workflows(entry):
+                    pytest.fail(
+                        f"{entry['id']}: Phase 2 R2 bus entry-id not found in writer/reader workflows"
+                    )
+                continue
             pool = all_artifacts
         elif kind == "cache":
             pool = all_caches
@@ -207,3 +239,21 @@ def test_daily_release_entry_points_to_upload_cli() -> None:
     release = next(e for e in mapping["entries"] if e["id"] == "release-daily-yyyymm")
     assert release["writer_impl"] == "scripts/upload_to_all_targets.py"
     assert "upload_to_all_targets.py" in _workflow_text("daily.yml")
+
+
+def test_phase2_indicators_token_mix_documented_in_mapping() -> None:
+    mapping = _load_mapping()
+    indicators = next(e for e in mapping["entries"] if e["id"] == "artifact-daily-indicators")
+    assert "{run_id}" in indicators["target_r2_key_pattern"]
+    assert "{run_date_compact}" in indicators["target_r2_key_pattern"]
+    assert "daily-indicators-*" in indicators["source_name_pattern"]
+
+
+def test_enrichment_is_daily_indicators_consumer_via_r2() -> None:
+    text = _workflow_text("daily_event_cause_enrichment.yml")
+    assert "--entry-id artifact-daily-indicators" in text
+    indicators = next(
+        e for e in _load_mapping()["entries"] if e["id"] == "artifact-daily-indicators"
+    )
+    assert indicators.get("reader_workflow") == "daily_event_cause_enrichment.yml"
+    assert indicators.get("reader_job") == "enrich"
