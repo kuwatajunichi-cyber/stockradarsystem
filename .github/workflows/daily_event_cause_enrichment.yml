@@ -11,6 +11,9 @@ on:
       enriched_csv_path:
         description: "ニュース列を付与したCSVのワークスペース相対パス"
         value: ${{ jobs.enrich.outputs.enriched_csv_path }}
+      enriched_manifest_key:
+        description: "enriched CSV run_artifact manifest logical key"
+        value: ${{ jobs.enrich.outputs.enriched_manifest_key }}
 
 env:
   TZ: Asia/Tokyo
@@ -20,6 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       enriched_csv_path: ${{ steps.build_enriched.outputs.enriched_csv_path }}
+      enriched_manifest_key: ${{ steps.r2_put_enriched.outputs.manifest_logical_key }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,6 +45,28 @@ jobs:
         with:
           name: daily-indicators-${{ inputs.run_date }}
           path: data/indicators/daily/
+
+      - name: R2 shadow validate indicators staging
+        env:
+          PYTHONPATH: src:.
+          RUN_DATE: ${{ inputs.run_date }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
+          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+        run: |
+          set -euo pipefail
+          RUN_DATE_COMPACT="${RUN_DATE//-/}"
+          mkdir -p /tmp/r2_shadow/enrich
+          python scripts/storage/artifact_bus_cli.py shadow-validate \
+            --entry-id artifact-daily-indicators \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-date "$RUN_DATE" \
+            --local-path "data/indicators/daily/indicators_${RUN_DATE_COMPACT}.csv" \
+            --json-output /tmp/r2_shadow/enrich/indicators.json
 
       - name: Set local CSV path
         id: set_csv
@@ -99,7 +125,62 @@ jobs:
 
       - name: Upload enriched CSV artifact
         uses: actions/upload-artifact@v4
+        if: success()
         with:
           name: enriched-csv-${{ inputs.run_date }}
-          path: data/indicators/daily/
+          path: data/indicators/daily/indicators_event_enriched_*.csv
           retention-days: 7
+          if-no-files-found: error
+
+      - name: R2 shadow put enriched CSV staging
+        id: r2_put_enriched
+        if: success()
+        env:
+          PYTHONPATH: src:.
+          RUN_DATE: ${{ inputs.run_date }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
+          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+        run: |
+          set -euo pipefail
+          RUN_DATE_COMPACT="${RUN_DATE//-/}"
+          ENRICHED_PATH="data/indicators/daily/indicators_event_enriched_${RUN_DATE_COMPACT}.csv"
+          OUT=$(python scripts/storage/artifact_bus_cli.py put \
+            --entry-id artifact-enriched-csv \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-date "$RUN_DATE" \
+            --source-name "enriched-csv-$RUN_DATE" \
+            --local-path "$ENRICHED_PATH")
+          MANIFEST_KEY=$(echo "$OUT" | python -c "import json,sys; print(json.load(sys.stdin)['manifest_logical_key'])")
+          echo "manifest_logical_key=$MANIFEST_KEY" >> "$GITHUB_OUTPUT"
+
+      - name: Write R2 shadow validation summary
+        if: always()
+        run: |
+          set -euo pipefail
+          {
+            echo "## enrich R2 shadow validation"
+            python - <<'PY'
+          import json
+          from pathlib import Path
+
+          shadow_dir = Path("/tmp/r2_shadow/enrich")
+          validated = 0
+          for path in sorted(shadow_dir.glob("*.json")):
+              payload = json.loads(path.read_text(encoding="utf-8"))
+              status = payload.get("status")
+              entry_id = payload.get("entry_id", path.stem)
+              if status == "ok":
+                  validated += int(payload.get("validated_count", 0) or 0)
+                  print(f"- {entry_id}: ok sha256=`{payload.get('sha256', '')}`")
+              else:
+                  print(f"- {entry_id}: {status}")
+          print(f"- validated_count: `{validated}`")
+          if validated == 0:
+              raise SystemExit("error: required R2 shadow validation count is 0")
+          PY
+          } >> "$GITHUB_STEP_SUMMARY"

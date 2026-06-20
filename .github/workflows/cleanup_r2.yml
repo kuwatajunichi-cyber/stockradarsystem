@@ -33,3 +33,4 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/storage/r2_cleanup.py --today "$(date -u +%Y-%m-%d)"
+          python scripts/storage/runs_staging_cleanup.py --keep-days 14

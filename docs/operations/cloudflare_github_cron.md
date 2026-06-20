@@ -64,7 +64,26 @@ Cloudflare verification needs CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID.
 2. Restore daily.yml schedule cron "37 6 * * 1-5"
 3. Confirm no duplicate runs
 
+## Phase 2 live run gate (after merge)
+
+Before promoting Phase 2b (R2 primary), confirm on the next trading day live `daily.yml` run:
+
+1. All required producer shadow puts succeeded (`resolve_core_csv`, `ensure_index_cache`, `ensure_core_cache`, `compute_indicators`, enrichment)
+2. Consumer shadow validation summary shows `validated_count > 0` for required artifacts
+3. No required shadow mismatch; optional skips (`stale-exclusions`, `enriched-csv`) are visible in summary when applicable
+4. `render_and_upload` published from GitHub artifact primary path
+5. Manifest keys appear in job outputs / summary (`core_csv_manifest_key`, `daily_indicators_manifest_key`, `enriched_manifest_key`, etc.)
+
+Rollback during Phase 2a: revert R2 shadow steps only; GitHub artifact handoff continues unchanged.
+
 ## CI required
 
 - pytest --strict-markers -m "unit or job_integration or smoke"
 - npm test --prefix workers/github-cron-dispatcher
+
+## Incident record (Phase 1 cutover)
+
+Postmortem for the 2026-06-18/19 missed-dispatch incident, lessons learned, and checklist for later cron migration phases:
+
+- [phase1_cron_dispatch_cutover_2026-06.md](incidents/phase1_cron_dispatch_cutover_2026-06.md)
+- Issue #93 comment: https://github.com/kuwatajunichi-cyber/stockradarsystem/issues/93#issuecomment-4756986589
