@@ -4,7 +4,6 @@ from __future__ import annotations
 import json
 import os
 import sys
-from pathlib import Path
 from typing import Any, Protocol
 
 from scripts.storage.r2_client import (
@@ -12,7 +11,6 @@ from scripts.storage.r2_client import (
     ENV_ACCOUNT_ID,
     ENV_BASE_PREFIX,
     ENV_BUCKET,
-    ENV_ENDPOINT_URL,
     ENV_SECRET_ACCESS_KEY,
     _get_endpoint_url,
     _load_dotenv,

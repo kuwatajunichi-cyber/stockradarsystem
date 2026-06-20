@@ -11,7 +11,7 @@ from stockradar.utils.manifest import compute_sha256
 RUN_ARTIFACT_MANIFEST_KIND = "run_artifact"
 RUN_ARTIFACT_SCHEMA_VERSION = 1
 
-_PLACEHOLDER_RE = re.compile(r"\{([a-zA-Z0-9_]+)\}")
+_PLACEHOLDER_RE = re.compile(r"\{([a-zA-Z0-9_-]+)\}")
 
 
 def compact_run_date(run_date: str) -> str:

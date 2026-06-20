@@ -45,6 +45,27 @@ def test_unknown_placeholder_fail_fast() -> None:
         resolve_logical_key("runs/{unknown}/x", run_id="1", run_date="2026-06-13")
 
 
+def test_resolve_logical_key_hyphenated_date_tokens() -> None:
+    pattern = "published/{visibility}/{YYYY-MM}/{YYYY-MM-DD}/{filename}"
+    key = resolve_logical_key(
+        pattern,
+        run_id="1",
+        run_date="2026-06-13",
+        extra={"visibility": "0011_work", "filename": "indicators_20260613.csv"},
+    )
+    assert key == "published/0011_work/2026-06/2026-06-13/indicators_20260613.csv"
+
+
+def test_resolve_entry_logical_key_release_daily_pattern() -> None:
+    key = resolve_entry_logical_key(
+        "release-daily-yyyymm",
+        run_id="1",
+        run_date="2026-06-13",
+        extra={"visibility": "0012_paid", "filename": "2026-06-13_Daily.xlsx"},
+    )
+    assert key == "published/0012_paid/2026-06/2026-06-13/2026-06-13_Daily.xlsx"
+
+
 def test_create_and_verify_run_artifact_manifest(tmp_path: Path) -> None:
     blob = tmp_path / "data.csv"
     blob.write_bytes(b"a,b\n1,2\n")
