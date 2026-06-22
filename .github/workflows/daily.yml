@@ -881,12 +881,21 @@ jobs:
             f.write("\n".join(lines) + "\n")
           PY
 
+      - name: Resolve indicators csv path
+        id: indicators_csv
+        env:
+          RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
+        run: |
+          set -euo pipefail
+          RUN_DATE_COMPACT="${RUN_DATE//-/}"
+          echo "path=data/indicators/daily/indicators_${RUN_DATE_COMPACT}.csv" >> "$GITHUB_OUTPUT"
+
       - name: Upload indicators artifact
         uses: actions/upload-artifact@v4
         if: success()
         with:
           name: daily-indicators-${{ needs.resolve_trading_day.outputs.run_date }}
-          path: data/indicators/daily/indicators_*.csv
+          path: ${{ steps.indicators_csv.outputs.path }}
           retention-days: 7
           if-no-files-found: error
 
@@ -905,15 +914,9 @@ jobs:
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
           set -euo pipefail
-          RUN_DATE_COMPACT="${RUN_DATE//-/}"
-          INDICATORS_PATH="data/indicators/daily/indicators_${RUN_DATE_COMPACT}.csv"
+          INDICATORS_PATH="${{ steps.indicators_csv.outputs.path }}"
           if [ ! -f "$INDICATORS_PATH" ]; then
-            echo "error: expected single indicators file missing: $INDICATORS_PATH"
-            exit 1
-          fi
-          MATCH_COUNT=$(find data/indicators/daily -maxdepth 1 -name 'indicators_*.csv' | wc -l | tr -d ' ')
-          if [ "$MATCH_COUNT" != "1" ]; then
-            echo "error: expected exactly one indicators_*.csv, found $MATCH_COUNT"
+            echo "error: expected indicators file missing: $INDICATORS_PATH"
             exit 1
           fi
           OUT=$(python scripts/storage/artifact_bus_cli.py put \
