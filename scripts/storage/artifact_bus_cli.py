@@ -1,5 +1,5 @@
 """
-Run artifact bus CLI: R2 staging put/get/shadow-validate for daily.yml handoff.
+Run artifact bus CLI: R2 staging put/get/record-fallback for daily.yml handoff.
 
 Usage (producer):
   python scripts/storage/artifact_bus_cli.py put \\
@@ -77,6 +77,44 @@ def _emit_result(payload: dict[str, object], *, json_output: str | None) -> None
         out_path.write_text(text + "\n", encoding="utf-8")
 
 
+def _r2_failure_status(reason: str) -> str:
+    lowered = reason.lower()
+    if "nosuchkey" in lowered or "not found" in lowered or "404" in lowered:
+        return "r2_missing"
+    return "r2_error"
+
+
+def _r2_get_failure_payload(
+    *,
+    entry_id: str,
+    reason: str,
+    phase: str,
+) -> dict[str, object]:
+    return {
+        "status": _r2_failure_status(reason),
+        "entry_id": entry_id,
+        "reason": reason,
+        "handoff_source": None,
+        "fallback_required": True,
+        "fallback_used": False,
+        "validated_count": 0,
+        "degraded_reason": f"r2_{phase}_failed",
+    }
+
+
+def _r2_put_failure_payload(*, entry_id: str, reason: str) -> dict[str, object]:
+    return {
+        "status": _r2_failure_status(reason),
+        "entry_id": entry_id,
+        "reason": reason,
+        "r2_put_ok": False,
+        "github_upload_ok": None,
+        "fallback_required": False,
+        "validated_count": 0,
+        "degraded_reason": "r2_put_failed",
+    }
+
+
 def cmd_put(args: argparse.Namespace) -> int:
     local_path = Path(args.local_path)
     if not local_path.is_file():
@@ -87,7 +125,9 @@ def cmd_put(args: argparse.Namespace) -> int:
                     "status": "skipped_optional_missing",
                     "entry_id": args.entry_id,
                     "local_path": str(local_path),
+                    "r2_put_ok": False,
                     "validated_count": 0,
+                    "degraded_reason": "optional_local_missing",
                 },
                 json_output=args.json_output,
             )
@@ -118,8 +158,14 @@ def cmd_put(args: argparse.Namespace) -> int:
 
     adapter = _adapter_from_env()
     content = local_path.read_bytes()
-    adapter.put_object(blob_key, content, content_type=content_type)
-    put_json(adapter, manifest_key, manifest)
+    try:
+        adapter.put_object(blob_key, content, content_type=content_type)
+        put_json(adapter, manifest_key, manifest)
+    except Exception as exc:
+        payload = _r2_put_failure_payload(entry_id=args.entry_id, reason=str(exc))
+        _emit_result(payload, json_output=args.json_output)
+        print(f"error: R2 put failed: {exc}", file=sys.stderr)
+        return 1
 
     _emit_result(
         {
@@ -129,6 +175,8 @@ def cmd_put(args: argparse.Namespace) -> int:
             "manifest_logical_key": manifest_key,
             "sha256": manifest["sha256"],
             "size_bytes": manifest["size_bytes"],
+            "r2_put_ok": True,
+            "validated_count": 1,
         },
         json_output=args.json_output,
     )
@@ -147,34 +195,20 @@ def cmd_get(args: argparse.Namespace) -> int:
     try:
         manifest = get_json(adapter, manifest_key)
     except Exception as exc:
-        if optional:
-            _emit_result(
-                {
-                    "status": "skipped_optional_missing",
-                    "entry_id": args.entry_id,
-                    "reason": str(exc),
-                    "validated_count": 0,
-                },
-                json_output=args.json_output,
-            )
-            return 0
+        payload = _r2_get_failure_payload(
+            entry_id=args.entry_id, reason=str(exc), phase="manifest"
+        )
+        _emit_result(payload, json_output=args.json_output)
         print(f"error: manifest get failed: {exc}", file=sys.stderr)
         return 1
 
     try:
         content = adapter.get_object(blob_key)
     except Exception as exc:
-        if optional:
-            _emit_result(
-                {
-                    "status": "skipped_optional_missing",
-                    "entry_id": args.entry_id,
-                    "reason": str(exc),
-                    "validated_count": 0,
-                },
-                json_output=args.json_output,
-            )
-            return 0
+        payload = _r2_get_failure_payload(
+            entry_id=args.entry_id, reason=str(exc), phase="blob"
+        )
+        _emit_result(payload, json_output=args.json_output)
         print(f"error: blob get failed: {exc}", file=sys.stderr)
         return 1
 
@@ -183,6 +217,17 @@ def cmd_get(args: argparse.Namespace) -> int:
         manifest, content_sha256=sha, size_bytes=len(content)
     )
     if not ok:
+        payload = {
+            "status": "mismatch",
+            "entry_id": args.entry_id,
+            "message": msg,
+            "handoff_source": None,
+            "fallback_required": not optional,
+            "fallback_used": False,
+            "validated_count": 0,
+            "degraded_reason": "r2_manifest_mismatch",
+        }
+        _emit_result(payload, json_output=args.json_output)
         print(f"error: manifest verify failed: {msg}", file=sys.stderr)
         return 1
 
@@ -197,6 +242,62 @@ def cmd_get(args: argparse.Namespace) -> int:
             "local_path": str(local_path),
             "sha256": sha,
             "size_bytes": len(content),
+            "handoff_source": "r2",
+            "fallback_required": False,
+            "fallback_used": False,
+            "validated_count": 1,
+        },
+        json_output=args.json_output,
+    )
+    return 0
+
+
+def cmd_record_fallback(args: argparse.Namespace) -> int:
+    """Record successful GitHub artifact fallback after download-artifact."""
+    local_path = Path(args.local_path)
+    optional = args.optional if args.optional is not None else entry_is_optional(args.entry_id)
+    if not local_path.is_file():
+        if optional:
+            _emit_result(
+                {
+                    "status": "skipped_optional_missing",
+                    "entry_id": args.entry_id,
+                    "local_path": str(local_path),
+                    "handoff_source": None,
+                    "fallback_required": False,
+                    "fallback_used": True,
+                    "validated_count": 0,
+                    "degraded_reason": "optional_github_fallback_missing",
+                },
+                json_output=args.json_output,
+            )
+            return 0
+        payload = {
+            "status": "handoff_failed",
+            "entry_id": args.entry_id,
+            "local_path": str(local_path),
+            "handoff_source": None,
+            "fallback_required": False,
+            "fallback_used": True,
+            "validated_count": 0,
+            "degraded_reason": "github_fallback_missing",
+        }
+        _emit_result(payload, json_output=args.json_output)
+        print(f"error: required github fallback file missing: {local_path}", file=sys.stderr)
+        return 1
+
+    sha = compute_sha256(local_path)
+    _emit_result(
+        {
+            "status": "ok",
+            "entry_id": args.entry_id,
+            "local_path": str(local_path),
+            "sha256": sha,
+            "size_bytes": local_path.stat().st_size,
+            "handoff_source": "github_fallback",
+            "fallback_required": False,
+            "fallback_used": True,
+            "validated_count": 1,
         },
         json_output=args.json_output,
     )
@@ -296,6 +397,11 @@ def _build_parser() -> argparse.ArgumentParser:
     add_common(get_p)
     get_p.add_argument("--local-path", required=True)
     get_p.set_defaults(func=cmd_get)
+
+    fb_p = sub.add_parser("record-fallback")
+    add_common(fb_p)
+    fb_p.add_argument("--local-path", required=True)
+    fb_p.set_defaults(func=cmd_record_fallback)
 
     val_p = sub.add_parser("shadow-validate")
     add_common(val_p)

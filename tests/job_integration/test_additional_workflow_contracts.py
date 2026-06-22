@@ -152,16 +152,24 @@ def test_monthly_yml_resolves_run_id_from_latest_and_staging() -> None:
 def test_daily_event_cause_enrichment_writes_enriched_csv_to_r2() -> None:
     workflow = _load_workflow("daily_event_cause_enrichment.yml")
     enrich = _job(workflow, "enrich")
-    put_step = _step_named(enrich, "R2 shadow put enriched CSV staging")
+    put_step = _step_named(enrich, "R2 put enriched CSV staging")
     assert "artifact_bus_cli.py put" in put_step["run"]
     assert "--entry-id artifact-enriched-csv" in put_step["run"]
-    get_step = _step_named(enrich, "R2 shadow validate indicators staging")
-    assert "shadow-validate" in get_step["run"]
+    assert "/tmp/r2_producer/enrich/" in put_step["run"]
+    assert "--json-output" in put_step["run"]
+    assert put_step.get("continue-on-error") is True
+    get_step = _step_named(enrich, "R2 get indicators staging")
+    assert "artifact_bus_cli.py get" in get_step["run"]
     assert "--entry-id artifact-daily-indicators" in get_step["run"]
-    download_step = _step_named(enrich, "Download indicators artifact")
-    assert download_step["uses"] == "actions/download-artifact@v4"
+    assert "$GITHUB_RUN_ID" in get_step["run"]
+    fallback_step = _step_named(enrich, "GitHub fallback indicators artifact")
+    assert fallback_step["uses"] == "actions/download-artifact@v4"
     upload_step = _step_named(enrich, "Upload enriched CSV artifact")
     assert upload_step["uses"] == "actions/upload-artifact@v4"
+    producer_summary = _step_named(enrich, "Write enrich producer handoff summary")
+    assert "--mode producer" in producer_summary["run"]
+    consumer_summary = _step_named(enrich, "Write enrich consumer handoff summary")
+    assert "--mode producer" not in consumer_summary["run"]
 
 
 def test_daily_universe_patch_yml_resolves_monthly_tag_and_writes_single_patched_cache() -> None:

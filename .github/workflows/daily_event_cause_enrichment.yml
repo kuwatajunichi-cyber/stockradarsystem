@@ -39,14 +39,10 @@ jobs:
           pip install -r requirements.txt
 
       # Contract: artifact name must stay aligned with daily.yml compute_indicators upload
-      # (`daily-indicators-${run_date}`).
-      - name: Download indicators artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: daily-indicators-${{ inputs.run_date }}
-          path: data/indicators/daily/
-
-      - name: R2 shadow validate indicators staging
+      # (`daily-indicators-${run_date}`). Reusable shares github.run_id with caller for R2 keys.
+      - name: R2 get indicators staging
+        id: r2_get_indicators
+        continue-on-error: true
         env:
           PYTHONPATH: src:.
           RUN_DATE: ${{ inputs.run_date }}
@@ -60,13 +56,41 @@ jobs:
         run: |
           set -euo pipefail
           RUN_DATE_COMPACT="${RUN_DATE//-/}"
-          mkdir -p /tmp/r2_shadow/enrich
-          python scripts/storage/artifact_bus_cli.py shadow-validate \
+          mkdir -p /tmp/r2_handoff/enrich
+          INDICATORS_PATH="data/indicators/daily/indicators_${RUN_DATE_COMPACT}.csv"
+          mkdir -p data/indicators/daily
+          set +e
+          python scripts/storage/artifact_bus_cli.py get \
             --entry-id artifact-daily-indicators \
             --run-id "$GITHUB_RUN_ID" \
             --run-date "$RUN_DATE" \
+            --local-path "$INDICATORS_PATH" \
+            --json-output /tmp/r2_handoff/enrich/artifact-daily-indicators.json
+          set -e
+          FALLBACK=$(python -c "import json; print('true' if json.load(open('/tmp/r2_handoff/enrich/artifact-daily-indicators.json')).get('fallback_required') else 'false')")
+          echo "fallback_required=$FALLBACK" >> "$GITHUB_OUTPUT"
+
+      - name: GitHub fallback indicators artifact
+        if: steps.r2_get_indicators.outputs.fallback_required == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: daily-indicators-${{ inputs.run_date }}
+          path: data/indicators/daily/
+
+      - name: Record GitHub fallback indicators
+        if: steps.r2_get_indicators.outputs.fallback_required == 'true'
+        env:
+          PYTHONPATH: src:.
+          RUN_DATE: ${{ inputs.run_date }}
+        run: |
+          set -euo pipefail
+          RUN_DATE_COMPACT="${RUN_DATE//-/}"
+          python scripts/storage/artifact_bus_cli.py record-fallback \
+            --entry-id artifact-daily-indicators \
+            --run-id "${{ github.run_id }}" \
+            --run-date "$RUN_DATE" \
             --local-path "data/indicators/daily/indicators_${RUN_DATE_COMPACT}.csv" \
-            --json-output /tmp/r2_shadow/enrich/indicators.json
+            --json-output /tmp/r2_handoff/enrich/artifact-daily-indicators.json
 
       - name: Set local CSV path
         id: set_csv
@@ -132,9 +156,10 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
-      - name: R2 shadow put enriched CSV staging
+      - name: R2 put enriched CSV staging
         id: r2_put_enriched
         if: success()
+        continue-on-error: true
         env:
           PYTHONPATH: src:.
           RUN_DATE: ${{ inputs.run_date }}
@@ -149,38 +174,51 @@ jobs:
           set -euo pipefail
           RUN_DATE_COMPACT="${RUN_DATE//-/}"
           ENRICHED_PATH="data/indicators/daily/indicators_event_enriched_${RUN_DATE_COMPACT}.csv"
-          OUT=$(python scripts/storage/artifact_bus_cli.py put \
+          mkdir -p /tmp/r2_producer/enrich
+          JSON_OUT="/tmp/r2_producer/enrich/artifact-enriched-csv.json"
+          set +e
+          python scripts/storage/artifact_bus_cli.py put \
             --entry-id artifact-enriched-csv \
             --run-id "$GITHUB_RUN_ID" \
             --run-date "$RUN_DATE" \
             --source-name "enriched-csv-$RUN_DATE" \
-            --local-path "$ENRICHED_PATH")
-          MANIFEST_KEY=$(echo "$OUT" | python -c "import json,sys; print(json.load(sys.stdin)['manifest_logical_key'])")
-          echo "manifest_logical_key=$MANIFEST_KEY" >> "$GITHUB_OUTPUT"
+            --local-path "$ENRICHED_PATH" \
+            --json-output "$JSON_OUT"
+          RC=$?
+          set -e
+          if [ ! -f "$JSON_OUT" ]; then
+            python -c "import json; from pathlib import Path; Path('$JSON_OUT').write_text(json.dumps({'status':'r2_error','entry_id':'artifact-enriched-csv','r2_put_ok':False,'github_upload_ok':None,'degraded_reason':'r2_put_failed','reason':f'put exited rc {RC}'})+'\n', encoding='utf-8')"
+          fi
+          python -c "import json; from pathlib import Path; p=Path('$JSON_OUT'); d=json.loads(p.read_text(encoding='utf-8')); d['github_upload_ok']=True; p.write_text(json.dumps(d)+'\n', encoding='utf-8')"
+          STATUS=$(python -c "import json; print(json.load(open('$JSON_OUT')).get('status',''))")
+          if [ "$STATUS" = "ok" ]; then
+            MANIFEST_KEY=$(python -c "import json; print(json.load(open('$JSON_OUT'))['manifest_logical_key'])")
+            echo "manifest_logical_key=$MANIFEST_KEY" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Write R2 shadow validation summary
+      - name: Write enrich producer handoff summary
         if: always()
+        env:
+          PYTHONPATH: src
+        run: |
+          set -euo pipefail
+          python -m stockradar.storage.handoff_summary \
+            --mode producer \
+            --handoff-dir /tmp/r2_producer/enrich \
+            --title "enrich producer handoff" \
+            --required artifact-enriched-csv \
+            --github-upload-ok artifact-enriched-csv \
+            >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Write enrich consumer handoff summary
+        if: always()
+        env:
+          PYTHONPATH: src
         run: |
           set -euo pipefail
           {
-            echo "## enrich R2 shadow validation"
-            python - <<'PY'
-          import json
-          from pathlib import Path
-
-          shadow_dir = Path("/tmp/r2_shadow/enrich")
-          validated = 0
-          for path in sorted(shadow_dir.glob("*.json")):
-              payload = json.loads(path.read_text(encoding="utf-8"))
-              status = payload.get("status")
-              entry_id = payload.get("entry_id", path.stem)
-              if status == "ok":
-                  validated += int(payload.get("validated_count", 0) or 0)
-                  print(f"- {entry_id}: ok sha256=`{payload.get('sha256', '')}`")
-              else:
-                  print(f"- {entry_id}: {status}")
-          print(f"- validated_count: `{validated}`")
-          if validated == 0:
-              raise SystemExit("error: required R2 shadow validation count is 0")
-          PY
+            python -m stockradar.storage.handoff_summary \
+              --handoff-dir /tmp/r2_handoff/enrich \
+              --title "enrich consumer handoff" \
+              --required artifact-daily-indicators
           } >> "$GITHUB_STEP_SUMMARY"

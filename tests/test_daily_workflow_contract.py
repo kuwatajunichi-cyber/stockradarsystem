@@ -101,9 +101,12 @@ def test_daily_event_cause_enrichment_indicators_r2_contract() -> None:
     )
     assert "actions/download-artifact@v4" in text
     assert "actions/upload-artifact@v4" in text
-    assert "shadow-validate" in text
+    assert "artifact_bus_cli.py get" in text
+    assert "record-fallback" in text
+    assert "shadow-validate" not in text
     assert "--entry-id artifact-daily-indicators" in text
     assert "--entry-id artifact-enriched-csv" in text
+    assert "github.run_id" in text
 
 
 def test_daily_yml_r2_bus_contract_by_job() -> None:
@@ -124,9 +127,10 @@ def test_daily_yml_r2_bus_contract_by_job() -> None:
     assert "artifact-enriched-csv" in render
 
 
-def test_daily_yml_phase2a_github_artifact_primary_with_r2_shadow() -> None:
+def test_daily_yml_phase2b_r2_get_primary_with_github_fallback() -> None:
     wf = yaml.safe_load((_repo_root() / ".github/workflows/daily.yml").read_text(encoding="utf-8"))
     jobs = wf["jobs"]
+    daily_text = (_repo_root() / ".github/workflows/daily.yml").read_text(encoding="utf-8")
 
     resolve = jobs["resolve_core_csv"]
     assert _job_has_upload_artifact(resolve, "daily-core-csv")
@@ -140,20 +144,83 @@ def test_daily_yml_phase2a_github_artifact_primary_with_r2_shadow() -> None:
     ensure_core = jobs["ensure_core_cache"]
     assert _job_has_download_artifact(ensure_core, "daily-core-csv")
     assert _job_has_upload_artifact(ensure_core, "daily-ohlc-store")
-    assert "shadow-validate" in _job_steps_text(ensure_core)
-    assert "artifact_bus_cli.py get" not in _job_steps_text(ensure_core)
+    assert "artifact_bus_cli.py get" in _job_steps_text(ensure_core)
+    assert "record-fallback" in _job_steps_text(ensure_core)
+    assert "shadow-validate" not in _job_steps_text(ensure_core)
 
     compute = jobs["compute_indicators"]
     assert _job_has_download_artifact(compute, "daily-ohlc-store")
     assert _job_has_upload_artifact(compute, "daily-indicators")
-    assert "shadow-validate" in _job_steps_text(compute)
-    assert "artifact_bus_cli.py get" not in _job_steps_text(compute)
+    assert "artifact_bus_cli.py get" in _job_steps_text(compute)
+    assert "shadow-validate" not in _job_steps_text(compute)
 
     render = jobs["render_and_upload"]
     assert _job_has_download_artifact(render, "daily-indicators")
     assert _job_has_download_artifact(render, "enriched-csv")
-    assert "shadow-validate" in _job_steps_text(render)
-    assert "artifact_bus_cli.py get" not in _job_steps_text(render)
+    assert "artifact_bus_cli.py get" in _job_steps_text(render)
+    assert "shadow-validate" not in _job_steps_text(render)
+
+    assert "validated == 0" not in daily_text
+    assert "stockradar.storage.handoff_summary" in daily_text
+
+
+def _producer_put_steps(job: dict) -> list[dict]:
+    steps: list[dict] = []
+    for step in job.get("steps", []) or []:
+        if not isinstance(step, dict):
+            continue
+        run = step.get("run")
+        if isinstance(run, str) and "artifact_bus_cli.py put" in run:
+            steps.append(step)
+    return steps
+
+
+def _job_has_producer_handoff_summary(job: dict) -> bool:
+    for step in job.get("steps", []) or []:
+        if not isinstance(step, dict):
+            continue
+        run = step.get("run")
+        if isinstance(run, str) and "--mode producer" in run:
+            return True
+    return False
+
+
+def test_daily_yml_producer_puts_emit_json_and_continue_on_error() -> None:
+    wf = yaml.safe_load((_repo_root() / ".github/workflows/daily.yml").read_text(encoding="utf-8"))
+    producer_jobs = [
+        "resolve_core_csv",
+        "ensure_index_cache",
+        "ensure_core_cache",
+        "compute_indicators",
+    ]
+    for job_id in producer_jobs:
+        puts = _producer_put_steps(wf["jobs"][job_id])
+        assert puts, f"{job_id} must have producer put steps"
+        for step in puts:
+            run = step.get("run", "")
+            assert "/tmp/r2_producer/" in run, job_id
+            assert "--json-output" in run, job_id
+            assert step.get("continue-on-error") is True, job_id
+        assert _job_has_producer_handoff_summary(wf["jobs"][job_id]), job_id
+
+
+def test_daily_yml_producer_put_manifest_key_only_on_ok() -> None:
+    wf = yaml.safe_load((_repo_root() / ".github/workflows/daily.yml").read_text(encoding="utf-8"))
+    for job_id in ("resolve_core_csv", "ensure_index_cache", "compute_indicators"):
+        for step in _producer_put_steps(wf["jobs"][job_id]):
+            run = step.get("run", "")
+            assert 'if [ "$STATUS" = "ok" ]' in run, job_id
+            assert "manifest_logical_key" in run, job_id
+
+
+def test_daily_yml_no_r2_blocking_shadow_gate() -> None:
+    text = (_repo_root() / ".github/workflows/daily.yml").read_text(encoding="utf-8")
+    enrichment = (
+        _repo_root() / ".github/workflows/daily_event_cause_enrichment.yml"
+    ).read_text(encoding="utf-8")
+    assert "shadow validation count is 0" not in text
+    assert "shadow validation count is 0" not in enrichment
+    assert "continue-on-error: true" in text
 
 
 def test_daily_yml_producer_manifest_outputs() -> None:
@@ -166,14 +233,20 @@ def test_daily_yml_producer_manifest_outputs() -> None:
     assert jobs["compute_indicators"]["outputs"]["daily_indicators_manifest_key"]
 
 
-def test_daily_yml_render_and_upload_shadow_validates_indicators_and_enriched() -> None:
+def test_daily_yml_render_and_upload_gets_indicators_and_enriched() -> None:
     render = yaml.safe_load(
         (_repo_root() / ".github/workflows/daily.yml").read_text(encoding="utf-8")
     )["jobs"]["render_and_upload"]
     text = _job_steps_text(render)
-    assert "shadow-validate" in text
+    step_names = [
+        str(s.get("name"))
+        for s in render.get("steps", [])
+        if isinstance(s, dict) and s.get("name")
+    ]
+    assert "artifact_bus_cli.py get" in text
     assert "--entry-id artifact-daily-indicators" in text
     assert "--entry-id artifact-enriched-csv" in text
+    assert "GitHub fallback indicators artifact" in step_names
 
 
 def test_no_tracked_files_under_data_indicators() -> None:
@@ -205,7 +278,7 @@ def test_daily_yml_indicators_upload_uses_run_date_csv_not_glob() -> None:
     r2_put = next(
         s
         for s in compute.get("steps", [])
-        if isinstance(s, dict) and s.get("name") == "R2 shadow put indicators staging"
+        if isinstance(s, dict) and s.get("name") == "R2 put indicators staging"
     )
     assert "find data/indicators/daily" not in r2_put.get("run", "")
     assert "indicators_csv.outputs.path" in r2_put.get("run", "")

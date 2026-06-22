@@ -64,17 +64,38 @@ Cloudflare verification needs CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID.
 2. Restore daily.yml schedule cron "37 6 * * 1-5"
 3. Confirm no duplicate runs
 
-## Phase 2 live run gate (after merge)
+## Phase 2 live run gate
 
-Before promoting Phase 2b (R2 primary), confirm on the next trading day live `daily.yml` run:
+### Phase 2a (completed)
 
-1. All required producer shadow puts succeeded (`resolve_core_csv`, `ensure_index_cache`, `ensure_core_cache`, `compute_indicators`, enrichment)
-2. Consumer shadow validation summary shows `validated_count > 0` for required artifacts
-3. No required shadow mismatch; optional skips (`stale-exclusions`, `enriched-csv`) are visible in summary when applicable
-4. `render_and_upload` published from GitHub artifact primary path
-5. Manifest keys appear in job outputs / summary (`core_csv_manifest_key`, `daily_indicators_manifest_key`, `enriched_manifest_key`, etc.)
+Confirmed on live run before Phase 2b promotion:
 
-Rollback during Phase 2a: revert R2 shadow steps only; GitHub artifact handoff continues unchanged.
+1. All required producer shadow puts succeeded
+2. Consumer shadow validation summary showed `validated_count > 0` for required artifacts
+3. `render_and_upload` published successfully
+
+### Phase 2b (current)
+
+After Phase 2b merge, confirm on the next trading day live `daily.yml` run:
+
+1. Required consumer handoff summary shows `handoff_source=r2` for primary path (normal case)
+2. Producer R2 puts succeeded or degraded with GitHub upload fallback copy present
+3. `render_and_upload` publish completed
+4. Manifest keys appear in job outputs / summary when R2 put succeeded
+5. No required artifact with `handoff_failed` in summary
+
+Optional degraded paths (`stale-exclusions`, `enriched-csv`) must be visible in summary when applicable.
+
+### Phase 2b fault-injection check (once after merge)
+
+Run one controlled negative test without breaking production secrets:
+
+1. Temporarily override R2 env in a manual `workflow_dispatch` (invalid `R2_ACCESS_KEY_ID` or empty `R2_BASE_PREFIX`) **or** use a dedicated test job/workflow that simulates R2 get failure
+2. Confirm required consumers fall back to GitHub artifact download
+3. Confirm `compute_indicators`, `enrich`, and `render_and_upload` complete with `handoff_source=github_fallback` in summary
+4. Restore normal R2 env before the next scheduled run
+
+Rollback during Phase 2b: revert to Phase 2a (GitHub primary + R2 shadow) or prior commit; confirm next trading day live run before deleting rollback branch.
 
 ## CI required
 
