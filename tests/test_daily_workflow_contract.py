@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -173,6 +174,41 @@ def test_daily_yml_render_and_upload_shadow_validates_indicators_and_enriched() 
     assert "shadow-validate" in text
     assert "--entry-id artifact-daily-indicators" in text
     assert "--entry-id artifact-enriched-csv" in text
+
+
+def test_no_tracked_files_under_data_indicators() -> None:
+    root = _repo_root()
+    tracked = subprocess.check_output(
+        ["git", "ls-files", "data/indicators/"],
+        cwd=root,
+        text=True,
+    ).strip()
+    assert tracked == "", f"data/indicators/ must not be tracked: {tracked!r}"
+
+
+def test_daily_yml_indicators_upload_uses_run_date_csv_not_glob() -> None:
+    wf = yaml.safe_load((_repo_root() / ".github/workflows/daily.yml").read_text(encoding="utf-8"))
+    compute = wf["jobs"]["compute_indicators"]
+    step_names = [
+        str(s.get("name"))
+        for s in compute.get("steps", [])
+        if isinstance(s, dict) and s.get("name")
+    ]
+    assert "Resolve indicators csv path" in step_names
+    upload = next(
+        s
+        for s in compute.get("steps", [])
+        if isinstance(s, dict) and s.get("name") == "Upload indicators artifact"
+    )
+    assert upload["with"]["path"] == "${{ steps.indicators_csv.outputs.path }}"
+    assert "indicators_*.csv" not in str(upload["with"]["path"])
+    r2_put = next(
+        s
+        for s in compute.get("steps", [])
+        if isinstance(s, dict) and s.get("name") == "R2 shadow put indicators staging"
+    )
+    assert "find data/indicators/daily" not in r2_put.get("run", "")
+    assert "indicators_csv.outputs.path" in r2_put.get("run", "")
 
 
 def test_daily_yml_no_github_schedule_after_cloudflare_cutover() -> None:
