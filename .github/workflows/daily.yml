@@ -202,7 +202,7 @@ jobs:
           RC=$?
           set -e
           if [ ! -f "$JSON_OUT" ]; then
-            python -c "import json; from pathlib import Path; Path('$JSON_OUT').write_text(json.dumps({'status':'r2_error','entry_id':'artifact-daily-core-csv','r2_put_ok':False,'github_upload_ok':None,'degraded_reason':'r2_put_failed','reason':f'put exited rc {RC}'})+'\n', encoding='utf-8')"
+            python -c "import json; from pathlib import Path; Path('$JSON_OUT').write_text(json.dumps({'status':'r2_error','entry_id':'artifact-daily-core-csv','r2_put_ok':False,'github_upload_ok':None,'degraded_reason':'r2_put_failed','reason':'put exited rc $RC'})+'\n', encoding='utf-8')"
           fi
           python -c "import json; from pathlib import Path; p=Path('$JSON_OUT'); d=json.loads(p.read_text(encoding='utf-8')); d['github_upload_ok']=True; p.write_text(json.dumps(d)+'\n', encoding='utf-8')"
           STATUS=$(python -c "import json; print(json.load(open('$JSON_OUT')).get('status',''))")
@@ -240,7 +240,7 @@ jobs:
           RC=$?
           set -e
           if [ ! -f "$JSON_OUT" ]; then
-            python -c "import json; from pathlib import Path; Path('$JSON_OUT').write_text(json.dumps({'status':'r2_error','entry_id':'artifact-daily-core-quality','r2_put_ok':False,'github_upload_ok':None,'degraded_reason':'r2_put_failed','reason':f'put exited rc {RC}'})+'\n', encoding='utf-8')"
+            python -c "import json; from pathlib import Path; Path('$JSON_OUT').write_text(json.dumps({'status':'r2_error','entry_id':'artifact-daily-core-quality','r2_put_ok':False,'github_upload_ok':None,'degraded_reason':'r2_put_failed','reason':'put exited rc $RC'})+'\n', encoding='utf-8')"
           fi
           python -c "import json; from pathlib import Path; p=Path('$JSON_OUT'); d=json.loads(p.read_text(encoding='utf-8')); d['github_upload_ok']=True; p.write_text(json.dumps(d)+'\n', encoding='utf-8')"
           STATUS=$(python -c "import json; print(json.load(open('$JSON_OUT')).get('status',''))")
@@ -391,7 +391,7 @@ jobs:
           RC=$?
           set -e
           if [ ! -f "$JSON_OUT" ]; then
-            python -c "import json; from pathlib import Path; Path('$JSON_OUT').write_text(json.dumps({'status':'r2_error','entry_id':'artifact-daily-index-store','r2_put_ok':False,'github_upload_ok':None,'degraded_reason':'r2_put_failed','reason':f'put exited rc {RC}'})+'\n', encoding='utf-8')"
+            python -c "import json; from pathlib import Path; Path('$JSON_OUT').write_text(json.dumps({'status':'r2_error','entry_id':'artifact-daily-index-store','r2_put_ok':False,'github_upload_ok':None,'degraded_reason':'r2_put_failed','reason':'put exited rc $RC'})+'\n', encoding='utf-8')"
           fi
           python -c "import json; from pathlib import Path; p=Path('$JSON_OUT'); d=json.loads(p.read_text(encoding='utf-8')); d['github_upload_ok']=True; p.write_text(json.dumps(d)+'\n', encoding='utf-8')"
           STATUS=$(python -c "import json; print(json.load(open('$JSON_OUT')).get('status',''))")
@@ -698,7 +698,7 @@ jobs:
           RC=$?
           set -e
           if [ ! -f "$JSON_OUT" ]; then
-            python -c "import json; from pathlib import Path; Path('$JSON_OUT').write_text(json.dumps({'status':'r2_error','entry_id':'artifact-daily-ohlc-store','r2_put_ok':False,'github_upload_ok':None,'degraded_reason':'r2_put_failed','reason':f'put exited rc {RC}'})+'\n', encoding='utf-8')"
+            python -c "import json; from pathlib import Path; Path('$JSON_OUT').write_text(json.dumps({'status':'r2_error','entry_id':'artifact-daily-ohlc-store','r2_put_ok':False,'github_upload_ok':None,'degraded_reason':'r2_put_failed','reason':'put exited rc $RC'})+'\n', encoding='utf-8')"
           fi
           python -c "import json; from pathlib import Path; p=Path('$JSON_OUT'); d=json.loads(p.read_text(encoding='utf-8')); d['github_upload_ok']=True; p.write_text(json.dumps(d)+'\n', encoding='utf-8')"
           STATUS=$(python -c "import json; print(json.load(open('$JSON_OUT')).get('status',''))")
@@ -742,7 +742,7 @@ jobs:
           RC=$?
           set -e
           if [ ! -f "$JSON_OUT" ]; then
-            python -c "import json; from pathlib import Path; Path('$JSON_OUT').write_text(json.dumps({'status':'r2_error','entry_id':'artifact-stale-exclusions','r2_put_ok':False,'github_upload_ok':None,'degraded_reason':'r2_put_failed','reason':f'put exited rc {RC}'})+'\n', encoding='utf-8')"
+            python -c "import json; from pathlib import Path; Path('$JSON_OUT').write_text(json.dumps({'status':'r2_error','entry_id':'artifact-stale-exclusions','r2_put_ok':False,'github_upload_ok':None,'degraded_reason':'r2_put_failed','reason':'put exited rc $RC'})+'\n', encoding='utf-8')"
           fi
           python - <<PY
           import json
@@ -1183,7 +1183,7 @@ jobs:
           RC=$?
           set -e
           if [ ! -f "$JSON_OUT" ]; then
-            python -c "import json; from pathlib import Path; Path('$JSON_OUT').write_text(json.dumps({'status':'r2_error','entry_id':'artifact-daily-indicators','r2_put_ok':False,'github_upload_ok':None,'degraded_reason':'r2_put_failed','reason':f'put exited rc {RC}'})+'\n', encoding='utf-8')"
+            python -c "import json; from pathlib import Path; Path('$JSON_OUT').write_text(json.dumps({'status':'r2_error','entry_id':'artifact-daily-indicators','r2_put_ok':False,'github_upload_ok':None,'degraded_reason':'r2_put_failed','reason':'put exited rc $RC'})+'\n', encoding='utf-8')"
           fi
           python -c "import json; from pathlib import Path; p=Path('$JSON_OUT'); d=json.loads(p.read_text(encoding='utf-8')); d['github_upload_ok']=True; p.write_text(json.dumps(d)+'\n', encoding='utf-8')"
           STATUS=$(python -c "import json; print(json.load(open('$JSON_OUT')).get('status',''))")
