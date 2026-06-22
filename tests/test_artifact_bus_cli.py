@@ -14,6 +14,7 @@ from scripts.storage.runs_staging_cleanup import (
     cleanup_runs_staging_objects,
     select_stale_object_keys,
 )
+from stockradar.storage.handoff_summary import write_producer_summary, write_summary
 
 pytestmark = pytest.mark.unit
 
@@ -93,6 +94,7 @@ def test_put_writes_manifest_key_to_json_output(tmp_path: Path) -> None:
     assert rc == 0
     payload = json.loads(json_out.read_text(encoding="utf-8"))
     assert payload["status"] == "ok"
+    assert payload["r2_put_ok"] is True
     assert payload["manifest_logical_key"] == "runs/daily/555/manifests/daily-core-csv.json"
 
 
@@ -139,23 +141,264 @@ def test_required_missing_file_put_fails(tmp_path: Path) -> None:
     assert rc == 1
 
 
-def test_optional_missing_get_is_success(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_required_get_r2_missing_emits_fallback_required(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    json_out = tmp_path / "get.json"
     rc = main(
         [
             "get",
             "--entry-id",
-            "artifact-stale-exclusions",
+            "artifact-daily-core-csv",
             "--run-id",
             "555",
             "--run-date",
             "2026-06-13",
             "--local-path",
-            str(tmp_path / "missing.json"),
+            str(tmp_path / "core.csv"),
+            "--json-output",
+            str(json_out),
+        ]
+    )
+    assert rc == 1
+    payload = json.loads(json_out.read_text(encoding="utf-8"))
+    assert payload["fallback_required"] is True
+    assert payload["handoff_source"] is None
+    assert payload["status"] in {"r2_missing", "r2_error"}
+
+
+def test_get_success_includes_handoff_source(tmp_path: Path, _fake_adapter: FakeR2StagingAdapter) -> None:
+    blob = tmp_path / "core.csv"
+    blob.write_text("code,name\n1,foo\n", encoding="utf-8")
+    out_path = tmp_path / "restored.csv"
+    json_out = tmp_path / "get.json"
+    assert (
+        main(
+            [
+                "put",
+                "--entry-id",
+                "artifact-daily-core-csv",
+                "--run-id",
+                "555",
+                "--run-date",
+                "2026-06-13",
+                "--source-name",
+                "daily-core-csv-555",
+                "--local-path",
+                str(blob),
+            ]
+        )
+        == 0
+    )
+    rc = main(
+        [
+            "get",
+            "--entry-id",
+            "artifact-daily-core-csv",
+            "--run-id",
+            "555",
+            "--run-date",
+            "2026-06-13",
+            "--local-path",
+            str(out_path),
+            "--json-output",
+            str(json_out),
         ]
     )
     assert rc == 0
-    payload = json.loads(capsys.readouterr().out.strip())
+    payload = json.loads(json_out.read_text(encoding="utf-8"))
+    assert payload["handoff_source"] == "r2"
+    assert payload["fallback_required"] is False
+    assert payload["validated_count"] == 1
+
+
+def test_record_fallback_required_success(tmp_path: Path) -> None:
+    blob = tmp_path / "core.csv"
+    blob.write_text("code,name\n1,foo\n", encoding="utf-8")
+    json_out = tmp_path / "fallback.json"
+    rc = main(
+        [
+            "record-fallback",
+            "--entry-id",
+            "artifact-daily-core-csv",
+            "--run-id",
+            "555",
+            "--run-date",
+            "2026-06-13",
+            "--local-path",
+            str(blob),
+            "--json-output",
+            str(json_out),
+        ]
+    )
+    assert rc == 0
+    payload = json.loads(json_out.read_text(encoding="utf-8"))
+    assert payload["handoff_source"] == "github_fallback"
+    assert payload["fallback_used"] is True
+    assert payload["validated_count"] == 1
+
+
+def test_record_fallback_optional_missing_is_success(tmp_path: Path) -> None:
+    json_out = tmp_path / "fallback.json"
+    rc = main(
+        [
+            "record-fallback",
+            "--entry-id",
+            "artifact-enriched-csv",
+            "--run-id",
+            "555",
+            "--run-date",
+            "2026-06-13",
+            "--local-path",
+            str(tmp_path / "missing.csv"),
+            "--json-output",
+            str(json_out),
+        ]
+    )
+    assert rc == 0
+    payload = json.loads(json_out.read_text(encoding="utf-8"))
     assert payload["status"] == "skipped_optional_missing"
+
+
+def test_write_handoff_summary_required_ok_with_github_fallback(tmp_path: Path) -> None:
+    handoff_dir = tmp_path / "handoff"
+    handoff_dir.mkdir()
+    (handoff_dir / "artifact-daily-core-csv.json").write_text(
+        json.dumps(
+            {
+                "status": "ok",
+                "entry_id": "artifact-daily-core-csv",
+                "handoff_source": "github_fallback",
+                "fallback_used": True,
+                "sha256": "abc",
+                "validated_count": 1,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    lines, exit_code = write_summary(
+        handoff_dir=handoff_dir,
+        title="test handoff",
+        required=["artifact-daily-core-csv"],
+        optional=[],
+    )
+    assert exit_code == 0
+    assert any("fallback_used" in line for line in lines)
+
+
+def test_write_handoff_summary_required_failure_when_missing(tmp_path: Path) -> None:
+    handoff_dir = tmp_path / "handoff"
+    handoff_dir.mkdir()
+    lines, exit_code = write_summary(
+        handoff_dir=handoff_dir,
+        title="test handoff",
+        required=["artifact-daily-core-csv"],
+        optional=[],
+    )
+    assert exit_code == 1
+    assert any("missing_handoff_record" in line for line in lines)
+
+
+def test_write_handoff_summary_required_fails_on_skipped_optional_missing(tmp_path: Path) -> None:
+    handoff_dir = tmp_path / "handoff"
+    handoff_dir.mkdir()
+    (handoff_dir / "artifact-daily-core-csv.json").write_text(
+        json.dumps(
+            {
+                "status": "skipped_optional_missing",
+                "entry_id": "artifact-daily-core-csv",
+                "degraded_reason": "optional_local_missing",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    lines, exit_code = write_summary(
+        handoff_dir=handoff_dir,
+        title="test handoff",
+        required=["artifact-daily-core-csv"],
+        optional=[],
+    )
+    assert exit_code == 1
+    assert any("handoff_failed_required" in line for line in lines)
+
+
+def test_write_handoff_summary_optional_skipped_is_ok(tmp_path: Path) -> None:
+    handoff_dir = tmp_path / "handoff"
+    handoff_dir.mkdir()
+    (handoff_dir / "artifact-stale-exclusions.json").write_text(
+        json.dumps(
+            {
+                "status": "skipped_optional_missing",
+                "entry_id": "artifact-stale-exclusions",
+                "degraded_reason": "optional_local_missing",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    lines, exit_code = write_summary(
+        handoff_dir=handoff_dir,
+        title="test handoff",
+        required=[],
+        optional=["artifact-stale-exclusions"],
+    )
+    assert exit_code == 0
+    assert any("skipped_optional" in line for line in lines)
+
+
+def test_write_producer_summary_degraded_when_r2_put_failed_but_github_ok(tmp_path: Path) -> None:
+    handoff_dir = tmp_path / "producer"
+    handoff_dir.mkdir()
+    (handoff_dir / "artifact-daily-core-csv.json").write_text(
+        json.dumps(
+            {
+                "status": "r2_error",
+                "entry_id": "artifact-daily-core-csv",
+                "r2_put_ok": False,
+                "degraded_reason": "r2_put_failed",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    lines, exit_code = write_producer_summary(
+        handoff_dir=handoff_dir,
+        title="test producer",
+        required=["artifact-daily-core-csv"],
+        optional=[],
+        github_upload_ok=frozenset({"artifact-daily-core-csv"}),
+    )
+    assert exit_code == 0
+    assert any("producer_handoff_status=`degraded`" in line for line in lines)
+    assert any("producer_degraded" in line for line in lines)
+
+
+def test_write_producer_summary_fails_when_r2_and_github_both_failed(tmp_path: Path) -> None:
+    handoff_dir = tmp_path / "producer"
+    handoff_dir.mkdir()
+    (handoff_dir / "artifact-daily-core-csv.json").write_text(
+        json.dumps(
+            {
+                "status": "r2_error",
+                "entry_id": "artifact-daily-core-csv",
+                "r2_put_ok": False,
+                "degraded_reason": "r2_put_failed",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    lines, exit_code = write_producer_summary(
+        handoff_dir=handoff_dir,
+        title="test producer",
+        required=["artifact-daily-core-csv"],
+        optional=[],
+        github_upload_ok=frozenset(),
+    )
+    assert exit_code == 1
+    assert any("producer_handoff_failed_required" in line for line in lines)
 
 
 def test_shadow_validate_detects_mismatch(tmp_path: Path, _fake_adapter: FakeR2StagingAdapter) -> None:
