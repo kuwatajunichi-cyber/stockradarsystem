@@ -293,3 +293,142 @@ def test_daily_yml_no_github_schedule_after_cloudflare_cutover() -> None:
     assert "workflow_dispatch" in on_block
     assert wf["concurrency"]["group"] == "daily-indicators"
     assert wf["concurrency"]["cancel-in-progress"] is False
+
+
+def _daily_yml_text() -> str:
+    return (_repo_root() / ".github/workflows/daily.yml").read_text(encoding="utf-8")
+
+
+def _daily_yml() -> dict:
+    return yaml.safe_load(_daily_yml_text())
+
+
+def _step_blob(step: dict) -> str:
+    parts: list[str] = []
+    run = step.get("run")
+    if isinstance(run, str):
+        parts.append(run)
+    env = step.get("env")
+    if isinstance(env, dict):
+        parts.append(yaml.dump(env))
+    return "\n".join(parts)
+
+
+def _steps_with_cli_command(job: dict, command: str) -> list[dict]:
+    steps: list[dict] = []
+    for step in job.get("steps", []) or []:
+        if not isinstance(step, dict):
+            continue
+        if command in _step_blob(step):
+            steps.append(step)
+    return steps
+
+
+def test_daily_yml_r2_fault_mode_dispatch_input() -> None:
+    wf = _daily_yml()
+    on_block = wf.get("on") or wf.get(True) or {}
+    inputs = on_block["workflow_dispatch"]["inputs"]
+    fault = inputs["r2_fault_mode"]
+    assert fault["type"] == "choice"
+    assert fault["default"] == "off"
+    assert fault["options"] == [
+        "off",
+        "consumer_get_prefix_miss",
+        "producer_put_invalid_cred",
+    ]
+    assert "Upload to all targets" in inputs["skip_publish"]["description"]
+    assert "r2_fault_mode != off" in inputs["run_date"]["description"]
+
+
+def test_daily_yml_validate_fault_injection_job() -> None:
+    wf = _daily_yml()
+    guard = wf["jobs"]["validate_fault_injection"]
+    assert guard["needs"] == "preflight"
+    assert wf["jobs"]["resolve_trading_day"]["needs"] == ["preflight", "validate_fault_injection"]
+    run = _job_steps_text(guard)
+    assert "invalid r2_fault_mode" in run
+    assert "run_date empty (non-replay live gate)" in run
+    assert "skip_publish=true" in run
+
+
+def test_daily_yml_fault_prefix_get_only_not_on_put() -> None:
+    wf = _daily_yml()
+    for job_id in (
+        "ensure_core_cache",
+        "compute_indicators",
+        "render_and_upload",
+    ):
+        job = wf["jobs"][job_id]
+        for step in _steps_with_cli_command(job, "artifact_bus_cli.py put"):
+            blob = _step_blob(step)
+            assert "fault-injection" not in blob, job_id
+        get_steps = _steps_with_cli_command(job, "artifact_bus_cli.py get")
+        assert get_steps, job_id
+        for step in get_steps:
+            blob = _step_blob(step)
+            assert "consumer_get_prefix_miss" in blob, job_id
+            assert "fault-injection/{0}" in blob, job_id
+
+
+def test_daily_yml_producer_put_invalid_cred_on_put_steps_only() -> None:
+    wf = _daily_yml()
+    for job_id in (
+        "resolve_core_csv",
+        "ensure_index_cache",
+        "ensure_core_cache",
+        "compute_indicators",
+    ):
+        job = wf["jobs"][job_id]
+        puts = _steps_with_cli_command(job, "artifact_bus_cli.py put")
+        assert puts, job_id
+        for step in puts:
+            blob = _step_blob(step)
+            assert "producer_put_invalid_cred" in blob, job_id
+            assert "INVALID_FAULT_INJECTION" in blob, job_id
+
+
+def test_daily_yml_render_and_upload_skip_publish_on_publish_step_only() -> None:
+    wf = _daily_yml()
+    render = wf["jobs"]["render_and_upload"]
+    job_if = render["if"]
+    assert "always()" in job_if
+    assert "skip_publish" not in job_if
+    text = _daily_yml_text()
+    publish_idx = text.index("- name: Upload to all targets")
+    publish_chunk = text[publish_idx : publish_idx + 600]
+    assert "if: github.event_name != 'workflow_dispatch' || github.event.inputs.skip_publish != 'true'" in publish_chunk
+    assert "INVALID_FAULT_INJECTION" not in publish_chunk
+
+
+def test_daily_yml_event_cause_enrichment_propagates_r2_fault_mode() -> None:
+    text = _daily_yml_text()
+    assert "r2_fault_mode: ${{ github.event.inputs.r2_fault_mode || 'off' }}" in text
+
+
+def test_daily_event_cause_enrichment_fault_injection_contract() -> None:
+    wf = yaml.safe_load(
+        (_repo_root() / ".github/workflows/daily_event_cause_enrichment.yml").read_text(
+            encoding="utf-8"
+        )
+    )
+    on_block = wf.get("on") or wf.get(True) or {}
+    inputs = on_block["workflow_call"]["inputs"]
+    assert inputs["r2_fault_mode"]["default"] == "off"
+    enrich = wf["jobs"]["enrich"]
+    get_step = next(
+        s
+        for s in enrich["steps"]
+        if isinstance(s, dict) and s.get("name") == "R2 get indicators staging"
+    )
+    put_step = next(
+        s
+        for s in enrich["steps"]
+        if isinstance(s, dict) and s.get("name") == "R2 put enriched CSV staging"
+    )
+    get_env = yaml.dump(get_step.get("env") or {})
+    put_env = yaml.dump(put_step.get("env") or {})
+    assert "inputs.r2_fault_mode" in get_env
+    assert "fault-injection/{0}" in get_env
+    assert "fault-injection" not in put_env
+    assert "producer_put_invalid_cred" in put_env
+    assert "secrets.R2_BASE_PREFIX" in put_env

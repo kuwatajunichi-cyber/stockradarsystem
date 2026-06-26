@@ -4,6 +4,9 @@ name: Daily Indicators
 # - Phase 2b: R2 get is primary consumer handoff; GitHub artifact is fallback on R2 failure.
 # - Producer dual-write: GitHub upload (fallback copy) then R2 put (preferred, continue-on-error).
 # - R2 outage alone must not block compute / enrich / publish when GitHub fallback succeeds.
+# - Fault injection (workflow_dispatch): r2_fault_mode != off requires skip_publish=true and run_date empty.
+#   consumer_get_prefix_miss applies fault namespace to get steps only; put steps use prod prefix.
+# - skip_publish=true skips Upload to all targets step only; render_and_upload job still runs.
 # - actions/cache/save (this file only): index-store-zip-v1 + ohlc-store-zip-v2 (two writes on success).
 # - Patched universe cache is written only by daily_universe_patch.yml; daily.yml restores only.
 
@@ -11,13 +14,21 @@ on:
   workflow_dispatch:  # 手動実行
     inputs:
       run_date:
-        description: "日次アンカー YYYY-MM-DD（空=今日。今日以外は replay: 過去3カレンダー月以内のみ）"
+        description: "日次アンカー YYYY-MM-DD（空=今日。今日以外は replay: 過去3カレンダー月以内のみ）。r2_fault_mode != off のときは空必須"
         required: false
         default: ""
       skip_publish:
-        description: "true のとき render / upload をスキップ（既定は公開する）"
+        description: "true のとき外部公開 step（Upload to all targets）のみスキップ。render_and_upload job は handoff 検証のため実行"
         type: boolean
         default: false
+      r2_fault_mode:
+        description: "Phase 2b fault injection（通常運用は off）。!= off のとき skip_publish=true かつ run_date 空が必須"
+        type: choice
+        options:
+          - "off"
+          - consumer_get_prefix_miss
+          - producer_put_invalid_cred
+        default: "off"
       force_index:
         description: "ensure_index_cache に --force（ベンチティッカー変更後のキャッシュ取り直し用）"
         type: boolean
@@ -36,8 +47,38 @@ jobs:
   preflight:
     uses: ./.github/workflows/reusable_quality_gate.yml
 
-  resolve_trading_day:
+  validate_fault_injection:
     needs: preflight
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate fault injection guard
+        run: |
+          set -euo pipefail
+          MODE="${{ github.event.inputs.r2_fault_mode || 'off' }}"
+          RUN_DATE_INPUT="${{ github.event.inputs.run_date || '' }}"
+          case "$MODE" in
+            off|consumer_get_prefix_miss|producer_put_invalid_cred) ;;
+            *)
+              echo "invalid r2_fault_mode: $MODE"
+              exit 1
+              ;;
+          esac
+          if [ "$MODE" = "off" ]; then exit 0; fi
+          if [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
+            echo "r2_fault_mode requires workflow_dispatch"
+            exit 1
+          fi
+          if [ "${{ github.event.inputs.skip_publish }}" != "true" ]; then
+            echo "r2_fault_mode requires skip_publish=true"
+            exit 1
+          fi
+          if [ -n "$RUN_DATE_INPUT" ]; then
+            echo "r2_fault_mode requires run_date empty (non-replay live gate)"
+            exit 1
+          fi
+
+  resolve_trading_day:
+    needs: [preflight, validate_fault_injection]
     runs-on: ubuntu-latest
     outputs:
       run_date: ${{ steps.resolve.outputs.run_date }}
@@ -181,8 +222,8 @@ jobs:
           PYTHONPATH: src:.
           RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
           GITHUB_RUN_ID: ${{ github.run_id }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCESS_KEY_ID: ${{ github.event.inputs.r2_fault_mode == 'producer_put_invalid_cred' && 'INVALID_FAULT_INJECTION' || secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ github.event.inputs.r2_fault_mode == 'producer_put_invalid_cred' && 'INVALID_FAULT_INJECTION' || secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
@@ -219,8 +260,8 @@ jobs:
           PYTHONPATH: src:.
           RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
           GITHUB_RUN_ID: ${{ github.run_id }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCESS_KEY_ID: ${{ github.event.inputs.r2_fault_mode == 'producer_put_invalid_cred' && 'INVALID_FAULT_INJECTION' || secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ github.event.inputs.r2_fault_mode == 'producer_put_invalid_cred' && 'INVALID_FAULT_INJECTION' || secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
@@ -370,8 +411,8 @@ jobs:
           PYTHONPATH: src:.
           RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
           GITHUB_RUN_ID: ${{ github.run_id }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCESS_KEY_ID: ${{ github.event.inputs.r2_fault_mode == 'producer_put_invalid_cred' && 'INVALID_FAULT_INJECTION' || secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ github.event.inputs.r2_fault_mode == 'producer_put_invalid_cred' && 'INVALID_FAULT_INJECTION' || secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
@@ -498,7 +539,7 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
+          R2_BASE_PREFIX: ${{ github.event.inputs.r2_fault_mode == 'consumer_get_prefix_miss' && format('fault-injection/{0}', github.run_id) || secrets.R2_BASE_PREFIX }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
           set -euo pipefail
@@ -545,7 +586,7 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
+          R2_BASE_PREFIX: ${{ github.event.inputs.r2_fault_mode == 'consumer_get_prefix_miss' && format('fault-injection/{0}', github.run_id) || secrets.R2_BASE_PREFIX }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
           set -euo pipefail
@@ -677,8 +718,8 @@ jobs:
           PYTHONPATH: src:.
           RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
           GITHUB_RUN_ID: ${{ github.run_id }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCESS_KEY_ID: ${{ github.event.inputs.r2_fault_mode == 'producer_put_invalid_cred' && 'INVALID_FAULT_INJECTION' || secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ github.event.inputs.r2_fault_mode == 'producer_put_invalid_cred' && 'INVALID_FAULT_INJECTION' || secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
@@ -715,8 +756,8 @@ jobs:
           PYTHONPATH: src:.
           RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
           GITHUB_RUN_ID: ${{ github.run_id }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCESS_KEY_ID: ${{ github.event.inputs.r2_fault_mode == 'producer_put_invalid_cred' && 'INVALID_FAULT_INJECTION' || secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ github.event.inputs.r2_fault_mode == 'producer_put_invalid_cred' && 'INVALID_FAULT_INJECTION' || secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
@@ -836,7 +877,7 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
+          R2_BASE_PREFIX: ${{ github.event.inputs.r2_fault_mode == 'consumer_get_prefix_miss' && format('fault-injection/{0}', github.run_id) || secrets.R2_BASE_PREFIX }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
           set -euo pipefail
@@ -883,7 +924,7 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
+          R2_BASE_PREFIX: ${{ github.event.inputs.r2_fault_mode == 'consumer_get_prefix_miss' && format('fault-injection/{0}', github.run_id) || secrets.R2_BASE_PREFIX }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
           set -euo pipefail
@@ -931,7 +972,7 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
+          R2_BASE_PREFIX: ${{ github.event.inputs.r2_fault_mode == 'consumer_get_prefix_miss' && format('fault-injection/{0}', github.run_id) || secrets.R2_BASE_PREFIX }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
           set -euo pipefail
@@ -978,7 +1019,7 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
+          R2_BASE_PREFIX: ${{ github.event.inputs.r2_fault_mode == 'consumer_get_prefix_miss' && format('fault-injection/{0}', github.run_id) || secrets.R2_BASE_PREFIX }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
           set -euo pipefail
@@ -1025,7 +1066,7 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
+          R2_BASE_PREFIX: ${{ github.event.inputs.r2_fault_mode == 'consumer_get_prefix_miss' && format('fault-injection/{0}', github.run_id) || secrets.R2_BASE_PREFIX }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
           set -euo pipefail
@@ -1157,8 +1198,8 @@ jobs:
           PYTHONPATH: src:.
           RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
           GITHUB_RUN_ID: ${{ github.run_id }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCESS_KEY_ID: ${{ github.event.inputs.r2_fault_mode == 'producer_put_invalid_cred' && 'INVALID_FAULT_INJECTION' || secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ github.event.inputs.r2_fault_mode == 'producer_put_invalid_cred' && 'INVALID_FAULT_INJECTION' || secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
@@ -1232,6 +1273,7 @@ jobs:
       needs.compute_indicators.result == 'success'
     with:
       run_date: ${{ needs.resolve_trading_day.outputs.run_date }}
+      r2_fault_mode: ${{ github.event.inputs.r2_fault_mode || 'off' }}
     secrets: inherit
 
   render_and_upload:
@@ -1239,8 +1281,7 @@ jobs:
     if: |
       always() &&
       needs.resolve_trading_day.outputs.is_open == 'True' &&
-      needs.compute_indicators.result == 'success' &&
-      (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_publish != 'true')
+      needs.compute_indicators.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -1267,7 +1308,7 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
+          R2_BASE_PREFIX: ${{ github.event.inputs.r2_fault_mode == 'consumer_get_prefix_miss' && format('fault-injection/{0}', github.run_id) || secrets.R2_BASE_PREFIX }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
           set -euo pipefail
@@ -1316,7 +1357,7 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
+          R2_BASE_PREFIX: ${{ github.event.inputs.r2_fault_mode == 'consumer_get_prefix_miss' && format('fault-injection/{0}', github.run_id) || secrets.R2_BASE_PREFIX }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
           set -euo pipefail
@@ -1410,6 +1451,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload to all targets (R2 / Dropbox / GitHub Release; Drive optional)
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.skip_publish != 'true'
         env:
           PYTHONPATH: .
           RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}

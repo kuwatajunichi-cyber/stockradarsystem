@@ -7,6 +7,11 @@ on:
         description: "対象日（YYYY-MM-DD）"
         required: true
         type: string
+      r2_fault_mode:
+        description: "Phase 2b fault injection mode from caller (off | consumer_get_prefix_miss | producer_put_invalid_cred)"
+        required: false
+        type: string
+        default: "off"
     outputs:
       enriched_csv_path:
         description: "ニュース列を付与したCSVのワークスペース相対パス"
@@ -51,7 +56,7 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
+          R2_BASE_PREFIX: ${{ inputs.r2_fault_mode == 'consumer_get_prefix_miss' && format('fault-injection/{0}', github.run_id) || secrets.R2_BASE_PREFIX }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
           set -euo pipefail
@@ -164,8 +169,8 @@ jobs:
           PYTHONPATH: src:.
           RUN_DATE: ${{ inputs.run_date }}
           GITHUB_RUN_ID: ${{ github.run_id }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCESS_KEY_ID: ${{ inputs.r2_fault_mode == 'producer_put_invalid_cred' && 'INVALID_FAULT_INJECTION' || secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ inputs.r2_fault_mode == 'producer_put_invalid_cred' && 'INVALID_FAULT_INJECTION' || secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
