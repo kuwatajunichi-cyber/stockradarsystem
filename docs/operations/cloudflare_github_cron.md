@@ -86,14 +86,17 @@ After Phase 2b merge, confirm on the next trading day live `daily.yml` run:
 
 Optional degraded paths (`stale-exclusions`, `enriched-csv`) must be visible in summary when applicable.
 
-### Phase 2b fault-injection check (once after merge)
+### Phase 2b fault-injection check (FI-1, once before Phase 2c)
 
-Run one controlled negative test without breaking production secrets:
+Controlled negative test via `workflow_dispatch` (no secret mutation). Full runbook: [phase2b_fault_injection.md](phase2b_fault_injection.md)
 
-1. Temporarily override R2 env in a manual `workflow_dispatch` (invalid `R2_ACCESS_KEY_ID` or empty `R2_BASE_PREFIX`) **or** use a dedicated test job/workflow that simulates R2 get failure
-2. Confirm required consumers fall back to GitHub artifact download
-3. Confirm `compute_indicators`, `enrich`, and `render_and_upload` complete with `handoff_source=github_fallback` in summary
-4. Restore normal R2 env before the next scheduled run
+Checklist:
+
+1. Inputs: `run_date` **empty**, `skip_publish=true`, `r2_fault_mode=consumer_get_prefix_miss`
+2. `validate_fault_injection` passes; `is_replay=false`
+3. Producer puts use prod prefix (`handoff_source=r2` on producer path); consumer gets use fault namespace → `handoff_source=github_fallback`
+4. `compute_indicators`, `event_cause_enrichment`, `render_and_upload` succeed; **Upload to all targets** step skipped
+5. Record Actions run URL for Phase 2c gate
 
 Rollback during Phase 2b: revert to Phase 2a (GitHub primary + R2 shadow) or prior commit; confirm next trading day live run before deleting rollback branch.
 
