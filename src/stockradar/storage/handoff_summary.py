@@ -1,4 +1,4 @@
-"""Aggregate Phase 2b artifact handoff JSON files and enforce gates."""
+"""Aggregate Phase 2 artifact handoff JSON files and enforce gates."""
 from __future__ import annotations
 
 import argparse
@@ -18,21 +18,26 @@ def _load_payloads(handoff_dir: Path) -> dict[str, dict[str, object]]:
 def _handoff_ok(payload: dict[str, object], *, optional: bool) -> bool:
     status = payload.get("status")
     if status == "ok":
-        return payload.get("handoff_source") in {"r2", "github_fallback"}
+        return payload.get("handoff_source") == "r2"
     return optional and status == "skipped_optional_missing"
 
 
-def _producer_status(payload: dict[str, object] | None, *, optional: bool) -> str:
+def _producer_status(
+    payload: dict[str, object] | None,
+    *,
+    optional: bool,
+    phase2b_compat: bool = False,
+) -> str:
     if payload is None:
         return "optional_skipped" if optional else "failed"
     status = payload.get("status")
-    if status == "skipped_optional_missing":
+    if status == "skipped_optional_missing" and optional:
         return "optional_skipped"
     if payload.get("r2_put_ok") is True:
         return "ok"
-    if payload.get("github_upload_ok") is True:
+    if phase2b_compat and payload.get("github_upload_ok") is True:
         return "degraded"
-    return "optional_skipped" if optional else "failed"
+    return "failed"
 
 
 def _apply_github_upload_ok(
@@ -44,8 +49,10 @@ def _apply_github_upload_ok(
         payload["github_upload_ok"] = entry_id in github_upload_ok
 
 
-def _producer_handoff_ok(status: str) -> bool:
-    return status in {"ok", "degraded", "optional_skipped"}
+def _producer_handoff_ok(status: str, *, phase2b_compat: bool) -> bool:
+    if phase2b_compat:
+        return status in {"ok", "degraded", "optional_skipped"}
+    return status in {"ok", "optional_skipped"}
 
 
 def write_producer_summary(
@@ -57,33 +64,35 @@ def write_producer_summary(
     github_upload_ok: frozenset[str] | None = None,
 ) -> tuple[list[str], int]:
     by_entry = _load_payloads(handoff_dir)
-    upload_ok = github_upload_ok if github_upload_ok is not None else frozenset(required)
-    _apply_github_upload_ok(by_entry, github_upload_ok=upload_ok)
+    phase2b_compat = github_upload_ok is not None
+    if phase2b_compat:
+        _apply_github_upload_ok(by_entry, github_upload_ok=github_upload_ok)
 
     lines = [f"## {title}"]
     degraded: list[str] = []
     skipped_optional: list[str] = []
-    failed_required: list[str] = []
+    failed_entries: list[str] = []
 
     for entry_id in required + optional:
         is_optional = entry_id in optional
         payload = by_entry.get(entry_id)
-        handoff_status = _producer_status(payload, optional=is_optional)
+        handoff_status = _producer_status(
+            payload, optional=is_optional, phase2b_compat=phase2b_compat
+        )
         payload = payload or {}
 
         r2_put_ok = payload.get("r2_put_ok")
-        gh_ok = payload.get("github_upload_ok")
         degraded_reason = payload.get("degraded_reason") or payload.get("reason") or ""
         manifest_key = payload.get("manifest_logical_key", "")
 
         if handoff_status == "ok":
             mk_part = f" manifest_key=`{manifest_key}`" if manifest_key else ""
             lines.append(
-                f"- {entry_id}: producer_handoff_status=`ok` r2_put_ok=`true` "
-                f"github_upload_ok=`{gh_ok}`{mk_part}"
+                f"- {entry_id}: producer_handoff_status=`ok` r2_put_ok=`true`{mk_part}"
             )
         elif handoff_status == "degraded":
             degraded.append(entry_id)
+            gh_ok = payload.get("github_upload_ok")
             lines.append(
                 f"- {entry_id}: producer_handoff_status=`degraded` r2_put_ok=`false` "
                 f"github_upload_ok=`{gh_ok}` degraded_reason=`{degraded_reason}`"
@@ -94,25 +103,30 @@ def write_producer_summary(
                 f"- {entry_id}: producer_handoff_status=`optional_skipped` ({degraded_reason})"
             )
         else:
-            failed_required.append(entry_id)
+            failed_entries.append(entry_id)
             lines.append(
                 f"- {entry_id}: producer_handoff_status=`failed` r2_put_ok=`{r2_put_ok}` "
-                f"github_upload_ok=`{gh_ok}` ({degraded_reason})"
+                f"({degraded_reason})"
             )
 
     ok_count = sum(
         1
         for entry_id in required
-        if _producer_handoff_ok(_producer_status(by_entry.get(entry_id), optional=False))
+        if _producer_handoff_ok(
+            _producer_status(
+                by_entry.get(entry_id), optional=False, phase2b_compat=phase2b_compat
+            ),
+            phase2b_compat=phase2b_compat,
+        )
     )
     lines.append(f"- required_producer_handoff_ok_count: `{ok_count}`")
     if degraded:
         lines.append("- producer_degraded: `" + ", ".join(degraded) + "`")
     if skipped_optional:
         lines.append("- optional_skipped: `" + ", ".join(skipped_optional) + "`")
-    if failed_required:
-        lines.append("- producer_handoff_failed_required: `" + ", ".join(failed_required) + "`")
-    return lines, 1 if failed_required else 0
+    if failed_entries:
+        lines.append("- producer_handoff_failed: `" + ", ".join(failed_entries) + "`")
+    return lines, 1 if failed_entries else 0
 
 
 def write_summary(
@@ -124,15 +138,14 @@ def write_summary(
 ) -> tuple[list[str], int]:
     by_entry = _load_payloads(handoff_dir)
     lines = [f"## {title}"]
-    fallback_used: list[str] = []
     skipped_optional: list[str] = []
-    failed_required: list[str] = []
+    failed_entries: list[str] = []
 
     for entry_id in required + optional:
         payload = by_entry.get(entry_id)
         if payload is None:
             if entry_id in required:
-                failed_required.append(entry_id)
+                failed_entries.append(entry_id)
                 lines.append(f"- {entry_id}: `missing_handoff_record`")
             else:
                 skipped_optional.append(entry_id)
@@ -148,15 +161,15 @@ def write_summary(
         elif _handoff_ok(payload, optional=entry_id in optional):
             sha = payload.get("sha256", "")
             lines.append(f"- {entry_id}: ok handoff_source=`{source}` sha256=`{sha}`")
-            if payload.get("fallback_used"):
-                fallback_used.append(entry_id)
-        elif entry_id in required:
-            failed_required.append(entry_id)
-            reason = payload.get("degraded_reason") or payload.get("reason") or ""
-            lines.append(f"- {entry_id}: `{status}` ({reason})")
         else:
-            skipped_optional.append(entry_id)
-            lines.append(f"- {entry_id}: optional `{status}`")
+            failed_entries.append(entry_id)
+            reason = (
+                payload.get("degraded_reason")
+                or payload.get("reason")
+                or payload.get("message")
+                or ""
+            )
+            lines.append(f"- {entry_id}: `{status}` ({reason})")
 
     ok_count = sum(
         1
@@ -164,17 +177,15 @@ def write_summary(
         if entry_id in by_entry and _handoff_ok(by_entry[entry_id], optional=False)
     )
     lines.append(f"- required_handoff_ok_count: `{ok_count}`")
-    if fallback_used:
-        lines.append("- fallback_used: `" + ", ".join(fallback_used) + "`")
     if skipped_optional:
         lines.append("- optional_skipped: `" + ", ".join(skipped_optional) + "`")
-    if failed_required:
-        lines.append("- handoff_failed_required: `" + ", ".join(failed_required) + "`")
-    return lines, 1 if failed_required else 0
+    if failed_entries:
+        lines.append("- handoff_failed: `" + ", ".join(failed_entries) + "`")
+    return lines, 1 if failed_entries else 0
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Write Phase 2b handoff summary")
+    parser = argparse.ArgumentParser(description="Write Phase 2 artifact handoff summary")
     parser.add_argument("--handoff-dir", required=True)
     parser.add_argument("--title", required=True)
     parser.add_argument("--required", nargs="*", default=[])
@@ -183,25 +194,30 @@ def main(argv: list[str] | None = None) -> int:
         "--mode",
         choices=("consumer", "producer"),
         default="consumer",
-        help="consumer=get/fallback gate; producer=R2 put + GitHub upload gate",
+        help="consumer=R2 get gate (default); producer=R2 put gate",
     )
     parser.add_argument(
         "--github-upload-ok",
         nargs="*",
-        default=[],
-        help="entry IDs with successful GitHub artifact upload (producer mode)",
+        default=None,
+        help="Phase 2b rollback only: entry IDs with successful GitHub artifact upload",
     )
     args = parser.parse_args(argv)
     handoff_dir = Path(args.handoff_dir)
     required = list(args.required)
     optional = list(args.optional)
     if args.mode == "producer":
+        gh_ok = (
+            frozenset(args.github_upload_ok)
+            if args.github_upload_ok is not None
+            else None
+        )
         lines, exit_code = write_producer_summary(
             handoff_dir=handoff_dir,
             title=args.title,
             required=required,
             optional=optional,
-            github_upload_ok=frozenset(args.github_upload_ok) if args.github_upload_ok else None,
+            github_upload_ok=gh_ok,
         )
     else:
         lines, exit_code = write_summary(

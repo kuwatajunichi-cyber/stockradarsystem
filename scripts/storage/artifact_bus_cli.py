@@ -77,7 +77,24 @@ def _emit_result(payload: dict[str, object], *, json_output: str | None) -> None
         out_path.write_text(text + "\n", encoding="utf-8")
 
 
-def _r2_failure_status(reason: str) -> str:
+def _is_r2_missing_exception(exc: BaseException | None) -> bool:
+    if isinstance(exc, FileNotFoundError):
+        return True
+    response = getattr(exc, "response", None)
+    if isinstance(response, dict):
+        error = response.get("Error")
+        code = ""
+        if isinstance(error, dict):
+            code = str(error.get("Code") or "")
+        status = response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+        if code.lower() in {"nosuchkey", "notfound", "404"} or status == 404:
+            return True
+    return False
+
+
+def _r2_failure_status(reason: str, exc: BaseException | None = None) -> str:
+    if _is_r2_missing_exception(exc):
+        return "r2_missing"
     lowered = reason.lower()
     if "nosuchkey" in lowered or "not found" in lowered or "404" in lowered:
         return "r2_missing"
@@ -89,9 +106,10 @@ def _r2_get_failure_payload(
     entry_id: str,
     reason: str,
     phase: str,
+    exc: BaseException | None = None,
 ) -> dict[str, object]:
     return {
-        "status": _r2_failure_status(reason),
+        "status": _r2_failure_status(reason, exc),
         "entry_id": entry_id,
         "reason": reason,
         "handoff_source": None,
@@ -102,9 +120,11 @@ def _r2_get_failure_payload(
     }
 
 
-def _r2_put_failure_payload(*, entry_id: str, reason: str) -> dict[str, object]:
+def _r2_put_failure_payload(
+    *, entry_id: str, reason: str, exc: BaseException | None = None
+) -> dict[str, object]:
     return {
-        "status": _r2_failure_status(reason),
+        "status": _r2_failure_status(reason, exc),
         "entry_id": entry_id,
         "reason": reason,
         "r2_put_ok": False,
@@ -162,7 +182,9 @@ def cmd_put(args: argparse.Namespace) -> int:
         adapter.put_object(blob_key, content, content_type=content_type)
         put_json(adapter, manifest_key, manifest)
     except Exception as exc:
-        payload = _r2_put_failure_payload(entry_id=args.entry_id, reason=str(exc))
+        payload = _r2_put_failure_payload(
+            entry_id=args.entry_id, reason=str(exc), exc=exc
+        )
         _emit_result(payload, json_output=args.json_output)
         print(f"error: R2 put failed: {exc}", file=sys.stderr)
         return 1
@@ -183,6 +205,19 @@ def cmd_put(args: argparse.Namespace) -> int:
     return 0
 
 
+def _optional_get_missing_payload(*, entry_id: str, reason: str, phase: str) -> dict[str, object]:
+    return {
+        "status": "skipped_optional_missing",
+        "entry_id": entry_id,
+        "reason": reason,
+        "handoff_source": None,
+        "fallback_required": False,
+        "fallback_used": False,
+        "validated_count": 0,
+        "degraded_reason": f"optional_r2_{phase}_missing",
+    }
+
+
 def cmd_get(args: argparse.Namespace) -> int:
     local_path = Path(args.local_path)
     optional = args.optional if args.optional is not None else entry_is_optional(args.entry_id)
@@ -195,8 +230,14 @@ def cmd_get(args: argparse.Namespace) -> int:
     try:
         manifest = get_json(adapter, manifest_key)
     except Exception as exc:
+        if optional and _r2_failure_status(str(exc), exc) == "r2_missing":
+            payload = _optional_get_missing_payload(
+                entry_id=args.entry_id, reason=str(exc), phase="manifest"
+            )
+            _emit_result(payload, json_output=args.json_output)
+            return 0
         payload = _r2_get_failure_payload(
-            entry_id=args.entry_id, reason=str(exc), phase="manifest"
+            entry_id=args.entry_id, reason=str(exc), phase="manifest", exc=exc
         )
         _emit_result(payload, json_output=args.json_output)
         print(f"error: manifest get failed: {exc}", file=sys.stderr)
@@ -205,8 +246,14 @@ def cmd_get(args: argparse.Namespace) -> int:
     try:
         content = adapter.get_object(blob_key)
     except Exception as exc:
+        if optional and _r2_failure_status(str(exc), exc) == "r2_missing":
+            payload = _optional_get_missing_payload(
+                entry_id=args.entry_id, reason=str(exc), phase="blob"
+            )
+            _emit_result(payload, json_output=args.json_output)
+            return 0
         payload = _r2_get_failure_payload(
-            entry_id=args.entry_id, reason=str(exc), phase="blob"
+            entry_id=args.entry_id, reason=str(exc), phase="blob", exc=exc
         )
         _emit_result(payload, json_output=args.json_output)
         print(f"error: blob get failed: {exc}", file=sys.stderr)

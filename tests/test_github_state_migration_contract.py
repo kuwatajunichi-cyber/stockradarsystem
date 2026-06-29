@@ -137,7 +137,6 @@ def _entry_referenced_in_workflows(entry: dict[str, Any]) -> bool:
 
 def _matches_any_pattern(value: str, patterns: list[str]) -> bool:
     return any(fnmatch.fnmatch(value, _mapping_glob(pattern)) for pattern in patterns)
-    return any(fnmatch.fnmatch(value, _mapping_glob(pattern)) for pattern in patterns)
 
 
 def _collect_workflow_state() -> dict[str, dict[str, set[str]]]:

@@ -99,11 +99,12 @@ def test_daily_event_cause_enrichment_indicators_r2_contract() -> None:
     text = (_repo_root() / ".github/workflows/daily_event_cause_enrichment.yml").read_text(
         encoding="utf-8"
     )
-    assert "actions/download-artifact@v4" in text
-    assert "actions/upload-artifact@v4" in text
+    assert "actions/download-artifact@v4" not in text
+    assert "actions/upload-artifact@v4" not in text
     assert "artifact_bus_cli.py get" in text
-    assert "record-fallback" in text
+    assert "record-fallback" not in text
     assert "shadow-validate" not in text
+    assert "r2_fault_mode" not in text
     assert "--entry-id artifact-daily-indicators" in text
     assert "--entry-id artifact-enriched-csv" in text
     assert "github.run_id" in text
@@ -127,38 +128,40 @@ def test_daily_yml_r2_bus_contract_by_job() -> None:
     assert "artifact-enriched-csv" in render
 
 
-def test_daily_yml_phase2b_r2_get_primary_with_github_fallback() -> None:
+def test_daily_yml_phase2c_r2_only_handoff() -> None:
     wf = yaml.safe_load((_repo_root() / ".github/workflows/daily.yml").read_text(encoding="utf-8"))
     jobs = wf["jobs"]
     daily_text = (_repo_root() / ".github/workflows/daily.yml").read_text(encoding="utf-8")
 
+    assert "actions/upload-artifact@v4" not in daily_text
+    assert "actions/download-artifact@v4" not in daily_text
+    assert "record-fallback" not in daily_text
+    assert "r2_fault_mode" not in daily_text
+    assert "fallback_required" not in daily_text
+    assert "validate_fault_injection" not in jobs
+
     resolve = jobs["resolve_core_csv"]
-    assert _job_has_upload_artifact(resolve, "daily-core-csv")
-    assert _job_has_upload_artifact(resolve, "daily-core-quality")
+    assert not _job_has_upload_artifact(resolve, "daily-core-csv")
     assert "artifact_bus_cli.py put" in _job_steps_text(resolve)
 
     ensure_index = jobs["ensure_index_cache"]
-    assert _job_has_upload_artifact(ensure_index, "daily-index-store")
+    assert not _job_has_upload_artifact(ensure_index, "daily-index-store")
     assert "artifact_bus_cli.py put" in _job_steps_text(ensure_index)
 
     ensure_core = jobs["ensure_core_cache"]
-    assert _job_has_download_artifact(ensure_core, "daily-core-csv")
-    assert _job_has_upload_artifact(ensure_core, "daily-ohlc-store")
+    assert not _job_has_download_artifact(ensure_core, "daily-core-csv")
+    assert not _job_has_upload_artifact(ensure_core, "daily-ohlc-store")
     assert "artifact_bus_cli.py get" in _job_steps_text(ensure_core)
-    assert "record-fallback" in _job_steps_text(ensure_core)
-    assert "shadow-validate" not in _job_steps_text(ensure_core)
+    assert "record-fallback" not in _job_steps_text(ensure_core)
 
     compute = jobs["compute_indicators"]
-    assert _job_has_download_artifact(compute, "daily-ohlc-store")
-    assert _job_has_upload_artifact(compute, "daily-indicators")
+    assert not _job_has_download_artifact(compute, "daily-ohlc-store")
+    assert not _job_has_upload_artifact(compute, "daily-indicators")
     assert "artifact_bus_cli.py get" in _job_steps_text(compute)
-    assert "shadow-validate" not in _job_steps_text(compute)
 
     render = jobs["render_and_upload"]
-    assert _job_has_download_artifact(render, "daily-indicators")
-    assert _job_has_download_artifact(render, "enriched-csv")
+    assert not _job_has_download_artifact(render, "daily-indicators")
     assert "artifact_bus_cli.py get" in _job_steps_text(render)
-    assert "shadow-validate" not in _job_steps_text(render)
 
     assert "validated == 0" not in daily_text
     assert "stockradar.storage.handoff_summary" in daily_text
@@ -185,7 +188,7 @@ def _job_has_producer_handoff_summary(job: dict) -> bool:
     return False
 
 
-def test_daily_yml_producer_puts_emit_json_and_continue_on_error() -> None:
+def test_daily_yml_producer_puts_emit_json_fail_fast() -> None:
     wf = yaml.safe_load((_repo_root() / ".github/workflows/daily.yml").read_text(encoding="utf-8"))
     producer_jobs = [
         "resolve_core_csv",
@@ -200,27 +203,30 @@ def test_daily_yml_producer_puts_emit_json_and_continue_on_error() -> None:
             run = step.get("run", "")
             assert "/tmp/r2_producer/" in run, job_id
             assert "--json-output" in run, job_id
-            assert step.get("continue-on-error") is True, job_id
+            assert step.get("continue-on-error") is not True, job_id
+            assert "set +e" not in run, job_id
         assert _job_has_producer_handoff_summary(wf["jobs"][job_id]), job_id
 
 
-def test_daily_yml_producer_put_manifest_key_only_on_ok() -> None:
+def test_daily_yml_producer_put_emits_manifest_key_on_success() -> None:
     wf = yaml.safe_load((_repo_root() / ".github/workflows/daily.yml").read_text(encoding="utf-8"))
     for job_id in ("resolve_core_csv", "ensure_index_cache", "compute_indicators"):
         for step in _producer_put_steps(wf["jobs"][job_id]):
             run = step.get("run", "")
-            assert 'if [ "$STATUS" = "ok" ]' in run, job_id
+            assert 'if [ "$STATUS" = "ok" ]' not in run, job_id
             assert "manifest_logical_key" in run, job_id
+            assert "GITHUB_OUTPUT" in run, job_id
 
 
-def test_daily_yml_no_r2_blocking_shadow_gate() -> None:
+def test_daily_yml_no_github_artifact_fallback_or_continue_on_error() -> None:
     text = (_repo_root() / ".github/workflows/daily.yml").read_text(encoding="utf-8")
     enrichment = (
         _repo_root() / ".github/workflows/daily_event_cause_enrichment.yml"
     ).read_text(encoding="utf-8")
     assert "shadow validation count is 0" not in text
     assert "shadow validation count is 0" not in enrichment
-    assert "continue-on-error: true" in text
+    assert "continue-on-error: true" not in text
+    assert "continue-on-error: true" not in enrichment
 
 
 def test_daily_yml_producer_manifest_outputs() -> None:
@@ -246,7 +252,7 @@ def test_daily_yml_render_and_upload_gets_indicators_and_enriched() -> None:
     assert "artifact_bus_cli.py get" in text
     assert "--entry-id artifact-daily-indicators" in text
     assert "--entry-id artifact-enriched-csv" in text
-    assert "GitHub fallback indicators artifact" in step_names
+    assert "GitHub fallback indicators artifact" not in step_names
 
 
 def test_no_tracked_files_under_data_indicators() -> None:
@@ -259,7 +265,7 @@ def test_no_tracked_files_under_data_indicators() -> None:
     assert tracked == "", f"data/indicators/ must not be tracked: {tracked!r}"
 
 
-def test_daily_yml_indicators_upload_uses_run_date_csv_not_glob() -> None:
+def test_daily_yml_indicators_r2_put_uses_resolved_path_not_glob() -> None:
     wf = yaml.safe_load((_repo_root() / ".github/workflows/daily.yml").read_text(encoding="utf-8"))
     compute = wf["jobs"]["compute_indicators"]
     step_names = [
@@ -268,20 +274,15 @@ def test_daily_yml_indicators_upload_uses_run_date_csv_not_glob() -> None:
         if isinstance(s, dict) and s.get("name")
     ]
     assert "Resolve indicators csv path" in step_names
-    upload = next(
-        s
-        for s in compute.get("steps", [])
-        if isinstance(s, dict) and s.get("name") == "Upload indicators artifact"
-    )
-    assert upload["with"]["path"] == "${{ steps.indicators_csv.outputs.path }}"
-    assert "indicators_*.csv" not in str(upload["with"]["path"])
+    assert "Upload indicators artifact" not in step_names
     r2_put = next(
         s
         for s in compute.get("steps", [])
         if isinstance(s, dict) and s.get("name") == "R2 put indicators staging"
     )
     assert "find data/indicators/daily" not in r2_put.get("run", "")
-    assert "indicators_csv.outputs.path" in r2_put.get("run", "")
+    put_env = r2_put.get("env") or {}
+    assert put_env.get("INDICATORS_PATH") == "${{ steps.indicators_csv.outputs.path }}"
 
 
 def test_daily_yml_no_github_schedule_after_cloudflare_cutover() -> None:
@@ -324,67 +325,33 @@ def _steps_with_cli_command(job: dict, command: str) -> list[dict]:
     return steps
 
 
-def test_daily_yml_r2_fault_mode_dispatch_input() -> None:
+def test_daily_yml_no_r2_fault_mode_dispatch_input() -> None:
     wf = _daily_yml()
     on_block = wf.get("on") or wf.get(True) or {}
     inputs = on_block["workflow_dispatch"]["inputs"]
-    fault = inputs["r2_fault_mode"]
-    assert fault["type"] == "choice"
-    assert fault["default"] == "off"
-    assert fault["options"] == [
-        "off",
-        "consumer_get_prefix_miss",
-        "producer_put_invalid_cred",
-    ]
+    assert "r2_fault_mode" not in inputs
     assert "Upload to all targets" in inputs["skip_publish"]["description"]
-    assert "r2_fault_mode != off" in inputs["run_date"]["description"]
+    assert "r2_fault_mode" not in inputs["run_date"]["description"]
 
 
-def test_daily_yml_validate_fault_injection_job() -> None:
+def test_daily_yml_resolve_trading_day_needs_preflight_only() -> None:
     wf = _daily_yml()
-    guard = wf["jobs"]["validate_fault_injection"]
-    assert guard["needs"] == "preflight"
-    assert wf["jobs"]["resolve_trading_day"]["needs"] == ["preflight", "validate_fault_injection"]
-    run = _job_steps_text(guard)
-    assert "invalid r2_fault_mode" in run
-    assert "run_date empty (non-replay live gate)" in run
-    assert "skip_publish=true" in run
+    assert wf["jobs"]["resolve_trading_day"]["needs"] == "preflight"
+    assert "validate_fault_injection" not in wf["jobs"]
 
 
-def test_daily_yml_fault_prefix_get_only_not_on_put() -> None:
+def test_daily_yml_consumer_get_fail_fast() -> None:
     wf = _daily_yml()
-    for job_id in (
-        "ensure_core_cache",
-        "compute_indicators",
-        "render_and_upload",
-    ):
+    for job_id in ("ensure_core_cache", "compute_indicators", "render_and_upload"):
         job = wf["jobs"][job_id]
-        for step in _steps_with_cli_command(job, "artifact_bus_cli.py put"):
+        for step in _steps_with_cli_command(job, "artifact_bus_cli.py get"):
+            run = step.get("run", "")
+            assert "set +e" not in run, job_id
+            assert "fallback_required" not in run, job_id
+            assert step.get("continue-on-error") is not True, job_id
             blob = _step_blob(step)
+            assert "secrets.R2_BASE_PREFIX" in blob, job_id
             assert "fault-injection" not in blob, job_id
-        get_steps = _steps_with_cli_command(job, "artifact_bus_cli.py get")
-        assert get_steps, job_id
-        for step in get_steps:
-            blob = _step_blob(step)
-            assert "consumer_get_prefix_miss" in blob, job_id
-            assert "fault-injection/{0}" in blob, job_id
-
-
-def test_daily_yml_producer_put_invalid_cred_on_put_steps_only() -> None:
-    wf = _daily_yml()
-    for job_id in (
-        "resolve_core_csv",
-        "ensure_index_cache",
-        "ensure_core_cache",
-        "compute_indicators",
-    ):
-        job = wf["jobs"][job_id]
-        puts = _steps_with_cli_command(job, "artifact_bus_cli.py put")
-        assert puts, job_id
-        for step in puts:
-            blob = _step_blob(step)
-            assert "producer_put_invalid_cred" in blob, job_id
-            assert "INVALID_FAULT_INJECTION" in blob, job_id
 
 
 def test_daily_yml_render_and_upload_skip_publish_on_publish_step_only() -> None:
@@ -400,12 +367,12 @@ def test_daily_yml_render_and_upload_skip_publish_on_publish_step_only() -> None
     assert "INVALID_FAULT_INJECTION" not in publish_chunk
 
 
-def test_daily_yml_event_cause_enrichment_propagates_r2_fault_mode() -> None:
+def test_daily_yml_event_cause_enrichment_call_has_no_r2_fault_mode() -> None:
     text = _daily_yml_text()
-    assert "r2_fault_mode: ${{ github.event.inputs.r2_fault_mode || 'off' }}" in text
+    assert "r2_fault_mode" not in text
 
 
-def test_daily_event_cause_enrichment_fault_injection_contract() -> None:
+def test_daily_event_cause_enrichment_phase2c_r2_only() -> None:
     wf = yaml.safe_load(
         (_repo_root() / ".github/workflows/daily_event_cause_enrichment.yml").read_text(
             encoding="utf-8"
@@ -413,7 +380,7 @@ def test_daily_event_cause_enrichment_fault_injection_contract() -> None:
     )
     on_block = wf.get("on") or wf.get(True) or {}
     inputs = on_block["workflow_call"]["inputs"]
-    assert inputs["r2_fault_mode"]["default"] == "off"
+    assert "r2_fault_mode" not in inputs
     enrich = wf["jobs"]["enrich"]
     get_step = next(
         s
@@ -427,8 +394,107 @@ def test_daily_event_cause_enrichment_fault_injection_contract() -> None:
     )
     get_env = yaml.dump(get_step.get("env") or {})
     put_env = yaml.dump(put_step.get("env") or {})
-    assert "inputs.r2_fault_mode" in get_env
-    assert "fault-injection/{0}" in get_env
+    assert "fault-injection" not in get_env
     assert "fault-injection" not in put_env
-    assert "producer_put_invalid_cred" in put_env
+    assert "secrets.R2_BASE_PREFIX" in get_env
     assert "secrets.R2_BASE_PREFIX" in put_env
+    assert get_step.get("continue-on-error") is not True
+    assert put_step.get("continue-on-error") is not True
+
+
+def _step_by_name(job: dict, name: str) -> dict:
+    for step in job.get("steps", []) or []:
+        if isinstance(step, dict) and step.get("name") == name:
+            return step
+    raise AssertionError(f"step not found: {name!r}")
+
+
+def test_daily_yml_render_and_upload_r2_get_steps_define_run_date_compact() -> None:
+    wf = _daily_yml()
+    render = wf["jobs"]["render_and_upload"]
+    get_steps = _steps_with_cli_command(render, "artifact_bus_cli.py get")
+    assert len(get_steps) >= 2
+    for step in get_steps:
+        run = step.get("run", "")
+        assert "RUN_DATE_COMPACT=" in run, step.get("name")
+        compact_idx = run.index("RUN_DATE_COMPACT=")
+        local_path_idx = run.index("${RUN_DATE_COMPACT}")
+        assert compact_idx < local_path_idx, step.get("name")
+
+
+def test_daily_yml_artifact_handoff_summary_steps_preserve_exit_code() -> None:
+    wf = _daily_yml()
+    for job_id, step_name in (
+        ("compute_indicators", "Write compute_indicators artifact handoff summary"),
+        ("render_and_upload", "Write render_and_upload artifact handoff summary"),
+    ):
+        step = _step_by_name(wf["jobs"][job_id], step_name)
+        run = step.get("run", "")
+        assert "RC=$?" in run, job_id
+        assert 'exit "$RC"' in run, job_id
+        assert "set +e" in run, job_id
+
+
+def test_daily_yml_producer_summary_has_no_github_upload_ok_flag() -> None:
+    text = _daily_yml_text()
+    for step in re.findall(
+        r"- name: Write .+ producer handoff summary\n(?:.*\n)*?        run: \|(?:.*\n)*?(?=\n      - name:|\n  [a-z_]+:)",
+        text,
+    ):
+        assert "--github-upload-ok" not in step
+
+
+def _handoff_summary_blocks(workflow_text: str) -> list[str]:
+    return re.findall(
+        r"python -m stockradar\.storage\.handoff_summary \\.*?(?=\n      - name:|\n  [a-z_]+:|\Z)",
+        workflow_text,
+        re.DOTALL,
+    )
+
+
+def _parse_handoff_summary_lists(block: str) -> tuple[list[str], list[str]]:
+    required: list[str] = []
+    optional: list[str] = []
+    for line in block.splitlines():
+        stripped = line.strip().rstrip("\\").strip()
+        if stripped.startswith("--required "):
+            required.extend(stripped.removeprefix("--required ").split())
+        elif stripped.startswith("--optional "):
+            optional.extend(stripped.removeprefix("--optional ").split())
+    return required, optional
+
+
+def test_daily_workflows_handoff_summary_optional_matches_catalog() -> None:
+    from stockradar.storage.mapping_catalog import get_entry, phase2_daily_artifact_entry_ids
+
+    for workflow_name in ("daily.yml", "daily_event_cause_enrichment.yml"):
+        text = (_repo_root() / ".github/workflows" / workflow_name).read_text(encoding="utf-8")
+        for block in _handoff_summary_blocks(text):
+            required, optional = _parse_handoff_summary_lists(block)
+            for entry_id in required + optional:
+                if entry_id not in phase2_daily_artifact_entry_ids():
+                    continue
+                catalog_optional = bool(get_entry(entry_id).get("optional", False))
+                if catalog_optional:
+                    assert entry_id in optional, (workflow_name, entry_id, block)
+                    assert entry_id not in required, (workflow_name, entry_id, block)
+                else:
+                    assert entry_id in required, (workflow_name, entry_id, block)
+                    assert entry_id not in optional, (workflow_name, entry_id, block)
+
+
+ENCODING_CONTRACT_FILES = (
+    ".github/workflows/daily.yml",
+    ".github/workflows/daily_event_cause_enrichment.yml",
+    "docs/contracts/github_state_to_r2_supabase_mapping.md",
+    "docs/contracts/run_artifact_manifest_schema.md",
+    "docs/operations/cloudflare_github_cron.md",
+)
+
+
+@pytest.mark.parametrize("relative_path", ENCODING_CONTRACT_FILES)
+def test_contract_files_are_utf8_without_bom(relative_path: str) -> None:
+    raw = (_repo_root() / relative_path).read_bytes()
+    assert raw.count(b"\x00") == 0, relative_path
+    assert not raw.startswith(b"\xef\xbb\xbf"), relative_path
+    raw.decode("utf-8")

@@ -1,4 +1,4 @@
-﻿# Cloudflare Cron -> GitHub workflow_dispatch operations
+# Cloudflare Cron -> GitHub workflow_dispatch operations
 
 Issue #93 Phase 1: daily.yml scheduled launch via Cloudflare Worker workflow_dispatch.
 
@@ -74,9 +74,9 @@ Confirmed on live run before Phase 2b promotion:
 2. Consumer shadow validation summary showed `validated_count > 0` for required artifacts
 3. `render_and_upload` published successfully
 
-### Phase 2b (current)
+### Phase 2b (completed)
 
-After Phase 2b merge, confirm on the next trading day live `daily.yml` run:
+Confirmed on live runs before Phase 2c promotion:
 
 1. Required consumer handoff summary shows `handoff_source=r2` for primary path (normal case)
 2. Producer R2 puts succeeded or degraded with GitHub upload fallback copy present
@@ -86,7 +86,7 @@ After Phase 2b merge, confirm on the next trading day live `daily.yml` run:
 
 Optional degraded paths (`stale-exclusions`, `enriched-csv`) must be visible in summary when applicable.
 
-### Phase 2b fault-injection check (FI-1, once before Phase 2c)
+### Phase 2b fault-injection check (FI-1, completed)
 
 Controlled negative test via `workflow_dispatch` (no secret mutation). Full runbook: [phase2b_fault_injection.md](phase2b_fault_injection.md)
 
@@ -99,6 +99,20 @@ Checklist:
 5. Record Actions run URL for Phase 2c gate
 
 Rollback during Phase 2b: revert to Phase 2a (GitHub primary + R2 shadow) or prior commit; confirm next trading day live run before deleting rollback branch.
+
+### Phase 2c (current)
+
+After Phase 2c merge, confirm on the first trading day live `daily.yml` run:
+
+1. All required producer handoffs show `r2_put_ok=true` (no `producer_degraded`)
+2. All required consumer handoffs show `handoff_source=r2` (no `github_fallback`, no `fallback_used`)
+3. `render_and_upload` publish completed (`Upload to all targets` success)
+4. Manifest keys appear in job outputs / summary
+5. No artifact with `handoff_failed` in summary
+
+Full checklist: [phase2c_r2_only_cutover.md](phase2c_r2_only_cutover.md)
+
+Rollback during Phase 2c: revert to Phase 2b commit (GitHub artifact fallback restored); confirm next trading day live run before deleting rollback branch.
 
 ## CI required
 
