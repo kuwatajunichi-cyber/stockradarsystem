@@ -2,6 +2,8 @@
 # Human-readable notes: docs/contracts/github_state_to_r2_supabase_mapping.md
 #
 # Phase 2: artifact bus entries include structured optional; workflows use R2 runs/ staging.
+# Phase 2c: source_kind=artifact and source_name_pattern are legacy logical tokens only
+# (historical GitHub artifact names). Phase 2 daily bus handoff is R2-only; no GH upload/download.
 schema_version: 2
 
 scan_workflows:

@@ -496,7 +496,7 @@ GitHub Actions `workflow_dispatch` で `.github/workflows/daily.yml` を起動�
 
 - 定時起動: Cloudflare Cron（毎日 JST 15:45）→ Worker → `daily.yml` workflow_dispatch
 - concurrency: 同一workflowの多重起動禁止（`daily-indicators`, cancel-in-progress: false）
-- 主なジョブ: resolve_trading_day（営業日判定）→ **resolve_core_csv**（月次タグ解決・patched cache 選定・`daily-core-csv-*` / `daily-core-quality-*` artifact）と **ensure_index_cache** を並列 → **ensure_core_cache**（上記 core artifact を `--input`、OHLC を `daily-ohlc-store-*` artifact と固定キー `ohlc-store-zip-v2` に反映）→ **compute_indicators**（同一 run の **OHLC・index・core** をいずれも **artifact 経由で復元**して算出。`daily.yml` 内では `patch_universe_daily` を起動せず、OHLC/index の `actions/cache/save` も行わない。ウォーム用の cache save は各 ensure ジョブのみ。詳細は `docs/contracts/daily_replay_and_monthly_universe.md`）→
+- 主なジョブ: resolve_trading_day（営業日判定）→ **resolve_core_csv**（月次タグ解決・patched cache 選定・R2 staging put）と **ensure_index_cache** を並列 → **ensure_core_cache**（core を R2 get、OHLC を R2 put + 固定キー `ohlc-store-zip-v2` に反映）→ **compute_indicators**（同一 run の OHLC・index・core を **R2 manifest 経由で復元**して算出。Phase 2c 以降、run 内 handoff は GitHub artifact ではなく R2 `runs/daily/{run_id}/...` のみ。`actions/cache` の warm cache と monthly Release 依存は Phase 3/4 まで継続。`daily.yml` 内では `patch_universe_daily` を起動せず、OHLC/index の `actions/cache/save` も行わない。ウォーム用の cache save は各 ensure ジョブのみ。契約: `docs/contracts/github_state_to_r2_supabase_mapping.md`）→
   compute_indicators_for_core → 0011_work へアップロード → render_sheet 等
 - fetch系は部分成功を許容しつつ manifest に残す
 - compute で対象銘柄の有効計算率が極端に低い場合は fail

@@ -30,6 +30,15 @@ def _fake_adapter(monkeypatch: pytest.MonkeyPatch) -> FakeR2StagingAdapter:
     return fake
 
 
+class _ClientErrorLike(Exception):
+    def __init__(self, code: str, *, status_code: int) -> None:
+        super().__init__("r2 client error")
+        self.response = {
+            "Error": {"Code": code},
+            "ResponseMetadata": {"HTTPStatusCode": status_code},
+        }
+
+
 def test_put_and_get_roundtrip(tmp_path: Path) -> None:
     blob = tmp_path / "core.csv"
     blob.write_text("code,name\n1,foo\n", encoding="utf-8")
@@ -260,7 +269,7 @@ def test_record_fallback_optional_missing_is_success(tmp_path: Path) -> None:
     assert payload["status"] == "skipped_optional_missing"
 
 
-def test_write_handoff_summary_required_ok_with_github_fallback(tmp_path: Path) -> None:
+def test_write_handoff_summary_github_fallback_not_ok_in_phase2c(tmp_path: Path) -> None:
     handoff_dir = tmp_path / "handoff"
     handoff_dir.mkdir()
     (handoff_dir / "artifact-daily-core-csv.json").write_text(
@@ -283,8 +292,35 @@ def test_write_handoff_summary_required_ok_with_github_fallback(tmp_path: Path) 
         required=["artifact-daily-core-csv"],
         optional=[],
     )
+    assert exit_code == 1
+    assert any("handoff_failed" in line for line in lines)
+
+
+def test_write_handoff_summary_required_ok_with_r2_only(tmp_path: Path) -> None:
+    handoff_dir = tmp_path / "handoff"
+    handoff_dir.mkdir()
+    (handoff_dir / "artifact-daily-core-csv.json").write_text(
+        json.dumps(
+            {
+                "status": "ok",
+                "entry_id": "artifact-daily-core-csv",
+                "handoff_source": "r2",
+                "fallback_used": False,
+                "sha256": "abc",
+                "validated_count": 1,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    lines, exit_code = write_summary(
+        handoff_dir=handoff_dir,
+        title="test handoff",
+        required=["artifact-daily-core-csv"],
+        optional=[],
+    )
     assert exit_code == 0
-    assert any("fallback_used" in line for line in lines)
+    assert any("handoff_source=`r2`" in line for line in lines)
 
 
 def test_write_handoff_summary_required_failure_when_missing(tmp_path: Path) -> None:
@@ -321,7 +357,7 @@ def test_write_handoff_summary_required_fails_on_skipped_optional_missing(tmp_pa
         optional=[],
     )
     assert exit_code == 1
-    assert any("handoff_failed_required" in line for line in lines)
+    assert any("handoff_failed" in line for line in lines)
 
 
 def test_write_handoff_summary_optional_skipped_is_ok(tmp_path: Path) -> None:
@@ -346,6 +382,73 @@ def test_write_handoff_summary_optional_skipped_is_ok(tmp_path: Path) -> None:
     )
     assert exit_code == 0
     assert any("skipped_optional" in line for line in lines)
+
+
+def test_write_producer_summary_fails_when_r2_put_failed_phase2c_default(tmp_path: Path) -> None:
+    handoff_dir = tmp_path / "producer"
+    handoff_dir.mkdir()
+    (handoff_dir / "artifact-daily-core-csv.json").write_text(
+        json.dumps(
+            {
+                "status": "r2_error",
+                "entry_id": "artifact-daily-core-csv",
+                "r2_put_ok": False,
+                "degraded_reason": "r2_put_failed",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    lines, exit_code = write_producer_summary(
+        handoff_dir=handoff_dir,
+        title="test producer",
+        required=["artifact-daily-core-csv"],
+        optional=[],
+    )
+    assert exit_code == 1
+    assert any("producer_handoff_failed" in line for line in lines)
+    assert not any("producer_handoff_failed_required" in line for line in lines)
+
+
+def test_write_producer_summary_fails_when_optional_r2_put_failed(tmp_path: Path) -> None:
+    handoff_dir = tmp_path / "producer"
+    handoff_dir.mkdir()
+    (handoff_dir / "artifact-daily-core-csv.json").write_text(
+        json.dumps(
+            {
+                "status": "ok",
+                "entry_id": "artifact-daily-core-csv",
+                "r2_put_ok": True,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (handoff_dir / "artifact-stale-exclusions.json").write_text(
+        json.dumps(
+            {
+                "status": "r2_error",
+                "entry_id": "artifact-stale-exclusions",
+                "r2_put_ok": False,
+                "degraded_reason": "r2_put_failed",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    lines, exit_code = write_producer_summary(
+        handoff_dir=handoff_dir,
+        title="test producer",
+        required=["artifact-daily-core-csv"],
+        optional=["artifact-stale-exclusions"],
+    )
+    assert exit_code == 1
+    assert any(
+        "artifact-stale-exclusions: producer_handoff_status=`failed`" in line for line in lines
+    )
+    assert not any("artifact-stale-exclusions: producer_handoff_status=`optional_skipped`" in line for line in lines)
+    assert any("producer_handoff_failed" in line for line in lines)
+    assert not any("producer_handoff_failed_required" in line for line in lines)
 
 
 def test_write_producer_summary_degraded_when_r2_put_failed_but_github_ok(tmp_path: Path) -> None:
@@ -398,7 +501,161 @@ def test_write_producer_summary_fails_when_r2_and_github_both_failed(tmp_path: P
         github_upload_ok=frozenset(),
     )
     assert exit_code == 1
-    assert any("producer_handoff_failed_required" in line for line in lines)
+    assert any("producer_handoff_failed" in line for line in lines)
+    assert not any("producer_handoff_failed_required" in line for line in lines)
+
+
+def test_write_producer_summary_required_fails_on_skipped_optional_missing(tmp_path: Path) -> None:
+    handoff_dir = tmp_path / "producer"
+    handoff_dir.mkdir()
+    (handoff_dir / "artifact-enriched-csv.json").write_text(
+        json.dumps(
+            {
+                "status": "skipped_optional_missing",
+                "entry_id": "artifact-enriched-csv",
+                "degraded_reason": "optional_local_missing",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    lines, exit_code = write_producer_summary(
+        handoff_dir=handoff_dir,
+        title="test producer",
+        required=["artifact-enriched-csv"],
+        optional=[],
+    )
+    assert exit_code == 1
+    assert any("artifact-enriched-csv: producer_handoff_status=`failed`" in line for line in lines)
+    assert any("producer_handoff_failed" in line for line in lines)
+
+
+def test_write_handoff_summary_optional_github_fallback_fails(tmp_path: Path) -> None:
+    handoff_dir = tmp_path / "handoff"
+    handoff_dir.mkdir()
+    (handoff_dir / "artifact-enriched-csv.json").write_text(
+        json.dumps(
+            {
+                "status": "ok",
+                "entry_id": "artifact-enriched-csv",
+                "handoff_source": "github_fallback",
+                "sha256": "abc",
+                "validated_count": 1,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    lines, exit_code = write_summary(
+        handoff_dir=handoff_dir,
+        title="test handoff",
+        required=[],
+        optional=["artifact-enriched-csv"],
+    )
+    assert exit_code == 1
+    assert any("handoff_failed" in line for line in lines)
+    assert any("artifact-enriched-csv" in line for line in lines)
+
+
+def test_write_handoff_summary_optional_mismatch_fails(tmp_path: Path) -> None:
+    handoff_dir = tmp_path / "handoff"
+    handoff_dir.mkdir()
+    (handoff_dir / "artifact-stale-exclusions.json").write_text(
+        json.dumps(
+            {
+                "status": "mismatch",
+                "entry_id": "artifact-stale-exclusions",
+                "degraded_reason": "r2_manifest_mismatch",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    lines, exit_code = write_summary(
+        handoff_dir=handoff_dir,
+        title="test handoff",
+        required=[],
+        optional=["artifact-stale-exclusions"],
+    )
+    assert exit_code == 1
+    assert any("handoff_failed" in line for line in lines)
+
+
+def test_optional_get_r2_missing_is_success(tmp_path: Path) -> None:
+    json_out = tmp_path / "get.json"
+    rc = main(
+        [
+            "get",
+            "--entry-id",
+            "artifact-stale-exclusions",
+            "--run-id",
+            "555",
+            "--run-date",
+            "2026-06-13",
+            "--local-path",
+            str(tmp_path / "stale.json"),
+            "--json-output",
+            str(json_out),
+        ]
+    )
+    assert rc == 0
+    payload = json.loads(json_out.read_text(encoding="utf-8"))
+    assert payload["status"] == "skipped_optional_missing"
+
+
+def test_optional_get_client_error_not_found_is_success(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def _fail_get_json(_adapter: object, _key: str) -> dict[str, object]:
+        raise _ClientErrorLike("NoSuchKey", status_code=404)
+
+    monkeypatch.setattr(artifact_bus_cli, "get_json", _fail_get_json)
+    json_out = tmp_path / "get.json"
+    rc = main(
+        [
+            "get",
+            "--entry-id",
+            "artifact-enriched-csv",
+            "--run-id",
+            "555",
+            "--run-date",
+            "2026-06-13",
+            "--local-path",
+            str(tmp_path / "enriched.csv"),
+            "--json-output",
+            str(json_out),
+        ]
+    )
+    assert rc == 0
+    payload = json.loads(json_out.read_text(encoding="utf-8"))
+    assert payload["status"] == "skipped_optional_missing"
+
+
+def test_optional_get_r2_error_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def _fail_get_json(_adapter: object, _key: str) -> dict[str, object]:
+        raise PermissionError("forbidden")
+
+    monkeypatch.setattr(artifact_bus_cli, "get_json", _fail_get_json)
+    json_out = tmp_path / "get.json"
+    rc = main(
+        [
+            "get",
+            "--entry-id",
+            "artifact-enriched-csv",
+            "--run-id",
+            "555",
+            "--run-date",
+            "2026-06-13",
+            "--local-path",
+            str(tmp_path / "enriched.csv"),
+            "--json-output",
+            str(json_out),
+        ]
+    )
+    assert rc == 1
+    payload = json.loads(json_out.read_text(encoding="utf-8"))
+    assert payload["status"] == "r2_error"
+    assert payload["status"] != "skipped_optional_missing"
 
 
 def test_shadow_validate_detects_mismatch(tmp_path: Path, _fake_adapter: FakeR2StagingAdapter) -> None:

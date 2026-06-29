@@ -7,11 +7,6 @@ on:
         description: "対象日（YYYY-MM-DD）"
         required: true
         type: string
-      r2_fault_mode:
-        description: "Phase 2b fault injection mode from caller (off | consumer_get_prefix_miss | producer_put_invalid_cred)"
-        required: false
-        type: string
-        default: "off"
     outputs:
       enriched_csv_path:
         description: "ニュース列を付与したCSVのワークスペース相対パス"
@@ -43,11 +38,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # Contract: artifact name must stay aligned with daily.yml compute_indicators upload
-      # (`daily-indicators-${run_date}`). Reusable shares github.run_id with caller for R2 keys.
+      # Phase 2c: R2-only handoff. Reusable shares github.run_id with caller for R2 keys.
       - name: R2 get indicators staging
-        id: r2_get_indicators
-        continue-on-error: true
         env:
           PYTHONPATH: src:.
           RUN_DATE: ${{ inputs.run_date }}
@@ -56,45 +48,18 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_BASE_PREFIX: ${{ inputs.r2_fault_mode == 'consumer_get_prefix_miss' && format('fault-injection/{0}', github.run_id) || secrets.R2_BASE_PREFIX }}
+          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
           set -euo pipefail
           RUN_DATE_COMPACT="${RUN_DATE//-/}"
-          mkdir -p /tmp/r2_handoff/enrich
+          mkdir -p /tmp/r2_handoff/enrich data/indicators/daily
           INDICATORS_PATH="data/indicators/daily/indicators_${RUN_DATE_COMPACT}.csv"
-          mkdir -p data/indicators/daily
-          set +e
           python scripts/storage/artifact_bus_cli.py get \
             --entry-id artifact-daily-indicators \
             --run-id "$GITHUB_RUN_ID" \
             --run-date "$RUN_DATE" \
             --local-path "$INDICATORS_PATH" \
-            --json-output /tmp/r2_handoff/enrich/artifact-daily-indicators.json
-          set -e
-          FALLBACK=$(python -c "import json; print('true' if json.load(open('/tmp/r2_handoff/enrich/artifact-daily-indicators.json')).get('fallback_required') else 'false')")
-          echo "fallback_required=$FALLBACK" >> "$GITHUB_OUTPUT"
-
-      - name: GitHub fallback indicators artifact
-        if: steps.r2_get_indicators.outputs.fallback_required == 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: daily-indicators-${{ inputs.run_date }}
-          path: data/indicators/daily/
-
-      - name: Record GitHub fallback indicators
-        if: steps.r2_get_indicators.outputs.fallback_required == 'true'
-        env:
-          PYTHONPATH: src:.
-          RUN_DATE: ${{ inputs.run_date }}
-        run: |
-          set -euo pipefail
-          RUN_DATE_COMPACT="${RUN_DATE//-/}"
-          python scripts/storage/artifact_bus_cli.py record-fallback \
-            --entry-id artifact-daily-indicators \
-            --run-id "${{ github.run_id }}" \
-            --run-date "$RUN_DATE" \
-            --local-path "data/indicators/daily/indicators_${RUN_DATE_COMPACT}.csv" \
             --json-output /tmp/r2_handoff/enrich/artifact-daily-indicators.json
 
       - name: Set local CSV path
@@ -152,25 +117,15 @@ jobs:
             --output "data/indicators/daily/indicators_event_enriched_${RUN_DATE//-/}.csv"
           echo "enriched_csv_path=data/indicators/daily/indicators_event_enriched_${RUN_DATE//-/}.csv" >> "$GITHUB_OUTPUT"
 
-      - name: Upload enriched CSV artifact
-        uses: actions/upload-artifact@v4
-        if: success()
-        with:
-          name: enriched-csv-${{ inputs.run_date }}
-          path: data/indicators/daily/indicators_event_enriched_*.csv
-          retention-days: 7
-          if-no-files-found: error
-
       - name: R2 put enriched CSV staging
         id: r2_put_enriched
         if: success()
-        continue-on-error: true
         env:
           PYTHONPATH: src:.
           RUN_DATE: ${{ inputs.run_date }}
           GITHUB_RUN_ID: ${{ github.run_id }}
-          R2_ACCESS_KEY_ID: ${{ inputs.r2_fault_mode == 'producer_put_invalid_cred' && 'INVALID_FAULT_INJECTION' || secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ inputs.r2_fault_mode == 'producer_put_invalid_cred' && 'INVALID_FAULT_INJECTION' || secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
@@ -181,7 +136,6 @@ jobs:
           ENRICHED_PATH="data/indicators/daily/indicators_event_enriched_${RUN_DATE_COMPACT}.csv"
           mkdir -p /tmp/r2_producer/enrich
           JSON_OUT="/tmp/r2_producer/enrich/artifact-enriched-csv.json"
-          set +e
           python scripts/storage/artifact_bus_cli.py put \
             --entry-id artifact-enriched-csv \
             --run-id "$GITHUB_RUN_ID" \
@@ -189,12 +143,6 @@ jobs:
             --source-name "enriched-csv-$RUN_DATE" \
             --local-path "$ENRICHED_PATH" \
             --json-output "$JSON_OUT"
-          RC=$?
-          set -e
-          if [ ! -f "$JSON_OUT" ]; then
-            python -c "import json; from pathlib import Path; Path('$JSON_OUT').write_text(json.dumps({'status':'r2_error','entry_id':'artifact-enriched-csv','r2_put_ok':False,'github_upload_ok':None,'degraded_reason':'r2_put_failed','reason':'put exited rc $RC'})+'\n', encoding='utf-8')"
-          fi
-          python -c "import json; from pathlib import Path; p=Path('$JSON_OUT'); d=json.loads(p.read_text(encoding='utf-8')); d['github_upload_ok']=True; p.write_text(json.dumps(d)+'\n', encoding='utf-8')"
           STATUS=$(python -c "import json; print(json.load(open('$JSON_OUT')).get('status',''))")
           if [ "$STATUS" = "ok" ]; then
             MANIFEST_KEY=$(python -c "import json; print(json.load(open('$JSON_OUT'))['manifest_logical_key'])")
@@ -211,8 +159,7 @@ jobs:
             --mode producer \
             --handoff-dir /tmp/r2_producer/enrich \
             --title "enrich producer handoff" \
-            --required artifact-enriched-csv \
-            --github-upload-ok artifact-enriched-csv \
+            --optional artifact-enriched-csv \
             >> "$GITHUB_STEP_SUMMARY"
 
       - name: Write enrich consumer handoff summary

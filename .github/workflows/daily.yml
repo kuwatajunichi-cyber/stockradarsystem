@@ -1,11 +1,9 @@
 name: Daily Indicators
 
 # Contract summary:
-# - Phase 2b: R2 get is primary consumer handoff; GitHub artifact is fallback on R2 failure.
-# - Producer dual-write: GitHub upload (fallback copy) then R2 put (preferred, continue-on-error).
-# - R2 outage alone must not block compute / enrich / publish when GitHub fallback succeeds.
-# - Fault injection (workflow_dispatch): r2_fault_mode != off requires skip_publish=true and run_date empty.
-#   consumer_get_prefix_miss applies fault namespace to get steps only; put steps use prod prefix.
+# - Phase 2c: R2-only run-internal artifact bus (no GitHub artifact upload/download).
+# - Producer: artifact_bus_cli.py put fails the job on R2 error (required artifacts).
+# - Consumer: artifact_bus_cli.py get fails the job on R2 error (required artifacts).
 # - skip_publish=true skips Upload to all targets step only; render_and_upload job still runs.
 # - actions/cache/save (this file only): index-store-zip-v1 + ohlc-store-zip-v2 (two writes on success).
 # - Patched universe cache is written only by daily_universe_patch.yml; daily.yml restores only.
@@ -14,21 +12,13 @@ on:
   workflow_dispatch:  # 手動実行
     inputs:
       run_date:
-        description: "日次アンカー YYYY-MM-DD（空=今日。今日以外は replay: 過去3カレンダー月以内のみ）。r2_fault_mode != off のときは空必須"
+        description: "日次アンカー YYYY-MM-DD（空=今日。今日以外は replay: 過去3カレンダー月以内のみ）"
         required: false
         default: ""
       skip_publish:
         description: "true のとき外部公開 step（Upload to all targets）のみスキップ。render_and_upload job は handoff 検証のため実行"
         type: boolean
         default: false
-      r2_fault_mode:
-        description: "Phase 2b fault injection（通常運用は off）。!= off のとき skip_publish=true かつ run_date 空が必須"
-        type: choice
-        options:
-          - "off"
-          - consumer_get_prefix_miss
-          - producer_put_invalid_cred
-        default: "off"
       force_index:
         description: "ensure_index_cache に --force（ベンチティッカー変更後のキャッシュ取り直し用）"
         type: boolean
@@ -47,38 +37,8 @@ jobs:
   preflight:
     uses: ./.github/workflows/reusable_quality_gate.yml
 
-  validate_fault_injection:
-    needs: preflight
-    runs-on: ubuntu-latest
-    steps:
-      - name: Validate fault injection guard
-        run: |
-          set -euo pipefail
-          MODE="${{ github.event.inputs.r2_fault_mode || 'off' }}"
-          RUN_DATE_INPUT="${{ github.event.inputs.run_date || '' }}"
-          case "$MODE" in
-            off|consumer_get_prefix_miss|producer_put_invalid_cred) ;;
-            *)
-              echo "invalid r2_fault_mode: $MODE"
-              exit 1
-              ;;
-          esac
-          if [ "$MODE" = "off" ]; then exit 0; fi
-          if [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
-            echo "r2_fault_mode requires workflow_dispatch"
-            exit 1
-          fi
-          if [ "${{ github.event.inputs.skip_publish }}" != "true" ]; then
-            echo "r2_fault_mode requires skip_publish=true"
-            exit 1
-          fi
-          if [ -n "$RUN_DATE_INPUT" ]; then
-            echo "r2_fault_mode requires run_date empty (non-replay live gate)"
-            exit 1
-          fi
-
   resolve_trading_day:
-    needs: [preflight, validate_fault_injection]
+    needs: preflight
     runs-on: ubuntu-latest
     outputs:
       run_date: ${{ steps.resolve.outputs.run_date }}
@@ -92,7 +52,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -147,7 +106,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -196,34 +154,15 @@ jobs:
           python -m stockradar.jobs.resolve_core_csv materialize \
             --repo "${{ github.repository }}"
 
-      - name: Upload core CSV artifact
-        uses: actions/upload-artifact@v4
-        if: success()
-        with:
-          name: daily-core-csv-${{ github.run_id }}
-          path: data/universe/jpx/core_selected_staging/equity_domestic_core_with_name.csv
-          retention-days: 3
-          if-no-files-found: error
-
-      - name: Upload core quality artifact
-        uses: actions/upload-artifact@v4
-        if: success()
-        with:
-          name: daily-core-quality-${{ github.run_id }}
-          path: data/universe/jpx/core_selected_staging/core_selection.json
-          retention-days: 3
-          if-no-files-found: error
-
       - name: R2 put core CSV staging
         id: r2_put_core_csv
         if: success()
-        continue-on-error: true
         env:
           PYTHONPATH: src:.
           RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
           GITHUB_RUN_ID: ${{ github.run_id }}
-          R2_ACCESS_KEY_ID: ${{ github.event.inputs.r2_fault_mode == 'producer_put_invalid_cred' && 'INVALID_FAULT_INJECTION' || secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ github.event.inputs.r2_fault_mode == 'producer_put_invalid_cred' && 'INVALID_FAULT_INJECTION' || secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
@@ -232,7 +171,6 @@ jobs:
           set -euo pipefail
           mkdir -p /tmp/r2_producer/resolve_core_csv
           JSON_OUT="/tmp/r2_producer/resolve_core_csv/artifact-daily-core-csv.json"
-          set +e
           python scripts/storage/artifact_bus_cli.py put \
             --entry-id artifact-daily-core-csv \
             --run-id "$GITHUB_RUN_ID" \
@@ -240,28 +178,18 @@ jobs:
             --source-name "daily-core-csv-$GITHUB_RUN_ID" \
             --local-path data/universe/jpx/core_selected_staging/equity_domestic_core_with_name.csv \
             --json-output "$JSON_OUT"
-          RC=$?
-          set -e
-          if [ ! -f "$JSON_OUT" ]; then
-            python -c "import json; from pathlib import Path; Path('$JSON_OUT').write_text(json.dumps({'status':'r2_error','entry_id':'artifact-daily-core-csv','r2_put_ok':False,'github_upload_ok':None,'degraded_reason':'r2_put_failed','reason':'put exited rc $RC'})+'\n', encoding='utf-8')"
-          fi
-          python -c "import json; from pathlib import Path; p=Path('$JSON_OUT'); d=json.loads(p.read_text(encoding='utf-8')); d['github_upload_ok']=True; p.write_text(json.dumps(d)+'\n', encoding='utf-8')"
-          STATUS=$(python -c "import json; print(json.load(open('$JSON_OUT')).get('status',''))")
-          if [ "$STATUS" = "ok" ]; then
-            MANIFEST_KEY=$(python -c "import json; print(json.load(open('$JSON_OUT'))['manifest_logical_key'])")
-            echo "manifest_logical_key=$MANIFEST_KEY" >> "$GITHUB_OUTPUT"
-          fi
+          MANIFEST_KEY=$(python -c "import json; print(json.load(open('$JSON_OUT'))['manifest_logical_key'])")
+          echo "manifest_logical_key=$MANIFEST_KEY" >> "$GITHUB_OUTPUT"
 
       - name: R2 put core quality staging
         id: r2_put_core_quality
         if: success()
-        continue-on-error: true
         env:
           PYTHONPATH: src:.
           RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
           GITHUB_RUN_ID: ${{ github.run_id }}
-          R2_ACCESS_KEY_ID: ${{ github.event.inputs.r2_fault_mode == 'producer_put_invalid_cred' && 'INVALID_FAULT_INJECTION' || secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ github.event.inputs.r2_fault_mode == 'producer_put_invalid_cred' && 'INVALID_FAULT_INJECTION' || secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
@@ -270,7 +198,6 @@ jobs:
           set -euo pipefail
           mkdir -p /tmp/r2_producer/resolve_core_csv
           JSON_OUT="/tmp/r2_producer/resolve_core_csv/artifact-daily-core-quality.json"
-          set +e
           python scripts/storage/artifact_bus_cli.py put \
             --entry-id artifact-daily-core-quality \
             --run-id "$GITHUB_RUN_ID" \
@@ -278,17 +205,8 @@ jobs:
             --source-name "daily-core-quality-$GITHUB_RUN_ID" \
             --local-path data/universe/jpx/core_selected_staging/core_selection.json \
             --json-output "$JSON_OUT"
-          RC=$?
-          set -e
-          if [ ! -f "$JSON_OUT" ]; then
-            python -c "import json; from pathlib import Path; Path('$JSON_OUT').write_text(json.dumps({'status':'r2_error','entry_id':'artifact-daily-core-quality','r2_put_ok':False,'github_upload_ok':None,'degraded_reason':'r2_put_failed','reason':'put exited rc $RC'})+'\n', encoding='utf-8')"
-          fi
-          python -c "import json; from pathlib import Path; p=Path('$JSON_OUT'); d=json.loads(p.read_text(encoding='utf-8')); d['github_upload_ok']=True; p.write_text(json.dumps(d)+'\n', encoding='utf-8')"
-          STATUS=$(python -c "import json; print(json.load(open('$JSON_OUT')).get('status',''))")
-          if [ "$STATUS" = "ok" ]; then
-            MANIFEST_KEY=$(python -c "import json; print(json.load(open('$JSON_OUT'))['manifest_logical_key'])")
-            echo "manifest_logical_key=$MANIFEST_KEY" >> "$GITHUB_OUTPUT"
-          fi
+          MANIFEST_KEY=$(python -c "import json; print(json.load(open('$JSON_OUT'))['manifest_logical_key'])")
+          echo "manifest_logical_key=$MANIFEST_KEY" >> "$GITHUB_OUTPUT"
 
       - name: Write resolve_core_csv producer handoff summary
         if: always()
@@ -301,7 +219,6 @@ jobs:
             --handoff-dir /tmp/r2_producer/resolve_core_csv \
             --title "resolve_core_csv producer handoff" \
             --required artifact-daily-core-csv artifact-daily-core-quality \
-            --github-upload-ok artifact-daily-core-csv artifact-daily-core-quality \
             >> "$GITHUB_STEP_SUMMARY"
 
       - name: Write resolve_core_csv summary
@@ -353,7 +270,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
       - name: Restore index store zip (warm cache)
         uses: actions/cache/restore@v4
         with:
@@ -394,25 +310,15 @@ jobs:
         run: |
           python -m stockradar.jobs.archive_index_store
 
-      - name: Upload index store artifact for compute
-        uses: actions/upload-artifact@v4
-        if: success()
-        with:
-          name: daily-index-store-${{ github.run_id }}
-          path: data/cache/index_store_archive/index_store.zip
-          retention-days: 3
-          if-no-files-found: error
-
       - name: R2 put index store staging
         id: r2_put_index_store
         if: success()
-        continue-on-error: true
         env:
           PYTHONPATH: src:.
           RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
           GITHUB_RUN_ID: ${{ github.run_id }}
-          R2_ACCESS_KEY_ID: ${{ github.event.inputs.r2_fault_mode == 'producer_put_invalid_cred' && 'INVALID_FAULT_INJECTION' || secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ github.event.inputs.r2_fault_mode == 'producer_put_invalid_cred' && 'INVALID_FAULT_INJECTION' || secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
@@ -421,7 +327,6 @@ jobs:
           set -euo pipefail
           mkdir -p /tmp/r2_producer/ensure_index_cache
           JSON_OUT="/tmp/r2_producer/ensure_index_cache/artifact-daily-index-store.json"
-          set +e
           python scripts/storage/artifact_bus_cli.py put \
             --entry-id artifact-daily-index-store \
             --run-id "$GITHUB_RUN_ID" \
@@ -429,17 +334,8 @@ jobs:
             --source-name "daily-index-store-$GITHUB_RUN_ID" \
             --local-path data/cache/index_store_archive/index_store.zip \
             --json-output "$JSON_OUT"
-          RC=$?
-          set -e
-          if [ ! -f "$JSON_OUT" ]; then
-            python -c "import json; from pathlib import Path; Path('$JSON_OUT').write_text(json.dumps({'status':'r2_error','entry_id':'artifact-daily-index-store','r2_put_ok':False,'github_upload_ok':None,'degraded_reason':'r2_put_failed','reason':'put exited rc $RC'})+'\n', encoding='utf-8')"
-          fi
-          python -c "import json; from pathlib import Path; p=Path('$JSON_OUT'); d=json.loads(p.read_text(encoding='utf-8')); d['github_upload_ok']=True; p.write_text(json.dumps(d)+'\n', encoding='utf-8')"
-          STATUS=$(python -c "import json; print(json.load(open('$JSON_OUT')).get('status',''))")
-          if [ "$STATUS" = "ok" ]; then
-            MANIFEST_KEY=$(python -c "import json; print(json.load(open('$JSON_OUT'))['manifest_logical_key'])")
-            echo "manifest_logical_key=$MANIFEST_KEY" >> "$GITHUB_OUTPUT"
-          fi
+          MANIFEST_KEY=$(python -c "import json; print(json.load(open('$JSON_OUT'))['manifest_logical_key'])")
+          echo "manifest_logical_key=$MANIFEST_KEY" >> "$GITHUB_OUTPUT"
 
       - name: Delete warm index cache key (avoid save race)
         if: success()
@@ -471,7 +367,6 @@ jobs:
             --handoff-dir /tmp/r2_producer/ensure_index_cache \
             --title "ensure_index_cache producer handoff" \
             --required artifact-daily-index-store \
-            --github-upload-ok artifact-daily-index-store \
             >> "$GITHUB_STEP_SUMMARY"
 
       - name: Write ensure_index_cache summary
@@ -508,7 +403,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
       - name: Restore OHLC store zip
         uses: actions/cache/restore@v4
         with:
@@ -529,8 +423,6 @@ jobs:
           python -m stockradar.jobs.restore_ohlc_store
 
       - name: R2 get core CSV staging
-        id: r2_get_core_csv
-        continue-on-error: true
         env:
           PYTHONPATH: src:.
           RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
@@ -539,45 +431,19 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_BASE_PREFIX: ${{ github.event.inputs.r2_fault_mode == 'consumer_get_prefix_miss' && format('fault-injection/{0}', github.run_id) || secrets.R2_BASE_PREFIX }}
+          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
           set -euo pipefail
           mkdir -p /tmp/r2_handoff/ensure_core_cache data/universe/jpx/core_selected_staging
-          set +e
           python scripts/storage/artifact_bus_cli.py get \
             --entry-id artifact-daily-core-csv \
             --run-id "$GITHUB_RUN_ID" \
-            --run-date "$RUN_DATE" \
-            --local-path data/universe/jpx/core_selected_staging/equity_domestic_core_with_name.csv \
-            --json-output /tmp/r2_handoff/ensure_core_cache/artifact-daily-core-csv.json
-          set -e
-          FALLBACK=$(python -c "import json; print('true' if json.load(open('/tmp/r2_handoff/ensure_core_cache/artifact-daily-core-csv.json')).get('fallback_required') else 'false')")
-          echo "fallback_required=$FALLBACK" >> "$GITHUB_OUTPUT"
-
-      - name: GitHub fallback core CSV artifact
-        if: steps.r2_get_core_csv.outputs.fallback_required == 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: daily-core-csv-${{ github.run_id }}
-          path: data/universe/jpx/core_selected_staging/
-
-      - name: Record GitHub fallback core CSV
-        if: steps.r2_get_core_csv.outputs.fallback_required == 'true'
-        env:
-          RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
-        run: |
-          set -euo pipefail
-          python scripts/storage/artifact_bus_cli.py record-fallback \
-            --entry-id artifact-daily-core-csv \
-            --run-id "${{ github.run_id }}" \
             --run-date "$RUN_DATE" \
             --local-path data/universe/jpx/core_selected_staging/equity_domestic_core_with_name.csv \
             --json-output /tmp/r2_handoff/ensure_core_cache/artifact-daily-core-csv.json
 
       - name: R2 get core quality staging
-        id: r2_get_core_quality
-        continue-on-error: true
         env:
           PYTHONPATH: src:.
           RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
@@ -586,37 +452,13 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_BASE_PREFIX: ${{ github.event.inputs.r2_fault_mode == 'consumer_get_prefix_miss' && format('fault-injection/{0}', github.run_id) || secrets.R2_BASE_PREFIX }}
+          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
           set -euo pipefail
-          set +e
           python scripts/storage/artifact_bus_cli.py get \
             --entry-id artifact-daily-core-quality \
             --run-id "$GITHUB_RUN_ID" \
-            --run-date "$RUN_DATE" \
-            --local-path data/universe/jpx/core_selected_staging/core_selection.json \
-            --json-output /tmp/r2_handoff/ensure_core_cache/artifact-daily-core-quality.json
-          set -e
-          FALLBACK=$(python -c "import json; print('true' if json.load(open('/tmp/r2_handoff/ensure_core_cache/artifact-daily-core-quality.json')).get('fallback_required') else 'false')")
-          echo "fallback_required=$FALLBACK" >> "$GITHUB_OUTPUT"
-
-      - name: GitHub fallback core quality artifact
-        if: steps.r2_get_core_quality.outputs.fallback_required == 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: daily-core-quality-${{ github.run_id }}
-          path: data/universe/jpx/core_selected_staging/
-
-      - name: Record GitHub fallback core quality
-        if: steps.r2_get_core_quality.outputs.fallback_required == 'true'
-        env:
-          RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
-        run: |
-          set -euo pipefail
-          python scripts/storage/artifact_bus_cli.py record-fallback \
-            --entry-id artifact-daily-core-quality \
-            --run-id "${{ github.run_id }}" \
             --run-date "$RUN_DATE" \
             --local-path data/universe/jpx/core_selected_staging/core_selection.json \
             --json-output /tmp/r2_handoff/ensure_core_cache/artifact-daily-core-quality.json
@@ -691,35 +533,16 @@ jobs:
         run: |
           python -m stockradar.jobs.archive_ohlc_store
 
-      # compute は別ランナー。Run 内の入力は R2 get 正系 + GitHub artifact fallback。
-      - name: Upload OHLC store zip for compute job
-        uses: actions/upload-artifact@v4
-        if: success()
-        with:
-          name: daily-ohlc-store-${{ github.run_id }}
-          path: data/cache/ohlc_store_archive/ohlc_store.zip
-          retention-days: 3
-          if-no-files-found: error
-
-      - name: Upload stale exclusions artifact
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: stale-exclusions-${{ github.run_id }}
-          path: data/cache/yf_daily/_stale_exclusions.json
-          retention-days: 3
-          if-no-files-found: ignore
-
+      # compute は別ランナー。Run 内の入力は R2 get 正系（Phase 2c R2-only）。
       - name: R2 put OHLC store staging
         id: r2_put_ohlc_store
         if: success()
-        continue-on-error: true
         env:
           PYTHONPATH: src:.
           RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
           GITHUB_RUN_ID: ${{ github.run_id }}
-          R2_ACCESS_KEY_ID: ${{ github.event.inputs.r2_fault_mode == 'producer_put_invalid_cred' && 'INVALID_FAULT_INJECTION' || secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ github.event.inputs.r2_fault_mode == 'producer_put_invalid_cred' && 'INVALID_FAULT_INJECTION' || secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
@@ -728,7 +551,6 @@ jobs:
           set -euo pipefail
           mkdir -p /tmp/r2_producer/ensure_core_cache
           JSON_OUT="/tmp/r2_producer/ensure_core_cache/artifact-daily-ohlc-store.json"
-          set +e
           python scripts/storage/artifact_bus_cli.py put \
             --entry-id artifact-daily-ohlc-store \
             --run-id "$GITHUB_RUN_ID" \
@@ -736,28 +558,18 @@ jobs:
             --source-name "daily-ohlc-store-$GITHUB_RUN_ID" \
             --local-path data/cache/ohlc_store_archive/ohlc_store.zip \
             --json-output "$JSON_OUT"
-          RC=$?
-          set -e
-          if [ ! -f "$JSON_OUT" ]; then
-            python -c "import json; from pathlib import Path; Path('$JSON_OUT').write_text(json.dumps({'status':'r2_error','entry_id':'artifact-daily-ohlc-store','r2_put_ok':False,'github_upload_ok':None,'degraded_reason':'r2_put_failed','reason':'put exited rc $RC'})+'\n', encoding='utf-8')"
-          fi
-          python -c "import json; from pathlib import Path; p=Path('$JSON_OUT'); d=json.loads(p.read_text(encoding='utf-8')); d['github_upload_ok']=True; p.write_text(json.dumps(d)+'\n', encoding='utf-8')"
-          STATUS=$(python -c "import json; print(json.load(open('$JSON_OUT')).get('status',''))")
-          if [ "$STATUS" = "ok" ]; then
-            MANIFEST_KEY=$(python -c "import json; print(json.load(open('$JSON_OUT'))['manifest_logical_key'])")
-            echo "manifest_logical_key=$MANIFEST_KEY" >> "$GITHUB_OUTPUT"
-          fi
+          MANIFEST_KEY=$(python -c "import json; print(json.load(open('$JSON_OUT'))['manifest_logical_key'])")
+          echo "manifest_logical_key=$MANIFEST_KEY" >> "$GITHUB_OUTPUT"
 
       - name: R2 put stale exclusions staging
         id: r2_put_stale_exclusions
         if: always()
-        continue-on-error: true
         env:
           PYTHONPATH: src:.
           RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
           GITHUB_RUN_ID: ${{ github.run_id }}
-          R2_ACCESS_KEY_ID: ${{ github.event.inputs.r2_fault_mode == 'producer_put_invalid_cred' && 'INVALID_FAULT_INJECTION' || secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ github.event.inputs.r2_fault_mode == 'producer_put_invalid_cred' && 'INVALID_FAULT_INJECTION' || secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
@@ -768,33 +580,13 @@ jobs:
           JSON_OUT="/tmp/r2_producer/ensure_core_cache/artifact-stale-exclusions.json"
           STALE_PATH="data/cache/yf_daily/_stale_exclusions.json"
           if [ -f "$STALE_PATH" ]; then
-            GH_UPLOAD_OK="true"
-          else
-            GH_UPLOAD_OK="false"
-          fi
-          set +e
-          python scripts/storage/artifact_bus_cli.py put \
-            --entry-id artifact-stale-exclusions \
-            --run-id "$GITHUB_RUN_ID" \
-            --run-date "$RUN_DATE" \
-            --source-name "stale-exclusions-$GITHUB_RUN_ID" \
-            --local-path "$STALE_PATH" \
-            --json-output "$JSON_OUT"
-          RC=$?
-          set -e
-          if [ ! -f "$JSON_OUT" ]; then
-            python -c "import json; from pathlib import Path; Path('$JSON_OUT').write_text(json.dumps({'status':'r2_error','entry_id':'artifact-stale-exclusions','r2_put_ok':False,'github_upload_ok':None,'degraded_reason':'r2_put_failed','reason':'put exited rc $RC'})+'\n', encoding='utf-8')"
-          fi
-          python - <<PY
-          import json
-          from pathlib import Path
-          p = Path("$JSON_OUT")
-          d = json.loads(p.read_text(encoding="utf-8"))
-          d["github_upload_ok"] = "$GH_UPLOAD_OK" == "true"
-          p.write_text(json.dumps(d) + "\n", encoding="utf-8")
-          PY
-          STATUS=$(python -c "import json; print(json.load(open('$JSON_OUT')).get('status',''))")
-          if [ "$STATUS" = "ok" ]; then
+            python scripts/storage/artifact_bus_cli.py put \
+              --entry-id artifact-stale-exclusions \
+              --run-id "$GITHUB_RUN_ID" \
+              --run-date "$RUN_DATE" \
+              --source-name "stale-exclusions-$GITHUB_RUN_ID" \
+              --local-path "$STALE_PATH" \
+              --json-output "$JSON_OUT"
             MANIFEST_KEY=$(python -c "import json; print(json.load(open('$JSON_OUT'))['manifest_logical_key'])")
             echo "manifest_logical_key=$MANIFEST_KEY" >> "$GITHUB_OUTPUT"
           fi
@@ -811,7 +603,6 @@ jobs:
             --title "ensure_core_cache producer handoff" \
             --required artifact-daily-ohlc-store \
             --optional artifact-stale-exclusions \
-            --github-upload-ok artifact-daily-ohlc-store \
             >> "$GITHUB_STEP_SUMMARY"
 
       - name: Write ensure_core_cache artifact handoff summary
@@ -860,15 +651,12 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: R2 get OHLC store staging
-        id: r2_get_ohlc_store
-        continue-on-error: true
         env:
           PYTHONPATH: src:.
           RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
@@ -877,45 +665,19 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_BASE_PREFIX: ${{ github.event.inputs.r2_fault_mode == 'consumer_get_prefix_miss' && format('fault-injection/{0}', github.run_id) || secrets.R2_BASE_PREFIX }}
+          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
           set -euo pipefail
           mkdir -p /tmp/r2_handoff/compute_indicators data/cache/ohlc_store_archive
-          set +e
           python scripts/storage/artifact_bus_cli.py get \
             --entry-id artifact-daily-ohlc-store \
             --run-id "$GITHUB_RUN_ID" \
-            --run-date "$RUN_DATE" \
-            --local-path data/cache/ohlc_store_archive/ohlc_store.zip \
-            --json-output /tmp/r2_handoff/compute_indicators/artifact-daily-ohlc-store.json
-          set -e
-          FALLBACK=$(python -c "import json; print('true' if json.load(open('/tmp/r2_handoff/compute_indicators/artifact-daily-ohlc-store.json')).get('fallback_required') else 'false')")
-          echo "fallback_required=$FALLBACK" >> "$GITHUB_OUTPUT"
-
-      - name: GitHub fallback OHLC store artifact
-        if: steps.r2_get_ohlc_store.outputs.fallback_required == 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: daily-ohlc-store-${{ github.run_id }}
-          path: data/cache/ohlc_store_archive/
-
-      - name: Record GitHub fallback OHLC store
-        if: steps.r2_get_ohlc_store.outputs.fallback_required == 'true'
-        env:
-          RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
-        run: |
-          set -euo pipefail
-          python scripts/storage/artifact_bus_cli.py record-fallback \
-            --entry-id artifact-daily-ohlc-store \
-            --run-id "${{ github.run_id }}" \
             --run-date "$RUN_DATE" \
             --local-path data/cache/ohlc_store_archive/ohlc_store.zip \
             --json-output /tmp/r2_handoff/compute_indicators/artifact-daily-ohlc-store.json
 
       - name: R2 get stale exclusions staging
-        id: r2_get_stale_exclusions
-        continue-on-error: true
         env:
           PYTHONPATH: src:.
           RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
@@ -924,46 +686,19 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_BASE_PREFIX: ${{ github.event.inputs.r2_fault_mode == 'consumer_get_prefix_miss' && format('fault-injection/{0}', github.run_id) || secrets.R2_BASE_PREFIX }}
+          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
           set -euo pipefail
           mkdir -p /tmp/r2_handoff/compute_indicators data/cache/yf_daily
-          set +e
           python scripts/storage/artifact_bus_cli.py get \
             --entry-id artifact-stale-exclusions \
             --run-id "$GITHUB_RUN_ID" \
-            --run-date "$RUN_DATE" \
-            --local-path data/cache/yf_daily/_stale_exclusions.json \
-            --json-output /tmp/r2_handoff/compute_indicators/artifact-stale-exclusions.json
-          set -e
-          FALLBACK=$(python -c "import json; print('true' if json.load(open('/tmp/r2_handoff/compute_indicators/artifact-stale-exclusions.json')).get('fallback_required') else 'false')")
-          echo "fallback_required=$FALLBACK" >> "$GITHUB_OUTPUT"
-
-      - name: GitHub fallback stale exclusions artifact
-        if: steps.r2_get_stale_exclusions.outputs.fallback_required == 'true'
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: stale-exclusions-${{ github.run_id }}
-          path: data/cache/yf_daily/
-
-      - name: Record GitHub fallback stale exclusions
-        if: steps.r2_get_stale_exclusions.outputs.fallback_required == 'true'
-        env:
-          RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
-        run: |
-          set -euo pipefail
-          python scripts/storage/artifact_bus_cli.py record-fallback \
-            --entry-id artifact-stale-exclusions \
-            --run-id "${{ github.run_id }}" \
             --run-date "$RUN_DATE" \
             --local-path data/cache/yf_daily/_stale_exclusions.json \
             --json-output /tmp/r2_handoff/compute_indicators/artifact-stale-exclusions.json
 
       - name: R2 get index store staging
-        id: r2_get_index_store
-        continue-on-error: true
         env:
           PYTHONPATH: src:.
           RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
@@ -972,45 +707,19 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_BASE_PREFIX: ${{ github.event.inputs.r2_fault_mode == 'consumer_get_prefix_miss' && format('fault-injection/{0}', github.run_id) || secrets.R2_BASE_PREFIX }}
+          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
           set -euo pipefail
           mkdir -p /tmp/r2_handoff/compute_indicators data/cache/index_store_archive
-          set +e
           python scripts/storage/artifact_bus_cli.py get \
             --entry-id artifact-daily-index-store \
             --run-id "$GITHUB_RUN_ID" \
-            --run-date "$RUN_DATE" \
-            --local-path data/cache/index_store_archive/index_store.zip \
-            --json-output /tmp/r2_handoff/compute_indicators/artifact-daily-index-store.json
-          set -e
-          FALLBACK=$(python -c "import json; print('true' if json.load(open('/tmp/r2_handoff/compute_indicators/artifact-daily-index-store.json')).get('fallback_required') else 'false')")
-          echo "fallback_required=$FALLBACK" >> "$GITHUB_OUTPUT"
-
-      - name: GitHub fallback index store artifact
-        if: steps.r2_get_index_store.outputs.fallback_required == 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: daily-index-store-${{ github.run_id }}
-          path: data/cache/index_store_archive/
-
-      - name: Record GitHub fallback index store
-        if: steps.r2_get_index_store.outputs.fallback_required == 'true'
-        env:
-          RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
-        run: |
-          set -euo pipefail
-          python scripts/storage/artifact_bus_cli.py record-fallback \
-            --entry-id artifact-daily-index-store \
-            --run-id "${{ github.run_id }}" \
             --run-date "$RUN_DATE" \
             --local-path data/cache/index_store_archive/index_store.zip \
             --json-output /tmp/r2_handoff/compute_indicators/artifact-daily-index-store.json
 
       - name: R2 get core CSV staging
-        id: r2_get_core_csv
-        continue-on-error: true
         env:
           PYTHONPATH: src:.
           RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
@@ -1019,45 +728,19 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_BASE_PREFIX: ${{ github.event.inputs.r2_fault_mode == 'consumer_get_prefix_miss' && format('fault-injection/{0}', github.run_id) || secrets.R2_BASE_PREFIX }}
+          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
           set -euo pipefail
           mkdir -p /tmp/r2_handoff/compute_indicators data/universe/jpx/core_selected_staging
-          set +e
           python scripts/storage/artifact_bus_cli.py get \
             --entry-id artifact-daily-core-csv \
             --run-id "$GITHUB_RUN_ID" \
-            --run-date "$RUN_DATE" \
-            --local-path data/universe/jpx/core_selected_staging/equity_domestic_core_with_name.csv \
-            --json-output /tmp/r2_handoff/compute_indicators/artifact-daily-core-csv.json
-          set -e
-          FALLBACK=$(python -c "import json; print('true' if json.load(open('/tmp/r2_handoff/compute_indicators/artifact-daily-core-csv.json')).get('fallback_required') else 'false')")
-          echo "fallback_required=$FALLBACK" >> "$GITHUB_OUTPUT"
-
-      - name: GitHub fallback core CSV artifact
-        if: steps.r2_get_core_csv.outputs.fallback_required == 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: daily-core-csv-${{ github.run_id }}
-          path: data/universe/jpx/core_selected_staging/
-
-      - name: Record GitHub fallback core CSV
-        if: steps.r2_get_core_csv.outputs.fallback_required == 'true'
-        env:
-          RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
-        run: |
-          set -euo pipefail
-          python scripts/storage/artifact_bus_cli.py record-fallback \
-            --entry-id artifact-daily-core-csv \
-            --run-id "${{ github.run_id }}" \
             --run-date "$RUN_DATE" \
             --local-path data/universe/jpx/core_selected_staging/equity_domestic_core_with_name.csv \
             --json-output /tmp/r2_handoff/compute_indicators/artifact-daily-core-csv.json
 
       - name: R2 get core quality staging
-        id: r2_get_core_quality
-        continue-on-error: true
         env:
           PYTHONPATH: src:.
           RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
@@ -1066,37 +749,13 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_BASE_PREFIX: ${{ github.event.inputs.r2_fault_mode == 'consumer_get_prefix_miss' && format('fault-injection/{0}', github.run_id) || secrets.R2_BASE_PREFIX }}
+          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
           set -euo pipefail
-          set +e
           python scripts/storage/artifact_bus_cli.py get \
             --entry-id artifact-daily-core-quality \
             --run-id "$GITHUB_RUN_ID" \
-            --run-date "$RUN_DATE" \
-            --local-path data/universe/jpx/core_selected_staging/core_selection.json \
-            --json-output /tmp/r2_handoff/compute_indicators/artifact-daily-core-quality.json
-          set -e
-          FALLBACK=$(python -c "import json; print('true' if json.load(open('/tmp/r2_handoff/compute_indicators/artifact-daily-core-quality.json')).get('fallback_required') else 'false')")
-          echo "fallback_required=$FALLBACK" >> "$GITHUB_OUTPUT"
-
-      - name: GitHub fallback core quality artifact
-        if: steps.r2_get_core_quality.outputs.fallback_required == 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: daily-core-quality-${{ github.run_id }}
-          path: data/universe/jpx/core_selected_staging/
-
-      - name: Record GitHub fallback core quality
-        if: steps.r2_get_core_quality.outputs.fallback_required == 'true'
-        env:
-          RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
-        run: |
-          set -euo pipefail
-          python scripts/storage/artifact_bus_cli.py record-fallback \
-            --entry-id artifact-daily-core-quality \
-            --run-id "${{ github.run_id }}" \
             --run-date "$RUN_DATE" \
             --local-path data/universe/jpx/core_selected_staging/core_selection.json \
             --json-output /tmp/r2_handoff/compute_indicators/artifact-daily-core-quality.json
@@ -1181,39 +840,28 @@ jobs:
           RUN_DATE_COMPACT="${RUN_DATE//-/}"
           echo "path=data/indicators/daily/indicators_${RUN_DATE_COMPACT}.csv" >> "$GITHUB_OUTPUT"
 
-      - name: Upload indicators artifact
-        uses: actions/upload-artifact@v4
-        if: success()
-        with:
-          name: daily-indicators-${{ needs.resolve_trading_day.outputs.run_date }}
-          path: ${{ steps.indicators_csv.outputs.path }}
-          retention-days: 7
-          if-no-files-found: error
-
       - name: R2 put indicators staging
         id: r2_put_indicators
         if: success()
-        continue-on-error: true
         env:
           PYTHONPATH: src:.
           RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
           GITHUB_RUN_ID: ${{ github.run_id }}
-          R2_ACCESS_KEY_ID: ${{ github.event.inputs.r2_fault_mode == 'producer_put_invalid_cred' && 'INVALID_FAULT_INJECTION' || secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ github.event.inputs.r2_fault_mode == 'producer_put_invalid_cred' && 'INVALID_FAULT_INJECTION' || secrets.R2_SECRET_ACCESS_KEY }}
+          INDICATORS_PATH: ${{ steps.indicators_csv.outputs.path }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
           set -euo pipefail
-          INDICATORS_PATH="${{ steps.indicators_csv.outputs.path }}"
           if [ ! -f "$INDICATORS_PATH" ]; then
             echo "error: expected indicators file missing: $INDICATORS_PATH"
             exit 1
           fi
           mkdir -p /tmp/r2_producer/compute_indicators
           JSON_OUT="/tmp/r2_producer/compute_indicators/artifact-daily-indicators.json"
-          set +e
           python scripts/storage/artifact_bus_cli.py put \
             --entry-id artifact-daily-indicators \
             --run-id "$GITHUB_RUN_ID" \
@@ -1221,17 +869,8 @@ jobs:
             --source-name "daily-indicators-$RUN_DATE" \
             --local-path "$INDICATORS_PATH" \
             --json-output "$JSON_OUT"
-          RC=$?
-          set -e
-          if [ ! -f "$JSON_OUT" ]; then
-            python -c "import json; from pathlib import Path; Path('$JSON_OUT').write_text(json.dumps({'status':'r2_error','entry_id':'artifact-daily-indicators','r2_put_ok':False,'github_upload_ok':None,'degraded_reason':'r2_put_failed','reason':'put exited rc $RC'})+'\n', encoding='utf-8')"
-          fi
-          python -c "import json; from pathlib import Path; p=Path('$JSON_OUT'); d=json.loads(p.read_text(encoding='utf-8')); d['github_upload_ok']=True; p.write_text(json.dumps(d)+'\n', encoding='utf-8')"
-          STATUS=$(python -c "import json; print(json.load(open('$JSON_OUT')).get('status',''))")
-          if [ "$STATUS" = "ok" ]; then
-            MANIFEST_KEY=$(python -c "import json; print(json.load(open('$JSON_OUT'))['manifest_logical_key'])")
-            echo "manifest_logical_key=$MANIFEST_KEY" >> "$GITHUB_OUTPUT"
-          fi
+          MANIFEST_KEY=$(python -c "import json; print(json.load(open('$JSON_OUT'))['manifest_logical_key'])")
+          echo "manifest_logical_key=$MANIFEST_KEY" >> "$GITHUB_OUTPUT"
 
       - name: Write compute_indicators producer handoff summary
         if: always()
@@ -1244,7 +883,6 @@ jobs:
             --handoff-dir /tmp/r2_producer/compute_indicators \
             --title "compute_indicators producer handoff" \
             --required artifact-daily-indicators \
-            --github-upload-ok artifact-daily-indicators \
             >> "$GITHUB_STEP_SUMMARY"
 
       - name: Write compute_indicators artifact handoff summary
@@ -1254,16 +892,19 @@ jobs:
           DAILY_INDICATORS_MANIFEST_KEY: ${{ steps.r2_put_indicators.outputs.manifest_logical_key }}
         run: |
           set -euo pipefail
-          {
-            python -m stockradar.storage.handoff_summary \
-              --handoff-dir /tmp/r2_handoff/compute_indicators \
-              --title "compute_indicators artifact handoff" \
-              --required artifact-daily-ohlc-store artifact-daily-index-store artifact-daily-core-csv artifact-daily-core-quality \
-              --optional artifact-stale-exclusions
-            if [ -n "${DAILY_INDICATORS_MANIFEST_KEY:-}" ]; then
-              echo "- daily_indicators_manifest_key: \`${DAILY_INDICATORS_MANIFEST_KEY}\`"
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
+          set +e
+          python -m stockradar.storage.handoff_summary \
+            --handoff-dir /tmp/r2_handoff/compute_indicators \
+            --title "compute_indicators artifact handoff" \
+            --required artifact-daily-ohlc-store artifact-daily-index-store artifact-daily-core-csv artifact-daily-core-quality \
+            --optional artifact-stale-exclusions \
+            >> "$GITHUB_STEP_SUMMARY"
+          RC=$?
+          set -e
+          if [ -n "${DAILY_INDICATORS_MANIFEST_KEY:-}" ]; then
+            echo "- daily_indicators_manifest_key: \`${DAILY_INDICATORS_MANIFEST_KEY}\`" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$RC"
 
   event_cause_enrichment:
     uses: ./.github/workflows/daily_event_cause_enrichment.yml
@@ -1273,7 +914,6 @@ jobs:
       needs.compute_indicators.result == 'success'
     with:
       run_date: ${{ needs.resolve_trading_day.outputs.run_date }}
-      r2_fault_mode: ${{ github.event.inputs.r2_fault_mode || 'off' }}
     secrets: inherit
 
   render_and_upload:
@@ -1291,15 +931,12 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: R2 get indicators staging
-        id: r2_get_indicators
-        continue-on-error: true
         env:
           PYTHONPATH: src:.
           RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
@@ -1308,47 +945,20 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_BASE_PREFIX: ${{ github.event.inputs.r2_fault_mode == 'consumer_get_prefix_miss' && format('fault-injection/{0}', github.run_id) || secrets.R2_BASE_PREFIX }}
+          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
           set -euo pipefail
           RUN_DATE_COMPACT="${RUN_DATE//-/}"
           mkdir -p /tmp/r2_handoff/render_and_upload data/indicators/daily
-          set +e
           python scripts/storage/artifact_bus_cli.py get \
             --entry-id artifact-daily-indicators \
             --run-id "$GITHUB_RUN_ID" \
             --run-date "$RUN_DATE" \
             --local-path "data/indicators/daily/indicators_${RUN_DATE_COMPACT}.csv" \
             --json-output /tmp/r2_handoff/render_and_upload/artifact-daily-indicators.json
-          set -e
-          FALLBACK=$(python -c "import json; print('true' if json.load(open('/tmp/r2_handoff/render_and_upload/artifact-daily-indicators.json')).get('fallback_required') else 'false')")
-          echo "fallback_required=$FALLBACK" >> "$GITHUB_OUTPUT"
-
-      - name: GitHub fallback indicators artifact
-        if: steps.r2_get_indicators.outputs.fallback_required == 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: daily-indicators-${{ needs.resolve_trading_day.outputs.run_date }}
-          path: data/indicators/daily/
-
-      - name: Record GitHub fallback indicators
-        if: steps.r2_get_indicators.outputs.fallback_required == 'true'
-        env:
-          RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
-        run: |
-          set -euo pipefail
-          RUN_DATE_COMPACT="${RUN_DATE//-/}"
-          python scripts/storage/artifact_bus_cli.py record-fallback \
-            --entry-id artifact-daily-indicators \
-            --run-id "${{ github.run_id }}" \
-            --run-date "$RUN_DATE" \
-            --local-path "data/indicators/daily/indicators_${RUN_DATE_COMPACT}.csv" \
-            --json-output /tmp/r2_handoff/render_and_upload/artifact-daily-indicators.json
 
       - name: R2 get enriched CSV staging
-        id: r2_get_enriched
-        continue-on-error: true
         env:
           PYTHONPATH: src:.
           RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
@@ -1357,41 +967,15 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_BASE_PREFIX: ${{ github.event.inputs.r2_fault_mode == 'consumer_get_prefix_miss' && format('fault-injection/{0}', github.run_id) || secrets.R2_BASE_PREFIX }}
+          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
           set -euo pipefail
           RUN_DATE_COMPACT="${RUN_DATE//-/}"
           mkdir -p data/indicators/daily
-          set +e
           python scripts/storage/artifact_bus_cli.py get \
             --entry-id artifact-enriched-csv \
             --run-id "$GITHUB_RUN_ID" \
-            --run-date "$RUN_DATE" \
-            --local-path "data/indicators/daily/indicators_event_enriched_${RUN_DATE_COMPACT}.csv" \
-            --json-output /tmp/r2_handoff/render_and_upload/artifact-enriched-csv.json
-          set -e
-          FALLBACK=$(python -c "import json; print('true' if json.load(open('/tmp/r2_handoff/render_and_upload/artifact-enriched-csv.json')).get('fallback_required') else 'false')")
-          echo "fallback_required=$FALLBACK" >> "$GITHUB_OUTPUT"
-
-      - name: GitHub fallback enriched CSV artifact
-        if: steps.r2_get_enriched.outputs.fallback_required == 'true'
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: enriched-csv-${{ needs.resolve_trading_day.outputs.run_date }}
-          path: data/indicators/daily/
-
-      - name: Record GitHub fallback enriched CSV
-        if: steps.r2_get_enriched.outputs.fallback_required == 'true'
-        env:
-          RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
-        run: |
-          set -euo pipefail
-          RUN_DATE_COMPACT="${RUN_DATE//-/}"
-          python scripts/storage/artifact_bus_cli.py record-fallback \
-            --entry-id artifact-enriched-csv \
-            --run-id "${{ github.run_id }}" \
             --run-date "$RUN_DATE" \
             --local-path "data/indicators/daily/indicators_event_enriched_${RUN_DATE_COMPACT}.csv" \
             --json-output /tmp/r2_handoff/render_and_upload/artifact-enriched-csv.json
@@ -1437,18 +1021,21 @@ jobs:
           ENRICHED_MANIFEST_KEY: ${{ needs.event_cause_enrichment.outputs.enriched_manifest_key }}
         run: |
           set -euo pipefail
-          {
-            python -m stockradar.storage.handoff_summary \
-              --handoff-dir /tmp/r2_handoff/render_and_upload \
-              --title "render_and_upload artifact handoff" \
-              --required artifact-daily-indicators \
-              --optional artifact-enriched-csv
-            if [ -n "${ENRICHED_MANIFEST_KEY:-}" ]; then
-              echo "- enriched_manifest_key: \`${ENRICHED_MANIFEST_KEY}\`"
-            else
-              echo "- enriched_manifest_key: \`(optional missing)\`"
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
+          set +e
+          python -m stockradar.storage.handoff_summary \
+            --handoff-dir /tmp/r2_handoff/render_and_upload \
+            --title "render_and_upload artifact handoff" \
+            --required artifact-daily-indicators \
+            --optional artifact-enriched-csv \
+            >> "$GITHUB_STEP_SUMMARY"
+          RC=$?
+          set -e
+          if [ -n "${ENRICHED_MANIFEST_KEY:-}" ]; then
+            echo "- enriched_manifest_key: \`${ENRICHED_MANIFEST_KEY}\`" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- enriched_manifest_key: \`(optional missing)\`" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$RC"
 
       - name: Upload to all targets (R2 / Dropbox / GitHub Release; Drive optional)
         if: github.event_name != 'workflow_dispatch' || github.event.inputs.skip_publish != 'true'

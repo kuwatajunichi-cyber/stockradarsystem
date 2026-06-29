@@ -25,6 +25,14 @@ Dispatch inputs (both): `run_date` empty, `skip_publish=true`, `head_sha=c392ed2
 
 **Post-gate:** confirm one normal scheduled/dispatch run with `handoff_source=r2` before Phase 2c promotion.
 
+### Post-gate verification record (2026-06-29)
+
+| Scenario | Run | URL | Result |
+|----------|-----|-----|--------|
+| **Post-gate normal run** | Daily Indicators **#179** | https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/28353795385 | **Pass** — Cloudflare Cron dispatch, `r2_fault_mode=off`, `skip_publish=false`, all required consumers `handoff_source=r2`, publish success |
+
+Phase 2c promotion gate **cleared** (FI-1 #175 + post-gate #179). Phase 2c implementation may proceed. See [phase2c_r2_only_cutover.md](phase2c_r2_only_cutover.md).
+
 ## Fault namespace invariant
 
 FI-1 uses a **separate top-level R2 namespace**, not a child of `secrets.R2_BASE_PREFIX`:

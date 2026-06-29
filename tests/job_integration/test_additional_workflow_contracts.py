@@ -157,17 +157,22 @@ def test_daily_event_cause_enrichment_writes_enriched_csv_to_r2() -> None:
     assert "--entry-id artifact-enriched-csv" in put_step["run"]
     assert "/tmp/r2_producer/enrich/" in put_step["run"]
     assert "--json-output" in put_step["run"]
-    assert put_step.get("continue-on-error") is True
+    assert "STATUS=$(python -c" in put_step["run"]
+    assert 'if [ "$STATUS" = "ok" ]' in put_step["run"]
+    assert put_step.get("continue-on-error") is not True
     get_step = _step_named(enrich, "R2 get indicators staging")
     assert "artifact_bus_cli.py get" in get_step["run"]
     assert "--entry-id artifact-daily-indicators" in get_step["run"]
     assert "$GITHUB_RUN_ID" in get_step["run"]
-    fallback_step = _step_named(enrich, "GitHub fallback indicators artifact")
-    assert fallback_step["uses"] == "actions/download-artifact@v4"
-    upload_step = _step_named(enrich, "Upload enriched CSV artifact")
-    assert upload_step["uses"] == "actions/upload-artifact@v4"
+    assert get_step.get("continue-on-error") is not True
+    text = _workflow_text("daily_event_cause_enrichment.yml")
+    assert "actions/download-artifact@v4" not in text
+    assert "actions/upload-artifact@v4" not in text
     producer_summary = _step_named(enrich, "Write enrich producer handoff summary")
     assert "--mode producer" in producer_summary["run"]
+    assert "--optional artifact-enriched-csv" in producer_summary["run"]
+    assert "--required artifact-enriched-csv" not in producer_summary["run"]
+    assert "--github-upload-ok" not in producer_summary["run"]
     consumer_summary = _step_named(enrich, "Write enrich consumer handoff summary")
     assert "--mode producer" not in consumer_summary["run"]
 
