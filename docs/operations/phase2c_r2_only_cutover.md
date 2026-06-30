@@ -10,6 +10,12 @@ Related contract: [github_state_to_r2_supabase_mapping.md](../contracts/github_s
 - [x] Optional FI-1P live run #176 (producer degraded visibility)
 - [x] Post-gate normal run #179 (`handoff_source=r2`, publish success)
 - [x] Phase 2c promotion gate cleared (Issue #93 comment 2026-06-29)
+- [x] Phase 2c merge (PR #104, `dcb0d62`, 2026-06-29)
+- [x] Post-merge live run #180 (2026-06-30, R2-only handoff + publish success)
+
+## Live gate status
+
+**Phase 2c live gate: CLOSED** (2026-06-30). Post-merge verification run #180 satisfies the checklist below. Phase 2 (daily run-internal artifact bus) is complete; Phase 3 (`artifact_index`, warm cache) may proceed per [github_state_to_r2_supabase_mapping.md](../contracts/github_state_to_r2_supabase_mapping.md).
 
 ## Scope
 
@@ -52,7 +58,28 @@ On the **first trading day** after Phase 2c merge (Cloudflare Cron or manual `wo
 - `handoff_failed`
 - `producer_degraded`
 
-Record Actions run URL in Issue #93 or this file.
+### Post-merge live verification record (2026-06-30)
+
+| Item | Value |
+|------|-------|
+| Run | Daily Indicators **#180** |
+| URL | https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/28425706867 |
+| Result | workflow **success** (~14 min) |
+| Merge commit | `dcb0d625` (PR #104 Phase 2c) |
+| Trigger | Cloudflare Cron dispatch (`workflow_dispatch`, 06:45 UTC) |
+| Inputs | `run_date` empty, `skip_publish=false`, `is_replay=false` |
+| Resolved | `run_date=2026-06-30`, `is_open=True` |
+
+**Verified:**
+
+- No `validate_fault_injection` job; no GitHub artifact upload/download or fallback steps (R2-only workflow)
+- Required producers: `r2_put_ok=true` for core CSV/quality, index store, OHLC store, indicators, enriched CSV
+- Required consumers: `handoff_source=r2` on `ensure_core_cache`, `compute_indicators`, `event_cause_enrichment`, `render_and_upload`
+- Optional `artifact-stale-exclusions`: `skipped_optional_missing` (`stale=0`; contract-compliant)
+- `Upload to all targets` **success** (`upload_status=ok`)
+- No `handoff_failed`, `producer_degraded`, or live-path `github_fallback` in job logs
+
+Recorded in Issue #93 (2026-06-30 comment).
 
 ## Rollback
 
