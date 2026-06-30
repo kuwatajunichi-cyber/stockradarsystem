@@ -100,9 +100,9 @@ Checklist:
 
 Rollback during Phase 2b: revert to Phase 2a (GitHub primary + R2 shadow) or prior commit; confirm next trading day live run before deleting rollback branch.
 
-### Phase 2c (current)
+### Phase 2c (completed)
 
-After Phase 2c merge, confirm on the first trading day live `daily.yml` run:
+Confirmed on live run **#180** (2026-06-30, first trading day after PR #104 merge):
 
 1. All required producer handoffs show `r2_put_ok=true` (no `producer_degraded`)
 2. All required consumer handoffs show `handoff_source=r2` (no `github_fallback`, no `fallback_used`)
@@ -110,7 +110,9 @@ After Phase 2c merge, confirm on the first trading day live `daily.yml` run:
 4. Manifest keys appear in job outputs / summary
 5. No artifact with `handoff_failed` in summary
 
-Full checklist: [phase2c_r2_only_cutover.md](phase2c_r2_only_cutover.md)
+Run URL: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/28425706867
+
+Full checklist and record: [phase2c_r2_only_cutover.md](phase2c_r2_only_cutover.md). **Phase 2c live gate closed** (Issue #93, 2026-06-30).
 
 Rollback during Phase 2c: revert to Phase 2b commit (GitHub artifact fallback restored); confirm next trading day live run before deleting rollback branch.
 

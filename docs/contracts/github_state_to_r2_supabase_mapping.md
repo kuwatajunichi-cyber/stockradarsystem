@@ -32,7 +32,9 @@ Phase 2b contract:
 - `shadow-validate` is not used on the consumer path in Phase 2b.
 - Supabase `artifact_index` shadow commit is **deferred** to Phase 3; Phase 2 orphan = blob put ok but manifest put/validation failed
 
-**Phase 2c promotion gate (completed):** one successful **FI-1** live run (non-replay: `run_date` empty, `is_replay=false`) with consumer `handoff_source=github_fallback` on required artifacts, plus one post-gate normal run with `handoff_source=r2`. Procedure: [phase2b_fault_injection.md](../operations/phase2b_fault_injection.md). Live gate cleared 2026-06-29 (run #179).
+**Phase 2c promotion gate (completed):** one successful **FI-1** live run (non-replay: `run_date` empty, `is_replay=false`) with consumer `handoff_source=github_fallback` on required artifacts, plus one post-gate normal run with `handoff_source=r2`. Procedure: [phase2b_fault_injection.md](../operations/phase2b_fault_injection.md). Pre-merge gate cleared 2026-06-29 (run #179).
+
+**Phase 2c post-merge live gate (completed):** first trading day after Phase 2c merge (PR #104) — run #180 (2026-06-30), R2-only handoff, publish success. Record: [phase2c_r2_only_cutover.md](../operations/phase2c_r2_only_cutover.md). Phase 2 daily artifact bus migration **complete**; Phase 3 next.
 
 Phase 2c contract:
 
