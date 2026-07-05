@@ -57,6 +57,10 @@
   [docs/adr/adr-001-audit-retention-and-removal.md](adr/adr-001-audit-retention-and-removal.md)
 - ADR-002 日次 MACD ヒストグラム・チャート寄り状態ラベル:  
   [docs/adr/adr-002-macd-histogram-indicators.md](adr/adr-002-macd-histogram-indicators.md)
+- ADR-003 R2 blob plane / Supabase control plane（Issue #93）:  
+  [docs/adr/adr-003-r2-supabase-control-blob-split.md](adr/adr-003-r2-supabase-control-blob-split.md)
+- ADR-004 算出指数（派生指標）の Warm Cache 化（Phase 4.5 想定）:  
+  [docs/adr/adr-004-derived-indicators-warm-cache.md](adr/adr-004-derived-indicators-warm-cache.md)
 
 ### Decision Candidates (Pre-ADR)
 
