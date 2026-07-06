@@ -114,16 +114,11 @@ def _resolve_rollout_stage(raw: str | None) -> str:
 
 
 def list_supabase_patched_cache_entries() -> list[tuple[str, str]]:
-    from stockradar.storage.supabase_client import FakeSupabaseControlAdapter, SupabaseRestAdapter
+    from stockradar.storage.supabase_client import control_adapter_from_env
 
-    if os.environ.get("SUPABASE_CONTROL_FAKE", "").strip().lower() in ("1", "true", "yes"):
-        adapter = FakeSupabaseControlAdapter()
-    else:
-        url = os.environ.get("SUPABASE_URL", "").strip()
-        key = os.environ.get("SUPABASE_SECRET_KEY", "").strip()
-        if not url or not key:
-            return []
-        adapter = SupabaseRestAdapter.from_env()
+    adapter = control_adapter_from_env()
+    if adapter is None:
+        return []
     rows = adapter.list_patched_cache_rows()
     return [(str(r["cache_key"]), str(r.get("source_ref") or "")) for r in rows]
 

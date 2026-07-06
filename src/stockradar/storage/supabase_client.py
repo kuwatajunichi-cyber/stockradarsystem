@@ -676,3 +676,17 @@ class FakeSupabaseControlAdapter:
             self.artifact_index.pop(row_id, None)
         elif table == "cache_index":
             self.cache_index.pop(row_id, None)
+
+ENV_SUPABASE_CONTROL_FAKE = "SUPABASE_CONTROL_FAKE"
+
+
+def control_adapter_from_env() -> SupabaseControlPort | None:
+    """Return Fake or REST control-plane adapter from env; None if unconfigured."""
+    if os.environ.get(ENV_SUPABASE_CONTROL_FAKE, "").strip().lower() in ("1", "true", "yes"):
+        return FakeSupabaseControlAdapter()
+    url = os.environ.get(ENV_SUPABASE_URL, "").strip()
+    key = os.environ.get(ENV_SUPABASE_SECRET_KEY, "").strip()
+    if not url or not key:
+        return None
+    return SupabaseRestAdapter.from_env()
+
