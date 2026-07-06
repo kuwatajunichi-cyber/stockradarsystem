@@ -1,73 +1,0 @@
-"""One-off helper to post Issue #93 handoff comment. Delete after use."""
-from pathlib import Path
-
-body = """\
-## 3uW0Š0: `daily_universe_patch` h0 `daily` n0wÕR˜ÿ2686 / 2026-06-23	ÿ
-
-Phase 1 ¤0ó0·0Ç0ó0È0Š2“ÿ,g Issue ³0á0ó0È0 / `docs/operations/incidents/phase1_cron_dispatch_cutover_2026-06.md`	ÿn00patch / monthly / cleanup I{n0 Cron ûy¡{0k0¢•#Y0‹00**K(u
-Nn0³‰,n‹N˜**h0**Ÿ[Åˆ¨chY**’0‹kY00
-
-**şsBf¹pg0o0QY}ÿPhase 1 øvS_n0 dispatch contract / ×SQ0eQŒ0agöN	ÿk0o0	[0j0D00** Cloudflare tPn0³0¹0È0fŠ—{û0Cron  gÿ5/account	ÿn0tetL02Lˆ-Nn0_000Ÿ[Åˆ$R­eo0³0¹0È0ºxš[Œ_k0LˆF0ó`š[0
-
----
-
-### ‹NaŒÿDaily Indicators run #171, 2026-06-23	ÿ
-
-- **2686ÿ¸0ü0Õ0Ã0È0	ÿ** o0 **2026-06-23 ØN** 
-N4XÃ^bkÿtet˜’Ägg“•+gû0gB}òX·Œ 6/22	ÿ0
-- `daily_universe_patch` #118ÿTåe `schedule`	ÿg0 `removed=23`ÿMRåe #117 o0 `22`	ÿ0Ã^bk effective åek0 JPX N§‰x0	Š00Ñ0Ã0Á0g0d–YU0Œ0_00
-- W0K0W0 **Daily Indicators #171**ÿ06:45 UTC wÕR	ÿo0 **patch #118ÿ06:54 UTC wÕR	ÿˆ0Š0HQ** k0pc0_00
-- #171 n0 `resolve_core_csv` o0 patched cache key **`...-2026-06-22`**ÿMRåeÑ0Ã0Á0	ÿ’0©_CQ ’! core k0 **2686 L0‹kX[**0
-- P}œg:
-  - `ensure_core_cache`: `stale=1`ÿ2686	ÿ0stale QfŠLˆ 2 Ñ0¹0ÿ5 R sleep ×2	ÿg0 **job } +10 R**0
-  - `compute_indicators`: `excluded_by_stale_policy=1 codes=['2686']`ÿ™}š}o01Š¹[ tier …Q	ÿ0
-- Ìåe **#172** o0 cache key **`...-2026-06-23`** ’0O(u ’! 2686 N(W0`stale=0`0`ensure_core_cache` íw.~ÿQfŠLˆj0W0	ÿ0
-
-**YeŠ:** 
-N4XÃ^bkRåeo00Ñ0Ã0Á0n0æ0Ë0Ğ0ü0¹00h00OHLC ôf°eş[aŒ0n0º0ì0L0 1 run zvuW0F0‹00QY}
-N fatal g0o0j0D0L00**!qÄ™j0 yfinance QfŠLˆh0 job Bf“•—X** k0d0j0L0‹00
-
----
-
-### şs¶rn0wÕRL}ï
-
-| Workflow | š[BfwÕR | ™P€ |
-|----------|----------|------|
-| `daily.yml` | Cloudflare Cron `45 6 * * *` ’! Worker ’! `workflow_dispatch` | Phase 1 ckû| |
-| `daily_universe_patch.yml` | GitHub Actions `schedule` `0 3 * * *`ÿTîv JST 12:00	ÿ | Phase 1 g0 **aóV„vk0*gûy¡{** |
-
-ôvÑ run g0o0 patch ‚0 `event: schedule` `0L00**Ÿ[›–n0zvkpBf;Ro0 06:50 MRŒ_j0i0 daily h0T/^**ÿGitHub schedule n0Eö^	ÿ0YAML 
-Nn0 03:00 UTC h0 daily 06:45 UTC n0˜^İO<Šo0j0D00
-
----
-
-### Ÿ[Åˆ¨chYÿQY}So0W0j0D0	ÿ
-
-³0¹0È0tetŒ_0YO›RL0B0Œ0p0åNN’0 **¨chYŸ[Åˆ** h0W0f0iŠY0‹0ÿIssue #93 Phase 1 ¤0ó0·0Ç0ó0È0n00ŸSP[„vRÿfû0live gate0’0r‰	ÿ0
-
-1. **Worker routing g0 `daily_universe_patch.yml` ’0 `daily.yml` ˆ0Š0HQk0 dispatch**
-   - ‹O: TN Cron …Qg0 patch ’! daily n0˜^ dispatch0~0_0o0 patch \(u Cron ’0 daily ˆ0Š0 15 30 RéeD0 UTC ¹0í0Ã0È0k0M‘n0
-   - `daily.yml` …Qg0 `patch_universe_daily` ’0Ÿ[LˆY0‹0Hho0 **writer Râ–QY}**ÿ`daily_universe_patch.yml` sole writer	ÿk0ÍSY0‹0_00^—¨chY0
-2. **ûyLˆBfo0 GitHub `schedule` JRd–h0 Worker dispatch 	g¹RS’0TNê0ê0ü0¹0XSMO**ÿPhase 1 *gÇ0×0í0¤0 incident n0Qzv2–bk	ÿ0
-3. **live gate:** Ã^bk effective åeMRŒ_g0 `core_selection.json` n0 `patched_cache_key` run_date h0 `delisted_patch_applied=true` L0 daily ‹•ËYMRk0ÃcF0S0h0’0 1 ŞVºxŠ0
-4. **Cron  g:** ¢0«0¦0ó0È0
-NP– 50monthly / cleanup ûy¡{Š;uh0 **~0h00f0** routing table ’0-ŠŠÿIssue ,g‡e0Phase 2 åNM– routing table Æ–}0h0teT	ÿ0
-
-**aóV„vk0QY}Yk0W0f0D0‹0t1u:** Worker ı R Cronû0dispatch ŞVpe—Xo0 Cloudflare ²ŠÑ‘â0Ç0ë0tet-N0şs¶r R2 ops o0 free tier …Q`0L00**Cron/Worker tPn0³0¹0È0a¦^** ’0ºxš[W0f0K0‰0 `docs/contracts/daily_cloudflare_cron_dispatch.md` I{x0f<hU0[0‹00
-
----
-
-### ÂSgq run
-
-- Daily Indicators #171: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/28007660379
-- Daily Indicators #172: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/28080471536
-- Daily Universe Patch #118 / #119: `removed=23`ÿ6/23, 6/24	ÿ
-
----
-
-**¹0Æ0ü0¿0¹0:** ³‰,nû03uW0Š0n000Ÿ[Åˆ¿0¹0¯0Sû0QY}ıŠo0 **Cloudflare ³0¹0È0tetŒ_** k0$R­e0
-"""
-
-out = Path(__file__).resolve().parents[1] / ".tmp_issue93_comment.md"
-out.write_text(body, encoding="utf-8")
-print(f"written {len(body)} chars to {out}")

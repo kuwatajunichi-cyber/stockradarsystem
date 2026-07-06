@@ -75,11 +75,11 @@ def cmd_put_fixed(args: argparse.Namespace) -> int:
     fatal = supabase_commit_is_fatal(stage)
     is_replay = str(args.is_replay).strip().lower() in ("true", "1", "yes")
 
-    if is_replay:
+    if not should_rotate_cache(is_replay=is_replay, job_success=True):
         _emit(
             {
                 "status": "skipped",
-                "replay_save_skipped": True,
+                "replay_save_skipped": is_replay,
                 "supabase_commit_ok": False,
                 "cache_source": "none",
             },
