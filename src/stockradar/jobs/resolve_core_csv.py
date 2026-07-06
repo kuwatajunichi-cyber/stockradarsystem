@@ -23,6 +23,13 @@ from stockradar.jobs.core_csv_selection import (
     select_patched_cache_key,
 )
 from stockradar.jobs.patch_universe_daily import MANIFEST_FILENAME as PATCH_MANIFEST_NAME
+from stockradar.storage.control_plane import (
+    cache_read_allows_github_fallback,
+    cache_read_uses_supabase_primary,
+    filter_patched_keys_by_allowed_refs,
+    normalize_rollout_stage,
+    patched_select_uses_supabase_only,
+)
 from stockradar.universe.monthly_release_pick import pick_monthly_release
 
 STATE_FILENAME = ".resolve_core_state.json"
@@ -94,10 +101,33 @@ def cache_keys_for_allowed_refs(
     return [k for k, r in entries if r in allowed_refs]
 
 
+def _resolve_rollout_stage(raw: str | None) -> str:
+    if raw:
+        return normalize_rollout_stage(raw)
+    env = os.environ.get("PHASE3_ROLLOUT_STAGE", "").strip()
+    if env:
+        return normalize_rollout_stage(env)
+    from stockradar.storage.mapping_catalog import load_mapping
+
+    mapping = load_mapping()
+    return normalize_rollout_stage(str(mapping.get("phase3_rollout_stage") or "3a"))
+
+
+def list_supabase_patched_cache_entries() -> list[tuple[str, str]]:
+    from stockradar.storage.supabase_client import control_adapter_from_env
+
+    adapter = control_adapter_from_env()
+    if adapter is None:
+        return []
+    rows = adapter.list_patched_cache_rows()
+    return [(str(r["cache_key"]), str(r.get("source_ref") or "")) for r in rows]
+
+
 def run_select(
     args: argparse.Namespace,
     *,
     list_cache_entries: Callable[[str], list[tuple[str, str]]] | None = None,
+    list_supabase_patched: Callable[[], list[tuple[str, str]]] | None = None,
 ) -> None:
     repo = args.repo.strip()
     if not repo:
@@ -130,8 +160,31 @@ def run_select(
         for x in (getattr(args, "patched_cache_allowed_ref", None) or [])
         if isinstance(x, str) and x.strip()
     )
-    lister = list_cache_entries or list_action_cache_entries
-    cache_keys = cache_keys_for_allowed_refs(lister(repo), allowed)
+    stage = _resolve_rollout_stage(getattr(args, "phase3_rollout_stage", None))
+    cache_source = "none"
+    cache_keys: list[str] = []
+
+    if cache_read_uses_supabase_primary(stage):
+        supabase_lister = list_supabase_patched or list_supabase_patched_cache_entries
+        sb_rows = supabase_lister()
+        cache_keys = filter_patched_keys_by_allowed_refs(
+            [{"cache_key": k, "source_ref": r} for k, r in sb_rows],
+            allowed,
+        )
+        if cache_keys:
+            cache_source = "r2"
+
+    if not cache_keys and cache_read_allows_github_fallback(stage):
+        lister = list_cache_entries or list_action_cache_entries
+        gh_keys = cache_keys_for_allowed_refs(lister(repo), allowed)
+        cache_keys = gh_keys
+        if gh_keys:
+            cache_source = "github_fallback"
+    elif not cache_keys and not patched_select_uses_supabase_only(stage):
+        lister = list_cache_entries or list_action_cache_entries
+        cache_keys = cache_keys_for_allowed_refs(lister(repo), allowed)
+        if cache_keys:
+            cache_source = "github_fallback"
     bad_pref = count_unparseable_patched_prefixed_keys(cache_keys)
     if bad_pref:
         print(
@@ -148,6 +201,7 @@ def run_select(
         "resolution_reason": pick.reason,
         "run_date": run_d.isoformat(),
         "patched_cache_key": chosen,
+        "cache_source": cache_source,
     }
     state_path: Path = args.state_path
     state_path.parent.mkdir(parents=True, exist_ok=True)
@@ -158,9 +212,11 @@ def run_select(
     print(f"need_patched_restore={need_restore}")
     print(f"patched_cache_key={chosen or ''}")
     print(f"monthly_tag={pick.tag}")
+    print(f"cache_source={cache_source}")
     _append_github_output(gh_out, "need_patched_restore", need_restore)
     _append_github_output(gh_out, "patched_cache_key", chosen or "")
     _append_github_output(gh_out, "monthly_tag", pick.tag)
+    _append_github_output(gh_out, "cache_source", cache_source)
     _append_github_output(gh_out, "universe_resolution", pick.universe_resolution)
     _append_github_output(gh_out, "resolution_reason", _escape_kv(pick.reason))
 
@@ -334,6 +390,11 @@ def main(argv: list[str] | None = None) -> None:
             "In GitHub Actions pass the workflow ref and default branch ref "
             "(e.g. refs/heads/feature-x and refs/heads/main) so restore can hit the entry."
         ),
+    )
+    p_sel.add_argument(
+        "--phase3-rollout-stage",
+        default=None,
+        help="3a|3b|3c; defaults to PHASE3_ROLLOUT_STAGE env or mapping.yaml",
     )
     p_sel.add_argument(
         "--state-path",

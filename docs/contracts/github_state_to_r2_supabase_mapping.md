@@ -117,3 +117,36 @@ Migration staging (this contract):
 - `docs/contracts/run_artifact_manifest_schema.md`
 - `docs/contracts/daily_publish_manifest_schema.md`
 - `docs/contracts/supabase_control_plane_schema.md`
+
+## Phase 3 warm cache + control plane (current: 3c)
+
+Machine-readable stage: phase3_rollout_stage in mapping YAML (3a | 3b | 3c).
+
+**Stage promotion:** When changing phase3_rollout_stage in a PR, update contract test expectations and workflow steps in the same PR.
+
+| Stage | Cache read | Cache write | GH actions/cache | Supabase commit |
+|-------|------------|-------------|------------------|-----------------|
+| 3a | GH primary | GH + shadow R2/Supabase | retained | shadow (non-fatal) |
+| 3b | R2/Supabase primary | R2 + Supabase | fallback read | shadow (non-fatal) |
+| 3c | R2/Supabase only | R2 + Supabase required | removed | required |
+
+### Phase 3 cache entries
+
+| Entry id | R2 | Supabase |
+|----------|-----|----------|
+| cache-index-store-zip-v1 | cache/index-store-zip-v1/{sha256}.zip | cache_index + cache_pointers via RPC |
+| cache-ohlc-store-zip-v2 | cache/ohlc-store-zip-v2/{sha256}.zip | same |
+| cache-universe-patched | csv + manifest under cache/universe-patched/{monthly_tag}/{run_date}/ | cache_index patched row (no pointer) |
+
+### patched ref filter (Option A)
+
+
+esolve_core_csv select lists Supabase patched rows filtered by source_ref in {github.ref, refs/heads/default_branch} (GH cache equivalent).
+
+### runs ordering
+
+control_plane_cli upsert-run at end of 
+esolve_trading_day (before parallel producers).
+
+Runbook: docs/operations/phase3_warm_cache_supabase_cutover.md.
+

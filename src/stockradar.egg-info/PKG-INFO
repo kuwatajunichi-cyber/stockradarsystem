@@ -16,6 +16,7 @@ Requires-Dist: yfinance>=0.2.0
 Requires-Dist: exchange-calendars>=4.3.0
 Requires-Dist: pytz>=2023.3
 Requires-Dist: python-dotenv>=1.0.0
+Requires-Dist: httpx>=0.27.0
 Provides-Extra: dev
 Requires-Dist: pytest>=7.0.0; extra == "dev"
 Requires-Dist: ruff>=0.4.0; extra == "dev"
@@ -500,11 +501,16 @@ python -m stockradar.jobs.compute_indicators_for_core --input data/universe/jpx/
   - `data/cache/yf_index/{bench}.csv`（ベンチマーク OHLC）
 - **日次指標（分析用・配布前の生）**
   - `data/indicators/daily/indicators_YYYYMMDD.csv`（縦持ち：date, code, indicators...）。**派生**の `indicators_event_enriched_*.csv` はイベント要因付与用で、他ジョブが「最新コア指標」を選ぶ対象外。
-    - 列例: `date`, `code`, `name`（任意）, `turnover_yen`, `z_turnover_{Z_LOOKBACK_DAYS}`, `turnover_ma_ratio_{Z_LOOKBACK_DAYS}`, `price_change_pct`, `rs63_topix`, `rs126_topix`, `rs252_topix`, `rs63_nikkei`, `rs126_nikkei`, `rs252_nikkei`, `n_bars_used`（その他 RS 加速・β 調整 RS・情報比率・外部リンク・ローソク記述子等。詳細は docs/user-facing-spec/universe_and_indicators_v1.2.md）
+    - 列例: `date`, `code`, `name`（任意）, `turnover_yen`, `z_turnover_{Z_LOOKBACK_DAYS}`, `turnover_ma_ratio_{Z_LOOKBACK_DAYS}`, `price_change_pct`, `rs63_topix`, `rs126_topix`, `rs252_topix`, `rs63_nikkei`, `rs126_nikkei`, `rs252_nikkei`, `n_bars_used`（その他 RS 加速・β 調整 RS・情報比率・外部リンク・ローソク記述子等。詳細は [docs/user-facing-spec/universe_and_indicators_v1.2.md](docs/user-facing-spec/universe_and_indicators_v1.2.md)）
 
 ### GitHub Actions での実行
 
-`.github/workflows/daily.yml` が毎営業日 15:37 JST に自動実行されます。
+定時実行（毎日 15:45 JST）は **Cloudflare Cron** →
+[`workers/github-cron-dispatcher`](workers/github-cron-dispatcher/) Worker が
+GitHub Actions `workflow_dispatch` で `.github/workflows/daily.yml` を起動します
+（Cron: UTC `45 6 * * *`）。運用手順は
+[docs/operations/cloudflare_github_cron.md](docs/operations/cloudflare_github_cron.md)。
+
 手動で過去営業日をやり直す **replay** は同ワークフローの
 `workflow_dispatch` で `run_date`（`YYYY-MM-DD`）を指定します
 （**東京日付で今日と異なる日のみ replay**。許容は
@@ -512,9 +518,9 @@ python -m stockradar.jobs.compute_indicators_for_core --input data/universe/jpx/
 `docs/contracts/daily_replay_and_monthly_universe.md`）。
 `skip_publish: true` でレンダー・アップロードのみスキップできます。
 
-- schedule: 毎営業日 15:37 JST（月〜金、UTC 06:37）
-- concurrency: 同一workflowの多重起動禁止
-- 主なジョブ: resolve_trading_day（営業日判定）→ **resolve_core_csv**（月次タグ解決・patched cache 選定・`daily-core-csv-*` / `daily-core-quality-*` artifact）と **ensure_index_cache** を並列 → **ensure_core_cache**（上記 core artifact を `--input`、OHLC を `daily-ohlc-store-*` artifact と固定キー `ohlc-store-zip-v2` に反映）→ **compute_indicators**（同一 run の **OHLC・index・core** をいずれも **artifact 経由で復元**して算出。`daily.yml` 内では `patch_universe_daily` を起動せず、OHLC/index の `actions/cache/save` も行わない。ウォーム用の cache save は各 ensure ジョブのみ。詳細は `docs/contracts/daily_replay_and_monthly_universe.md`）→
+- 定時起動: Cloudflare Cron（毎日 JST 15:45）→ Worker → `daily.yml` workflow_dispatch
+- concurrency: 同一workflowの多重起動禁止（`daily-indicators`, cancel-in-progress: false）
+- 主なジョブ: resolve_trading_day（営業日判定）→ **resolve_core_csv**（月次タグ解決・patched cache 選定・R2 staging put）と **ensure_index_cache** を並列 → **ensure_core_cache**（core を R2 get、OHLC を R2 put + 固定キー `ohlc-store-zip-v2` に反映）→ **compute_indicators**（同一 run の OHLC・index・core を **R2 manifest 経由で復元**して算出。Phase 2c 以降、run 内 handoff は GitHub artifact ではなく R2 `runs/daily/{run_id}/...` のみ。`actions/cache` の warm cache と monthly Release 依存は Phase 3/4 まで継続。`daily.yml` 内では `patch_universe_daily` を起動せず、OHLC/index の `actions/cache/save` も行わない。ウォーム用の cache save は各 ensure ジョブのみ。契約: `docs/contracts/github_state_to_r2_supabase_mapping.md`）→
   compute_indicators_for_core → 0011_work へアップロード → render_sheet 等
 - fetch系は部分成功を許容しつつ manifest に残す
 - compute で対象銘柄の有効計算率が極端に低い場合は fail

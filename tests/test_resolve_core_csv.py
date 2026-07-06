@@ -96,6 +96,7 @@ def test_run_select_warns_on_unparseable_prefix(
         run_date="2026-04-15",
         tags_file=tags_file,
         state_path=state_path,
+        phase3_rollout_stage="3a",
     )
     mod.run_select(args, list_cache_entries=entries)
     err = capsys.readouterr().err
@@ -111,6 +112,7 @@ def test_run_select_no_patched_candidate(tmp_path: Path, tags_file: Path) -> Non
         run_date="2026-04-15",
         tags_file=tags_file,
         state_path=state_path,
+        phase3_rollout_stage="3a",
     )
     mod.run_select(
         args,
@@ -137,6 +139,7 @@ def test_run_select_skips_patched_key_not_on_allowed_refs(
             "refs/heads/main",
             "refs/heads/my-feature",
         ],
+        phase3_rollout_stage="3a",
     )
     mod.run_select(args, list_cache_entries=entries)
     state = json.loads(state_path.read_text(encoding="utf-8"))
