@@ -26,3 +26,10 @@ alwaysApply: true
 ## 実行形態
 
 - **バッチ・定時実行**を前提とする。常時稼働サーバーや対話 UI は想定しない。
+
+## Python 依存関係
+
+- **正本**: `pyproject.toml` の `[project.dependencies]`（ランタイム）と `[project.optional-dependencies].dev`（pytest / ruff / mypy）。
+- **`requirements.txt`**: GitHub Actions が `pip install -r requirements.txt` するための薄いラッパー（`-e .` のみ）。**ここにパッケージ名・バージョンを書かない**。
+- **CI テスト**（`.github/workflows/test.yml`）: `pip install -e ".[dev]"`。
+- 依存を追加・更新するときは `pyproject.toml` を変更し、両方のインストール経路で import できることを確認する。
