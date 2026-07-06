@@ -61,11 +61,13 @@ def main() -> int:
     smoke_github_run_id = int(os.environ.get("GITHUB_RUN_ID") or "0")
 
     try:
-        run = adapter.upsert_run(
-            workflow=SMOKE_WORKFLOW,
-            github_run_id=smoke_github_run_id,
-            run_date="2026-01-01",
-        )
+        run = adapter.get_run(workflow=SMOKE_WORKFLOW, github_run_id=smoke_github_run_id)
+        if run is None:
+            run = adapter.upsert_run(
+                workflow=SMOKE_WORKFLOW,
+                github_run_id=smoke_github_run_id,
+                run_date="2026-01-01",
+            )
         got = adapter.get_run(workflow=SMOKE_WORKFLOW, github_run_id=smoke_github_run_id)
         if got is None or got.get("id") != run.get("id"):
             return _fail("upsert-run not readable")
