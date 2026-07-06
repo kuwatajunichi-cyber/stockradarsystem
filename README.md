@@ -159,9 +159,17 @@ python -m venv .venv
 
 ### 2. 依存のインストール
 
+ランタイム依存の**正本は `pyproject.toml` の `[project.dependencies]`** です。`requirements.txt` は GitHub Actions 向けのエントリポイント（`-e .`）であり、パッケージの二重定義はしません。
+
 ```powershell
+# ワークフローと同じランタイム依存（編集可能インストール）
 pip install -r requirements.txt
+
+# テスト・Ruff・Mypy も使う開発者向け（CI の unit ジョブと同等）
+pip install -e ".[dev]"
 ```
+
+新規ライブラリを足すときは **`pyproject.toml` のみ**更新し、`requirements.txt` にはバージョン行を追加しないでください。
 
 ### 3. 環境変数（任意）
 

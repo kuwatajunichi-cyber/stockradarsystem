@@ -105,6 +105,7 @@ tests/test_manifest.py
 tests/test_monthly_release_pick.py
 tests/test_name_aliases_media.py
 tests/test_patch_universe_daily_manifest.py
+tests/test_project_deps.py
 tests/test_render_sheet.py
 tests/test_research_prompt_block.py
 tests/test_resolve_core_csv.py
