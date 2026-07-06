@@ -172,6 +172,8 @@ def test_daily_yml_phase2c_r2_only_handoff() -> None:
 
     assert "validated == 0" not in daily_text
     assert "stockradar.storage.handoff_summary" in daily_text
+    assert "stockradar.storage.phase3_gate_summary" in daily_text
+    assert "cache_source: ${{ steps.core_sel.outputs.cache_source }}" in daily_text
 
 
 def _producer_put_steps(job: dict) -> list[dict]:
@@ -492,6 +494,7 @@ def test_daily_workflows_handoff_summary_optional_matches_catalog() -> None:
 
 ENCODING_CONTRACT_FILES = (
     ".github/workflows/daily.yml",
+    ".github/workflows/supabase_smoketest.yml",
     ".github/workflows/daily_event_cause_enrichment.yml",
     "docs/contracts/github_state_to_r2_supabase_mapping.md",
     "docs/contracts/run_artifact_manifest_schema.md",
