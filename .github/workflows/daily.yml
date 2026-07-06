@@ -104,7 +104,30 @@ jobs:
             --workflow daily.yml \
             --github-run-id "$GITHUB_RUN_ID" \
             --run-date "$RUN_DATE" \
-            --status running
+            --status running \
+            --json-output /tmp/supabase_upsert_run.json
+
+      - name: Write Supabase upsert-run gate summary
+        if: always()
+        run: |
+          set -euo pipefail
+          {
+            echo "## resolve_trading_day Supabase gate"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ -f /tmp/supabase_upsert_run.json ]; then
+            python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+
+          payload = json.loads(Path("/tmp/supabase_upsert_run.json").read_text(encoding="utf-8"))
+          if payload.get("run_id") is not None:
+              print(f"- supabase_run_id: `{payload['run_id']}`")
+          if payload.get("status") is not None:
+              print(f"- upsert_run_status: `{payload['status']}`")
+          PY
+          else
+            echo "- upsert_run_status: \`(json missing — upsert step failed)\`" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   resolve_core_csv:
     needs: resolve_trading_day
@@ -266,6 +289,7 @@ jobs:
             echo "- need_patched_restore: ${{ steps.core_sel.outputs.need_patched_restore }}"
             echo "- patched_cache_key: ${{ steps.core_sel.outputs.patched_cache_key }}"
             echo "- monthly_tag: ${{ steps.core_sel.outputs.monthly_tag }}"
+            echo "- cache_source: ${{ steps.core_sel.outputs.cache_source }}"
             echo "- core_csv_manifest_key: ${{ steps.r2_put_core_csv.outputs.manifest_logical_key }}"
             echo "- core_quality_manifest_key: ${{ steps.r2_put_core_quality.outputs.manifest_logical_key }}"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -430,15 +454,16 @@ jobs:
           RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
         run: |
           set -euo pipefail
-          {
-            echo "## ensure_index_cache"
-            echo "- run_date: $RUN_DATE"
-            echo "- index_zip: data/cache/index_store_archive/index_store.zip"
-            echo "- warm_cache_key: index-store-zip-v1"
-            echo "- cache_source: r2"
-            echo "- run_artifact: daily-index-store-${{ github.run_id }}"
-            echo "- index_store_manifest_key: ${{ steps.r2_put_index_store.outputs.manifest_logical_key }}"
-          } >> "$GITHUB_STEP_SUMMARY"
+          python -m stockradar.storage.phase3_gate_summary \
+            --title "ensure_index_cache (Phase 3c gate)" \
+            --warm-cache-key index-store-zip-v1 \
+            --get-json /tmp/index_warm_get.json \
+            --put-json /tmp/r2_producer/ensure_index_cache/cache-index-store-zip-v1.json \
+            --fallback-cache-source "${{ steps.restore_index_warm.outputs.cache_source }}" \
+            --extra-line "- run_date: \`$RUN_DATE\`" \
+            --extra-line "- index_zip: \`data/cache/index_store_archive/index_store.zip\`" \
+            --extra-line "- run_artifact: \`daily-index-store-${{ github.run_id }}\`" \
+            --extra-line "- index_store_manifest_key: \`${{ steps.r2_put_index_store.outputs.manifest_logical_key }}\`"
 
   ensure_core_cache:
     needs: [resolve_trading_day, resolve_core_csv]
@@ -587,11 +612,10 @@ jobs:
           else:
             lines.append("- stale exclusions file: `not found`")
           lines.append("- idempotency_contract: `checked in preflight tests`")
-          lines.append("- warm_cache_key: `ohlc-store-zip-v2`")
-          lines.append("- cache_source: `r2`")
           rid = os.environ.get("GITHUB_RUN_ID", "")
           lines.append(f"- run_artifact: `daily-ohlc-store-{rid}`")
-          summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+          with summary_path.open("a", encoding="utf-8") as fh:
+              fh.write("\n".join(lines) + "\n")
           PY
 
       - name: Archive OHLC store to zip
@@ -700,6 +724,18 @@ jobs:
             --required artifact-daily-ohlc-store \
             --optional artifact-stale-exclusions \
             >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Write ensure_core_cache Phase 3c cache gate summary
+        if: always()
+        env:
+          PYTHONPATH: src
+        run: |
+          set -euo pipefail
+          python -m stockradar.storage.phase3_gate_summary \
+            --title "ensure_core_cache warm cache (Phase 3c gate)" \
+            --warm-cache-key ohlc-store-zip-v2 \
+            --get-json /tmp/ohlc_warm_get.json \
+            --put-json /tmp/r2_producer/ensure_core_cache/cache-ohlc-store-zip-v2.json
 
       - name: Write ensure_core_cache artifact handoff summary
         if: always()

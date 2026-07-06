@@ -1,4 +1,7 @@
-﻿"""Supabase control plane smoke (Secrets required; CI-external)."""
+"""Supabase control plane smoke (Secrets required).
+
+Runnable locally (.env) or from .github/workflows/supabase_smoketest.yml.
+"""
 from __future__ import annotations
 
 import sys
@@ -10,11 +13,25 @@ if str(_REPO_ROOT / "src") not in sys.path:
 
 from stockradar.storage.supabase_client import SupabaseRestAdapter  # noqa: E402
 
-SMOKE_WORKFLOW = "smoke-test"
-SMOKE_GITHUB_RUN_ID = 0
+SMOKE_WORKFLOW = "supabase_smoketest.yml"
 SMOKE_CACHE_KEY = "smoke-index-store-zip-v1"
 SMOKE_SHA = "a" * 64
 
+
+
+
+def _load_dotenv() -> None:
+    import os
+
+    env_path = _REPO_ROOT / ".env"
+    if not env_path.is_file():
+        return
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip())
 
 def _fail(msg: str) -> int:
     print(f"smoke failed: {msg}", file=sys.stderr)
@@ -33,20 +50,23 @@ def _delete_cache_pointer(adapter: SupabaseRestAdapter, cache_key: str) -> None:
 def main() -> int:
     import os
 
+    _load_dotenv()
+
     if not os.environ.get("SUPABASE_URL") or not os.environ.get("SUPABASE_SECRET_KEY"):
         return _fail("SUPABASE_URL and SUPABASE_SECRET_KEY required")
 
     adapter = SupabaseRestAdapter.from_env()
     artifact_id: str | None = None
     cache_history_id: str | None = None
+    smoke_github_run_id = int(os.environ.get("GITHUB_RUN_ID") or "0")
 
     try:
         run = adapter.upsert_run(
             workflow=SMOKE_WORKFLOW,
-            github_run_id=SMOKE_GITHUB_RUN_ID,
+            github_run_id=smoke_github_run_id,
             run_date="2026-01-01",
         )
-        got = adapter.get_run(workflow=SMOKE_WORKFLOW, github_run_id=SMOKE_GITHUB_RUN_ID)
+        got = adapter.get_run(workflow=SMOKE_WORKFLOW, github_run_id=smoke_github_run_id)
         if got is None or got.get("id") != run.get("id"):
             return _fail("upsert-run not readable")
 
@@ -69,7 +89,7 @@ def main() -> int:
             sha256=SMOKE_SHA,
             size_bytes=42,
             writer_workflow="smoke-test",
-            source_github_run_id=SMOKE_GITHUB_RUN_ID,
+            source_github_run_id=smoke_github_run_id,
             history_id=None,
         )
         ptr = adapter.get_cache_pointer(cache_key=SMOKE_CACHE_KEY)

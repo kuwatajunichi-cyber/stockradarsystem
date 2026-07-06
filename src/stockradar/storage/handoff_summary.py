@@ -22,6 +22,20 @@ def _handoff_ok(payload: dict[str, object], *, optional: bool) -> bool:
     return optional and status == "skipped_optional_missing"
 
 
+def _phase3_gate_suffix(payload: dict[str, object]) -> str:
+    parts: list[str] = []
+    supabase_ok = payload.get("supabase_commit_ok")
+    if supabase_ok is not None:
+        parts.append(f"supabase_commit_ok=`{supabase_ok}`")
+    supabase_failed = payload.get("supabase_commit_failed")
+    if supabase_failed:
+        parts.append(f"supabase_commit_failed=`{supabase_failed}`")
+    cache_source = payload.get("cache_source")
+    if cache_source is not None:
+        parts.append(f"cache_source=`{cache_source}`")
+    return (" " + " ".join(parts)) if parts else ""
+
+
 def _producer_status(
     payload: dict[str, object] | None,
     *,
@@ -84,11 +98,12 @@ def write_producer_summary(
         r2_put_ok = payload.get("r2_put_ok")
         degraded_reason = payload.get("degraded_reason") or payload.get("reason") or ""
         manifest_key = payload.get("manifest_logical_key", "")
+        phase3_part = _phase3_gate_suffix(payload)
 
         if handoff_status == "ok":
             mk_part = f" manifest_key=`{manifest_key}`" if manifest_key else ""
             lines.append(
-                f"- {entry_id}: producer_handoff_status=`ok` r2_put_ok=`true`{mk_part}"
+                f"- {entry_id}: producer_handoff_status=`ok` r2_put_ok=`true`{mk_part}{phase3_part}"
             )
         elif handoff_status == "degraded":
             degraded.append(entry_id)
@@ -106,8 +121,28 @@ def write_producer_summary(
             failed_entries.append(entry_id)
             lines.append(
                 f"- {entry_id}: producer_handoff_status=`failed` r2_put_ok=`{r2_put_ok}` "
-                f"({degraded_reason})"
+                f"({degraded_reason}){phase3_part}"
             )
+
+    supabase_entries = [
+        entry_id
+        for entry_id in required + optional
+        if entry_id in by_entry and by_entry[entry_id].get("supabase_commit_ok") is not None
+    ]
+    if supabase_entries:
+        ok_count_sb = sum(
+            1
+            for entry_id in supabase_entries
+            if by_entry[entry_id].get("supabase_commit_ok") is True
+        )
+        lines.append(f"- phase3_supabase_commit_ok_count: `{ok_count_sb}`")
+        failed_sb = [
+            entry_id
+            for entry_id in supabase_entries
+            if by_entry[entry_id].get("supabase_commit_ok") is not True
+        ]
+        if failed_sb:
+            lines.append("- phase3_supabase_commit_failed: `" + ", ".join(failed_sb) + "`")
 
     ok_count = sum(
         1
