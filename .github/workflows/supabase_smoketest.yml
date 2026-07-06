@@ -70,14 +70,14 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           if [ -f /tmp/smoke_upsert_run.json ]; then
             python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
-import json
-from pathlib import Path
+          import json
+          from pathlib import Path
 
-payload = json.loads(Path("/tmp/smoke_upsert_run.json").read_text(encoding="utf-8"))
-print(f"- upsert_run_status: \`{payload.get('status', 'unknown')}\`")
-if "run_id" in payload:
-    print(f"- upsert_run_id: \`{payload['run_id']}\`")
-PY
+          payload = json.loads(Path("/tmp/smoke_upsert_run.json").read_text(encoding="utf-8"))
+          print(f"- upsert_run_status: \`{payload.get('status', 'unknown')}\`")
+          if "run_id" in payload:
+              print(f"- upsert_run_id: \`{payload['run_id']}\`")
+          PY
           fi
           if [ -f smoke_stdout.txt ] && grep -q "smoke ok:" smoke_stdout.txt; then
             echo "- smoke_status: \`ok\`" >> "$GITHUB_STEP_SUMMARY"
@@ -85,9 +85,11 @@ PY
           else
             echo "- smoke_status: \`failed\`" >> "$GITHUB_STEP_SUMMARY"
             if [ -f smoke_stdout.txt ]; then
-              echo "### smoke log (tail)"
-              echo '```'
-              tail -n 20 smoke_stdout.txt
-              echo '```'
-            fi >> "$GITHUB_STEP_SUMMARY"
+              {
+                echo "### smoke log (tail)"
+                echo '```'
+                tail -n 20 smoke_stdout.txt
+                echo '```'
+              } >> "$GITHUB_STEP_SUMMARY"
+            fi
           fi
