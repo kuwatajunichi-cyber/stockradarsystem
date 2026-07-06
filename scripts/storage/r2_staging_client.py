@@ -115,6 +115,10 @@ class R2StagingAdapter:
             "content_type": resp.get("ContentType", "application/octet-stream"),
         }
 
+    def delete_object(self, logical_key: str) -> None:
+        key = self._physical_key(logical_key)
+        self._get_client().delete_object(Bucket=self._bucket, Key=key)
+
     def delete_objects_with_prefix(self, prefix: str) -> int:
         """Conservative cleanup path; ListObjects allowed here only."""
         client = self._get_client()

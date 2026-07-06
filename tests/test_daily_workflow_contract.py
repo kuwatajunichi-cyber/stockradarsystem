@@ -76,9 +76,15 @@ def test_daily_yml_no_patch_universe_job_in_daily() -> None:
     assert "stockradar.jobs.patch_universe_daily" not in text
 
 
-def test_daily_yml_exactly_two_cache_saves() -> None:
+def test_daily_yml_no_actions_cache_phase3c() -> None:
     text = (_repo_root() / ".github/workflows/daily.yml").read_text(encoding="utf-8")
-    assert text.count("actions/cache/save@v4") == 2
+    assert text.count("actions/cache/save@v4") == 0
+    assert text.count("actions/cache/restore@v4") == 0
+    assert "cache_ops rotate-delete" not in text
+    assert "cache_bus_cli.py get-fixed" in text
+    assert "cache_bus_cli.py put-fixed" in text
+    assert "control_plane_cli.py upsert-run" in text
+    assert 'PHASE3_ROLLOUT_STAGE: "3c"' in text
 
 
 def test_daily_yml_compute_and_resolve_no_cache_save() -> None:
@@ -90,9 +96,10 @@ def test_daily_yml_compute_and_resolve_no_cache_save() -> None:
     _assert_job_has_no_cache_save(jobs["resolve_core_csv"], "resolve_core_csv")
 
 
-def test_daily_yml_uses_rotate_delete_for_warm_cache() -> None:
+def test_daily_yml_resolve_core_csv_get_patched() -> None:
     text = (_repo_root() / ".github/workflows/daily.yml").read_text(encoding="utf-8")
-    assert "cache_ops rotate-delete" in text
+    assert "cache_bus_cli.py get-patched" in text
+    assert "--phase3-rollout-stage" in text
 
 
 def test_daily_event_cause_enrichment_indicators_r2_contract() -> None:

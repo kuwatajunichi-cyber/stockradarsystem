@@ -10,6 +10,9 @@ concurrency:
   group: daily-universe-patch
   cancel-in-progress: false
 
+env:
+  PHASE3_ROLLOUT_STAGE: "3c"
+
 jobs:
   resolve_trading_day:
     runs-on: ubuntu-latest
@@ -42,6 +45,21 @@ jobs:
           echo "run_date=$RUN_DATE" >> "$GITHUB_OUTPUT"
           echo "is_open=$IS_OPEN" >> "$GITHUB_OUTPUT"
           echo "Resolved: run_date=$RUN_DATE, is_open=$IS_OPEN"
+
+      - name: Upsert Supabase runs row
+        env:
+          PYTHONPATH: src:.
+          RUN_DATE: ${{ steps.resolve.outputs.run_date }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+          python scripts/storage/control_plane_cli.py upsert-run \
+            --workflow daily_universe_patch.yml \
+            --github-run-id "$GITHUB_RUN_ID" \
+            --run-date "$RUN_DATE" \
+            --status running
 
   patch_universe:
     needs: resolve_trading_day
@@ -115,21 +133,31 @@ jobs:
             --universe-resolution "$UV_RES" \
             --resolution-reason "$REASON"
 
-      - name: Delete patched cache key if exists (fixed key rotation)
+      - name: Put patched universe cache (R2 + Supabase)
         if: success()
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PYTHONPATH: src
+          PYTHONPATH: src:.
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          PHASE3_ROLLOUT_STAGE: ${{ env.PHASE3_ROLLOUT_STAGE }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
+          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
           set -euo pipefail
           MONTHLY_TAG="${{ steps.monthly.outputs.monthly_tag }}"
           RUN_DATE="${{ needs.resolve_trading_day.outputs.run_date }}"
           KEY="universe-patched-${MONTHLY_TAG}-${RUN_DATE}"
-          python -m stockradar.jobs.cache_ops delete-key --repo "${{ github.repository }}" --key "$KEY" || true
-
-      - name: Save patched universe cache
-        uses: actions/cache/save@v4
-        if: success()
-        with:
-          path: data/universe/jpx/patched_cache
-          key: universe-patched-${{ steps.monthly.outputs.monthly_tag }}-${{ needs.resolve_trading_day.outputs.run_date }}
+          python scripts/storage/cache_bus_cli.py put-patched \
+            --cache-key "$KEY" \
+            --monthly-tag "$MONTHLY_TAG" \
+            --run-date "$RUN_DATE" \
+            --csv-path data/universe/jpx/patched_cache/equity_domestic_core_with_name.csv \
+            --manifest-path data/universe/jpx/patched_cache/manifest.json \
+            --github-run-id "$GITHUB_RUN_ID" \
+            --source-ref "${{ github.ref }}" \
+            --json-output /tmp/patch_put_patched.json

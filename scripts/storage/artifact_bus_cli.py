@@ -189,20 +189,111 @@ def cmd_put(args: argparse.Namespace) -> int:
         print(f"error: R2 put failed: {exc}", file=sys.stderr)
         return 1
 
-    _emit_result(
-        {
-            "status": "ok",
-            "entry_id": args.entry_id,
-            "logical_object_key": blob_key,
-            "manifest_logical_key": manifest_key,
-            "sha256": manifest["sha256"],
-            "size_bytes": manifest["size_bytes"],
-            "r2_put_ok": True,
-            "validated_count": 1,
-        },
+    result_payload: dict[str, object] = {
+        "status": "ok",
+        "entry_id": args.entry_id,
+        "logical_object_key": blob_key,
+        "manifest_logical_key": manifest_key,
+        "sha256": manifest["sha256"],
+        "size_bytes": manifest["size_bytes"],
+        "r2_put_ok": True,
+        "validated_count": 1,
+    }
+
+    supabase_exit = _maybe_commit_artifact_index(
+        args=args,
+        blob_key=blob_key,
+        manifest=manifest,
+        content_type=content_type,
+        entry=entry,
+        result_payload=result_payload,
         json_output=args.json_output,
     )
+    _emit_result(result_payload, json_output=args.json_output)
+    if supabase_exit is not None:
+        return supabase_exit
+
     return 0
+
+
+def _maybe_commit_artifact_index(
+    *,
+    args: argparse.Namespace,
+    blob_key: str,
+    manifest: dict[str, object],
+    content_type: str,
+    entry: dict[str, object],
+    result_payload: dict[str, object],
+    json_output: str | None,
+) -> int | None:
+    import os
+
+    from stockradar.storage.control_plane import normalize_rollout_stage, supabase_commit_is_fatal
+    from stockradar.storage.mapping_catalog import load_mapping
+    from stockradar.storage.supabase_client import (
+        FakeSupabaseControlAdapter,
+        SupabaseRestAdapter,
+    )
+
+    stage_raw = os.environ.get("PHASE3_ROLLOUT_STAGE", "").strip()
+    if not stage_raw:
+        mapping = load_mapping()
+        stage_raw = str(mapping.get("phase3_rollout_stage") or "3a")
+    stage = normalize_rollout_stage(stage_raw)
+    fatal = supabase_commit_is_fatal(stage)
+
+    if os.environ.get("SUPABASE_CONTROL_FAKE", "").strip().lower() in ("1", "true", "yes"):
+        adapter = FakeSupabaseControlAdapter()
+    else:
+        url = os.environ.get("SUPABASE_URL", "").strip()
+        key = os.environ.get("SUPABASE_SECRET_KEY", "").strip()
+        if not url or not key:
+            result_payload["supabase_commit_ok"] = False
+            result_payload["supabase_commit_failed"] = "supabase_not_configured"
+            return 1 if fatal else None
+        adapter = SupabaseRestAdapter.from_env()
+
+    workflow = str(entry.get("writer_workflow") or "daily.yml")
+    run = adapter.get_run(workflow=workflow, github_run_id=int(args.run_id))
+    if run is None and isinstance(adapter, FakeSupabaseControlAdapter):
+        run = adapter.upsert_run(
+            workflow=workflow,
+            github_run_id=int(args.run_id),
+            run_date=getattr(args, "run_date", None),
+        )
+    if run is None:
+        result_payload["supabase_commit_ok"] = False
+        result_payload["supabase_commit_failed"] = "runs_row_missing"
+        return 1 if fatal else None
+
+    retention = str(entry.get("retention_policy") or "")
+    pending_id: str | None = None
+    try:
+        pending = adapter.insert_artifact_index_pending(
+            run_id=str(run["id"]),
+            source_name=args.source_name,
+            object_key=blob_key,
+            sha256=str(manifest["sha256"]),
+            size_bytes=int(manifest["size_bytes"]),
+            content_type=content_type,
+            retention_policy=retention or None,
+        )
+        pending_id = str(pending["id"])
+        committed = adapter.commit_artifact_index(artifact_id=pending_id)
+        result_payload["supabase_commit_ok"] = True
+        result_payload["artifact_index_id"] = committed["id"]
+        result_payload["artifact_index_status"] = committed["status"]
+        return None
+    except Exception as exc:
+        if pending_id:
+            try:
+                adapter.mark_artifact_index_orphan(artifact_id=pending_id)
+            except Exception:
+                pass
+        result_payload["supabase_commit_ok"] = False
+        result_payload["supabase_commit_failed"] = str(exc)
+        print(f"error: artifact_index commit failed: {exc}", file=sys.stderr)
+        return 1 if fatal else None
 
 
 def _optional_get_missing_payload(*, entry_id: str, reason: str, phase: str) -> dict[str, object]:

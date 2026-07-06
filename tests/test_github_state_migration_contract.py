@@ -9,12 +9,19 @@ from typing import Any
 import pytest
 import yaml
 
-from stockradar.storage.mapping_catalog import phase2_daily_artifact_entry_ids
+from stockradar.storage.mapping_catalog import phase2_daily_artifact_entry_ids, phase3_rollout_stage
 
 pytestmark = pytest.mark.job_integration
 
 MAPPING_PATH = "config/github_state_to_r2_supabase_mapping.yaml"
 PHASE2_DAILY_ENTRY_IDS = set(phase2_daily_artifact_entry_ids())
+PHASE3_CACHE_ENTRY_IDS = frozenset(
+    {
+        "cache-index-store-zip-v1",
+        "cache-ohlc-store-zip-v2",
+        "cache-universe-patched",
+    }
+)
 SCAN_WORKFLOWS = (
     "daily.yml",
     "daily_universe_patch.yml",
@@ -100,6 +107,12 @@ def _extract_cache_keys(workflow: Mapping[str, Any], workflow_text: str) -> set[
             elif isinstance(key, str) and "jpx-url" in key:
                 keys.add("jpx-url-*")
     if "universe-patched-${" in workflow_text:
+        keys.add("universe-patched-*-*")
+    if "cache-index-store-zip-v1" in workflow_text:
+        keys.add("index-store-zip-v1")
+    if "cache-ohlc-store-zip-v2" in workflow_text:
+        keys.add("ohlc-store-zip-v2")
+    if "cache_bus_cli.py put-patched" in workflow_text:
         keys.add("universe-patched-*-*")
     return keys
 
@@ -213,6 +226,11 @@ def test_mapping_entries_exist_in_workflows() -> None:
                 continue
             pool = all_artifacts
         elif kind == "cache":
+            if entry["id"] in PHASE3_CACHE_ENTRY_IDS:
+                wf_name = str(entry.get("writer_workflow") or "")
+                wf_text = _workflow_text(wf_name) if wf_name in SCAN_WORKFLOWS else ""
+                if entry["id"] in wf_text or "cache_bus_cli.py" in wf_text:
+                    continue
             pool = all_caches
         elif kind == "release":
             pool = all_releases
@@ -256,3 +274,21 @@ def test_enrichment_is_daily_indicators_consumer_via_r2() -> None:
     )
     assert indicators.get("reader_workflow") == "daily_event_cause_enrichment.yml"
     assert indicators.get("reader_job") == "enrich"
+
+
+def test_mapping_phase3_rollout_stage() -> None:
+    mapping = _load_mapping()
+    assert mapping.get("schema_version") == 3
+    assert phase3_rollout_stage() in ("3a", "3b", "3c")
+
+
+def test_phase3_cache_entries_have_supabase_tables() -> None:
+    mapping = _load_mapping()
+    for entry in mapping["entries"]:
+        if entry["id"] not in PHASE3_CACHE_ENTRY_IDS:
+            continue
+        assert entry.get("supabase_tables"), f"{entry['id']}: missing supabase_tables"
+        assert entry.get("supabase_active_table"), f"{entry['id']}: missing supabase_active_table"
+    patched = next(e for e in mapping["entries"] if e["id"] == "cache-universe-patched")
+    assert patched.get("target_r2_object_keys", {}).get("csv")
+    assert patched.get("target_r2_object_keys", {}).get("manifest")

@@ -2,11 +2,11 @@ name: Daily Indicators
 
 # Contract summary:
 # - Phase 2c: R2-only run-internal artifact bus (no GitHub artifact upload/download).
+# - Phase 3c: warm cache via R2 cache/ + Supabase cache_index/cache_pointers (no actions/cache).
 # - Producer: artifact_bus_cli.py put fails the job on R2 error (required artifacts).
 # - Consumer: artifact_bus_cli.py get fails the job on R2 error (required artifacts).
 # - skip_publish=true skips Upload to all targets step only; render_and_upload job still runs.
-# - actions/cache/save (this file only): index-store-zip-v1 + ohlc-store-zip-v2 (two writes on success).
-# - Patched universe cache is written only by daily_universe_patch.yml; daily.yml restores only.
+# - Patched universe cache is written only by daily_universe_patch.yml; daily.yml restores via get-patched.
 
 on:
   workflow_dispatch:  # 手動実行
@@ -32,6 +32,9 @@ concurrency:
 
 permissions:
   contents: write
+
+env:
+  PHASE3_ROLLOUT_STAGE: "3c"
 
 jobs:
   preflight:
@@ -88,6 +91,21 @@ jobs:
           echo "is_open=$IS_OPEN" >> "$GITHUB_OUTPUT"
           echo "Resolved: run_date=$RUN_DATE, is_open=$IS_OPEN"
 
+      - name: Upsert Supabase runs row
+        env:
+          PYTHONPATH: src:.
+          RUN_DATE: ${{ steps.resolve.outputs.run_date }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+          python scripts/storage/control_plane_cli.py upsert-run \
+            --workflow daily.yml \
+            --github-run-id "$GITHUB_RUN_ID" \
+            --run-date "$RUN_DATE" \
+            --status running
+
   resolve_core_csv:
     needs: resolve_trading_day
     if: needs.resolve_trading_day.outputs.is_open == 'True'
@@ -123,12 +141,15 @@ jobs:
             exit 1
           fi
 
-      - name: Select patched cache key (restore-only; no cache save)
+      - name: Select patched cache key (Supabase; Phase 3c)
         id: core_sel
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PYTHONPATH: src
           RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
+          PHASE3_ROLLOUT_STAGE: ${{ env.PHASE3_ROLLOUT_STAGE }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
         run: |
           set -euo pipefail
           python -m stockradar.jobs.resolve_core_csv select \
@@ -136,14 +157,28 @@ jobs:
             --tags-file /tmp/monthly_tags.txt \
             --repo "${{ github.repository }}" \
             --patched-cache-allowed-ref "${{ github.ref }}" \
-            --patched-cache-allowed-ref "refs/heads/${{ github.event.repository.default_branch }}"
+            --patched-cache-allowed-ref "refs/heads/${{ github.event.repository.default_branch }}" \
+            --phase3-rollout-stage "$PHASE3_ROLLOUT_STAGE"
 
-      - name: Restore patched universe cache (optional)
+      - name: Restore patched universe from R2 (conditional)
         if: steps.core_sel.outputs.need_patched_restore == 'true'
-        uses: actions/cache/restore@v4
-        with:
-          path: data/universe/jpx/patched_cache
-          key: ${{ steps.core_sel.outputs.patched_cache_key }}
+        env:
+          PYTHONPATH: src:.
+          PHASE3_ROLLOUT_STAGE: ${{ env.PHASE3_ROLLOUT_STAGE }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
+          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+        run: |
+          set -euo pipefail
+          python scripts/storage/cache_bus_cli.py get-patched \
+            --cache-key "${{ steps.core_sel.outputs.patched_cache_key }}" \
+            --monthly-tag "${{ steps.core_sel.outputs.monthly_tag }}" \
+            --run-date "${{ needs.resolve_trading_day.outputs.run_date }}"
 
       - name: Materialize core CSV + quality JSON
         env:
@@ -270,13 +305,25 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Restore index store zip (warm cache)
-        uses: actions/cache/restore@v4
-        with:
-          path: data/cache/index_store_archive/index_store.zip
-          key: index-store-zip-v1
-          restore-keys: |
-            index-store-zip-v1
+      - name: Restore index store zip (R2 warm cache)
+        id: restore_index_warm
+        env:
+          PYTHONPATH: src:.
+          PHASE3_ROLLOUT_STAGE: ${{ env.PHASE3_ROLLOUT_STAGE }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
+          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+        run: |
+          set -euo pipefail
+          python scripts/storage/cache_bus_cli.py get-fixed \
+            --entry-id cache-index-store-zip-v1 \
+            --local-path data/cache/index_store_archive/index_store.zip \
+            --json-output /tmp/index_warm_get.json || echo "cache_source=miss" >> "$GITHUB_OUTPUT"
 
       - name: Install dependencies
         run: |
@@ -323,6 +370,9 @@ jobs:
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          PHASE3_ROLLOUT_STAGE: ${{ env.PHASE3_ROLLOUT_STAGE }}
         run: |
           set -euo pipefail
           mkdir -p /tmp/r2_producer/ensure_index_cache
@@ -337,24 +387,28 @@ jobs:
           MANIFEST_KEY=$(python -c "import json; print(json.load(open('$JSON_OUT'))['manifest_logical_key'])")
           echo "manifest_logical_key=$MANIFEST_KEY" >> "$GITHUB_OUTPUT"
 
-      - name: Delete warm index cache key (avoid save race)
+      - name: Put index warm cache (R2 + Supabase)
         if: success()
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PYTHONPATH: src
+          PYTHONPATH: src:.
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          PHASE3_ROLLOUT_STAGE: ${{ env.PHASE3_ROLLOUT_STAGE }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
+          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
           set -euo pipefail
-          python -m stockradar.jobs.cache_ops rotate-delete \
-            --repo "${{ github.repository }}" \
-            --key index-store-zip-v1 \
-            --is-replay "${{ needs.resolve_trading_day.outputs.is_replay }}"
-
-      - name: Save index store zip (sole index cache writer in this workflow)
-        if: success() && needs.resolve_trading_day.outputs.is_replay != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: data/cache/index_store_archive/index_store.zip
-          key: index-store-zip-v1
+          python scripts/storage/cache_bus_cli.py put-fixed \
+            --entry-id cache-index-store-zip-v1 \
+            --local-path data/cache/index_store_archive/index_store.zip \
+            --github-run-id "$GITHUB_RUN_ID" \
+            --is-replay "${{ needs.resolve_trading_day.outputs.is_replay }}" \
+            --json-output /tmp/r2_producer/ensure_index_cache/cache-index-store-zip-v1.json
 
       - name: Write ensure_index_cache producer handoff summary
         if: always()
@@ -381,6 +435,7 @@ jobs:
             echo "- run_date: $RUN_DATE"
             echo "- index_zip: data/cache/index_store_archive/index_store.zip"
             echo "- warm_cache_key: index-store-zip-v1"
+            echo "- cache_source: r2"
             echo "- run_artifact: daily-index-store-${{ github.run_id }}"
             echo "- index_store_manifest_key: ${{ steps.r2_put_index_store.outputs.manifest_logical_key }}"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -403,13 +458,24 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Restore OHLC store zip
-        uses: actions/cache/restore@v4
-        with:
-          path: data/cache/ohlc_store_archive/ohlc_store.zip
-          key: ohlc-store-zip-v2
-          restore-keys: |
-            ohlc-store-zip-v2
+      - name: Restore OHLC store zip (R2 warm cache)
+        env:
+          PYTHONPATH: src:.
+          PHASE3_ROLLOUT_STAGE: ${{ env.PHASE3_ROLLOUT_STAGE }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
+          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+        run: |
+          set -euo pipefail
+          python scripts/storage/cache_bus_cli.py get-fixed \
+            --entry-id cache-ohlc-store-zip-v2 \
+            --local-path data/cache/ohlc_store_archive/ohlc_store.zip \
+            --json-output /tmp/ohlc_warm_get.json || true
 
       - name: Install dependencies
         run: |
@@ -522,6 +588,7 @@ jobs:
             lines.append("- stale exclusions file: `not found`")
           lines.append("- idempotency_contract: `checked in preflight tests`")
           lines.append("- warm_cache_key: `ohlc-store-zip-v2`")
+          lines.append("- cache_source: `r2`")
           rid = os.environ.get("GITHUB_RUN_ID", "")
           lines.append(f"- run_artifact: `daily-ohlc-store-{rid}`")
           summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -547,6 +614,9 @@ jobs:
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          PHASE3_ROLLOUT_STAGE: ${{ env.PHASE3_ROLLOUT_STAGE }}
         run: |
           set -euo pipefail
           mkdir -p /tmp/r2_producer/ensure_core_cache
@@ -561,6 +631,29 @@ jobs:
           MANIFEST_KEY=$(python -c "import json; print(json.load(open('$JSON_OUT'))['manifest_logical_key'])")
           echo "manifest_logical_key=$MANIFEST_KEY" >> "$GITHUB_OUTPUT"
 
+      - name: Put OHLC warm cache (R2 + Supabase)
+        if: success()
+        env:
+          PYTHONPATH: src:.
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          PHASE3_ROLLOUT_STAGE: ${{ env.PHASE3_ROLLOUT_STAGE }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
+          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+        run: |
+          set -euo pipefail
+          python scripts/storage/cache_bus_cli.py put-fixed \
+            --entry-id cache-ohlc-store-zip-v2 \
+            --local-path data/cache/ohlc_store_archive/ohlc_store.zip \
+            --github-run-id "$GITHUB_RUN_ID" \
+            --is-replay "${{ needs.resolve_trading_day.outputs.is_replay }}" \
+            --json-output /tmp/r2_producer/ensure_core_cache/cache-ohlc-store-zip-v2.json
+
       - name: R2 put stale exclusions staging
         id: r2_put_stale_exclusions
         if: always()
@@ -574,6 +667,9 @@ jobs:
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          PHASE3_ROLLOUT_STAGE: ${{ env.PHASE3_ROLLOUT_STAGE }}
         run: |
           set -euo pipefail
           mkdir -p /tmp/r2_producer/ensure_core_cache
@@ -617,25 +713,6 @@ jobs:
               --title "ensure_core_cache artifact handoff" \
               --required artifact-daily-core-csv artifact-daily-core-quality
           } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Delete warm OHLC cache key (avoid save race)
-        if: success()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PYTHONPATH: src
-        run: |
-          set -euo pipefail
-          python -m stockradar.jobs.cache_ops rotate-delete \
-            --repo "${{ github.repository }}" \
-            --key ohlc-store-zip-v2 \
-            --is-replay "${{ needs.resolve_trading_day.outputs.is_replay }}"
-
-      - name: Save OHLC store zip (sole OHLC cache writer in this workflow)
-        uses: actions/cache/save@v4
-        if: success() && needs.resolve_trading_day.outputs.is_replay != 'true'
-        with:
-          path: data/cache/ohlc_store_archive/ohlc_store.zip
-          key: ohlc-store-zip-v2
 
   compute_indicators:
     needs: [resolve_trading_day, resolve_core_csv, ensure_index_cache, ensure_core_cache]

@@ -181,11 +181,11 @@ def test_daily_universe_patch_yml_resolves_monthly_tag_and_writes_single_patched
     text = _workflow_text("daily_universe_patch.yml")
     workflow = _load_workflow("daily_universe_patch.yml")
 
-    assert text.count("actions/cache/save@v4") == 1
+    assert text.count("actions/cache/save@v4") == 0
     assert "python -m stockradar.jobs.resolve_monthly_release_for_run_date" in text
     assert "python -m stockradar.jobs.patch_universe_daily" in text
-    assert "python -m stockradar.jobs.cache_ops delete-key" in text
-    assert "key: universe-patched-${{ steps.monthly.outputs.monthly_tag }}-${{ needs.resolve_trading_day.outputs.run_date }}" in text
+    assert "cache_bus_cli.py put-patched" in text
+    assert "control_plane_cli.py upsert-run" in text
 
     assert workflow["concurrency"]["group"] == "daily-universe-patch"
     assert workflow["concurrency"]["cancel-in-progress"] is False

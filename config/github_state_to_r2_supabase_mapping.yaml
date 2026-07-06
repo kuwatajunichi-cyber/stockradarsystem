@@ -4,7 +4,8 @@
 # Phase 2: artifact bus entries include structured optional; workflows use R2 runs/ staging.
 # Phase 2c: source_kind=artifact and source_name_pattern are legacy logical tokens only
 # (historical GitHub artifact names). Phase 2 daily bus handoff is R2-only; no GH upload/download.
-schema_version: 2
+schema_version: 3
+phase3_rollout_stage: "3c"
 
 scan_workflows:
   - daily.yml
@@ -137,6 +138,10 @@ entries:
     writer_job: ensure_index_cache
     target_r2_key_pattern: cache/index-store-zip-v1/index_store.zip
     supabase_table: cache_index
+    supabase_tables:
+      - cache_index
+      - cache_pointers
+    supabase_active_table: cache_pointers
     retention_policy: warm_cache_rotate_delete_before_save; replay_no_save
     optional: false
 
@@ -147,6 +152,10 @@ entries:
     writer_job: ensure_core_cache
     target_r2_key_pattern: cache/ohlc-store-zip-v2/ohlc_store.zip
     supabase_table: cache_index
+    supabase_tables:
+      - cache_index
+      - cache_pointers
+    supabase_active_table: cache_pointers
     retention_policy: warm_cache_rotate_delete_before_save; replay_no_save
     optional: false
 
@@ -157,8 +166,14 @@ entries:
     writer_job: patch_universe
     reader_workflow: daily.yml
     reader_job: resolve_core_csv
-    target_r2_key_pattern: cache/universe-patched/{monthly_tag}/{run_date}/*
+    target_r2_key_pattern: cache/universe-patched/{monthly_tag}/{run_date}/
+    target_r2_object_keys:
+      csv: cache/universe-patched/{monthly_tag}/{run_date}/equity_domestic_core_with_name.csv
+      manifest: cache/universe-patched/{monthly_tag}/{run_date}/manifest.json
     supabase_table: cache_index
+    supabase_tables:
+      - cache_index
+    supabase_active_table: cache_index
     retention_policy: sole_writer=daily_universe_patch.yml; fixed_key_per_monthly_tag_and_run_date
     optional: false
 

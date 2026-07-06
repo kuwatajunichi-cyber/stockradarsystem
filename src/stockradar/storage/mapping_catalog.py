@@ -42,3 +42,18 @@ def phase2_daily_artifact_entry_ids() -> tuple[str, ...]:
         "artifact-daily-indicators",
         "artifact-enriched-csv",
     )
+
+
+def phase3_rollout_stage(path: Path | None = None) -> str:
+    from stockradar.storage.control_plane import normalize_rollout_stage
+
+    mapping = load_mapping(path)
+    return normalize_rollout_stage(str(mapping.get("phase3_rollout_stage") or "3a"))
+
+
+def phase3_cache_entry_ids() -> tuple[str, ...]:
+    return (
+        "cache-index-store-zip-v1",
+        "cache-ohlc-store-zip-v2",
+        "cache-universe-patched",
+    )
