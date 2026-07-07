@@ -406,6 +406,11 @@ def test_daily_event_cause_enrichment_phase2c_r2_only() -> None:
             encoding="utf-8"
         )
     )
+    text = (_repo_root() / ".github/workflows/daily_event_cause_enrichment.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "control_plane_cli.py upsert-run" in text
+    assert "--workflow daily_event_cause_enrichment.yml" in text
     on_block = wf.get("on") or wf.get(True) or {}
     inputs = on_block["workflow_call"]["inputs"]
     assert "r2_fault_mode" not in inputs

@@ -166,6 +166,8 @@ def test_daily_event_cause_enrichment_writes_enriched_csv_to_r2() -> None:
     assert "$GITHUB_RUN_ID" in get_step["run"]
     assert get_step.get("continue-on-error") is not True
     text = _workflow_text("daily_event_cause_enrichment.yml")
+    assert "control_plane_cli.py upsert-run" in text
+    assert "--workflow daily_event_cause_enrichment.yml" in text
     assert "actions/download-artifact@v4" not in text
     assert "actions/upload-artifact@v4" not in text
     producer_summary = _step_named(enrich, "Write enrich producer handoff summary")
