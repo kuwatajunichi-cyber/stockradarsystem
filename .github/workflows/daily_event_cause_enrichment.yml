@@ -17,6 +17,7 @@ on:
 
 env:
   TZ: Asia/Tokyo
+  PHASE3_ROLLOUT_STAGE: "3c"
 
 jobs:
   enrich:
@@ -130,6 +131,9 @@ jobs:
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          PHASE3_ROLLOUT_STAGE: ${{ env.PHASE3_ROLLOUT_STAGE }}
         run: |
           set -euo pipefail
           RUN_DATE_COMPACT="${RUN_DATE//-/}"

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -53,3 +53,46 @@ def test_put_patched_commits_fake(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
         assert mod.cmd_put_patched(args) == 0
     payload = json.loads((tmp_path / "out.json").read_text(encoding="utf-8"))
     assert payload["supabase_commit_ok"] is True
+
+
+def test_put_patched_idempotent_skip_when_committed_same_sha(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SUPABASE_CONTROL_FAKE", "true")
+    csv_path = tmp_path / "equity_domestic_core_with_name.csv"
+    csv_path.write_text("code,name\n1,a\n", encoding="utf-8")
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text('{"chosen_monthly_tag":"m"}', encoding="utf-8")
+
+    import scripts.storage.cache_bus_cli as mod
+    from stockradar.storage.supabase_client import FakeSupabaseControlAdapter
+
+    cache_key = "universe-patched-m-2026-04-10"
+    fake = FakeSupabaseControlAdapter()
+    monkeypatch.setattr(mod, "_adapter_supabase", lambda: fake)
+
+    with patch.object(mod, "_r2") as mock_r2:
+        put_object = MagicMock()
+        mock_r2.return_value.put_object = put_object
+        args = mod.argparse.Namespace(
+            cache_key=cache_key,
+            monthly_tag="m",
+            run_date="2026-04-10",
+            csv_path=str(csv_path),
+            manifest_path=str(manifest_path),
+            github_run_id="99",
+            source_ref="refs/heads/main",
+            phase3_rollout_stage="3c",
+            json_output=str(tmp_path / "out1.json"),
+        )
+        assert mod.cmd_put_patched(args) == 0
+
+        args.json_output = str(tmp_path / "out2.json")
+        assert mod.cmd_put_patched(args) == 0
+
+    first = json.loads((tmp_path / "out1.json").read_text(encoding="utf-8"))
+    second = json.loads((tmp_path / "out2.json").read_text(encoding="utf-8"))
+    assert first["supabase_commit_ok"] is True
+    assert second["supabase_commit_ok"] is True
+    assert second.get("idempotent_skip") is True
+    assert put_object.call_count == 2

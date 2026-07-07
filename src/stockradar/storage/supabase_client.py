@@ -90,6 +90,8 @@ class SupabaseControlPort(Protocol):
 
     def get_patched_cache_row(self, *, cache_key: str) -> dict[str, Any] | None: ...
 
+    def get_cache_index_patched(self, *, cache_key: str) -> dict[str, Any] | None: ...
+
     def get_cache_pointer(self, *, cache_key: str) -> dict[str, Any] | None: ...
 
     def list_orphan_rows(self) -> list[dict[str, Any]]: ...
@@ -154,6 +156,7 @@ class SupabaseRestAdapter:
             "POST",
             "/rest/v1/runs",
             json_body=body,
+            params={"on_conflict": "workflow,github_run_id"},
             prefer="resolution=merge-duplicates,return=representation",
         )
         resp.raise_for_status()
@@ -322,12 +325,22 @@ class SupabaseRestAdapter:
             "source_ref": source_ref,
             "status": "pending",
         }
-        resp = self._request(
-            "POST",
-            "/rest/v1/cache_index",
-            json_body=body,
-            prefer="resolution=merge-duplicates,return=representation",
-        )
+        existing = self.get_cache_index_patched(cache_key=cache_key)
+        if existing is not None:
+            resp = self._request(
+                "PATCH",
+                "/rest/v1/cache_index",
+                params={"id": f"eq.{existing['id']}"},
+                json_body=body,
+                prefer="return=representation",
+            )
+        else:
+            resp = self._request(
+                "POST",
+                "/rest/v1/cache_index",
+                json_body=body,
+                prefer="return=representation",
+            )
         resp.raise_for_status()
         return resp.json()[0]
 
@@ -380,6 +393,23 @@ class SupabaseRestAdapter:
                 "cache_key": f"eq.{cache_key}",
                 "cache_kind": "eq.patched",
                 "status": "eq.committed",
+                "select": "*",
+                "limit": "1",
+            },
+        )
+        resp.raise_for_status()
+        rows = resp.json()
+        if not isinstance(rows, list) or not rows:
+            return None
+        return rows[0]
+
+    def get_cache_index_patched(self, *, cache_key: str) -> dict[str, Any] | None:
+        resp = self._request(
+            "GET",
+            "/rest/v1/cache_index",
+            params={
+                "cache_key": f"eq.{cache_key}",
+                "cache_kind": "eq.patched",
                 "select": "*",
                 "limit": "1",
             },
@@ -644,12 +674,14 @@ class FakeSupabaseControlAdapter:
         ]
 
     def get_patched_cache_row(self, *, cache_key: str) -> dict[str, Any] | None:
+        row = self.get_cache_index_patched(cache_key=cache_key)
+        if row is None or row.get("status") != "committed":
+            return None
+        return dict(row)
+
+    def get_cache_index_patched(self, *, cache_key: str) -> dict[str, Any] | None:
         for row in self.cache_index.values():
-            if (
-                row.get("cache_key") == cache_key
-                and row.get("cache_kind") == "patched"
-                and row.get("status") == "committed"
-            ):
+            if row.get("cache_key") == cache_key and row.get("cache_kind") == "patched":
                 return dict(row)
         return None
 

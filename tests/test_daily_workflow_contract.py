@@ -197,6 +197,25 @@ def _job_has_producer_handoff_summary(job: dict) -> bool:
     return False
 
 
+def test_daily_yml_producer_puts_have_supabase_secrets() -> None:
+    wf = yaml.safe_load((_repo_root() / ".github/workflows/daily.yml").read_text(encoding="utf-8"))
+    for job_id in ("resolve_core_csv", "ensure_index_cache", "ensure_core_cache", "compute_indicators"):
+        for step in _producer_put_steps(wf["jobs"][job_id]):
+            env = step.get("env") or {}
+            assert env.get("SUPABASE_URL") == "${{ secrets.SUPABASE_URL }}", job_id
+            assert env.get("SUPABASE_SECRET_KEY") == "${{ secrets.SUPABASE_SECRET_KEY }}", job_id
+            assert env.get("PHASE3_ROLLOUT_STAGE") == "${{ env.PHASE3_ROLLOUT_STAGE }}", job_id
+
+    enrichment = yaml.safe_load(
+        (_repo_root() / ".github/workflows/daily_event_cause_enrichment.yml").read_text(encoding="utf-8")
+    )
+    for step in _producer_put_steps(enrichment["jobs"]["enrich"]):
+        env = step.get("env") or {}
+        assert env.get("SUPABASE_URL") == "${{ secrets.SUPABASE_URL }}"
+        assert env.get("SUPABASE_SECRET_KEY") == "${{ secrets.SUPABASE_SECRET_KEY }}"
+        assert env.get("PHASE3_ROLLOUT_STAGE") == "${{ env.PHASE3_ROLLOUT_STAGE }}"
+
+
 def test_daily_yml_producer_puts_emit_json_fail_fast() -> None:
     wf = yaml.safe_load((_repo_root() / ".github/workflows/daily.yml").read_text(encoding="utf-8"))
     producer_jobs = [

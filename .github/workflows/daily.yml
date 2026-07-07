@@ -225,6 +225,9 @@ jobs:
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          PHASE3_ROLLOUT_STAGE: ${{ env.PHASE3_ROLLOUT_STAGE }}
         run: |
           set -euo pipefail
           mkdir -p /tmp/r2_producer/resolve_core_csv
@@ -252,6 +255,9 @@ jobs:
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          PHASE3_ROLLOUT_STAGE: ${{ env.PHASE3_ROLLOUT_STAGE }}
         run: |
           set -euo pipefail
           mkdir -p /tmp/r2_producer/resolve_core_csv
@@ -967,6 +973,9 @@ jobs:
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          PHASE3_ROLLOUT_STAGE: ${{ env.PHASE3_ROLLOUT_STAGE }}
         run: |
           set -euo pipefail
           if [ ! -f "$INDICATORS_PATH" ]; then

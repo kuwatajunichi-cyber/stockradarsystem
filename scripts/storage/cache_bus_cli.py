@@ -253,6 +253,25 @@ def cmd_put_patched(args: argparse.Namespace) -> int:
     supabase = _adapter_supabase()
     row_id: str | None = None
     if supabase is not None:
+        existing = supabase.get_cache_index_patched(cache_key=cache_key)
+        if existing is not None and existing.get("status") == "committed":
+            if existing.get("sha256") == csv_sha:
+                _emit(
+                    {
+                        "status": "ok",
+                        "supabase_commit_ok": True,
+                        "cache_key": cache_key,
+                        "idempotent_skip": True,
+                    },
+                    args.json_output,
+                )
+                return 0
+            msg = f"patched cache already committed with different sha256: {cache_key}"
+            _emit(
+                {"status": "error", "supabase_commit_ok": False, "supabase_commit_failed": msg},
+                args.json_output,
+            )
+            return 1 if fatal else 0
         try:
             pending = supabase.upsert_cache_index_pending_patched(
                 cache_key=cache_key,
