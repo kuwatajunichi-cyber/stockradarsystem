@@ -1,12 +1,17 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { handleScheduledCron, resolveTargetsForCron } from "../src/index.js";
-import { DAILY_CRON, DAILY_WORKFLOW_FILE } from "../src/constants.js";
+import { DAILY_CRON, DAILY_WORKFLOW_FILE, UNIVERSE_PATCH_CRON, UNIVERSE_PATCH_WORKFLOW_FILE } from "../src/constants.js";
 
 describe("resolveTargetsForCron", () => {
   it("returns daily.yml for DAILY_CRON", () => {
     const targets = resolveTargetsForCron(DAILY_CRON);
     assert.deepEqual(targets, [{ workflowId: DAILY_WORKFLOW_FILE, inputs: {} }]);
+  });
+
+  it("returns daily_universe_patch.yml for UNIVERSE_PATCH_CRON", () => {
+    const targets = resolveTargetsForCron(UNIVERSE_PATCH_CRON);
+    assert.deepEqual(targets, [{ workflowId: UNIVERSE_PATCH_WORKFLOW_FILE, inputs: {} }]);
   });
 
   it("returns null for unknown cron", () => {
@@ -68,5 +73,15 @@ describe("handleScheduledCron", () => {
     });
     assert.equal(result.ok, true);
     assert.match(capturedUrl, /daily\.yml/);
+  });
+
+  it("dispatches daily_universe_patch.yml on UNIVERSE_PATCH_CRON", async () => {
+    let capturedUrl = "";
+    const result = await handleScheduledCron({ cron: UNIVERSE_PATCH_CRON }, env, async (url) => {
+      capturedUrl = String(url);
+      return { status: 204, ok: true, text: async () => "" };
+    });
+    assert.equal(result.ok, true);
+    assert.match(capturedUrl, /daily_universe_patch\.yml/);
   });
 });

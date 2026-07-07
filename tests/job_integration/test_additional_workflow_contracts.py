@@ -184,6 +184,7 @@ def test_daily_universe_patch_yml_resolves_monthly_tag_and_writes_single_patched
     workflow = _load_workflow("daily_universe_patch.yml")
 
     assert text.count("actions/cache/save@v4") == 0
+    assert "schedule:" not in text.split("on:", 1)[-1].split("concurrency:", 1)[0]
     assert "python -m stockradar.jobs.resolve_monthly_release_for_run_date" in text
     assert "python -m stockradar.jobs.patch_universe_daily" in text
     assert "cache_bus_cli.py put-patched" in text

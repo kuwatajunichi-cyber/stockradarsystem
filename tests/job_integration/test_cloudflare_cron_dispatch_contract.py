@@ -13,6 +13,7 @@ from stockradar.jobs.validate_daily_dispatch_run_date import validate_input
 pytestmark = pytest.mark.job_integration
 
 DAILY_CRON = "45 6 * * *"
+UNIVERSE_PATCH_CRON = "0 3 * * *"
 WORKER_ROOT = Path(__file__).resolve().parents[2] / "workers" / "github-cron-dispatcher"
 
 
@@ -28,15 +29,17 @@ def _daily_on_block() -> dict:
 def test_daily_cron_constant_in_worker_sources() -> None:
     constants = (WORKER_ROOT / "src" / "constants.js").read_text(encoding="utf-8")
     assert f'export const DAILY_CRON = "{DAILY_CRON}";' in constants
+    assert f'export const UNIVERSE_PATCH_CRON = "{UNIVERSE_PATCH_CRON}";' in constants
 
     wrangler = tomllib.loads((WORKER_ROOT / "wrangler.toml").read_text(encoding="utf-8"))
-    assert wrangler["triggers"]["crons"] == [DAILY_CRON]
+    assert wrangler["triggers"]["crons"] == [DAILY_CRON, UNIVERSE_PATCH_CRON]
 
 
-def test_worker_routes_daily_yml_only() -> None:
+def test_worker_routes_daily_and_patch_workflows() -> None:
     constants = (WORKER_ROOT / "src" / "constants.js").read_text(encoding="utf-8")
-    assert 'workflowId: DAILY_WORKFLOW_FILE' in constants or '"daily.yml"' in constants
     assert "daily.yml" in constants
+    assert "daily_universe_patch.yml" in constants
+    assert "UNIVERSE_PATCH_CRON" in constants
 
 
 def test_worker_dispatch_module_uses_github_dispatch_endpoint() -> None:
@@ -75,10 +78,19 @@ def test_empty_run_date_is_schedule_equivalent() -> None:
     assert parsed is None
 
 
+def test_daily_universe_patch_yml_has_no_github_schedule_after_cloudflare_cutover() -> None:
+    wf = yaml.safe_load(
+        (_repo_root() / ".github/workflows/daily_universe_patch.yml").read_text(encoding="utf-8")
+    )
+    on_block = wf.get("on") or wf.get(True) or {}
+    schedule = on_block.get("schedule")
+    assert schedule is None or schedule == []
+    assert "workflow_dispatch" in on_block
+
+
 @pytest.mark.parametrize(
     "workflow_file",
     [
-        "daily_universe_patch.yml",
         "monthly.yml",
         "cleanup_artifacts.yml",
         "cleanup_drive_work.yml",

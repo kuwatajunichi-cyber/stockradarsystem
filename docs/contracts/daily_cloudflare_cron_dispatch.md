@@ -38,7 +38,10 @@ Former GitHub schedule baseline: 37 6 * * 1-5 (weekdays only; superseded by dail
 
 ## Other workflows
 
-Phase 1 leaves daily_universe_patch.yml / monthly.yml / cleanup schedules unchanged.
+Phase 1 leaves `monthly.yml` / cleanup schedules on GitHub Actions `schedule`.
+
+`daily_universe_patch.yml` moved to Cloudflare Cron — see
+`docs/contracts/daily_universe_patch_cloudflare_cron_dispatch.md`.
 
 ## Rollback
 

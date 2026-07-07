@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { DAILY_CRON, DAILY_WORKFLOW_FILE, ROUTING_TABLE } from "../src/constants.js";
+import { DAILY_CRON, DAILY_WORKFLOW_FILE, UNIVERSE_PATCH_CRON, UNIVERSE_PATCH_WORKFLOW_FILE, ROUTING_TABLE } from "../src/constants.js";
 import {
   buildDispatchBody,
   buildDispatchUrl,
@@ -18,14 +18,17 @@ const workerRoot = join(__dirname, "..");
 const mock204 = () => ({ status: 204, ok: true, text: async () => "" });
 
 describe("constants and wrangler cron alignment", () => {
-  it("DAILY_CRON matches wrangler.toml triggers.crons", () => {
+  it("cron constants match wrangler.toml triggers.crons", () => {
     const wrangler = readFileSync(join(workerRoot, "wrangler.toml"), "utf8");
-    assert.match(wrangler, /crons\s*=\s*\["45 6 \* \* \*"\]/);
+    assert.match(wrangler, /crons\s*=\s*\["45 6 \* \* \*", "0 3 \* \* \*"\]/);
   });
 
-  it("routing table registers daily.yml only for DAILY_CRON", () => {
+  it("routing table registers daily and patch workflows", () => {
     assert.deepEqual(ROUTING_TABLE[DAILY_CRON], [{ workflowId: DAILY_WORKFLOW_FILE, inputs: {} }]);
-    assert.equal(Object.keys(ROUTING_TABLE).length, 1);
+    assert.deepEqual(ROUTING_TABLE[UNIVERSE_PATCH_CRON], [
+      { workflowId: UNIVERSE_PATCH_WORKFLOW_FILE, inputs: {} },
+    ]);
+    assert.equal(Object.keys(ROUTING_TABLE).length, 2);
   });
 });
 

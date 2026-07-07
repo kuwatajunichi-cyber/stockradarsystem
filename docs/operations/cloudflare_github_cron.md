@@ -4,15 +4,17 @@ Issue #93 Phase 1: daily.yml scheduled launch via Cloudflare Worker workflow_dis
 
 ## Architecture
 
-Cloudflare Cron (45 6 * * * UTC)
-  -> workers/github-cron-dispatcher (scheduled handler)
-  -> POST /repos/{owner}/{repo}/actions/workflows/daily.yml/dispatches
-  -> .github/workflows/daily.yml (GitHub Actions compute runner)
+Two Cloudflare Cron triggers -> `workers/github-cron-dispatcher` -> GitHub `workflow_dispatch`:
 
-- JST: daily 15:45 (UTC 06:45)
-- Constant: DAILY_CRON = "45 6 * * *"
+| Cron (UTC) | JST | Workflow |
+|------------|-----|----------|
+| `45 6 * * *` | 15:45 daily | `daily.yml` |
+| `0 3 * * *` | 12:00 daily | `daily_universe_patch.yml` |
 
-Contract: docs/contracts/daily_cloudflare_cron_dispatch.md
+Contract:
+
+- Daily: `docs/contracts/daily_cloudflare_cron_dispatch.md`
+- Patch: `docs/contracts/daily_universe_patch_cloudflare_cron_dispatch.md`
 
 ## Worker layout
 
@@ -33,11 +35,12 @@ Vars (required): GITHUB_OWNER, GITHUB_REPO, GITHUB_REF (default main)
 
 Optional: DISPATCH_SKIP_PUBLISH, DISPATCH_FORCE_INDEX, DRY_RUN
 
-## Routing (Phase 1)
+## Routing
 
 | Cron | Workflow | inputs |
 |------|----------|--------|
-| 45 6 * * * | daily.yml | none (no run_date) |
+| `45 6 * * *` | daily.yml | none (no run_date) |
+| `0 3 * * *` | daily_universe_patch.yml | none |
 
 ## Logging
 
@@ -60,8 +63,10 @@ Cloudflare verification needs CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID.
 
 ## Rollback
 
-1. Disable Cloudflare Cron
-2. Restore daily.yml schedule cron "37 6 * * 1-5"
+1. Disable Cloudflare Cron (or revert Worker deploy).
+2. Restore GitHub `schedule` on affected workflows:
+   - `daily.yml`: `cron "37 6 * * 1-5"`
+   - `daily_universe_patch.yml`: `cron "0 3 * * *"`
 3. Confirm no duplicate runs
 
 ## Phase 2 live run gate
