@@ -335,6 +335,12 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
       - name: Restore index store zip (R2 warm cache)
         id: restore_index_warm
         env:
@@ -349,16 +355,16 @@ jobs:
           R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
-          set -euo pipefail
+          set +e
           python scripts/storage/cache_bus_cli.py get-fixed \
             --entry-id cache-index-store-zip-v1 \
             --local-path data/cache/index_store_archive/index_store.zip \
-            --json-output /tmp/index_warm_get.json || echo "cache_source=miss" >> "$GITHUB_OUTPUT"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+            --json-output /tmp/index_warm_get.json
+          rc=$?
+          set -e
+          if [ "$rc" -ne 0 ]; then
+            echo "Phase 3 warm cache (index): get-fixed miss — cold start" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Restore index store from zip
         env:
@@ -489,6 +495,12 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
       - name: Restore OHLC store zip (R2 warm cache)
         env:
           PYTHONPATH: src:.
@@ -502,16 +514,16 @@ jobs:
           R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
-          set -euo pipefail
+          set +e
           python scripts/storage/cache_bus_cli.py get-fixed \
             --entry-id cache-ohlc-store-zip-v2 \
             --local-path data/cache/ohlc_store_archive/ohlc_store.zip \
-            --json-output /tmp/ohlc_warm_get.json || true
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+            --json-output /tmp/ohlc_warm_get.json
+          rc=$?
+          set -e
+          if [ "$rc" -ne 0 ]; then
+            echo "Phase 3 warm cache (ohlc): get-fixed miss — cold start" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Restore OHLC store from zip
         env:

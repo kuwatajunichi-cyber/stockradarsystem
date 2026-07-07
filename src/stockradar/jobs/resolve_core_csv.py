@@ -22,18 +22,18 @@ from stockradar.jobs.core_csv_selection import (
     count_unparseable_patched_prefixed_keys,
     select_patched_cache_key,
 )
-from stockradar.jobs.patch_universe_daily import MANIFEST_FILENAME as PATCH_MANIFEST_NAME
 from stockradar.storage.control_plane import (
     cache_read_allows_github_fallback,
     cache_read_uses_supabase_primary,
     filter_patched_keys_by_allowed_refs,
     normalize_rollout_stage,
     patched_select_uses_supabase_only,
+    PATCHED_UNIVERSE_CSV_FILENAME as CORE_CSV_NAME,
+    PATCHED_UNIVERSE_MANIFEST_FILENAME as PATCH_MANIFEST_NAME,
 )
 from stockradar.universe.monthly_release_pick import pick_monthly_release
 
 STATE_FILENAME = ".resolve_core_state.json"
-CORE_CSV_NAME = "equity_domestic_core_with_name.csv"
 QUALITY_JSON_NAME = "core_selection.json"
 
 

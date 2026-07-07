@@ -22,7 +22,7 @@ from stockradar.sources.jpx_delisted import (
     fetch_delisted_codes,
 )
 
-MANIFEST_FILENAME = "manifest.json"
+from stockradar.storage.control_plane import PATCHED_UNIVERSE_MANIFEST_FILENAME as MANIFEST_FILENAME
 
 
 def _parse_base_release_date(base_release: str) -> str | None:

@@ -4,6 +4,8 @@ from __future__ import annotations
 import pytest
 
 from stockradar.storage.control_plane import (
+    PATCHED_UNIVERSE_CSV_FILENAME,
+    PATCHED_UNIVERSE_MANIFEST_FILENAME,
     build_patched_object_keys,
     filter_patched_keys_by_allowed_refs,
     normalize_rollout_stage,
@@ -50,3 +52,8 @@ def test_build_patched_object_keys_shape() -> None:
     assert doc["cache_index_schema_version"] == 1
     assert doc["csv"]["object_key"] == csv_k
     assert doc["manifest"]["content_type"] == "application/json"
+
+
+def test_patched_universe_filenames() -> None:
+    assert PATCHED_UNIVERSE_CSV_FILENAME == "equity_domestic_core_with_name.csv"
+    assert PATCHED_UNIVERSE_MANIFEST_FILENAME == "manifest.json"
