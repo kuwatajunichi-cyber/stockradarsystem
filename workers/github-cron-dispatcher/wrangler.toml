@@ -1,11 +1,13 @@
-# Cloudflare Cron -> GitHub Actions workflow_dispatch (Phase 1: daily.yml only)
+# Cloudflare Cron -> GitHub Actions workflow_dispatch
+# Phase 1: daily.yml (45 6 * * * UTC)
+# Patch cutover: daily_universe_patch.yml (0 3 * * * UTC)
 name = "github-cron-dispatcher"
 main = "src/index.js"
 compatibility_date = "2024-06-01"
 workers_dev = false
 
 [triggers]
-crons = ["45 6 * * *"]
+crons = ["45 6 * * *", "0 3 * * *"]
 
 # Non-secret config (override per environment via wrangler deploy / dashboard)
 [vars]

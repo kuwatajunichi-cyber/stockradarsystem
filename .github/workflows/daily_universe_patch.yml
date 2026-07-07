@@ -2,9 +2,8 @@ name: Daily Universe Patch
 
 on:
   workflow_dispatch:
-  schedule:
-    # 毎日 12:00 JST（03:00 UTC）
-    - cron: "0 3 * * *"
+  # 定時起動: Cloudflare Cron 0 3 * * * (UTC) = 12:00 JST -> Worker -> workflow_dispatch
+  # GitHub schedule は二重起動防止のため削除。契約: docs/contracts/daily_universe_patch_cloudflare_cron_dispatch.md
 
 concurrency:
   group: daily-universe-patch
