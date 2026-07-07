@@ -39,6 +39,21 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Upsert Supabase runs row
+        env:
+          PYTHONPATH: src:.
+          RUN_DATE: ${{ inputs.run_date }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+          python scripts/storage/control_plane_cli.py upsert-run \
+            --workflow daily_event_cause_enrichment.yml \
+            --github-run-id "$GITHUB_RUN_ID" \
+            --run-date "$RUN_DATE" \
+            --status running
+
       # Phase 2c: R2-only handoff. Reusable shares github.run_id with caller for R2 keys.
       - name: R2 get indicators staging
         env:
