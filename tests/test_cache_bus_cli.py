@@ -10,6 +10,14 @@ import pytest
 pytestmark = pytest.mark.unit
 
 
+def test_cache_bus_cli_does_not_import_heavy_job_modules() -> None:
+    text = (Path(__file__).resolve().parents[1] / "scripts/storage/cache_bus_cli.py").read_text(
+        encoding="utf-8"
+    )
+    assert "patch_universe_daily" not in text
+    assert "resolve_core_csv" not in text
+
+
 def test_put_fixed_replay_skips(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SUPABASE_CONTROL_FAKE", "true")
     zip_path = tmp_path / "index_store.zip"

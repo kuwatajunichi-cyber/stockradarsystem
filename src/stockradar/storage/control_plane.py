@@ -4,6 +4,8 @@ from __future__ import annotations
 from typing import Any, Final
 
 PATCHED_OBJECT_KEYS_SCHEMA_VERSION: Final[int] = 1
+PATCHED_UNIVERSE_CSV_FILENAME: Final[str] = "equity_domestic_core_with_name.csv"
+PATCHED_UNIVERSE_MANIFEST_FILENAME: Final[str] = "manifest.json"
 
 VALID_ROLLOUT_STAGES: Final[frozenset[str]] = frozenset({"3a", "3b", "3c"})
 

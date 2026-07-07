@@ -14,11 +14,11 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from stockradar.jobs.cache_ops import should_rotate_cache  # noqa: E402
-from stockradar.jobs.patch_universe_daily import MANIFEST_FILENAME  # noqa: E402
-from stockradar.jobs.resolve_core_csv import CORE_CSV_NAME  # noqa: E402
 from stockradar.storage.control_plane import (  # noqa: E402
     build_patched_object_keys,
     normalize_rollout_stage,
+    PATCHED_UNIVERSE_CSV_FILENAME,
+    PATCHED_UNIVERSE_MANIFEST_FILENAME,
     resolve_fixed_object_key,
     resolve_patched_r2_keys,
     supabase_commit_is_fatal,
@@ -346,8 +346,8 @@ def cmd_get_patched(args: argparse.Namespace) -> int:
     manifest_bytes = _r2().get_object(str(manifest_spec["object_key"]))
 
     patched_dir.mkdir(parents=True, exist_ok=True)
-    csv_out = patched_dir / CORE_CSV_NAME
-    manifest_out = patched_dir / MANIFEST_FILENAME
+    csv_out = patched_dir / PATCHED_UNIVERSE_CSV_FILENAME
+    manifest_out = patched_dir / PATCHED_UNIVERSE_MANIFEST_FILENAME
     csv_out.write_bytes(csv_bytes)
     manifest_out.write_bytes(manifest_bytes)
 

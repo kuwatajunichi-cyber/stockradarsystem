@@ -87,6 +87,26 @@ def test_daily_yml_no_actions_cache_phase3c() -> None:
     assert 'PHASE3_ROLLOUT_STAGE: "3c"' in text
 
 
+def _step_index(job: dict, step_name: str) -> int:
+    for i, step in enumerate(job.get("steps", []) or []):
+        if isinstance(step, dict) and step.get("name") == step_name:
+            return i
+    raise AssertionError(f"step not found: {step_name}")
+
+
+def test_daily_yml_warm_cache_get_fixed_runs_after_install_dependencies() -> None:
+    """Phase 3 warm cache restore requires runtime deps (httpx/boto3) before get-fixed."""
+    wf = yaml.safe_load((_repo_root() / ".github/workflows/daily.yml").read_text(encoding="utf-8"))
+    index_job = wf["jobs"]["ensure_index_cache"]
+    ohlc_job = wf["jobs"]["ensure_core_cache"]
+    assert _step_index(index_job, "Install dependencies") < _step_index(
+        index_job, "Restore index store zip (R2 warm cache)"
+    )
+    assert _step_index(ohlc_job, "Install dependencies") < _step_index(
+        ohlc_job, "Restore OHLC store zip (R2 warm cache)"
+    )
+
+
 def test_daily_yml_compute_and_resolve_no_cache_save() -> None:
     wf = yaml.safe_load((_repo_root() / ".github/workflows/daily.yml").read_text(encoding="utf-8"))
     jobs = wf["jobs"]
