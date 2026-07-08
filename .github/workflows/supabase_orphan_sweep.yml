@@ -1,0 +1,52 @@
+name: Supabase Orphan Sweep
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "true = log only, no R2/Supabase deletes"
+        type: boolean
+        default: true
+      keep_days:
+        description: "Delete orphan rows older than this many days"
+        required: false
+        default: "7"
+  schedule:
+    # Weekly Sunday 04:00 UTC (13:00 JST)
+    - cron: "0 4 * * 0"
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Sweep orphan R2 blobs and Supabase rows
+        env:
+          PYTHONPATH: src:.
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
+          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+        run: |
+          set -euo pipefail
+          ARGS=(--keep-days "${{ github.event_name == 'workflow_dispatch' && inputs.keep_days || '7' }}")
+          if [ "${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}" = "true" ]; then
+            ARGS+=(--dry-run)
+          fi
+          python scripts/storage/orphan_sweeper.py "${ARGS[@]}"
