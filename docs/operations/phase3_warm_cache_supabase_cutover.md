@@ -42,6 +42,8 @@ Before merge:
 
 Code and first scheduled production runs satisfy much of the checklist below. Formal **CLOSED** requires multi-day soak + replay verification recorded in Issue #93.
 
+**Issue #93 roadmap (SSOT):** [issue_93_roadmap.md](issue_93_roadmap.md)
+
 ## Post-merge live verification checklist
 
 On trading days after Phase 3c merge (Cloudflare Cron or manual `workflow_dispatch` with `skip_publish=false` unless testing handoff only):
