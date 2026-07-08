@@ -100,8 +100,19 @@ Record **3+ consecutive trading days** of successful scheduled Patch + Daily run
 **Remaining before CLOSED:**
 
 - [ ] Soak: 2+ additional consecutive trading days (2026-07-08 = day 1 of scheduled soak)
-- [ ] Replay run with `put-fixed` skip verified
+- [x] Replay run: full pipeline with index + OHLC `put-fixed` skip verified (see below)
 - [ ] Optional: delisting effective-day live gate (Issue #93 2026-06-23 handoff)
+
+### Replay verification (2026-07-08)
+
+| Run | run_date | Result | Notes |
+|-----|----------|--------|-------|
+| [#28937327595](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/28937327595) | 2026-07-06 | **failure** (partial) | `is_replay=true`; index `put-fixed` → `replay_save_skipped: true` ✓; `ensure_core_cache` exit 2 — 15 delisted stale codes (6540 etc.), unrelated to replay save contract |
+| [#28938449074](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/28938449074) | 2026-07-07 | **success** | Full pipeline; index + OHLC `put-fixed` both `replay_save_skipped: true`; `skip_publish=true`; all jobs green |
+
+### Orphan sweeper smoke (2026-07-08)
+
+Post–PR #113 merge dry-run: [#28938397725](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/28938397725) — **success**, `orphan_rows_processed=0`.
 
 ## Orphan sweeper
 
