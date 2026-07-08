@@ -358,3 +358,40 @@ def test_cleanup_releases_workflow_deletes_daily_tags_older_than_three_months() 
     assert "gh release list --limit 500 --json tagName" in run_step["run"]
     assert "grep -E '^daily-[0-9]{6}$'" in run_step["run"]
     assert 'gh release delete "$tag" --yes --repo "${{ github.repository }}" || true' in run_step["run"]
+
+
+def test_supabase_orphan_sweep_workflow_contract() -> None:
+    workflow = _load_workflow("supabase_orphan_sweep.yml")
+    on_block = _workflow_on(workflow)
+
+    assert "workflow_dispatch" in on_block
+    assert on_block["workflow_dispatch"]["inputs"]["dry_run"]["default"] is True
+    assert _schedule_crons(workflow) == ["0 4 * * 0"]
+
+    sweep = _job(workflow, "sweep")
+    run_step = _step_named(sweep, "Sweep orphan R2 blobs and Supabase rows")
+    env_keys = set(run_step["env"])
+    assert {
+        "SUPABASE_URL",
+        "SUPABASE_SECRET_KEY",
+        "R2_ACCESS_KEY_ID",
+        "R2_SECRET_ACCESS_KEY",
+        "R2_ACCOUNT_ID",
+        "R2_BUCKET",
+        "R2_BASE_PREFIX",
+        "R2_ENDPOINT_URL",
+    }.issubset(env_keys)
+    assert "python scripts/storage/orphan_sweeper.py" in run_step["run"]
+    assert "--keep-days" in run_step["run"]
+    assert "--dry-run" in run_step["run"]
+
+
+def test_phase3_runbook_documents_live_gate_in_progress() -> None:
+    text = (
+        Path(__file__).resolve().parents[2]
+        / "docs/operations/phase3_warm_cache_supabase_cutover.md"
+    ).read_text(encoding="utf-8")
+    assert "Phase 3c live gate: IN PROGRESS" in text
+    assert "28914279013" in text
+    assert "28923227742" in text
+    assert "supabase_orphan_sweep.yml" in text

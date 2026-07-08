@@ -16,7 +16,7 @@ Japanese summary: README and workflow comments describe operator-facing behavior
   `resolve_monthly_release_for_run_date` / `pick_monthly_release` so **MONTHLY_TAG is identical** between
   patched cache writer and reader.
 
-## Patched cache (Actions cache)
+## Patched universe cache (Phase 3c: R2 + Supabase)
 
 ### Key format (machine-selectable)
 
@@ -24,14 +24,18 @@ Japanese summary: README and workflow comments describe operator-facing behavior
   `universe-patched-${MONTHLY_TAG}-${RUN_DATE}`  
   where `RUN_DATE` is `YYYY-MM-DD` (trading anchor from `resolve_trading_day`).
 - **Suffix must be** `-YYYY-MM-DD` at the end so `daily.yml` can parse `MONTHLY_TAG` + patch date from the key.
-- Reader (`daily.yml` → `resolve_core_csv`): **restore only**. No `actions/cache/save` for patched cache in `daily.yml`.
+- Writer persists via `cache_bus_cli put-patched` → R2 `cache/universe-patched/...` + Supabase `cache_index`.
+- Reader (`daily.yml` → `resolve_core_csv`): **restore only** via `get-patched`. No patched cache write in `daily.yml`.
 
-### Selection algorithm (`resolve_core_csv`)
+### Selection algorithm (`resolve_core_csv`, Phase 3c)
 
-1. List cache keys via GitHub API (paginated).
+1. List patched rows from Supabase `cache_index` (filtered by allowed `source_ref`).
 2. Filter keys matching `universe-patched-${MONTHLY_TAG}-*` and parse trailing date.
 3. Keep keys in the **same calendar month** as `run_date`, with patch date **<= run_date** (inclusive).
 4. Pick the **latest** patch date (nearest on or before `run_date`). If none → **monthly fallback**.
+
+Scheduled patch launch: Cloudflare Cron `0 3 * * *` UTC (12:00 JST) → Worker → `workflow_dispatch`  
+(daily launch: `45 6 * * *` UTC / 15:45 JST). See `docs/contracts/daily_universe_patch_cloudflare_cron_dispatch.md`.
 
 ### Monthly fallback quality contract
 
@@ -54,22 +58,19 @@ When patched cache is used:
 
 ## `daily.yml` (Daily Indicators) data flow
 
-- **Universe**: `daily.yml` does **not** run `patch_universe_daily`. Core CSV is **only** from `resolve_core_csv` artifacts.
-- **Run artifacts** (short-lived, `retention-days: 3` where applicable):
-  - `daily-core-csv-${GITHUB_RUN_ID}` — `equity_domestic_core_with_name.csv`
-  - `daily-core-quality-${GITHUB_RUN_ID}` — `core_selection.json`
-  - `daily-ohlc-store-${GITHUB_RUN_ID}` — `ohlc_store.zip`
-  - `daily-index-store-${GITHUB_RUN_ID}` — `index_store.zip`
-- **Warm caches** (fixed keys, sole writers in this workflow):
-  - OHLC: `ohlc-store-zip-v2` — **only** `ensure_core_cache` (after `archive_ohlc_store`, delete key, save).
-  - Index: `index-store-zip-v1` — **only** `ensure_index_cache` (after `archive_index_store`, delete key, save).
-- **`compute_indicators`**: consumes **only** the above artifacts (plus optional stale exclusions). **No** `actions/cache/save` for OHLC/index in this job.
-- **Replay**: `is_replay=true` ではウォーム用の **`actions/cache/save` をスキップ**し、既存キー削除は `python -m stockradar.jobs.cache_ops rotate-delete` が内部的に no-op になる（restore は従来どおり可）。無条件の `gh cache delete` 相当は `delete-key` サブコマンド。
+- **Universe**: `daily.yml` does **not** run `patch_universe_daily`. Core CSV is **only** from `resolve_core_csv` → R2 staging artifacts.
+- **Run artifacts** (R2 `runs/daily/{run_id}/...`, Phase 2c+):
+  - core CSV, core quality JSON, OHLC zip, index zip, indicators CSV, enriched CSV (optional)
+- **Warm caches** (Phase 3c: R2 `cache/` + Supabase `cache_pointers`; no `actions/cache`):
+  - OHLC: `cache-ohlc-store-zip-v2` — `ensure_core_cache` (`get-fixed` / `put-fixed`)
+  - Index: `cache-index-store-zip-v1` — `ensure_index_cache` (`get-fixed` / `put-fixed`)
+- **`compute_indicators`**: consumes R2 handoff artifacts (plus optional stale exclusions). No warm cache write in this job.
+- **Replay**: `is_replay=true` skips warm cache **pointer update** (`put-fixed` / `put-patched` idempotent skip). R2 run staging handoff unchanged.
 
-### `actions/cache/save` count (this workflow only)
+### Warm cache writes (Phase 3c)
 
-Exactly **two** saves on a normal successful run: index zip + OHLC zip.  
-(`daily_universe_patch.yml` patched-cache save is a **separate** workflow.)
+On a normal successful run, index + OHLC warm cache commits occur via `cache_bus_cli put-fixed` when incremental ensure jobs produce new zip bodies.  
+(`daily_universe_patch.yml` patched-cache write is a **separate** workflow.)
 
 ## Short-lived artifact cleanup
 
