@@ -150,3 +150,11 @@ esolve_trading_day (before parallel producers).
 
 Runbook: docs/operations/phase3_warm_cache_supabase_cutover.md.
 
+## Phase 4+ (planned)
+
+See docs/operations/issue_93_roadmap.md and docs/operations/phase4_cutover.md.
+
+- Phase 4: monthly_snapshots, publish_status, runs lifecycle, monthly Cron, cache-jpx-url R2 migration.
+- Phase 4.5: derived indicators warm cache (ADR-004).
+- Phase 5: entitlements, observability, distribution cutover.
+

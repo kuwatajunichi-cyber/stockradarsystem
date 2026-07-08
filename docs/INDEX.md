@@ -101,6 +101,14 @@ CI・ワークフロー・ジョブの変更に関わる「原則」「運用基
 - [docs/plans/quality_gate_scope_lock.md](plans/quality_gate_scope_lock.md)
 - [tests/TEST_RELOCATION_MAP.md](../tests/TEST_RELOCATION_MAP.md)
 
+### Issue #93 移行ロードマップ（インフラ）
+
+- **正本（詳細）:** [docs/operations/issue_93_roadmap.md](operations/issue_93_roadmap.md)
+- Phase runbooks: [phase2c](operations/phase2c_r2_only_cutover.md), [phase3](operations/phase3_warm_cache_supabase_cutover.md), [phase4](operations/phase4_cutover.md)
+- Phase 5 observability 調査: [phase5_observability_options.md](operations/phase5_observability_options.md)
+- Phase 5 observability runbook: [phase5_observability_cutover.md](operations/phase5_observability_cutover.md)
+- GitHub Issue: [#93](https://github.com/kuwatajunichi-cyber/stockradarsystem/issues/93)
+
 ---
 
 ## 運用ルール（重要）
