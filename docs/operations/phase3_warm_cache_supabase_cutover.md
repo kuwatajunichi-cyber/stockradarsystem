@@ -38,9 +38,9 @@ Before merge:
 
 ## Live gate status
 
-**Phase 3c live gate: IN PROGRESS** (soak ongoing as of 2026-07-08).
+**Phase 3c live gate: CLOSED** (2026-07-10).
 
-Code and first scheduled production runs satisfy much of the checklist below. Formal **CLOSED** requires multi-day soak + replay verification recorded in Issue #93.
+Soak (3 consecutive trading days Patch + Daily success), replay verification, and orphan sweeper smoke are recorded below. Issue [#93](https://github.com/kuwatajunichi-cyber/stockradarsystem/issues/93) **remains OPEN** for Phase 4 / 5 — closing the issue is not required to mark this gate CLOSED.
 
 **Issue #93 roadmap (SSOT):** [issue_93_roadmap.md](issue_93_roadmap.md)
 
@@ -80,30 +80,26 @@ On trading days after Phase 3c merge (Cloudflare Cron or manual `workflow_dispat
 
 Record **3+ consecutive trading days** of successful scheduled Patch + Daily runs (URLs in Issue #93).
 
-## Live verification record (partial — 2026-07-08)
+## Live verification record (CLOSED — 2026-07-10)
 
-| Item | Patch | Daily |
-|------|-------|-------|
-| Run | [#28914279013](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/28914279013) | [#28923227742](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/28923227742) |
-| Date (JST) | 2026-07-08 12:00 | 2026-07-08 15:45 |
-| Trigger | Cloudflare Cron dispatch | Cloudflare Cron dispatch |
-| Result | success | success |
-| run_date | 2026-07-08 | 2026-07-08 |
+### Soak (3 consecutive trading days)
 
-**Verified (2026-07-08):**
+| run_date | Patch | Daily | Notes |
+|----------|-------|-------|-------|
+| 2026-07-08 | [#28914279013](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/28914279013) success | [#28923227742](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/28923227742) success | `get-patched` hit; `upload_status=ok`; OHLC `stale=1` (non-blocking) |
+| 2026-07-09 | [#28990933691](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/28990933691) success | [#28999537870](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/28999537870) success | `put-patched` / warm cache / publish ok; `stale=0` |
+| 2026-07-10 | [#29065886668](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29065886668) success | [#29074674287](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29074674287) success | same as 2026-07-09 |
 
-- Patch: `put-patched` ok; `cache_key=universe-patched-monthly-20260701-28498165785-2026-07-08`
-- Daily: same-day `get-patched` hit; index/OHLC warm cache `cache_source: r2`
-- Publish: `upload_status=ok`
-- Patch completed **before** daily (12:00 → 15:45 JST)
+All soak runs: Cloudflare Cron dispatch; Patch (03:00 UTC) before Daily (06:45 UTC).
 
 **Prior evidence:** Daily [28873269318](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/28873269318) (2026-07-07, warm cache hit after PR #111).
 
-**Remaining before CLOSED:**
+**Gate checklist (Phase 3c):**
 
-- [ ] Soak: 2+ additional consecutive trading days (2026-07-08 = day 1 of scheduled soak)
+- [x] Soak: 3 consecutive trading days Patch + Daily success
 - [x] Replay run: full pipeline with index + OHLC `put-fixed` skip verified (see below)
-- [ ] Optional: delisting effective-day live gate (Issue #93 2026-06-23 handoff)
+- [x] Orphan sweeper dry-run smoke
+- [ ] Deferred: delisting effective-day live gate (Issue #93 2026-06-23 handoff; not a Phase 3c blocker)
 
 ### Replay verification (2026-07-08)
 

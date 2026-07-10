@@ -386,12 +386,16 @@ def test_supabase_orphan_sweep_workflow_contract() -> None:
     assert "--dry-run" in run_step["run"]
 
 
-def test_phase3_runbook_documents_live_gate_in_progress() -> None:
+def test_phase3_runbook_documents_live_gate_closed() -> None:
     text = (
         Path(__file__).resolve().parents[2]
         / "docs/operations/phase3_warm_cache_supabase_cutover.md"
     ).read_text(encoding="utf-8")
-    assert "Phase 3c live gate: IN PROGRESS" in text
+    assert "Phase 3c live gate: CLOSED" in text
     assert "28914279013" in text
     assert "28923227742" in text
+    assert "28990933691" in text
+    assert "28999537870" in text
+    assert "29065886668" in text
+    assert "29074674287" in text
     assert "supabase_orphan_sweep.yml" in text

@@ -2,7 +2,7 @@
 
 GitHub Issue: [#93](https://github.com/kuwatajunichi-cyber/stockradarsystem/issues/93)
 
-**改訂日:** 2026-07-08  
+**改訂日:** 2026-07-10  
 **SSOT:** 詳細正本。Issue #93 本文は要約 + リンク。
 
 設計根拠: [ADR-003](../adr/adr-003-r2-supabase-control-blob-split.md)
@@ -12,12 +12,12 @@ GitHub Issue: [#93](https://github.com/kuwatajunichi-cyber/stockradarsystem/issu
 | Phase | テーマ | 状態 |
 |-------|--------|------|
 | 0-2c | 契約 / Cron / R2 artifact bus | 完了 |
-| 3c | warm cache + Supabase | gate IN PROGRESS |
+| 3c | warm cache + Supabase | **gate CLOSED** (2026-07-10) |
 | 4 | 月次 + publish + runs + Cron | 計画確定 |
 | 4.5 | 派生 warm cache | ADR-004 |
 | 5 | entitlements + observability | 計画 |
 
-Phase 3 残: soak 3+ 営業日、delisting gate、runbook CLOSED。
+Phase 3c gate CLOSED（runbook 記録済）。Issue #93 は Phase 4/5 まで **OPEN** 維持。残: delisting effective-day gate（任意）。
 
 ## Phase 4（2026-07-08 決定: 単体フェーズ）
 
