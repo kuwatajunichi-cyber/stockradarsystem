@@ -24,6 +24,7 @@ from stockradar.storage.control_plane import (  # noqa: E402
     supabase_commit_is_fatal,
 )
 from stockradar.storage.mapping_catalog import get_entry, load_mapping  # noqa: E402
+from stockradar.storage.phase4_rollout import monthly_write_is_fatal, resolve_phase4_rollout_stage  # noqa: E402
 from stockradar.storage.supabase_client import (  # noqa: E402
     FakeSupabaseControlAdapter,
     SupabaseControlPort,
@@ -102,6 +103,11 @@ def cmd_put_fixed(args: argparse.Namespace) -> int:
     run_id = int(args.github_run_id)
 
     supabase = _adapter_supabase()
+    if supabase is not None:
+        existing = supabase.get_cache_pointer(cache_key=JPX_CACHE_KEY)
+        if existing and str(existing.get("sha256") or "") == sha256:
+            _emit({"status": "ok", "supabase_commit_ok": True, "object_key": object_key, "noop": True}, args.json_output)
+            return 0
     pending_id: str | None = None
     if supabase is not None:
         try:
@@ -364,6 +370,128 @@ def cmd_get_patched(args: argparse.Namespace) -> int:
     return 0
 
 
+JPX_CACHE_KEY = "jpx-latest-url"
+JPX_ENTRY_ID = "cache-jpx-url"
+
+
+def cmd_put_jpx_url(args: argparse.Namespace) -> int:
+    stage = resolve_phase4_rollout_stage(
+        cli_override=getattr(args, "phase4_rollout_stage", None),
+        mapping=load_mapping(),
+    )
+    local_path = Path(args.local_path)
+    fatal = monthly_write_is_fatal(stage)
+    if not local_path.is_file():
+        print(f"error: missing local file: {local_path}", file=sys.stderr)
+        return 1
+
+    entry = get_entry(JPX_ENTRY_ID)
+    object_key = str(entry.get("target_r2_key_pattern") or "cache/jpx-url/jpx_latest_url.txt")
+    content = local_path.read_bytes()
+    sha256 = compute_sha256(str(local_path))
+    size_bytes = len(content)
+    writer = str(entry.get("writer_workflow") or "monthly.yml")
+    run_id = int(args.github_run_id)
+
+    supabase = _adapter_supabase()
+    repair_missing_object = False
+    if supabase is not None:
+        try:
+            existing = supabase.get_cache_pointer(cache_key=JPX_CACHE_KEY)
+        except Exception as exc:
+            if fatal:
+                _emit(
+                    {
+                        "status": "error",
+                        "supabase_commit_ok": False,
+                        "supabase_commit_failed": f"get_cache_pointer: {exc}",
+                    },
+                    args.json_output,
+                )
+                return 1
+            supabase = None
+            existing = None
+        else:
+            if existing and str(existing.get("sha256") or "") == sha256:
+                try:
+                    _r2().get_object(object_key)
+                    _emit({"status": "ok", "supabase_commit_ok": True, "object_key": object_key, "noop": True}, args.json_output)
+                    return 0
+                except Exception:
+                    repair_missing_object = True
+    pending_id: str | None = None
+    if supabase is not None and not repair_missing_object:
+        try:
+            pending = supabase.insert_cache_index_pending_fixed(
+                cache_key=JPX_CACHE_KEY,
+                object_key=object_key,
+                sha256=sha256,
+                size_bytes=size_bytes,
+                writer_workflow=writer,
+                source_github_run_id=run_id,
+            )
+            pending_id = str(pending["id"])
+        except Exception as exc:
+            _emit({"status": "error", "supabase_commit_ok": False, "supabase_commit_failed": str(exc)}, args.json_output)
+            return 1 if fatal else 0
+
+    try:
+        _r2().put_object(object_key, content, content_type="text/plain")
+    except Exception as exc:
+        if pending_id and supabase is not None:
+            try:
+                supabase.mark_cache_index_orphan(cache_index_id=pending_id)
+            except Exception:
+                pass
+        print(f"error: R2 put failed: {exc}", file=sys.stderr)
+        return 1 if fatal else 0
+
+    if supabase is None or pending_id is None:
+        _emit({"status": "error", "supabase_commit_ok": False, "reason": "supabase_not_configured"}, args.json_output)
+        return 1 if fatal else 0
+
+    try:
+        supabase.commit_jpx_url_cache_rpc(
+            object_key=object_key,
+            sha256=sha256,
+            size_bytes=size_bytes,
+            writer_workflow=writer,
+            source_github_run_id=run_id,
+            history_id=pending_id,
+        )
+        _emit({"status": "ok", "supabase_commit_ok": True, "object_key": object_key}, args.json_output)
+        return 0
+    except Exception as exc:
+        try:
+            supabase.mark_cache_index_orphan(cache_index_id=pending_id)
+        except Exception:
+            pass
+        _emit({"status": "error", "supabase_commit_ok": False, "supabase_commit_failed": str(exc)}, args.json_output)
+        return 1 if fatal else 0
+
+
+def cmd_get_jpx_url(args: argparse.Namespace) -> int:
+    local_path = Path(args.local_path)
+    supabase = _adapter_supabase()
+    if supabase is None:
+        print("error: supabase not configured", file=sys.stderr)
+        return 1
+    pointer = supabase.get_cache_pointer(cache_key=JPX_CACHE_KEY)
+    if pointer is None:
+        _emit({"status": "miss", "reason": "cache_pointer_missing"}, args.json_output)
+        return 1
+    object_key = str(pointer["object_key"])
+    try:
+        content = _r2().get_object(object_key)
+    except Exception as exc:
+        _emit({"status": "miss", "reason": str(exc)}, args.json_output)
+        return 1
+    local_path.parent.mkdir(parents=True, exist_ok=True)
+    local_path.write_bytes(content)
+    _emit({"status": "ok", "object_key": object_key}, args.json_output)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Warm cache bus CLI (Phase 3).")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -397,6 +525,14 @@ def main(argv: list[str] | None = None) -> None:
     p_gp.add_argument("--run-date", required=True)
     p_gp.add_argument("--patched-dir", default="data/universe/jpx/patched_cache")
 
+    p_jpx_put = sub.add_parser("put-jpx-url", parents=[common])
+    p_jpx_put.add_argument("--local-path", required=True)
+    p_jpx_put.add_argument("--github-run-id", required=True)
+    p_jpx_put.add_argument("--phase4-rollout-stage", default=None)
+
+    p_jpx_get = sub.add_parser("get-jpx-url", parents=[common])
+    p_jpx_get.add_argument("--local-path", required=True)
+
     args = parser.parse_args(argv)
     if args.cmd == "put-fixed":
         sys.exit(cmd_put_fixed(args))
@@ -406,6 +542,10 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(cmd_get_patched(args))
     if args.cmd == "put-patched":
         sys.exit(cmd_put_patched(args))
+    if args.cmd == "put-jpx-url":
+        sys.exit(cmd_put_jpx_url(args))
+    if args.cmd == "get-jpx-url":
+        sys.exit(cmd_get_jpx_url(args))
     parser.error("unknown command")
 
 
