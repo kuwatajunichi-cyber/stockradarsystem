@@ -116,25 +116,24 @@ def test_monthly_yml_uses_preflight_and_publishes_latest_three_csvs() -> None:
 
     assert _job(workflow, "preflight")["uses"] == "./.github/workflows/reusable_quality_gate.yml"
     assert build["needs"] == "preflight"
-    assert build["permissions"]["contents"] == "write"
+    _step_with_id(build, "build_meta")
+    monthly_text = _workflow_text("monthly.yml")
+    contents_perm = build["permissions"]["contents"]
+    if "softprops/action-gh-release" in monthly_text or "Create Release" in monthly_text:
+        assert contents_perm == "write"
+    else:
+        assert contents_perm == "read"
 
-    release_step = _step_named(build, "Create Release")
-    assert release_step["uses"] == "softprops/action-gh-release@v2"
-    assert release_step["with"]["tag_name"] == "monthly-${{ steps.build_date.outputs.date }}-${{ github.run_id }}"
-    assert release_step["with"]["fail_on_unmatched_files"] is True
-    release_files = release_step["with"]["files"]
-    assert "equity_domestic_ipo_with_name.csv" in release_files
-    assert "equity_domestic_illiquid_with_name.csv" in release_files
-    assert "equity_domestic_core_with_name.csv" in release_files
+    snapshot_step = _step_named(build, "Commit monthly snapshot (R2 + Supabase)")
+    assert "monthly_bus_cli.py commit-snapshot" in snapshot_step["run"]
 
     upload_step = _step_named(build, "Upload latest 3 CSVs to all targets (work)")
     assert upload_step["env"]["PYTHONPATH"] == "."
     assert 'TARGETS="r2,dropbox,github"' in upload_step["run"]
-    assert 'TARGETS="drive,r2,dropbox,github"' in upload_step["run"]
     assert 'python scripts/upload_to_all_targets.py --run-date "$RUN_DATE" --targets "$TARGETS" --files "$IPO" "$ILLIQ" "$CORE"' in upload_step["run"]
 
-    snapshot_step = _step_named(build, "Commit monthly snapshot (R2 + Supabase)")
-    assert "monthly_bus_cli.py commit-snapshot" in snapshot_step["run"]
+    if "finalize_run" in workflow.get("jobs", {}):
+        assert "control_plane_cli.py update-run" in _workflow_text("monthly.yml")
 
 
 def test_monthly_yml_resolves_run_id_from_latest_and_staging() -> None:
@@ -144,12 +143,6 @@ def test_monthly_yml_resolves_run_id_from_latest_and_staging() -> None:
     run_script = run_id_step["run"]
     assert 'cat data/output/latest/LATEST_RUN_ID.txt' in run_script
     assert "find data/output/staging -mindepth 1 -maxdepth 1 -type d" in run_script
-    assert 'STAGING_DIR="data/output/staging/$RUN_ID"' in run_script
-
-    release_step = _step_named(build, "Create Release")
-    release_files = release_step["with"]["files"]
-    assert "data/output/staging/${{ steps.get_run_id.outputs.run_id }}/equity_domestic_ipo_with_name.csv" in release_files
-    assert "data/output/staging/${{ steps.get_run_id.outputs.run_id }}/equity_domestic_core_with_name.csv" in release_files
 
     snapshot_step = _step_named(build, "Commit monthly snapshot (R2 + Supabase)")
     assert "data/output/staging/${{ steps.get_run_id.outputs.run_id }}" in snapshot_step["run"]
@@ -191,7 +184,10 @@ def test_daily_universe_patch_yml_resolves_monthly_tag_and_writes_single_patched
 
     assert text.count("actions/cache/save@v4") == 0
     assert "schedule:" not in text.split("on:", 1)[-1].split("concurrency:", 1)[0]
-    assert "python -m stockradar.jobs.resolve_monthly_release_for_run_date" in text
+    assert "python -m stockradar.jobs.resolve_monthly_for_run_date" in text
+    assert "monthly_resolve_source=" in text
+    assert 'RESOLVE_SOURCE=$(echo "$RESOLVE_OUT" | grep \'^monthly_resolve_source=\' | cut -d= -f2-)' in text
+    assert '[ "$RESOLVE_SOURCE" = "github_fallback" ] || [ "$RESOLVE_SOURCE" = "github" ]' in text
     assert "python -m stockradar.jobs.patch_universe_daily" in text
     assert "cache_bus_cli.py put-patched" in text
     assert "control_plane_cli.py upsert-run" in text

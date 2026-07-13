@@ -35,6 +35,7 @@ permissions:
 
 env:
   PHASE3_ROLLOUT_STAGE: "3c"
+  PHASE4_ROLLOUT_STAGE: "4b"
 
 jobs:
   preflight:
@@ -152,16 +153,20 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Build monthly tags list
+      - name: Build monthly tags list (optional at 4c)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PHASE4_ROLLOUT_STAGE: ${{ env.PHASE4_ROLLOUT_STAGE }}
         run: |
           set -euo pipefail
-          gh release list --limit 200 --json tagName --template '{{range .}}{{.tagName}}{{"\n"}}{{end}}' > /tmp/gh_all_tags.txt
-          grep '^monthly-' /tmp/gh_all_tags.txt > /tmp/monthly_tags.txt || true
-          if [ ! -s /tmp/monthly_tags.txt ]; then
-            echo "error: no monthly-* release tags"
-            exit 1
+          : > /tmp/monthly_tags.txt
+          if [ "$PHASE4_ROLLOUT_STAGE" != "4c" ]; then
+            gh release list --limit 200 --json tagName --template '{{range .}}{{.tagName}}{{"\n"}}{{end}}' > /tmp/gh_all_tags.txt
+            grep '^monthly-' /tmp/gh_all_tags.txt > /tmp/monthly_tags.txt || true
+            if [ ! -s /tmp/monthly_tags.txt ]; then
+              echo "error: no monthly-* release tags (required before phase 4c)"
+              exit 1
+            fi
           fi
 
       - name: Select patched cache key (Supabase; Phase 3c)
@@ -171,6 +176,7 @@ jobs:
           PYTHONPATH: src
           RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
           PHASE3_ROLLOUT_STAGE: ${{ env.PHASE3_ROLLOUT_STAGE }}
+          PHASE4_ROLLOUT_STAGE: ${{ env.PHASE4_ROLLOUT_STAGE }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
         run: |
@@ -181,7 +187,9 @@ jobs:
             --repo "${{ github.repository }}" \
             --patched-cache-allowed-ref "${{ github.ref }}" \
             --patched-cache-allowed-ref "refs/heads/${{ github.event.repository.default_branch }}" \
-            --phase3-rollout-stage "$PHASE3_ROLLOUT_STAGE"
+            --phase3-rollout-stage "$PHASE3_ROLLOUT_STAGE" \
+            --phase4-rollout-stage "$PHASE4_ROLLOUT_STAGE" \
+            --monthly-source auto
 
       - name: Restore patched universe from R2 (conditional)
         if: steps.core_sel.outputs.need_patched_restore == 'true'
@@ -207,6 +215,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PYTHONPATH: src
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
+          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
           set -euo pipefail
           python -m stockradar.jobs.resolve_core_csv materialize \

@@ -120,6 +120,9 @@ def test_daily_yml_resolve_core_csv_get_patched() -> None:
     text = (_repo_root() / ".github/workflows/daily.yml").read_text(encoding="utf-8")
     assert "cache_bus_cli.py get-patched" in text
     assert "--phase3-rollout-stage" in text
+    materialize = text.split("Materialize core CSV + quality JSON", 1)[1].split("- name:", 1)[0]
+    assert "R2_ACCESS_KEY_ID" in materialize
+    assert "R2_BUCKET" in materialize
 
 
 def test_daily_event_cause_enrichment_indicators_r2_contract() -> None:

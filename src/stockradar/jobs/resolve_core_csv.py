@@ -31,7 +31,12 @@ from stockradar.storage.control_plane import (
     PATCHED_UNIVERSE_CSV_FILENAME as CORE_CSV_NAME,
     PATCHED_UNIVERSE_MANIFEST_FILENAME as PATCH_MANIFEST_NAME,
 )
-from stockradar.universe.monthly_release_pick import pick_monthly_release
+from stockradar.jobs.resolve_monthly_for_run_date import resolve_monthly_tag
+from stockradar.storage.phase4_rollout import (
+    monthly_read_allows_github_fallback,
+    monthly_read_uses_supabase_primary,
+    resolve_phase4_rollout_stage,
+)
 
 STATE_FILENAME = ".resolve_core_state.json"
 QUALITY_JSON_NAME = "core_selection.json"
@@ -141,16 +146,41 @@ def run_select(
         sys.exit(1)
 
     if not args.tags_file.is_file():
-        print(f"error: tags file not found: {args.tags_file}", file=sys.stderr)
+        phase4_stage_pre = resolve_phase4_rollout_stage(
+            cli_override=getattr(args, "phase4_rollout_stage", None),
+        )
+        monthly_source_pre = getattr(args, "monthly_source", None) or "auto"
+        needs_tags = monthly_source_pre == "github" or (
+            monthly_source_pre == "auto" and monthly_read_allows_github_fallback(phase4_stage_pre)
+        )
+        if needs_tags:
+            print(f"error: tags file not found: {args.tags_file}", file=sys.stderr)
+            sys.exit(1)
+
+    tag_lines: list[str] = []
+    if args.tags_file.is_file():
+        tag_lines = [
+            ln.strip()
+            for ln in args.tags_file.read_text(encoding="utf-8").splitlines()
+            if ln.strip()
+        ]
+    phase4_stage = resolve_phase4_rollout_stage(
+        cli_override=getattr(args, "phase4_rollout_stage", None),
+    )
+    monthly_source = getattr(args, "monthly_source", None) or "auto"
+    if not tag_lines and monthly_source == "github":
+        print("error: tags file is empty", file=sys.stderr)
         sys.exit(1)
 
-    tag_lines = [
-        ln.strip()
-        for ln in args.tags_file.read_text(encoding="utf-8").splitlines()
-        if ln.strip()
-    ]
+    tags_file_arg = args.tags_file if args.tags_file.is_file() else None
     try:
-        pick = pick_monthly_release(run_d, tag_lines)
+        pick, resolve_source = resolve_monthly_tag(
+            run_d,
+            source=monthly_source,
+            tags_file=tags_file_arg,
+            phase4_stage=phase4_stage,
+            sb_tags=None,
+        )
     except ValueError as e:
         print(f"error: {e}", file=sys.stderr)
         sys.exit(1)
@@ -202,6 +232,7 @@ def run_select(
         "run_date": run_d.isoformat(),
         "patched_cache_key": chosen,
         "cache_source": cache_source,
+        "monthly_resolve_source": resolve_source,
     }
     state_path: Path = args.state_path
     state_path.parent.mkdir(parents=True, exist_ok=True)
@@ -213,10 +244,12 @@ def run_select(
     print(f"patched_cache_key={chosen or ''}")
     print(f"monthly_tag={pick.tag}")
     print(f"cache_source={cache_source}")
+    print(f"monthly_resolve_source={resolve_source}")
     _append_github_output(gh_out, "need_patched_restore", need_restore)
     _append_github_output(gh_out, "patched_cache_key", chosen or "")
     _append_github_output(gh_out, "monthly_tag", pick.tag)
     _append_github_output(gh_out, "cache_source", cache_source)
+    _append_github_output(gh_out, "monthly_resolve_source", resolve_source)
     _append_github_output(gh_out, "universe_resolution", pick.universe_resolution)
     _append_github_output(gh_out, "resolution_reason", _escape_kv(pick.reason))
 
@@ -333,25 +366,47 @@ def run_materialize(
     if tmp_release.exists():
         shutil.rmtree(tmp_release)
     tmp_release.mkdir(parents=True, exist_ok=True)
-    dl = gh_release_download or _default_gh_release_download
-    proc = dl(
-        [
-            "gh",
-            "release",
-            "download",
-            monthly_tag,
-            "--pattern",
-            CORE_CSV_NAME,
-            "--dir",
-            str(tmp_release),
-            "--repo",
-            repo,
-        ]
+    phase4_stage = resolve_phase4_rollout_stage(
+        cli_override=getattr(args, "phase4_rollout_stage", None),
     )
-    if proc.returncode != 0:
-        print(f"error: gh release download failed: {proc.stderr or proc.stdout}", file=sys.stderr)
-        sys.exit(1)
     src = tmp_release / CORE_CSV_NAME
+    object_key = f"monthly/{monthly_tag}/{CORE_CSV_NAME}"
+    resolve_source = str(state.get("monthly_resolve_source") or "").strip().lower()
+    fetched = False
+    use_r2_monthly = resolve_source == "supabase" or (
+        resolve_source not in {"github", "github_fallback"}
+        and monthly_read_uses_supabase_primary(phase4_stage)
+    )
+    if use_r2_monthly:
+        try:
+            from scripts.storage.r2_staging_client import R2StagingAdapter
+
+            src.write_bytes(R2StagingAdapter().get_object(object_key))
+            fetched = True
+        except Exception as exc:
+            if not monthly_read_allows_github_fallback(phase4_stage):
+                print(f"error: R2 monthly core fetch failed: {exc}", file=sys.stderr)
+                sys.exit(1)
+    if not fetched:
+        dl = gh_release_download or _default_gh_release_download
+        proc = dl(
+            [
+                "gh",
+                "release",
+                "download",
+                monthly_tag,
+                "--pattern",
+                CORE_CSV_NAME,
+                "--dir",
+                str(tmp_release),
+                "--repo",
+                repo,
+            ]
+        )
+        if proc.returncode != 0:
+            print(f"error: gh release download failed: {proc.stderr or proc.stdout}", file=sys.stderr)
+            sys.exit(1)
+
     if not src.is_file():
         print(f"error: downloaded csv missing: {src}", file=sys.stderr)
         sys.exit(1)
@@ -397,6 +452,16 @@ def main(argv: list[str] | None = None) -> None:
         help="3a|3b|3c; defaults to PHASE3_ROLLOUT_STAGE env or mapping.yaml",
     )
     p_sel.add_argument(
+        "--phase4-rollout-stage",
+        default=None,
+        help="4a|4b|4c; defaults to PHASE4_ROLLOUT_STAGE env or mapping.yaml",
+    )
+    p_sel.add_argument(
+        "--monthly-source",
+        default="auto",
+        choices=("auto", "github", "supabase"),
+    )
+    p_sel.add_argument(
         "--state-path",
         type=Path,
         default=Path("data/universe/jpx/core_selected_staging") / STATE_FILENAME,
@@ -406,6 +471,7 @@ def main(argv: list[str] | None = None) -> None:
     p_mat.add_argument("--staging-dir", type=Path, default=Path("data/universe/jpx/core_selected_staging"))
     p_mat.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", "").strip())
     p_mat.add_argument("--patched-dir", type=Path, default=Path("data/universe/jpx/patched_cache"))
+    p_mat.add_argument("--phase4-rollout-stage", default=None)
 
     args = parser.parse_args(argv)
     if args.cmd == "select":
