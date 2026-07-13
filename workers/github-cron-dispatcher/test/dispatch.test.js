@@ -1,9 +1,9 @@
-import assert from "node:assert/strict";
+﻿import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { DAILY_CRON, DAILY_WORKFLOW_FILE, UNIVERSE_PATCH_CRON, UNIVERSE_PATCH_WORKFLOW_FILE, ROUTING_TABLE } from "../src/constants.js";
+import { DAILY_CRON, DAILY_WORKFLOW_FILE, MONTHLY_CRON, MONTHLY_WORKFLOW_FILE, UNIVERSE_PATCH_CRON, UNIVERSE_PATCH_WORKFLOW_FILE, ROUTING_TABLE } from "../src/constants.js";
 import {
   buildDispatchBody,
   buildDispatchUrl,
@@ -20,15 +20,19 @@ const mock204 = () => ({ status: 204, ok: true, text: async () => "" });
 describe("constants and wrangler cron alignment", () => {
   it("cron constants match wrangler.toml triggers.crons", () => {
     const wrangler = readFileSync(join(workerRoot, "wrangler.toml"), "utf8");
-    assert.match(wrangler, /crons\s*=\s*\["45 6 \* \* \*", "0 3 \* \* \*"\]/);
+    assert.match(
+      wrangler,
+      /crons\s*=\s*\["45 6 \* \* \*", "0 3 \* \* \*"\]/,
+    );
   });
 
-  it("routing table registers daily and patch workflows", () => {
+  it("routing table registers daily, patch, and monthly workflows", () => {
     assert.deepEqual(ROUTING_TABLE[DAILY_CRON], [{ workflowId: DAILY_WORKFLOW_FILE, inputs: {} }]);
     assert.deepEqual(ROUTING_TABLE[UNIVERSE_PATCH_CRON], [
       { workflowId: UNIVERSE_PATCH_WORKFLOW_FILE, inputs: {} },
     ]);
-    assert.equal(Object.keys(ROUTING_TABLE).length, 2);
+    assert.deepEqual(ROUTING_TABLE[MONTHLY_CRON], [{ workflowId: MONTHLY_WORKFLOW_FILE, inputs: {} }]);
+    assert.equal(Object.keys(ROUTING_TABLE).length, 3);
   });
 });
 
@@ -173,3 +177,4 @@ describe("source static checks", () => {
     assert.doesNotMatch(source, /console\.(log|error|warn)\([^)]*env\.GH_DISPATCH_TOKEN/);
   });
 });
+
