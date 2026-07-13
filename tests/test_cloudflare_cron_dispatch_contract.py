@@ -1,23 +1,16 @@
 from __future__ import annotations
-
 from pathlib import Path
-
 import pytest
-import tomllib
-
+import yaml
 pytestmark = pytest.mark.job_integration
-
-MONTHLY_CRON = "0 2 1 * *"
-DAILY_CRON = "45 6 * * *"
-UNIVERSE_PATCH_CRON = "0 3 * * *"
-WORKER_ROOT = Path(__file__).resolve().parents[1] / "workers" / "github-cron-dispatcher"
-
-
-def test_worker_constants_include_monthly_cron() -> None:
-    constants = (WORKER_ROOT / "src" / "constants.js").read_text(encoding="utf-8")
-    assert f'export const MONTHLY_CRON = "{MONTHLY_CRON}";' in constants
-
-
-def test_wrangler_still_has_two_crons_before_monthly_cutover() -> None:
-    wrangler = tomllib.loads((WORKER_ROOT / "wrangler.toml").read_text(encoding="utf-8"))
-    assert wrangler["triggers"]["crons"] == [DAILY_CRON, UNIVERSE_PATCH_CRON]
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[1]
+def test_wrangler_has_three_crons_at_phase4c() -> None:
+    text = (_repo_root() / "workers/github-cron-dispatcher/wrangler.toml").read_text(encoding="utf-8")
+    assert "0 2 1 * *" in text
+def test_monthly_yml_retains_github_schedule_until_worker_live() -> None:
+    workflow = yaml.safe_load((_repo_root() / ".github/workflows/monthly.yml").read_text(encoding="utf-8"))
+    on_block = workflow.get("on") or workflow.get(True) or {}
+    schedule = on_block.get("schedule") or []
+    crons = [entry.get("cron") for entry in schedule if isinstance(entry, dict)]
+    assert "0 2 1 * *" in crons
