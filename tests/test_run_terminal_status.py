@@ -1,0 +1,53 @@
+from __future__ import annotations
+
+import pytest
+
+from stockradar.jobs.run_terminal_status import DailyRunTerminalInput, resolve_daily_run_terminal_status
+
+
+@pytest.mark.unit
+def test_market_closed_success() -> None:
+    d = resolve_daily_run_terminal_status(
+        DailyRunTerminalInput(
+            is_open=False,
+            compute_indicators="skipped",
+            event_cause_enrichment="skipped",
+            render_and_upload="skipped",
+            skip_publish=True,
+            upload_executed=False,
+            upload_exit_code=0,
+        )
+    )
+    assert d.status == "success" and d.degraded_reason == "market_closed"
+
+
+@pytest.mark.unit
+def test_required_job_skipped_is_failed() -> None:
+    d = resolve_daily_run_terminal_status(
+        DailyRunTerminalInput(
+            is_open=True,
+            compute_indicators="skipped",
+            event_cause_enrichment="success",
+            render_and_upload="success",
+            skip_publish=True,
+            upload_executed=False,
+            upload_exit_code=0,
+        )
+    )
+    assert d.status == "failed"
+
+
+@pytest.mark.unit
+def test_publish_required_without_upload_is_failed() -> None:
+    d = resolve_daily_run_terminal_status(
+        DailyRunTerminalInput(
+            is_open=True,
+            compute_indicators="success",
+            event_cause_enrichment="success",
+            render_and_upload="success",
+            skip_publish=False,
+            upload_executed=False,
+            upload_exit_code=0,
+        )
+    )
+    assert d.status == "failed"

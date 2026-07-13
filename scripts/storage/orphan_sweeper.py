@@ -32,6 +32,22 @@ def _object_keys_from_row(row: dict) -> list[str]:
                 if isinstance(spec, dict) and spec.get("object_key"):
                     keys.append(str(spec["object_key"]))
             return keys
+    if table == "monthly_snapshots":
+        obj = row.get("object_keys")
+        if isinstance(obj, dict):
+            keys: list[str] = []
+            for part in ("ipo", "illiquid", "core", "manifest"):
+                spec = obj.get(part)
+                if isinstance(spec, dict) and spec.get("object_key"):
+                    keys.append(str(spec["object_key"]))
+            return keys
+    if table == "publish_status":
+        keys: list[str] = []
+        if row.get("object_key"):
+            keys.append(str(row["object_key"]))
+        if row.get("manifest_object_key"):
+            keys.append(str(row["manifest_object_key"]))
+        return keys
     return []
 
 

@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 import yaml
 
-from stockradar.storage.mapping_catalog import phase2_daily_artifact_entry_ids, phase3_rollout_stage
+from stockradar.storage.mapping_catalog import phase2_daily_artifact_entry_ids, phase3_rollout_stage, phase4_rollout_stage
 
 pytestmark = pytest.mark.job_integration
 
@@ -20,6 +20,7 @@ PHASE3_CACHE_ENTRY_IDS = frozenset(
         "cache-index-store-zip-v1",
         "cache-ohlc-store-zip-v2",
         "cache-universe-patched",
+        "cache-jpx-url",
     }
 )
 SCAN_WORKFLOWS = (
@@ -233,6 +234,10 @@ def test_mapping_entries_exist_in_workflows() -> None:
                     continue
             pool = all_caches
         elif kind == "release":
+            if entry["id"] == "release-monthly-build":
+                monthly_wf = _workflow_text("monthly.yml")
+                if "monthly_bus_cli.py commit-snapshot" in monthly_wf:
+                    continue
             pool = all_releases
         else:
             pytest.fail(f"unknown source_kind: {kind!r}")
@@ -278,8 +283,20 @@ def test_enrichment_is_daily_indicators_consumer_via_r2() -> None:
 
 def test_mapping_phase3_rollout_stage() -> None:
     mapping = _load_mapping()
-    assert mapping.get("schema_version") == 3
-    assert phase3_rollout_stage() in ("3a", "3b", "3c")
+    assert mapping.get("schema_version") == 4
+    assert mapping.get("phase3_rollout_stage") == "3c"
+    assert phase3_rollout_stage() == "3c"
+    assert phase4_rollout_stage() == "4a"
+
+
+def test_phase4_migration_sql_contains_tables_and_rpc() -> None:
+    sql_path = _repo_root() / "supabase" / "migrations" / "002_phase4_control_plane.sql"
+    assert sql_path.is_file()
+    text = sql_path.read_text(encoding="utf-8")
+    assert "CREATE TABLE IF NOT EXISTS monthly_snapshots" in text
+    assert "CREATE TABLE IF NOT EXISTS publish_status" in text
+    assert "CREATE OR REPLACE FUNCTION commit_jpx_url_cache" in text
+    assert "monthly_snapshots_sha256_matches_core" in text
 
 
 def test_phase3_cache_entries_have_supabase_tables() -> None:

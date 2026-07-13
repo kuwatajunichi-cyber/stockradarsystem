@@ -51,6 +51,13 @@ def phase3_rollout_stage(path: Path | None = None) -> str:
     return normalize_rollout_stage(str(mapping.get("phase3_rollout_stage") or "3a"))
 
 
+def phase4_rollout_stage(path: Path | None = None) -> str:
+    from stockradar.storage.phase4_rollout import normalize_phase4_rollout_stage
+
+    mapping = load_mapping(path)
+    return normalize_phase4_rollout_stage(str(mapping.get("phase4_rollout_stage") or "4a"))
+
+
 def phase3_cache_entry_ids() -> tuple[str, ...]:
     return (
         "cache-index-store-zip-v1",
