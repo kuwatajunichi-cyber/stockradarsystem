@@ -120,6 +120,13 @@ def test_monthly_yml_uses_preflight_and_publishes_latest_three_csvs() -> None:
     assert build["needs"] == "preflight"
     _step_with_id(build, "build_meta")
     monthly_text = _workflow_text("monthly.yml")
+    assert "steps.build_date" not in monthly_text
+    assert "steps.build_date.outputs" not in monthly_text
+    assert "steps.build_meta" in monthly_text
+    assert "steps.build_meta.outputs" in monthly_text
+    if "tag_name:" in monthly_text:
+        assert "steps.build_meta.outputs.date" in monthly_text
+        assert "steps.build_date.outputs.date" not in monthly_text
     contents_perm = build["permissions"]["contents"]
     if "softprops/action-gh-release" in monthly_text or "Create Release" in monthly_text:
         assert contents_perm == "write"
@@ -140,7 +147,10 @@ def test_monthly_yml_uses_preflight_and_publishes_latest_three_csvs() -> None:
 
     upload_step = _step_named(build, "Upload latest 3 CSVs to all targets (work)")
     assert upload_step["env"]["PYTHONPATH"] == "."
-    assert 'TARGETS="r2,dropbox,github"' in upload_step["run"]
+    if "softprops/action-gh-release" in monthly_text or "Create Release" in monthly_text:
+        assert 'TARGETS="r2,dropbox,github"' in upload_step["run"]
+    else:
+        assert 'TARGETS="r2,dropbox"' in upload_step["run"]
     assert 'python scripts/upload_to_all_targets.py --run-date "$RUN_DATE" --targets "$TARGETS" --files "$IPO" "$ILLIQ" "$CORE"' in upload_step["run"]
 
     if "finalize_run" in workflow.get("jobs", {}):

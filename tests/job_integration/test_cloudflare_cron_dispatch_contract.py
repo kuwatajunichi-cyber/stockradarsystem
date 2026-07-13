@@ -1,4 +1,4 @@
-"""Cloudflare Cron dispatch contract (Phase 1 daily/patch + Phase 4 monthly code)."""
+"""Cloudflare Cron dispatch contract (Phase 1 daily/patch + Phase 4 monthly)."""
 from __future__ import annotations
 
 import re
@@ -34,7 +34,7 @@ def test_daily_cron_constant_in_worker_sources() -> None:
     assert f'export const MONTHLY_CRON = "{MONTHLY_CRON}";' in constants
 
     wrangler = tomllib.loads((WORKER_ROOT / "wrangler.toml").read_text(encoding="utf-8"))
-    assert wrangler["triggers"]["crons"] == [DAILY_CRON, UNIVERSE_PATCH_CRON]
+    assert wrangler["triggers"]["crons"] == [DAILY_CRON, UNIVERSE_PATCH_CRON, MONTHLY_CRON]
 
 
 def test_worker_routes_daily_patch_and_monthly_workflows() -> None:
@@ -42,6 +42,8 @@ def test_worker_routes_daily_patch_and_monthly_workflows() -> None:
     assert "daily.yml" in constants
     assert "daily_universe_patch.yml" in constants
     assert "monthly.yml" in constants
+    assert "MONTHLY_DISPATCH_ENABLED" in (WORKER_ROOT / "wrangler.toml").read_text(encoding="utf-8")
+    assert 'MONTHLY_DISPATCH_ENABLED = "false"' in (WORKER_ROOT / "wrangler.toml").read_text(encoding="utf-8")
 
 
 def test_worker_dispatch_module_uses_github_dispatch_endpoint() -> None:
@@ -90,10 +92,17 @@ def test_daily_universe_patch_yml_has_no_github_schedule_after_cloudflare_cutove
     assert "workflow_dispatch" in on_block
 
 
+def test_monthly_yml_retains_github_schedule_until_worker_live() -> None:
+    wf = yaml.safe_load((_repo_root() / ".github/workflows/monthly.yml").read_text(encoding="utf-8"))
+    on_block = wf.get("on") or wf.get(True) or {}
+    schedule = on_block.get("schedule") or []
+    crons = [entry.get("cron") for entry in schedule if isinstance(entry, dict)]
+    assert "0 2 1 * *" in crons
+
+
 @pytest.mark.parametrize(
     "workflow_file",
     [
-        "monthly.yml",
         "cleanup_artifacts.yml",
         "cleanup_drive_work.yml",
         "cleanup_drive_paid.yml",
@@ -102,13 +111,11 @@ def test_daily_universe_patch_yml_has_no_github_schedule_after_cloudflare_cutove
         "cleanup_releases.yml",
     ],
 )
-def test_other_workflow_schedules_unchanged_phase1(workflow_file: str) -> None:
-    """Phase 1 must not touch non-daily schedules."""
+def test_other_workflow_schedules_unchanged(workflow_file: str) -> None:
     path = _repo_root() / ".github/workflows" / workflow_file
     if not path.exists():
         pytest.skip(f"{workflow_file} not present")
-    before = path.read_text(encoding="utf-8")
-    wf = yaml.safe_load(before)
+    wf = yaml.safe_load(path.read_text(encoding="utf-8"))
     on_block = wf.get("on") or wf.get(True) or {}
     schedule = on_block.get("schedule") or []
-    assert len(schedule) >= 1, f"{workflow_file} must retain schedule in Phase 1"
+    assert len(schedule) >= 1, f"{workflow_file} must retain schedule"

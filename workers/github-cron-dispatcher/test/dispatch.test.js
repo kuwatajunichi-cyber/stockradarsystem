@@ -1,4 +1,4 @@
-﻿import assert from "node:assert/strict";
+import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -22,7 +22,7 @@ describe("constants and wrangler cron alignment", () => {
     const wrangler = readFileSync(join(workerRoot, "wrangler.toml"), "utf8");
     assert.match(
       wrangler,
-      /crons\s*=\s*\["45 6 \* \* \*", "0 3 \* \* \*"\]/,
+      /crons\s*=\s*\["45 6 \* \* \*", "0 3 \* \* \*", "0 2 1 \* \*"\]/,
     );
   });
 
@@ -177,4 +177,3 @@ describe("source static checks", () => {
     assert.doesNotMatch(source, /console\.(log|error|warn)\([^)]*env\.GH_DISPATCH_TOKEN/);
   });
 });
-

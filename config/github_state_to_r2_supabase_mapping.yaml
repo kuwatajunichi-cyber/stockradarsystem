@@ -6,7 +6,7 @@
 # (historical GitHub artifact names). Phase 2 daily bus handoff is R2-only; no GH upload/download.
 schema_version: 4
 phase3_rollout_stage: "3c"
-phase4_rollout_stage: "4b"
+phase4_rollout_stage: "4c"
 
 scan_workflows:
   - daily.yml
