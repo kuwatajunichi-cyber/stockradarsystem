@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { handleScheduledCron, resolveTargetsForCron } from "../src/index.js";
-import { DAILY_CRON, DAILY_WORKFLOW_FILE, UNIVERSE_PATCH_CRON, UNIVERSE_PATCH_WORKFLOW_FILE } from "../src/constants.js";
+import { handleScheduledCron, isMonthlyDispatchEnabled, resolveTargetsForCron } from "../src/index.js";
+import {
+  DAILY_CRON,
+  DAILY_WORKFLOW_FILE,
+  MONTHLY_CRON,
+  MONTHLY_WORKFLOW_FILE,
+  UNIVERSE_PATCH_CRON,
+  UNIVERSE_PATCH_WORKFLOW_FILE,
+} from "../src/constants.js";
 
 describe("resolveTargetsForCron", () => {
   it("returns daily.yml for DAILY_CRON", () => {
@@ -16,6 +23,28 @@ describe("resolveTargetsForCron", () => {
 
   it("returns null for unknown cron", () => {
     assert.equal(resolveTargetsForCron("0 0 * * *"), null);
+  });
+
+  it("returns monthly.yml for MONTHLY_CRON", () => {
+    const targets = resolveTargetsForCron(MONTHLY_CRON);
+    assert.deepEqual(targets, [{ workflowId: MONTHLY_WORKFLOW_FILE, inputs: {} }]);
+  });
+});
+
+describe("isMonthlyDispatchEnabled", () => {
+  it("defaults to false for monthly workflow", () => {
+    assert.equal(isMonthlyDispatchEnabled({}, MONTHLY_WORKFLOW_FILE), false);
+  });
+
+  it("is true when MONTHLY_DISPATCH_ENABLED=true", () => {
+    assert.equal(
+      isMonthlyDispatchEnabled({ MONTHLY_DISPATCH_ENABLED: "true" }, MONTHLY_WORKFLOW_FILE),
+      true,
+    );
+  });
+
+  it("is always true for daily workflow", () => {
+    assert.equal(isMonthlyDispatchEnabled({}, DAILY_WORKFLOW_FILE), true);
   });
 });
 
@@ -83,5 +112,29 @@ describe("handleScheduledCron", () => {
     });
     assert.equal(result.ok, true);
     assert.match(capturedUrl, /daily_universe_patch\.yml/);
+  });
+
+  it("skips monthly dispatch when gate is false", async () => {
+    let called = false;
+    const result = await handleScheduledCron({ cron: MONTHLY_CRON }, env, async () => {
+      called = true;
+      return { status: 204, ok: true, text: async () => "" };
+    });
+    assert.equal(result.ok, true);
+    assert.equal(called, false);
+  });
+
+  it("dispatches monthly.yml when gate is true", async () => {
+    let capturedUrl = "";
+    const result = await handleScheduledCron(
+      { cron: MONTHLY_CRON },
+      { ...env, MONTHLY_DISPATCH_ENABLED: "true" },
+      async (url) => {
+        capturedUrl = String(url);
+        return { status: 204, ok: true, text: async () => "" };
+      },
+    );
+    assert.equal(result.ok, true);
+    assert.match(capturedUrl, /monthly\.yml/);
   });
 });
