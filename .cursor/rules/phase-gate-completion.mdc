@@ -1,0 +1,45 @@
+---
+description: フェーズ/PR/プラン To-Do の完了報告ゲート — 虚偽完了の禁止
+alwaysApply: true
+---
+
+# フェーズ完了報告ゲート
+
+## 目的
+
+プラン To-Do・ロードマップ・チャット報告で **証拠のない completed / 完了 / CLOSED** を出さない。
+
+## 正本（SSOT）
+
+- リポジトリ内: `docs/operations/phase4_gate_status.yaml`
+- ロードマップ: `docs/operations/issue_93_roadmap.md`（gate_status と整合必須）
+- プラン frontmatter `todos`: gate_status の `pr_gates` / `live_gate_4c` と **同一意味** であること
+
+## Agent が completed にしてよい条件
+
+| 種別 | 必須証拠 |
+|------|----------|
+| **Step 4.0 Design Contract** | プラン本文の設計チェックのみ。コード・本番不要 |
+| **PR-4-N** | (1) main マージ commit SHA、(2) CI pytest Pass on merge、(3) プラン記載のユーザー作業（U-1/U-3 等）の証拠 URL、(4) phase4_gate_status.yaml を merged_and_verified に更新 |
+| **Live gate 4c** | プラン Live gate 全項目の run URL / ログ証拠、live_gate_4c.status: closed |
+| **Phase 4 全体 CLOSED** | 全 PR gate merged_and_verified + live gate closed + roadmap 行更新 |
+
+## 禁止（§0 FAIL 相当）
+
+- ローカル実装・未マージ・live gate 未達のまま To-Do / frontmatter / ユーザー報告を **完了** とする
+- phase4_gate_status.yaml を更新せずに進捗を報告する
+- stage を飛ばした実装を、飛ばしていない PR の **完了** として記録する
+- CI 未実行・未 Pass を **Pass** と報告する
+
+## 作業手順（必須）
+
+1. 進捗を主張する **前に** phase4_gate_status.yaml を更新する（local_only は未マージ明示用のみ）
+2. プラン frontmatter の status は gate_status と同期する
+3. ユーザーへの報告は gate_status の overall_status と矛盾させない
+4. 変更後 pytest tests/test_phase_gate_honesty_contract.py -v が Pass すること
+
+## ローカル実装のみの正しい表現
+
+- gate_status: local_only（merge_commit / user gate は null のまま）
+- roadmap: 「実装済み（未マージ・live gate 未達）」等、未完了を明示
+- チャット: 「ローカル実装・CI 通過・未マージ」と区別して報告
