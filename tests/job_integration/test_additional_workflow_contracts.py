@@ -120,7 +120,7 @@ def test_monthly_yml_uses_preflight_and_publishes_latest_three_csvs() -> None:
 
     release_step = _step_named(build, "Create Release")
     assert release_step["uses"] == "softprops/action-gh-release@v2"
-    assert release_step["with"]["tag_name"] == "monthly-${{ steps.build_date.outputs.date }}-${{ github.run_id }}"
+    assert release_step["with"]["tag_name"] == "monthly-${{ steps.build_meta.outputs.date }}-${{ github.run_id }}"
     assert release_step["with"]["fail_on_unmatched_files"] is True
     release_files = release_step["with"]["files"]
     assert "equity_domestic_ipo_with_name.csv" in release_files
