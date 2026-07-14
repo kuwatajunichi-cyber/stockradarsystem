@@ -1067,8 +1067,7 @@ jobs:
   render_and_upload:
     needs: [resolve_trading_day, compute_indicators, event_cause_enrichment]
     outputs:
-      upload_status:
-        value: ${{ steps.multi_upload.outputs.upload_status }}
+      upload_status: ${{ steps.multi_upload.outputs.upload_status }}
     if: |
       always() &&
       needs.resolve_trading_day.outputs.is_open == 'True' &&
