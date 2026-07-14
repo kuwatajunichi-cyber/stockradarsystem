@@ -2,9 +2,7 @@ name: Monthly Universe Build
 
 on:
   workflow_dispatch:  # 手動実行
-  schedule:
-    - cron: "0 2 1 * *"  # ??1? 02:00 UTC????? 11:00?
-  # Phase 4c: Worker Cron is primary; GH schedule kept until U-3 verified (follow-up removes it)
+  # Phase 4c: Cloudflare Worker Cron is canonical (GH schedule removed post-U-3)
 
 jobs:
   preflight:

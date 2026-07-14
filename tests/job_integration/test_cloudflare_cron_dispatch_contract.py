@@ -43,7 +43,7 @@ def test_worker_routes_daily_patch_and_monthly_workflows() -> None:
     assert "daily_universe_patch.yml" in constants
     assert "monthly.yml" in constants
     assert "MONTHLY_DISPATCH_ENABLED" in (WORKER_ROOT / "wrangler.toml").read_text(encoding="utf-8")
-    assert 'MONTHLY_DISPATCH_ENABLED = "false"' in (WORKER_ROOT / "wrangler.toml").read_text(encoding="utf-8")
+    assert 'MONTHLY_DISPATCH_ENABLED = "true"' in (WORKER_ROOT / "wrangler.toml").read_text(encoding="utf-8")
 
 
 def test_worker_dispatch_module_uses_github_dispatch_endpoint() -> None:
@@ -92,12 +92,12 @@ def test_daily_universe_patch_yml_has_no_github_schedule_after_cloudflare_cutove
     assert "workflow_dispatch" in on_block
 
 
-def test_monthly_yml_retains_github_schedule_until_worker_live() -> None:
+def test_monthly_yml_has_no_github_schedule_after_cloudflare_cutover() -> None:
     wf = yaml.safe_load((_repo_root() / ".github/workflows/monthly.yml").read_text(encoding="utf-8"))
     on_block = wf.get("on") or wf.get(True) or {}
-    schedule = on_block.get("schedule") or []
-    crons = [entry.get("cron") for entry in schedule if isinstance(entry, dict)]
-    assert "0 2 1 * *" in crons
+    schedule = on_block.get("schedule")
+    assert schedule is None or schedule == []
+    assert "workflow_dispatch" in on_block
 
 
 @pytest.mark.parametrize(
