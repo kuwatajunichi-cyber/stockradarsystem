@@ -416,8 +416,9 @@ def test_daily_yml_render_and_upload_skip_publish_on_publish_step_only() -> None
     publish_chunk = text[publish_idx : publish_idx + 1200]
     assert "if: github.event_name != 'workflow_dispatch' || github.event.inputs.skip_publish != 'true'" in publish_chunk
     assert "INVALID_FAULT_INJECTION" not in publish_chunk
-    assert 'TARGETS="r2,dropbox"' in publish_chunk
-    assert "github" not in publish_chunk.split('TARGETS="r2,dropbox"', 1)[-1].split("\n", 3)[0]
+    assert 'TARGETS="r2,dropbox"' in text
+    upload_section = text.split("- name: Upload to all targets", 1)[1].split("- name: Publish to R2", 1)[0]
+    assert "github" not in upload_section.split("TARGETS=", 1)[-1].split("\n", 3)[0]
 
 
 def test_daily_yml_event_cause_enrichment_call_has_no_r2_fault_mode() -> None:
