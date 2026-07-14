@@ -1,24 +1,27 @@
-# Phase 4 gate status SSOT — agent completion claims and CI contract source
-# Rule: .cursor/rules/phase-gate-completion.mdc
 schema_version: 1
 phase: 4
-last_updated_utc: '2026-07-14T21:20:00+09:00'
+last_updated_utc: '2026-07-14T23:10:00+09:00'
 overall_status: in_progress
 correction_log:
 - at_utc: '2026-07-13T12:31:00+09:00'
-  reason: Plan frontmatter To-Do (pr-4-1..6b) falsely marked completed before U-1/U-3/live gate evidence; step-4.0-design corrected to pending
+  reason: Plan frontmatter To-Do (pr-4-1..6b) falsely marked completed before U-1/U-3/live
+    gate evidence; step-4.0-design corrected to pending
 - at_utc: '2026-07-14T21:20:00+09:00'
-  reason: Live gate 4b verified on daily run 29330609678 after PR #121 merge and monthly backfill dispatch
+  reason: Live gate 4b verified on daily run 29330609678 after PR
+- at_utc: '2026-07-14T23:10:00+09:00'
+  reason: 'PR stack #122/#125/#124 merged; pr-4-5/6a merged_and_verified; pr-4-6b
+    code merged pending U-3'
 implementation_snapshot:
   local_worktree_has_unmerged_changes: false
-  note: PR #117-121 merged to main; stack PR #122-124 still open. Post-#121 hotfix 38f73a1 fixes daily job outputs YAML.
+  note: 'PR #122-125/#124 stack merged to main (2026-07-14). #123 closed; replaced
+    by #125. Live gate 4c and U-3/U-4 remain open.'
 pr_gates:
   pr-4-1-ddl:
     description: 002_phase4 DDL + phase4_rollout + mapping v4 + contract/smoke
     status: merged_and_verified
     merge_commit: 3faa2d5a31983e0a4b2de784e69cb0cec86404e3
     pytest_ci_pass_on_merge: true
-    note: merged via PR #118; U-1 verified by Supabase migration 20260714003112
+    note: merged via PR
     u1_ddl_applied: true
     u1_evidence_url: https://supabase.com/dashboard/project/wocvepixlzqupasoipbk/database/migrations
   pr-4-2-monthly-shadow:
@@ -26,37 +29,40 @@ pr_gates:
     status: merged_and_verified
     merge_commit: cd0e2e884418769efcf2186f22da7617946f26d0
     pytest_ci_pass_on_merge: true
-    note: merged via PR #119; stage 4a shadow write enabled; live backfill via monthly dispatch 29321881966
+    note: merged via PR
   pr-4-3-resolve-4b:
     description: monthly resolve + daily/patch stage 4b
     status: merged_and_verified
     merge_commit: 411e3ab8e96d3a751ab69135147fb1a25cfff276
     pytest_ci_pass_on_merge: true
     live_gate_4b_evidence_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29330609678
-    note: merged via PR #120; live gate 4b verified on daily run 29330609678 (monthly_resolve_source=supabase, publish_status committed, runs.status=success)
+    note: merged via PR
   pr-4-4-publish-runs:
     description: publish_bus_cli + finalize_run + runs lifecycle
     status: merged_and_verified
     merge_commit: 9d1248a9a7ead120abb426a21f564cb8b6b79cce
     pytest_ci_pass_on_merge: true
-    note: merged via PR #121; verified by live gate 4b evidence run 29330609678
+    note: merged via PR
   pr-4-5-jpx-url:
     description: cache-jpx-url pending to R2 to RPC
-    status: local_only
-    merge_commit: null
-    pytest_ci_pass_on_merge: null
+    status: merged_and_verified
+    merge_commit: 33f345c7b5f94858101497b4c3a7e30c56cbcb3a
+    pytest_ci_pass_on_merge: true
+    note: 'merged via PR #122'
   pr-4-6a-worker:
     description: Worker routing code only, wrangler crons 2
-    status: pending
-    merge_commit: null
-    pytest_ci_pass_on_merge: null
-    note: 6a only; Worker keeps 3 crons until 6b
+    status: merged_and_verified
+    merge_commit: 49500d6a662c77e12484ae3da98d85ab0aba612b
+    pytest_ci_pass_on_merge: true
+    note: 'merged via PR #125 (replaces closed #123)'
   pr-4-6b-cutover:
     description: wrangler 3 crons + U-3 deploy + schedule delete + stage 4c
     status: pending
     merge_commit: null
-    pytest_ci_pass_on_merge: null
+    pytest_ci_pass_on_merge: true
     u3_wrangler_deploy_evidence_url: null
+    note: 'code merged via PR #124; merged_and_verified blocked until U-3 wrangler
+      deploy + live gate 4c evidence'
 live_gate_4c:
   status: open
   release_removed_daily_success_run_url: null
@@ -65,4 +71,4 @@ live_gate_4c:
   cron_dispatch_run_url: null
   closed_at_utc: null
 roadmap:
-  phase4_status_phrase: PR-4-1〜4-4 マージ済み・live gate 4b 達成（4c 未達）
+  phase4_status_phrase: PR-4-1〜4-6b コードマージ済み・live gate 4c 未達（U-3/U-4 待ち）
