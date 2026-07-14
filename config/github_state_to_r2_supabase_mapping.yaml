@@ -4,8 +4,9 @@
 # Phase 2: artifact bus entries include structured optional; workflows use R2 runs/ staging.
 # Phase 2c: source_kind=artifact and source_name_pattern are legacy logical tokens only
 # (historical GitHub artifact names). Phase 2 daily bus handoff is R2-only; no GH upload/download.
-schema_version: 3
+schema_version: 4
 phase3_rollout_stage: "3c"
+phase4_rollout_stage: "4a"
 
 scan_workflows:
   - daily.yml
@@ -182,8 +183,12 @@ entries:
     source_name_pattern: jpx-url-*
     writer_workflow: monthly.yml
     writer_job: build
-    target_r2_key_pattern: cache/jpx-url/{run_number}/jpx_latest_url.txt
+    target_r2_key_pattern: cache/jpx-url/jpx_latest_url.txt
     supabase_table: cache_index
+    supabase_tables:
+      - cache_index
+      - cache_pointers
+    supabase_active_table: cache_pointers
     retention_policy: github_actions_cache_restore_keys=jpx-url-
     optional: false
 
@@ -204,6 +209,11 @@ entries:
     writer_workflow: monthly.yml
     writer_job: build
     target_r2_key_pattern: monthly/{monthly_tag}/equity_domestic_{ipo,illiquid,core}_with_name.csv
+    target_r2_object_keys:
+      ipo: monthly/{monthly_tag}/equity_domestic_ipo_with_name.csv
+      illiquid: monthly/{monthly_tag}/equity_domestic_illiquid_with_name.csv
+      core: monthly/{monthly_tag}/equity_domestic_core_with_name.csv
+      manifest: monthly/{monthly_tag}/manifest.json
     supabase_table: monthly_snapshots
     retention_policy: immutable_per_github_run_id
     optional: false
