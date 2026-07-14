@@ -2,7 +2,7 @@
 # ????: .cursor/rules/phase-gate-completion.mdc
 schema_version: 1
 phase: 4
-last_updated_utc: '2026-07-13T12:31:00+09:00'
+last_updated_utc: '2026-07-14T09:46:39+09:00'
 overall_status: in_progress
 correction_log:
 - at_utc: '2026-07-13T12:31:00+09:00'
@@ -10,22 +10,22 @@ correction_log:
     ??????????????step-4.0-design ?? completed ???
 implementation_snapshot:
   local_worktree_has_unmerged_changes: true
-  note: ????? Phase 4 ??????????/??????pytest CI marker 218 passed???????mapping phase4_rollout_stage=4c
-    ? live gate ?????? gate_status ?? in_progress?
+  note: PR #117-119 merged to main; stack PR #120-124 still open on feature branches.
 pr_gates:
   pr-4-1-ddl:
     description: 002_phase4 DDL + phase4_rollout + mapping v4 + contract/smoke
-    status: local_only
-    merge_commit: null
-    pytest_ci_pass_on_merge: null
-    u1_ddl_applied: false
-    u1_evidence_url: null
+    status: merged_and_verified
+    merge_commit: 3faa2d5a31983e0a4b2de784e69cb0cec86404e3
+    pytest_ci_pass_on_merge: true
+    note: merged via PR #118; U-1 verified by Supabase migration 20260714003112
+    u1_ddl_applied: true
+    u1_evidence_url: https://supabase.com/dashboard/project/wocvepixlzqupasoipbk/database/migrations
   pr-4-2-monthly-shadow:
     description: monthly_bus_cli + monthly.yml shadow stage 4a
-    status: pending
-    merge_commit: null
-    pytest_ci_pass_on_merge: null
-    note: 4a shadow ??????? 4c ???????
+    status: merged_and_verified
+    merge_commit: cd0e2e884418769efcf2186f22da7617946f26d0
+    pytest_ci_pass_on_merge: true
+    note: merged via PR #119; stage 4a shadow write enabled
   pr-4-3-resolve-4b:
     description: ?? monthly ?? + daily/patch stage 4b
     status: pending
