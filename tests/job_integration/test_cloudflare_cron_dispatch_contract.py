@@ -1,4 +1,4 @@
-"""Phase 1: Cloudflare Cron dispatch contract (daily.yml only)."""
+"""Cloudflare Cron dispatch contract (Phase 1 daily/patch + Phase 4 monthly code)."""
 from __future__ import annotations
 
 import re
@@ -14,6 +14,7 @@ pytestmark = pytest.mark.job_integration
 
 DAILY_CRON = "45 6 * * *"
 UNIVERSE_PATCH_CRON = "0 3 * * *"
+MONTHLY_CRON = "0 2 1 * *"
 WORKER_ROOT = Path(__file__).resolve().parents[2] / "workers" / "github-cron-dispatcher"
 
 
@@ -30,16 +31,17 @@ def test_daily_cron_constant_in_worker_sources() -> None:
     constants = (WORKER_ROOT / "src" / "constants.js").read_text(encoding="utf-8")
     assert f'export const DAILY_CRON = "{DAILY_CRON}";' in constants
     assert f'export const UNIVERSE_PATCH_CRON = "{UNIVERSE_PATCH_CRON}";' in constants
+    assert f'export const MONTHLY_CRON = "{MONTHLY_CRON}";' in constants
 
     wrangler = tomllib.loads((WORKER_ROOT / "wrangler.toml").read_text(encoding="utf-8"))
     assert wrangler["triggers"]["crons"] == [DAILY_CRON, UNIVERSE_PATCH_CRON]
 
 
-def test_worker_routes_daily_and_patch_workflows() -> None:
+def test_worker_routes_daily_patch_and_monthly_workflows() -> None:
     constants = (WORKER_ROOT / "src" / "constants.js").read_text(encoding="utf-8")
     assert "daily.yml" in constants
     assert "daily_universe_patch.yml" in constants
-    assert "UNIVERSE_PATCH_CRON" in constants
+    assert "monthly.yml" in constants
 
 
 def test_worker_dispatch_module_uses_github_dispatch_endpoint() -> None:

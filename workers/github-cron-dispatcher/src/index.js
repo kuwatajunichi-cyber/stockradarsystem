@@ -1,4 +1,4 @@
-import { DAILY_WORKFLOW_FILE, ROUTING_TABLE } from "./constants.js";
+import { DAILY_WORKFLOW_FILE, MONTHLY_WORKFLOW_FILE, ROUTING_TABLE } from "./constants.js";
 import {
   dispatchWorkflow,
   logEvent,
@@ -12,6 +12,22 @@ import {
  */
 export function resolveTargetsForCron(cron) {
   return ROUTING_TABLE[cron] ?? null;
+}
+
+/**
+ * @param {Record<string, string | undefined>} env
+ * @param {string} workflowId
+ * @returns {boolean}
+ */
+export function isMonthlyDispatchEnabled(env, workflowId) {
+  if (workflowId !== MONTHLY_WORKFLOW_FILE) {
+    return true;
+  }
+  const raw = env.MONTHLY_DISPATCH_ENABLED;
+  if (raw === undefined || raw === "") {
+    return false;
+  }
+  return String(raw).trim().toLowerCase() === "true";
 }
 
 /**
@@ -37,6 +53,18 @@ export async function handleScheduledCron(controller, env, fetchImpl = fetch) {
   const results = [];
 
   for (const target of targets) {
+    if (!isMonthlyDispatchEnabled(env, target.workflowId)) {
+      logEvent({
+        level: "info",
+        event: "monthly_dispatch_skipped",
+        cron,
+        workflowId: target.workflowId,
+        reason: "MONTHLY_DISPATCH_ENABLED_not_true",
+      });
+      results.push({ workflowId: target.workflowId, ok: true, skipped: true });
+      continue;
+    }
+
     let inputs = target.inputs ?? {};
     if (target.workflowId === DAILY_WORKFLOW_FILE) {
       inputs = mergeDailyInputs(env, inputs);
