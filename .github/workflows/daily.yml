@@ -35,7 +35,7 @@ permissions:
 
 env:
   PHASE3_ROLLOUT_STAGE: "3c"
-  PHASE4_ROLLOUT_STAGE: "4b"
+  PHASE4_ROLLOUT_STAGE: "4c"
 
 jobs:
   preflight:

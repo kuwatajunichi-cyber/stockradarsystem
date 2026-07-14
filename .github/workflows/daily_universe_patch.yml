@@ -11,7 +11,7 @@ concurrency:
 
 env:
   PHASE3_ROLLOUT_STAGE: "3c"
-  PHASE4_ROLLOUT_STAGE: "4b"
+  PHASE4_ROLLOUT_STAGE: "4c"
 
 jobs:
   resolve_trading_day:
@@ -184,7 +184,7 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     env:
-      PHASE4_ROLLOUT_STAGE: "4b"
+      PHASE4_ROLLOUT_STAGE: "4c"
     steps:
       - name: Checkout
         uses: actions/checkout@v4

@@ -1,19 +1,21 @@
 # Cloudflare Cron -> GitHub Actions workflow_dispatch
 # Phase 1: daily.yml (45 6 * * * UTC)
 # Patch cutover: daily_universe_patch.yml (0 3 * * * UTC)
+# Phase 4c: monthly.yml (0 2 1 * * UTC)
 name = "github-cron-dispatcher"
 main = "src/index.js"
 compatibility_date = "2024-06-01"
 workers_dev = false
 
 [triggers]
-crons = ["45 6 * * *", "0 3 * * *"]
+crons = ["45 6 * * *", "0 3 * * *", "0 2 1 * *"]
 
 # Non-secret config (override per environment via wrangler deploy / dashboard)
 [vars]
 GITHUB_OWNER = "kuwatajunichi-cyber"
 GITHUB_REPO = "stockradarsystem"
 GITHUB_REF = "main"
+MONTHLY_DISPATCH_ENABLED = "false"
 
 # Secret (set via: wrangler secret put GH_DISPATCH_TOKEN)
 # GH_DISPATCH_TOKEN = fine-grained PAT or GitHub App token with workflow dispatch permission
