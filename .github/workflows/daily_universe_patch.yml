@@ -11,6 +11,7 @@ concurrency:
 
 env:
   PHASE3_ROLLOUT_STAGE: "3c"
+  PHASE4_ROLLOUT_STAGE: "4b"
 
 jobs:
   resolve_trading_day:
@@ -87,33 +88,50 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PYTHONPATH: src
           RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
+          PHASE4_ROLLOUT_STAGE: ${{ env.PHASE4_ROLLOUT_STAGE }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
+          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
           set -euo pipefail
-          gh release list --limit 200 --json tagName --template '{{range .}}{{.tagName}}{{"\n"}}{{end}}' > /tmp/gh_all_tags.txt
-          grep '^monthly-' /tmp/gh_all_tags.txt > /tmp/monthly_tags.txt || true
-          if [ ! -s /tmp/monthly_tags.txt ]; then
-            echo "error: no monthly-* release tags"
-            exit 1
+          : > /tmp/monthly_tags.txt
+          if [ "$PHASE4_ROLLOUT_STAGE" != "4c" ]; then
+            gh release list --limit 200 --json tagName --template '{{range .}}{{.tagName}}{{"\n"}}{{end}}' > /tmp/gh_all_tags.txt
+            grep '^monthly-' /tmp/gh_all_tags.txt > /tmp/monthly_tags.txt || true
+            if [ ! -s /tmp/monthly_tags.txt ]; then
+              echo "error: no monthly-* release tags (required before phase 4c)"
+              exit 1
+            fi
           fi
-          RESOLVE_OUT=$(python -m stockradar.jobs.resolve_monthly_release_for_run_date \
+          RESOLVE_OUT=$(python -m stockradar.jobs.resolve_monthly_for_run_date \
             --run-date "$RUN_DATE" \
-            --tags-file /tmp/monthly_tags.txt)
+            --source auto \
+            --tags-file /tmp/monthly_tags.txt \
+            --phase4-rollout-stage "$PHASE4_ROLLOUT_STAGE")
           echo "$RESOLVE_OUT"
           MONTHLY_TAG=$(echo "$RESOLVE_OUT" | grep '^monthly_tag=' | cut -d= -f2-)
           UV_RES=$(echo "$RESOLVE_OUT" | grep '^universe_resolution=' | cut -d= -f2-)
+          RESOLVE_SOURCE=$(echo "$RESOLVE_OUT" | grep '^monthly_resolve_source=' | cut -d= -f2-)
           REASON=$(echo "$RESOLVE_OUT" | sed -n 's/^resolution_reason=//p')
           mkdir -p .tmp
           printf '%s' "$REASON" > .tmp/resolution_reason.txt
           echo "monthly_tag=$MONTHLY_TAG" >> "$GITHUB_OUTPUT"
           echo "universe_resolution=$UV_RES" >> "$GITHUB_OUTPUT"
           mkdir -p data/universe/jpx/latest_release
-          if ! gh release download "$MONTHLY_TAG" \
-            --pattern "equity_domestic_core_with_name.csv" \
-            --dir "data/universe/jpx/latest_release" \
-            --repo "${{ github.repository }}"; then
-            echo "error: gh release download failed: $MONTHLY_TAG"
-            exit 1
+          FETCH_SOURCE="r2"
+          if [ "$RESOLVE_SOURCE" = "github_fallback" ] || [ "$RESOLVE_SOURCE" = "github" ]; then
+            FETCH_SOURCE="github"
           fi
+          python scripts/storage/monthly_bus_cli.py fetch-csv \
+            --monthly-tag "$MONTHLY_TAG" \
+            --variant core \
+            --source "$FETCH_SOURCE" \
+            --local-path data/universe/jpx/latest_release/equity_domestic_core_with_name.csv
 
       - name: Patch universe (delisted removal)
         env:
@@ -160,3 +178,4 @@ jobs:
             --github-run-id "$GITHUB_RUN_ID" \
             --source-ref "${{ github.ref }}" \
             --json-output /tmp/patch_put_patched.json
+

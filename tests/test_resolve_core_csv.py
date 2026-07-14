@@ -97,6 +97,8 @@ def test_run_select_warns_on_unparseable_prefix(
         tags_file=tags_file,
         state_path=state_path,
         phase3_rollout_stage="3a",
+        phase4_rollout_stage="4a",
+        monthly_source="github",
     )
     mod.run_select(args, list_cache_entries=entries)
     err = capsys.readouterr().err
@@ -113,6 +115,8 @@ def test_run_select_no_patched_candidate(tmp_path: Path, tags_file: Path) -> Non
         tags_file=tags_file,
         state_path=state_path,
         phase3_rollout_stage="3a",
+        phase4_rollout_stage="4a",
+        monthly_source="github",
     )
     mod.run_select(
         args,
@@ -140,6 +144,8 @@ def test_run_select_skips_patched_key_not_on_allowed_refs(
             "refs/heads/my-feature",
         ],
         phase3_rollout_stage="3a",
+        phase4_rollout_stage="4a",
+        monthly_source="github",
     )
     mod.run_select(args, list_cache_entries=entries)
     state = json.loads(state_path.read_text(encoding="utf-8"))
@@ -211,7 +217,7 @@ def test_run_materialize_patched_missing_files_falls_back_to_monthly(
         (d / CORE_CSV_NAME).write_text("a,b\n", encoding="utf-8")
         return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
-    args = Namespace(repo="o/r", staging_dir=staging, patched_dir=patched)
+    args = Namespace(repo="o/r", staging_dir=staging, patched_dir=patched, phase4_rollout_stage="4a")
     mod.run_materialize(args, gh_release_download=fake_dl)
     err = capsys.readouterr().err
     assert "warning:" in err and key in err
@@ -279,10 +285,60 @@ def test_run_materialize_monthly_fallback_uses_fake_gh(tmp_path: Path) -> None:
         (d / CORE_CSV_NAME).write_text("a,b\n", encoding="utf-8")
         return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
-    args = Namespace(repo="o/r", staging_dir=staging, patched_dir=patched)
+    args = Namespace(repo="o/r", staging_dir=staging, patched_dir=patched, phase4_rollout_stage="4a")
     mod.run_materialize(args, gh_release_download=fake_dl)
     q = json.loads((staging / QUALITY_JSON_NAME).read_text(encoding="utf-8"))
     assert q["core_source"] == "monthly_fallback"
     assert q["delisted_patch_applied"] is False
     assert q["selected_cache_key"] is None
     assert q["quality_tier"] == "degraded_without_delisted_patch"
+
+
+def test_run_materialize_skips_r2_when_monthly_resolve_source_is_github_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    staging = tmp_path / "staging"
+    patched = tmp_path / "patched"
+    staging.mkdir()
+    patched.mkdir()
+    monthly = "monthly-20260207-1"
+    (staging / STATE_FILENAME).write_text(
+        json.dumps(
+            {
+                "monthly_tag": monthly,
+                "universe_resolution": "time_series_ok",
+                "resolution_reason": "",
+                "run_date": "2026-04-15",
+                "patched_cache_key": None,
+                "monthly_resolve_source": "github_fallback",
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    class BoomR2:
+        def get_object(self, _key: str) -> bytes:
+            raise AssertionError("R2 must not be used when monthly_resolve_source=github_fallback")
+
+    monkeypatch.setattr(
+        "scripts.storage.r2_staging_client.R2StagingAdapter",
+        lambda: BoomR2(),
+    )
+
+    def fake_dl(cmd: list[str]) -> subprocess.CompletedProcess[str]:
+        i = cmd.index("--dir")
+        d = Path(cmd[i + 1])
+        d.mkdir(parents=True, exist_ok=True)
+        (d / CORE_CSV_NAME).write_text("a,b\n", encoding="utf-8")
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    args = Namespace(
+        repo="o/r",
+        staging_dir=staging,
+        patched_dir=patched,
+        phase4_rollout_stage="4b",
+    )
+    mod.run_materialize(args, gh_release_download=fake_dl)
+    q = json.loads((staging / QUALITY_JSON_NAME).read_text(encoding="utf-8"))
+    assert q["core_source"] == "monthly_fallback"
