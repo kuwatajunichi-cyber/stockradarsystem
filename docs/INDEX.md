@@ -66,12 +66,18 @@
 
 - Directory (View):  
   <https://github.com/kuwatajunichi-cyber/stockradarsystem/tree/main/docs/decision-candidates/>
-- 001 (Raw):  
+- 001 信頼性・実体リスクに基づく調査ルート制御（Raw）:  
  <https://raw.githubusercontent.com/kuwatajunichi-cyber/stockradarsystem/refs/heads/main/docs/decision-candidates/dc-001-boro-universe.md>
-- 002 (Raw):  
+- 002 Rise/Mid/Down Universe（Raw）:  
  <https://raw.githubusercontent.com/kuwatajunichi-cyber/stockradarsystem/refs/heads/main/docs/decision-candidates/dc-002-rise-mid-down-universe.md>
-- 003 (Raw):  
+- 003 Weekly/Monthly Report（Raw）:  
  <https://raw.githubusercontent.com/kuwatajunichi-cyber/stockradarsystem/refs/heads/main/docs/decision-candidates/dc-003-weekly-monthly-report.md>
+- 004 Fake Signal Detector（Raw）:  
+ <https://raw.githubusercontent.com/kuwatajunichi-cyber/stockradarsystem/refs/heads/main/docs/decision-candidates/dc-004-fake-signal-detector.md>
+- 005 Event Cause Ranking PoC（Raw）:  
+ <https://raw.githubusercontent.com/kuwatajunichi-cyber/stockradarsystem/refs/heads/main/docs/decision-candidates/dc-005-event-cause-ranking-poc.md>
+- 006 株探/TDNet 取得層の実現性調査（Raw）:  
+ <https://raw.githubusercontent.com/kuwatajunichi-cyber/stockradarsystem/refs/heads/main/docs/decision-candidates/dc-006-external-ingestion-feasibility.md>
 
 ---
 
