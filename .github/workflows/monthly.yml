@@ -27,14 +27,6 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Cache JPX URL cache
-        uses: actions/cache@v4
-        with:
-          path: data/cache/jpx_latest_url.txt
-          key: jpx-url-${{ github.run_number }}
-          restore-keys: |
-            jpx-url-
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -54,6 +46,42 @@ jobs:
             --github-run-id "$GITHUB_RUN_ID" \
             --run-date "$RUN_DATE" \
             --status running
+
+      - name: Restore JPX URL cache (R2 + Supabase)
+        id: restore_jpx_r2
+        env:
+          PYTHONPATH: src:.
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
+          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+        run: |
+          set -euo pipefail
+          mkdir -p data/cache
+          set +e
+          python scripts/storage/cache_bus_cli.py get-jpx-url \
+            --local-path data/cache/jpx_latest_url.txt
+          rc=$?
+          set -e
+          if [ "$rc" -ne 0 ] || [ ! -f data/cache/jpx_latest_url.txt ]; then
+            echo "cache_restored=false" >> "$GITHUB_OUTPUT"
+            echo "JPX URL cache miss — cold start" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "cache_restored=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Restore JPX URL cache (GitHub Actions fallback, 4b)
+        if: steps.restore_jpx_r2.outputs.cache_restored != 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: data/cache/jpx_latest_url.txt
+          key: jpx-url-${{ github.run_id }}
+          restore-keys: |
+            jpx-url-
 
       - name: Run monthly build
         env:
@@ -151,6 +179,37 @@ jobs:
             --github-run-id "$GITHUB_RUN_ID" \
             --phase4-rollout-stage "$PHASE4_ROLLOUT_STAGE" \
             --json-output /tmp/monthly_snapshot_commit.json
+
+      - name: Put JPX URL cache (R2 + Supabase RPC)
+        if: success() && steps.get_run_id.outputs.run_id != ''
+        env:
+          PYTHONPATH: src:.
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          PHASE4_ROLLOUT_STAGE: ${{ env.PHASE4_ROLLOUT_STAGE }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
+          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+        run: |
+          set -euo pipefail
+          if [ -f data/cache/jpx_latest_url.txt ]; then
+            python scripts/storage/cache_bus_cli.py put-jpx-url \
+              --local-path data/cache/jpx_latest_url.txt \
+              --github-run-id "$GITHUB_RUN_ID" \
+              --phase4-rollout-stage "$PHASE4_ROLLOUT_STAGE" \
+              --json-output /tmp/jpx_url_put.json
+          fi
+
+      - name: Save JPX URL cache (GitHub Actions fallback, 4b)
+        if: success() && steps.get_run_id.outputs.run_id != ''
+        uses: actions/cache/save@v4
+        with:
+          path: data/cache/jpx_latest_url.txt
+          key: jpx-url-${{ github.run_id }}
 
       - name: Install deps for multi-target upload
         if: success() && steps.get_run_id.outputs.run_id != ''
