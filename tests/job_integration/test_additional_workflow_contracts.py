@@ -133,6 +133,9 @@ def test_monthly_yml_uses_preflight_and_publishes_latest_three_csvs() -> None:
     assert 'TARGETS="drive,r2,dropbox,github"' in upload_step["run"]
     assert 'python scripts/upload_to_all_targets.py --run-date "$RUN_DATE" --targets "$TARGETS" --files "$IPO" "$ILLIQ" "$CORE"' in upload_step["run"]
 
+    snapshot_step = _step_named(build, "Commit monthly snapshot (R2 + Supabase)")
+    assert "monthly_bus_cli.py commit-snapshot" in snapshot_step["run"]
+
 
 def test_monthly_yml_resolves_run_id_from_latest_and_staging() -> None:
     workflow = _load_workflow("monthly.yml")
@@ -147,6 +150,9 @@ def test_monthly_yml_resolves_run_id_from_latest_and_staging() -> None:
     release_files = release_step["with"]["files"]
     assert "data/output/staging/${{ steps.get_run_id.outputs.run_id }}/equity_domestic_ipo_with_name.csv" in release_files
     assert "data/output/staging/${{ steps.get_run_id.outputs.run_id }}/equity_domestic_core_with_name.csv" in release_files
+
+    snapshot_step = _step_named(build, "Commit monthly snapshot (R2 + Supabase)")
+    assert "data/output/staging/${{ steps.get_run_id.outputs.run_id }}" in snapshot_step["run"]
 
 
 def test_daily_event_cause_enrichment_writes_enriched_csv_to_r2() -> None:

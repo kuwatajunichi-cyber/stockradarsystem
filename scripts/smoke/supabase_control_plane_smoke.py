@@ -16,6 +16,7 @@ from stockradar.storage.supabase_client import SupabaseRestAdapter  # noqa: E402
 SMOKE_WORKFLOW = "supabase_smoketest.yml"
 SMOKE_CACHE_KEY = "smoke-index-store-zip-v1"
 SMOKE_SHA = "a" * 64
+SMOKE_JPX_CACHE_KEY = "smoke-jpx-latest-url"
 
 
 
@@ -58,6 +59,9 @@ def main() -> int:
     adapter = SupabaseRestAdapter.from_env()
     artifact_id: str | None = None
     cache_history_id: str | None = None
+    monthly_id: str | None = None
+    publish_id: str | None = None
+    jpx_id: str | None = None
     smoke_github_run_id = int(os.environ.get("GITHUB_RUN_ID") or "0")
 
     try:
@@ -98,7 +102,75 @@ def main() -> int:
         if ptr is None or ptr.get("sha256") != SMOKE_SHA:
             return _fail("cache_pointers not readable after RPC")
 
-        print("smoke ok: upsert-run, artifact_index REST, commit_fixed_cache RPC")
+        monthly_tag = "smoke-monthly-20260101-0"
+        snap_pending = adapter.insert_monthly_snapshot_pending(
+            monthly_tag=monthly_tag,
+            snapshot_date="2026-01-01",
+            github_run_id=smoke_github_run_id,
+            object_keys={
+                "monthly_snapshots_schema_version": 1,
+                "ipo": {
+                    "object_key": f"monthly/{monthly_tag}/equity_domestic_ipo_with_name.csv",
+                    "sha256": SMOKE_SHA,
+                    "size_bytes": 1,
+                    "content_type": "text/csv",
+                },
+                "illiquid": {
+                    "object_key": f"monthly/{monthly_tag}/equity_domestic_illiquid_with_name.csv",
+                    "sha256": SMOKE_SHA,
+                    "size_bytes": 1,
+                    "content_type": "text/csv",
+                },
+                "core": {
+                    "object_key": f"monthly/{monthly_tag}/equity_domestic_core_with_name.csv",
+                    "sha256": SMOKE_SHA,
+                    "size_bytes": 1,
+                    "content_type": "text/csv",
+                },
+                "manifest": {
+                    "object_key": f"monthly/{monthly_tag}/manifest.json",
+                    "sha256": SMOKE_SHA,
+                    "size_bytes": 1,
+                    "content_type": "application/json",
+                },
+            },
+            sha256=SMOKE_SHA,
+        )
+        monthly_id = str(snap_pending["id"])
+        snap_committed = adapter.commit_monthly_snapshot(snapshot_id=monthly_id)
+        if snap_committed.get("status") != "committed":
+            return _fail("monthly_snapshots commit status")
+
+        pub_pending = adapter.insert_publish_status_pending(
+            run_id=str(run["id"]),
+            workflow=SMOKE_WORKFLOW,
+            github_run_id=smoke_github_run_id,
+            run_date="2026-01-01",
+            logical_kind="indicators_csv",
+            visibility="work",
+            object_key="published/0011_work/2026-01/2026-01-01/smoke.csv",
+            manifest_object_key="published/0011_work/2026-01/2026-01-01/manifests/indicators_csv.json",
+            size_bytes=1,
+            sha256=SMOKE_SHA,
+            content_type="text/csv",
+        )
+        publish_id = str(pub_pending["id"])
+        pub_committed = adapter.commit_publish_status(publish_id=publish_id)
+        if pub_committed.get("status") != "committed":
+            return _fail("publish_status commit status")
+
+        jpx_history = adapter.insert_cache_index_pending_fixed(
+            cache_key=SMOKE_JPX_CACHE_KEY,
+            object_key="cache/jpx-url/smoke_jpx_latest_url.txt",
+            sha256=SMOKE_SHA,
+            size_bytes=1,
+            writer_workflow="smoke-test",
+            source_github_run_id=smoke_github_run_id,
+        )
+        jpx_id = str(jpx_history["id"])
+        # Do not call commit_jpx_url_cache_rpc: it hard-codes production jpx-latest-url.
+
+        print("smoke ok: Phase 3 + Phase 4 control plane tables/RPC")
         return 0
     except Exception as exc:
         return _fail(str(exc))
@@ -113,8 +185,27 @@ def main() -> int:
                 adapter.delete_row(table="cache_index", row_id=cache_history_id)
             except Exception:
                 pass
+        if monthly_id:
+            try:
+                adapter.delete_row(table="monthly_snapshots", row_id=monthly_id)
+            except Exception:
+                pass
+        if publish_id:
+            try:
+                adapter.delete_row(table="publish_status", row_id=publish_id)
+            except Exception:
+                pass
+        if jpx_id:
+            try:
+                adapter.delete_row(table="cache_index", row_id=jpx_id)
+            except Exception:
+                pass
         try:
             _delete_cache_pointer(adapter, SMOKE_CACHE_KEY)
+        except Exception:
+            pass
+        try:
+            _delete_cache_pointer(adapter, SMOKE_JPX_CACHE_KEY)
         except Exception:
             pass
 
