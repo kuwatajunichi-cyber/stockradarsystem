@@ -15,6 +15,10 @@ if str(_REPO_ROOT) not in sys.path:
 
 from stockradar.storage.control_plane import normalize_rollout_stage, supabase_commit_is_fatal  # noqa: E402
 from stockradar.storage.mapping_catalog import get_entry, load_mapping  # noqa: E402
+from stockradar.storage.phase4_rollout import (  # noqa: E402
+    resolve_phase4_rollout_stage,
+    runs_terminal_update_is_fatal,
+)
 from stockradar.storage.supabase_client import (  # noqa: E402
     FakeSupabaseControlAdapter,
     SupabaseControlPort,
@@ -48,6 +52,13 @@ def _rollout_stage(args: argparse.Namespace) -> str:
         return normalize_rollout_stage(env)
     mapping = load_mapping()
     return normalize_rollout_stage(str(mapping.get("phase3_rollout_stage") or "3a"))
+
+
+def _phase4_stage(args: argparse.Namespace) -> str:
+    return resolve_phase4_rollout_stage(
+        cli_override=getattr(args, "phase4_rollout_stage", None),
+        mapping=load_mapping(),
+    )
 
 
 def cmd_upsert_run(args: argparse.Namespace) -> int:
@@ -135,6 +146,53 @@ def cmd_commit_artifact(args: argparse.Namespace) -> int:
         return 1 if fatal else 0
 
 
+def cmd_update_run(args: argparse.Namespace) -> int:
+    adapter = _adapter_from_env()
+    stage = _phase4_stage(args)
+    fatal = runs_terminal_update_is_fatal(stage)
+
+    if adapter is None:
+        _emit(
+            {
+                "status": "skipped",
+                "supabase_update_ok": False,
+                "supabase_update_failed": "supabase_not_configured",
+            },
+            args.json_output,
+        )
+        return 1 if fatal else 0
+
+    try:
+        row = adapter.update_run(
+            workflow=args.workflow,
+            github_run_id=int(args.github_run_id),
+            status=args.status,
+            degraded_reason=args.degraded_reason or None,
+            include_degraded_reason=True,
+        )
+        _emit(
+            {
+                "status": "ok",
+                "supabase_update_ok": True,
+                "run_id": row["id"],
+                "terminal_status": row["status"],
+            },
+            args.json_output,
+        )
+        return 0
+    except Exception as exc:
+        _emit(
+            {
+                "status": "error",
+                "supabase_update_ok": False,
+                "supabase_update_failed": str(exc),
+            },
+            args.json_output,
+        )
+        print(f"error: update-run failed: {exc}", file=sys.stderr)
+        return 1 if fatal else 0
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Supabase control plane CLI (Phase 3).")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -158,11 +216,21 @@ def main(argv: list[str] | None = None) -> None:
     p_art.add_argument("--phase3-rollout-stage", default=None)
     p_art.add_argument("--json-output", default=None)
 
+    p_upd = sub.add_parser("update-run")
+    p_upd.add_argument("--workflow", default="daily.yml")
+    p_upd.add_argument("--github-run-id", required=True)
+    p_upd.add_argument("--status", required=True, choices=("success", "failed"))
+    p_upd.add_argument("--degraded-reason", default="")
+    p_upd.add_argument("--phase4-rollout-stage", default=None)
+    p_upd.add_argument("--json-output", default=None)
+
     args = parser.parse_args(argv)
     if args.cmd == "upsert-run":
         sys.exit(cmd_upsert_run(args))
     if args.cmd == "commit-artifact":
         sys.exit(cmd_commit_artifact(args))
+    if args.cmd == "update-run":
+        sys.exit(cmd_update_run(args))
     parser.error("unknown command")
 
 

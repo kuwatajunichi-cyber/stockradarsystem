@@ -15,7 +15,7 @@ jobs:
     permissions:
       contents: write  # Release作成に必要
     env:
-      PHASE4_ROLLOUT_STAGE: "4a"
+      PHASE4_ROLLOUT_STAGE: "4b"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -39,6 +39,21 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
+      - name: Upsert Supabase runs row
+        env:
+          PYTHONPATH: src:.
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+          RUN_DATE="$(TZ=Asia/Tokyo date +%Y-%m-01)"
+          python scripts/storage/control_plane_cli.py upsert-run \
+            --workflow monthly.yml \
+            --github-run-id "$GITHUB_RUN_ID" \
+            --run-date "$RUN_DATE" \
+            --status running
 
       - name: Run monthly build
         env:
@@ -208,3 +223,43 @@ jobs:
             data/output/**/*
           retention-days: 7
           if-no-files-found: warn
+  finalize_run:
+    needs: [build]
+    if: always()
+    runs-on: ubuntu-latest
+    env:
+      PHASE4_ROLLOUT_STAGE: "4b"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Update Supabase runs terminal status
+        env:
+          PYTHONPATH: src:.
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+          if [ "${{ needs.build.result }}" = "success" ]; then
+            STATUS="success"
+          else
+            STATUS="failed"
+          fi
+          python scripts/storage/control_plane_cli.py update-run \
+            --workflow monthly.yml \
+            --github-run-id "$GITHUB_RUN_ID" \
+            --status "$STATUS" \
+            --phase4-rollout-stage "$PHASE4_ROLLOUT_STAGE" \
+            --json-output /tmp/monthly_update_run.json
+

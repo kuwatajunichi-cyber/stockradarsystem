@@ -1066,6 +1066,9 @@ jobs:
 
   render_and_upload:
     needs: [resolve_trading_day, compute_indicators, event_cause_enrichment]
+    outputs:
+      upload_status:
+        value: ${{ steps.multi_upload.outputs.upload_status }}
     if: |
       always() &&
       needs.resolve_trading_day.outputs.is_open == 'True' &&
@@ -1186,6 +1189,7 @@ jobs:
           exit "$RC"
 
       - name: Upload to all targets (R2 / Dropbox / GitHub Release; Drive optional)
+        id: multi_upload
         if: github.event_name != 'workflow_dispatch' || github.event.inputs.skip_publish != 'true'
         env:
           PYTHONPATH: .
@@ -1212,4 +1216,124 @@ jobs:
           if [ -n "$GDRIVE_OAUTH_CLIENT_ID" ] && [ -n "$GDRIVE_OAUTH_REFRESH_TOKEN" ]; then
             TARGETS="drive,r2,dropbox,github"
           fi
-          python scripts/upload_to_all_targets.py --run-date "$RUN_DATE" --targets "$TARGETS" --files "$CSV_PATH" "$XLSX_PATH"
+          python scripts/upload_to_all_targets.py --run-date "$RUN_DATE" --targets "$TARGETS" --files "$CSV_PATH" "$XLSX_PATH" | tee /tmp/multi_upload.log
+          UPLOAD_STATUS=$(grep '^upload_status=' /tmp/multi_upload.log | tail -1 | cut -d= -f2-)
+          echo "upload_status=${UPLOAD_STATUS:-ok}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish to R2 published/ + Supabase (Phase 4)
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.skip_publish != 'true'
+        id: publish_dual
+        env:
+          PYTHONPATH: src:.
+          RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          PHASE4_ROLLOUT_STAGE: ${{ env.PHASE4_ROLLOUT_STAGE }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
+          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+        run: |
+          set -euo pipefail
+          RUN_DATE_COMPACT="${RUN_DATE//-/}"
+          CSV_PATH="${{ steps.render.outputs.csv_path }}"
+          XLSX_PATH="${{ steps.render.outputs.xlsx_path }}"
+          CSV_NAME="indicators_${RUN_DATE_COMPACT}.csv"
+          XLSX_NAME="${RUN_DATE}_Daily.xlsx"
+          python scripts/storage/publish_bus_cli.py commit \
+            --github-run-id "$GITHUB_RUN_ID" \
+            --run-date "$RUN_DATE" \
+            --logical-kind indicators_csv \
+            --visibility work \
+            --local-path "$CSV_PATH" \
+            --filename "$CSV_NAME" \
+            --phase4-rollout-stage "$PHASE4_ROLLOUT_STAGE" \
+            --json-output /tmp/publish_csv.json
+          python scripts/storage/publish_bus_cli.py commit \
+            --github-run-id "$GITHUB_RUN_ID" \
+            --run-date "$RUN_DATE" \
+            --logical-kind indicators_xlsx \
+            --visibility paid \
+            --local-path "$XLSX_PATH" \
+            --filename "$XLSX_NAME" \
+            --phase4-rollout-stage "$PHASE4_ROLLOUT_STAGE" \
+            --json-output /tmp/publish_xlsx.json
+
+  finalize_run:
+    needs: [resolve_trading_day, compute_indicators, event_cause_enrichment, render_and_upload]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Resolve terminal run status
+        id: terminal
+        env:
+          PYTHONPATH: src
+        run: |
+          set -euo pipefail
+          IS_OPEN="${{ needs.resolve_trading_day.outputs.is_open }}"
+          SKIP_PUBLISH="false"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.skip_publish }}" = "true" ]; then
+            SKIP_PUBLISH="true"
+          fi
+          UPLOAD_EXEC="false"
+          UPLOAD_RC="0"
+          if [ "${{ needs.render_and_upload.result }}" = "success" ]; then
+            UPLOAD_EXEC="true"
+            UPLOAD_RC="0"
+          elif [ "${{ needs.render_and_upload.result }}" = "failure" ]; then
+            UPLOAD_EXEC="true"
+            UPLOAD_RC="1"
+          fi
+          ENRICH_RESULT="${{ needs.event_cause_enrichment.result }}"
+          if [ "$ENRICH_RESULT" != "success" ]; then
+            ENRICH_RESULT="skipped"
+          fi
+          DECISION=$(python -m stockradar.jobs.finalize_daily_run \
+            --is-open "$IS_OPEN" \
+            --compute-result "${{ needs.compute_indicators.result }}" \
+            --enrichment-result "$ENRICH_RESULT" \
+            --render-result "${{ needs.render_and_upload.result }}" \
+            --skip-publish "$SKIP_PUBLISH" \
+            --upload-executed "$UPLOAD_EXEC" \
+            --upload-exit-code "$UPLOAD_RC" \
+            --upload-status "${{ needs.render_and_upload.outputs.upload_status || 'ok' }}")
+          echo "$DECISION"
+          STATUS=$(python -c "import json,sys; print(json.loads(sys.argv[1])['status'])" "$DECISION")
+          REASON=$(python -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('degraded_reason') or '')" "$DECISION")
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          echo "degraded_reason=$REASON" >> "$GITHUB_OUTPUT"
+
+      - name: Update Supabase runs terminal status
+        env:
+          PYTHONPATH: src:.
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          PHASE4_ROLLOUT_STAGE: ${{ env.PHASE4_ROLLOUT_STAGE }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+          ARGS=(
+            --workflow daily.yml
+            --github-run-id "$GITHUB_RUN_ID"
+            --status "${{ steps.terminal.outputs.status }}"
+            --degraded-reason "${{ steps.terminal.outputs.degraded_reason }}"
+            --phase4-rollout-stage "$PHASE4_ROLLOUT_STAGE"
+            --json-output /tmp/supabase_update_run.json
+          )
+          python scripts/storage/control_plane_cli.py update-run "${ARGS[@]}"

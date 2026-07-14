@@ -18,6 +18,7 @@ on:
 env:
   TZ: Asia/Tokyo
   PHASE3_ROLLOUT_STAGE: "3c"
+  PHASE4_ROLLOUT_STAGE: "4b"
 
 jobs:
   enrich:
@@ -193,3 +194,42 @@ jobs:
               --title "enrich consumer handoff" \
               --required artifact-daily-indicators
           } >> "$GITHUB_STEP_SUMMARY"
+
+  finalize_run:
+    needs: [enrich]
+    if: always()
+    runs-on: ubuntu-latest
+    env:
+      PHASE4_ROLLOUT_STAGE: "4b"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Update Supabase runs terminal status
+        env:
+          PYTHONPATH: src:.
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+          if [ "${{ needs.enrich.result }}" = "success" ]; then
+            STATUS="success"
+          else
+            STATUS="failed"
+          fi
+          python scripts/storage/control_plane_cli.py update-run \
+            --workflow daily_event_cause_enrichment.yml \
+            --github-run-id "$GITHUB_RUN_ID" \
+            --status "$STATUS" \
+            --phase4-rollout-stage "$PHASE4_ROLLOUT_STAGE"

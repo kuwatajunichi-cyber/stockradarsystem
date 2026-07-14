@@ -51,3 +51,34 @@ def test_publish_required_without_upload_is_failed() -> None:
         )
     )
     assert d.status == "failed"
+
+@pytest.mark.unit
+def test_optional_enrichment_skipped_does_not_fail_open_day_run() -> None:
+    d = resolve_daily_run_terminal_status(
+        DailyRunTerminalInput(
+            is_open=True,
+            compute_indicators="success",
+            event_cause_enrichment="skipped",
+            render_and_upload="success",
+            skip_publish=False,
+            upload_executed=True,
+            upload_exit_code=0,
+        )
+    )
+    assert d.status == "success"
+
+@pytest.mark.unit
+def test_upload_degraded_is_failed_when_publish_required() -> None:
+    d = resolve_daily_run_terminal_status(
+        DailyRunTerminalInput(
+            is_open=True,
+            compute_indicators="success",
+            event_cause_enrichment="success",
+            render_and_upload="success",
+            skip_publish=False,
+            upload_executed=True,
+            upload_exit_code=0,
+            upload_status="degraded",
+        )
+    )
+    assert d.status == "failed"
