@@ -23,10 +23,12 @@ Same release unit:
 
 Deploy Worker **after** merge (U-3). **Do not remove** the GitHub `schedule` in the same merge.
 
-## Follow-up after U-3 (Worker cron verified live)
+## Post-U-3 cutover (2026-07-14)
 
-5. Remove `monthly.yml` GitHub `schedule` once Cloudflare monthly dispatch is confirmed live.
-6. Set `MONTHLY_DISPATCH_ENABLED=true` in the same follow-up (never while GH schedule remains).
+Steps 5-6 applied after U-3 verified three Worker crons live:
+
+5. Removed `monthly.yml` GitHub `schedule`.
+6. Set `MONTHLY_DISPATCH_ENABLED=true` and redeployed Worker.
 
 ## Related
 

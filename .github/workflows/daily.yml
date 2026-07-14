@@ -1187,7 +1187,7 @@ jobs:
           fi
           exit "$RC"
 
-      - name: Upload to all targets (R2 / Dropbox / GitHub Release; Drive optional)
+      - name: Upload to all targets (R2 / Dropbox; Drive optional)
         id: multi_upload
         if: github.event_name != 'workflow_dispatch' || github.event.inputs.skip_publish != 'true'
         env:
@@ -1211,9 +1211,9 @@ jobs:
           set -euo pipefail
           CSV_PATH="${{ steps.render.outputs.csv_path }}"
           XLSX_PATH="${{ steps.render.outputs.xlsx_path }}"
-          TARGETS="r2,dropbox,github"
+          TARGETS="r2,dropbox"
           if [ -n "$GDRIVE_OAUTH_CLIENT_ID" ] && [ -n "$GDRIVE_OAUTH_REFRESH_TOKEN" ]; then
-            TARGETS="drive,r2,dropbox,github"
+            TARGETS="drive,r2,dropbox"
           fi
           python scripts/upload_to_all_targets.py --run-date "$RUN_DATE" --targets "$TARGETS" --files "$CSV_PATH" "$XLSX_PATH" | tee /tmp/multi_upload.log
           UPLOAD_STATUS=$(grep '^upload_status=' /tmp/multi_upload.log | tail -1 | cut -d= -f2-)
