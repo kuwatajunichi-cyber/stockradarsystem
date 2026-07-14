@@ -2,7 +2,7 @@
 # ????: .cursor/rules/phase-gate-completion.mdc
 schema_version: 1
 phase: 4
-last_updated_utc: '2026-07-14T09:46:39+09:00'
+last_updated_utc: '2026-07-14T09:55:26+09:00'
 overall_status: in_progress
 correction_log:
 - at_utc: '2026-07-13T12:31:00+09:00'
@@ -10,7 +10,7 @@ correction_log:
     ??????????????step-4.0-design ?? completed ???
 implementation_snapshot:
   local_worktree_has_unmerged_changes: true
-  note: PR #117-119 merged to main; stack PR #120-124 still open on feature branches.
+  note: PR #117-120 merged to main; stack PR #121-124 still open on feature branches.
 pr_gates:
   pr-4-1-ddl:
     description: 002_phase4 DDL + phase4_rollout + mapping v4 + contract/smoke
@@ -29,9 +29,10 @@ pr_gates:
   pr-4-3-resolve-4b:
     description: ?? monthly ?? + daily/patch stage 4b
     status: pending
-    merge_commit: null
-    pytest_ci_pass_on_merge: null
+    merge_commit: 411e3ab8e96d3a751ab69135147fb1a25cfff276
+    pytest_ci_pass_on_merge: true
     live_gate_4b_evidence_url: null
+    note: merged via PR #120; awaiting live gate 4b evidence
   pr-4-4-publish-runs:
     description: publish_bus_cli + finalize_run + runs lifecycle
     status: local_only
