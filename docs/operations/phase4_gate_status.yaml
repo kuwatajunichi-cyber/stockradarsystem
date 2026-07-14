@@ -1,16 +1,17 @@
-# Phase 4 ????? SSOT ? ??????????? CI contract ???
-# ????: .cursor/rules/phase-gate-completion.mdc
+# Phase 4 gate status SSOT — agent completion claims and CI contract source
+# Rule: .cursor/rules/phase-gate-completion.mdc
 schema_version: 1
 phase: 4
-last_updated_utc: '2026-07-14T09:55:26+09:00'
+last_updated_utc: '2026-07-14T21:20:00+09:00'
 overall_status: in_progress
 correction_log:
 - at_utc: '2026-07-13T12:31:00+09:00'
-  reason: ??? frontmatter To-Do (pr-4-1..6b) ??????U-1/U-3/live gate ????? completed
-    ??????????????step-4.0-design ?? completed ???
+  reason: Plan frontmatter To-Do (pr-4-1..6b) falsely marked completed before U-1/U-3/live gate evidence; step-4.0-design corrected to pending
+- at_utc: '2026-07-14T21:20:00+09:00'
+  reason: Live gate 4b verified on daily run 29330609678 after PR #121 merge and monthly backfill dispatch
 implementation_snapshot:
-  local_worktree_has_unmerged_changes: true
-  note: PR #117-120 merged to main; stack PR #121-124 still open on feature branches.
+  local_worktree_has_unmerged_changes: false
+  note: PR #117-121 merged to main; stack PR #122-124 still open. Post-#121 hotfix 38f73a1 fixes daily job outputs YAML.
 pr_gates:
   pr-4-1-ddl:
     description: 002_phase4 DDL + phase4_rollout + mapping v4 + contract/smoke
@@ -25,19 +26,20 @@ pr_gates:
     status: merged_and_verified
     merge_commit: cd0e2e884418769efcf2186f22da7617946f26d0
     pytest_ci_pass_on_merge: true
-    note: merged via PR #119; stage 4a shadow write enabled
+    note: merged via PR #119; stage 4a shadow write enabled; live backfill via monthly dispatch 29321881966
   pr-4-3-resolve-4b:
-    description: ?? monthly ?? + daily/patch stage 4b
-    status: pending
+    description: monthly resolve + daily/patch stage 4b
+    status: merged_and_verified
     merge_commit: 411e3ab8e96d3a751ab69135147fb1a25cfff276
     pytest_ci_pass_on_merge: true
-    live_gate_4b_evidence_url: null
-    note: merged via PR #120; awaiting live gate 4b evidence
+    live_gate_4b_evidence_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29330609678
+    note: merged via PR #120; live gate 4b verified on daily run 29330609678 (monthly_resolve_source=supabase, publish_status committed, runs.status=success)
   pr-4-4-publish-runs:
     description: publish_bus_cli + finalize_run + runs lifecycle
-    status: local_only
-    merge_commit: null
-    pytest_ci_pass_on_merge: null
+    status: merged_and_verified
+    merge_commit: 9d1248a9a7ead120abb426a21f564cb8b6b79cce
+    pytest_ci_pass_on_merge: true
+    note: merged via PR #121; verified by live gate 4b evidence run 29330609678
   pr-4-5-jpx-url:
     description: cache-jpx-url pending to R2 to RPC
     status: local_only
@@ -48,7 +50,7 @@ pr_gates:
     status: pending
     merge_commit: null
     pytest_ci_pass_on_merge: null
-    note: 6a ??????Worker ? 3 cron ??
+    note: 6a only; Worker keeps 3 crons until 6b
   pr-4-6b-cutover:
     description: wrangler 3 crons + U-3 deploy + schedule delete + stage 4c
     status: pending
@@ -63,4 +65,4 @@ live_gate_4c:
   cron_dispatch_run_url: null
   closed_at_utc: null
 roadmap:
-  phase4_status_phrase: 実装済み（未マージ・live gate 未達）
+  phase4_status_phrase: PR-4-1〜4-4 マージ済み・live gate 4b 達成（4c 未達）

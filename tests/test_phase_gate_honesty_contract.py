@@ -96,8 +96,7 @@ def test_merged_and_verified_pr_4_3_requires_4b_evidence() -> None:
     gate["status"] = "merged_and_verified"
     gate["merge_commit"] = "abc123"
     gate["pytest_ci_pass_on_merge"] = True
-    gate["u1_ddl_applied"] = False
-    gate["u1_evidence_url"] = None
+    gate["live_gate_4b_evidence_url"] = None
     violations = validate_gate_status_document(bad)
     assert any("live_gate_4b_evidence_url" in v for v in violations)
 
