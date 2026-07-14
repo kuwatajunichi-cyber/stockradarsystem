@@ -2,7 +2,7 @@
 # ????: .cursor/rules/phase-gate-completion.mdc
 schema_version: 1
 phase: 4
-last_updated_utc: '2026-07-14T09:22:08+09:00'
+last_updated_utc: '2026-07-14T09:30:00+09:00'
 overall_status: in_progress
 correction_log:
 - at_utc: '2026-07-13T12:31:00+09:00'
@@ -14,12 +14,12 @@ implementation_snapshot:
 pr_gates:
   pr-4-1-ddl:
     description: 002_phase4 DDL + phase4_rollout + mapping v4 + contract/smoke
-    status: pending
+    status: merged_and_verified
     merge_commit: 3faa2d5a31983e0a4b2de784e69cb0cec86404e3
     pytest_ci_pass_on_merge: true
-    note: merged via PR #118; awaiting U-1 for merged_and_verified
-    u1_ddl_applied: false
-    u1_evidence_url: null
+    note: merged via PR #118; U-1 verified by Supabase migration 20260714003112
+    u1_ddl_applied: true
+    u1_evidence_url: https://supabase.com/dashboard/project/wocvepixlzqupasoipbk/database/migrations
   pr-4-2-monthly-shadow:
     description: monthly_bus_cli + monthly.yml shadow stage 4a
     status: pending
