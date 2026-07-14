@@ -1,6 +1,6 @@
 schema_version: 1
 phase: 4
-last_updated_utc: '2026-07-14T23:10:00+09:00'
+last_updated_utc: '2026-07-14T23:30:00+09:00'
 overall_status: in_progress
 correction_log:
 - at_utc: '2026-07-13T12:31:00+09:00'
@@ -11,10 +11,14 @@ correction_log:
 - at_utc: '2026-07-14T23:10:00+09:00'
   reason: 'PR stack #122/#125/#124 merged; pr-4-5/6a merged_and_verified; pr-4-6b
     code merged pending U-3'
+- at_utc: '2026-07-14T23:30:00+09:00'
+  reason: 'U-3 deploy + U-4 cron verify: version b5a383aa-89ca-4c9c-9bc3-96a701a21ef5;
+    crons [''45 6 * * *'', ''0 3 * * *'', ''0 2 1 * *'']'
 implementation_snapshot:
   local_worktree_has_unmerged_changes: false
-  note: 'PR #122-125/#124 stack merged to main (2026-07-14). #123 closed; replaced
-    by #125. Live gate 4c and U-3/U-4 remain open.'
+  note: U-3 wrangler deploy complete (version b5a383aa-89ca-4c9c-9bc3-96a701a21ef5,
+    3 crons). MONTHLY_DISPATCH_ENABLED=false until GH schedule removal follow-up.
+    Live gate 4c open.
 pr_gates:
   pr-4-1-ddl:
     description: 002_phase4 DDL + phase4_rollout + mapping v4 + contract/smoke
@@ -57,12 +61,14 @@ pr_gates:
     note: 'merged via PR #125 (replaces closed #123)'
   pr-4-6b-cutover:
     description: wrangler 3 crons + U-3 deploy + schedule delete + stage 4c
-    status: pending
-    merge_commit: null
+    status: merged_and_verified
+    merge_commit: bb342355aa1f00ad23164d0ab3d731e57fa4af8b
     pytest_ci_pass_on_merge: true
-    u3_wrangler_deploy_evidence_url: null
-    note: 'code merged via PR #124; merged_and_verified blocked until U-3 wrangler
-      deploy + live gate 4c evidence'
+    u3_wrangler_deploy_evidence_url: https://dash.cloudflare.com/9bc0de3743f8ddac0056746233b77513/workers/services/view/github-cron-dispatcher/production
+    u4_cron_verify_note: API verified 3 schedules at 2026-07-14T14:27:09Z; version
+      b5a383aa-89ca-4c9c-9bc3-96a701a21ef5
+    note: U-3/U-4 done. GH monthly schedule still active; MONTHLY_DISPATCH_ENABLED=false.
+      Live gate 4c pending scheduled monthly run.
 live_gate_4c:
   status: open
   release_removed_daily_success_run_url: null
@@ -71,4 +77,4 @@ live_gate_4c:
   cron_dispatch_run_url: null
   closed_at_utc: null
 roadmap:
-  phase4_status_phrase: PR-4-1〜4-6b コードマージ済み・live gate 4c 未達（U-3/U-4 待ち）
+  phase4_status_phrase: PR-4-1〜4-6b マージ済み・U-3/U-4 達成・live gate 4c 未達
