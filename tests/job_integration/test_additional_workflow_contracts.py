@@ -104,7 +104,9 @@ def test_test_yml_matches_reusable_quality_gate_marker_pipeline() -> None:
     assert _step_named(_job(workflow, "worker"), "Worker unit tests")["run"].strip() == _step_named(
         preflight, "Worker cron dispatcher tests"
     )["run"].strip()
-    actionlint_run = _step_named(preflight, "Actionlint")["run"]
+    actionlint_step = _step_named(preflight, "Actionlint")
+    actionlint_run = actionlint_step["run"]
+    assert actionlint_step["env"]["SHELLCHECK_OPTS"] == "--exclude=SC2129"
     assert "rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash" in actionlint_run
     assert 'bash -s -- "1.7.12"' in actionlint_run
     assert "./actionlint -color" in actionlint_run

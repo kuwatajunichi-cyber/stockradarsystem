@@ -80,9 +80,11 @@ jobs:
         if: success() && steps.get_run_id.outputs.run_id != ''
         run: |
           set -euo pipefail
-          echo "date=$(TZ=Asia/Tokyo date +%Y%m%d)" >> "$GITHUB_OUTPUT"
-          echo "snapshot_date=$(TZ=Asia/Tokyo date +%Y-%m-01)" >> "$GITHUB_OUTPUT"
-          echo "monthly_tag=monthly-$(TZ=Asia/Tokyo date +%Y%m%d)-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+          {
+            echo "date=$(TZ=Asia/Tokyo date +%Y%m%d)"
+            echo "snapshot_date=$(TZ=Asia/Tokyo date +%Y-%m-01)"
+            echo "monthly_tag=monthly-$(TZ=Asia/Tokyo date +%Y%m%d)-${{ github.run_id }}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Create Release
         if: success() && steps.get_run_id.outputs.run_id != ''

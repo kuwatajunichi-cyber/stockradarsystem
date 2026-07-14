@@ -39,6 +39,9 @@ jobs:
       - name: Worker cron dispatcher tests
         run: npm test --prefix workers/github-cron-dispatcher
       - name: Actionlint
+        env:
+          # SC2129: multiple writes to $GITHUB_OUTPUT are standard in GHA; actionlint docs recommend excluding it.
+          SHELLCHECK_OPTS: --exclude=SC2129
         run: |
           set -euo pipefail
           # raven-actions/actionlint は codeload 取得失敗や @actions/tool-cache 破壊で不安定なため、公式バイナルを利用

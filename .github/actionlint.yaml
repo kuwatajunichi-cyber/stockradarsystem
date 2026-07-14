@@ -1,5 +1,6 @@
 # actionlint 設定
 # reusable workflow 呼び出しジョブは runs-on を省略する正規の構文のため、該当エラーを無視
+# SC2129 は reusable_quality_gate の Actionlint ステップで SHELLCHECK_OPTS により除外（GITHUB_OUTPUT 複数行書き込み）
 paths:
   .github/workflows/daily.yml:
     ignore:
