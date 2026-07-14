@@ -13,7 +13,7 @@ GitHub Issue: [#93](https://github.com/kuwatajunichi-cyber/stockradarsystem/issu
 |-------|--------|------|
 | 0-2c | 契約 / Cron / R2 artifact bus | 完了 |
 | 3c | warm cache + Supabase | **gate CLOSED** (2026-07-10) |
-| 4 | 月次 + publish + runs + Cron | 計画確定 |
+| 4 | 月次 + publish + runs + Cron | **実装済み（未マージ・live gate 未達）** |
 | 4.5 | 派生 warm cache | ADR-004 |
 | 5 | entitlements + observability | 計画 |
 
@@ -23,7 +23,8 @@ Phase 3c gate CLOSED（runbook 記録済）。Issue #93 は Phase 4/5 まで **O
 
 In: monthly_snapshots, daily/patch 月次解決切替, publish_status, runs lifecycle, monthly Cron, cache-jpx-url。  
 Out: 派生 cache(4.5), auth(5), published/統一(5), cleanup Cron(5+)。  
-詳細: [phase4_cutover.md](phase4_cutover.md)
+詳細: [phase4_cutover.md](phase4_cutover.md)  
+ゲート証拠: [phase4_gate_status.yaml](phase4_gate_status.yaml)
 
 ## Phase 5（entitlements / Web API / observability）
 

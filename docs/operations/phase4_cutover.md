@@ -1,6 +1,7 @@
 # Phase 4 cutover runbook
 
-正本: [issue_93_roadmap.md](issue_93_roadmap.md)
+正本: [issue_93_roadmap.md](issue_93_roadmap.md)  
+**ゲート証拠 SSOT:** [phase4_gate_status.yaml](phase4_gate_status.yaml)（完了報告は本ファイル + CI contract が正本）
 
 ## スコープ
 
