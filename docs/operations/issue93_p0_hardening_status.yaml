@@ -33,6 +33,8 @@ local_verification:
   anon_security_smoke_local: passed
   production_advisor_p0_cleared: true
   production_rls_all_six_tables: true
+  production_ddl_applied_at_utc: '2026-07-15T16:30:00Z'
+  production_ddl_applied_method: execute_sql
 
 roadmap:
   p0_status_phrase: 未完了（local_only — 本番 migration 適用済み・main 未マージ・live gate 未達）

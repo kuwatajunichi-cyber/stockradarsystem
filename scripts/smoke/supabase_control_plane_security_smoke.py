@@ -2,6 +2,8 @@
 
 Manual dispatch only (.github/workflows/supabase_security_smoketest.yml).
 Does NOT call commit_jpx_url_cache (production jpx-latest-url pointer).
+HTTP checks exercise anon/publishable-key only. authenticated denial is verified
+by migration catalog self-check and Secrets-free migration contract tests (P0 plan).
 
 Valid-key positive control uses GET /auth/v1/health because PostgREST root
 (/rest/v1/) returns 401 for anon once all public table grants are revoked.

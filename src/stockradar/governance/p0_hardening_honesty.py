@@ -69,6 +69,15 @@ def validate_p0_status_document(data: dict[str, Any]) -> list[str]:
             violations.append("local_only must not set migration_merge_commit")
         if data.get("migration_applied_at_utc"):
             violations.append("local_only must not set migration_applied_at_utc")
+        local_ver = data.get("local_verification")
+        if local_ver is not None and not isinstance(local_ver, dict):
+            violations.append("local_verification must be a mapping when present")
+        elif isinstance(local_ver, dict):
+            ddl_at = local_ver.get("production_ddl_applied_at_utc")
+            if ddl_at not in (None, "") and not isinstance(ddl_at, str):
+                violations.append(
+                    "local_verification.production_ddl_applied_at_utc must be a string when set"
+                )
 
     return violations
 

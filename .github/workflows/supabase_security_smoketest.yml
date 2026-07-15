@@ -25,7 +25,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run anon/authenticated denial security smoke
+      - name: Run anon publishable-key denial security smoke
         env:
           PYTHONPATH: src:.
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

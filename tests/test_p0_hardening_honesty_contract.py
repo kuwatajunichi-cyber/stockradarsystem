@@ -96,3 +96,20 @@ def test_p0_roadmap_rejects_completion_while_local_only() -> None:
     )
     violations = validate_roadmap_p0_phrase(bad_roadmap, data)
     assert violations
+
+@pytest.mark.unit
+def test_local_only_allows_production_ddl_timestamp_in_local_verification() -> None:
+    data = _load_p0_status()
+    bad = copy.deepcopy(data)
+    bad["local_verification"]["production_ddl_applied_at_utc"] = "2026-07-15T16:30:00Z"
+    violations = validate_p0_status_document(bad)
+    assert violations == [], "\n".join(violations)
+
+
+@pytest.mark.unit
+def test_local_only_rejects_top_level_migration_applied_at() -> None:
+    data = _load_p0_status()
+    bad = copy.deepcopy(data)
+    bad["migration_applied_at_utc"] = "2026-07-15T16:30:00Z"
+    violations = validate_p0_status_document(bad)
+    assert any("local_only must not set migration_applied_at_utc" in v for v in violations)
