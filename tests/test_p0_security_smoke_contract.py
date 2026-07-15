@@ -20,6 +20,7 @@ def test_security_smoke_fixed_anon_control_endpoint() -> None:
     assert 'POSTGREST_INSUFFICIENT_PRIVILEGE = "42501"' in text
     assert "commit_jpx_url_cache" in text
     assert "_COMMIT_FIXED_CACHE_BODY" in text
+    assert "sb_publishable_" in text
 
 
 def test_security_smoke_does_not_use_service_role_key() -> None:

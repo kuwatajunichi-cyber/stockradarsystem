@@ -152,11 +152,14 @@ def _fail(msg: str) -> int:
 
 
 def _headers(api_key: str) -> dict[str, str]:
-    return {
+    headers: dict[str, str] = {
         "apikey": api_key,
-        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
+    # sb_publishable_* keys are not JWTs; omit Bearer to avoid auth errors.
+    if not api_key.startswith("sb_publishable_"):
+        headers["Authorization"] = f"Bearer {api_key}"
+    return headers
 
 
 def _request(
