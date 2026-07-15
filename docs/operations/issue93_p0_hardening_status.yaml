@@ -1,14 +1,14 @@
 schema_version: 1
 phase: p0_hardening
-last_updated_utc: '2026-07-16T03:10:00+09:00'
+last_updated_utc: '2026-07-16T04:30:00+09:00'
 overall_status: merged_pending_live
 
 implementation_snapshot:
   note: >-
-    PR #126 merged (a9e9d43). Migration 003 on main; production DDL applied
-    2026-07-15 via execute_sql. GHA service-role and anon security smokes passed.
-    Post-merge live gates dispatched 2026-07-15: patch 29439142426, daily
-    29439144924, monthly 29439147108.
+    PR #126 merged (a9e9d43). Post-merge live gates: patch 29439142426 success;
+    monthly 29439147108 success (Put JPX URL cache RPC); daily 29439144924 and
+    29444244349 failed on ensure_index_cache stale (operational, not P0).
+    Daily replay 29448723855 dispatched (run_date=2026-07-15, force_index=true).
 
 migration_file: supabase/migrations/003_p0_control_plane_hardening.sql
 migration_merge_commit: a9e9d43bdd4d1287ee4c6e7fc40a067fb8f2cffe
@@ -20,7 +20,7 @@ migration_applied_evidence_url: https://supabase.com/dashboard/project/wocvepixl
 service_role_smoke_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29437920623
 anon_security_smoke_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29438553157
 patch_jpx_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29439142426
-daily_live_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29439144924
+daily_live_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29448723855
 monthly_live_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29439147108
 advisor_p0_findings_remaining: 0
 live_verification_deadline_jpx_trading_days: 3
@@ -38,4 +38,4 @@ local_verification:
   production_ddl_applied_method: execute_sql
 
 roadmap:
-  p0_status_phrase: 未完了（merged_pending_live — main マージ済み・post-merge live gate 実行中）
+  p0_status_phrase: 未完了（merged_pending_live — patch/monthly Pass・daily replay 実行中）

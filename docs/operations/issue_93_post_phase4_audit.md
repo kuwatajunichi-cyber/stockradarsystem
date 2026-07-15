@@ -94,6 +94,8 @@ P0 は「未認証主体を遮断する防御」、P3 は「認証済み利用�
 - RLS enabled on all six control-plane tables; no anon/authenticated policies
 - Table ACL and RPC EXECUTE limited to `service_role`
 - Security advisor P0 findings: 10 -> 0 (residual INFO: `rls_enabled_no_policy` on six tables, expected for P0)
-- Local verification: pytest CI subset 252 passed; service-role smoke passed; anon security smoke passed
-- Pending for P0 closed: main merge + CI URL, GHA security smoke URL, normal patch JPX run, daily/monthly manual dispatch within 3 JPX trading days
-- SSOT: `docs/operations/issue93_p0_hardening_status.yaml` (`local_only`)
+- Local verification: pytest CI subset 254 passed; service-role smoke passed; anon security smoke passed
+- GHA live smokes: service-role [29437920623](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29437920623); anon security [29438553157](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29438553157)
+- Post-merge live gates (2026-07-15): patch [29439142426](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29439142426) success; monthly [29439147108](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29439147108) success (`commit_jpx_url_cache` via put-jpx-url)
+- Daily live gate: dispatches [29439144924](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29439144924) / [29444244349](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29444244349) failed on `ensure_index_cache` stale; replay [29448723855](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29448723855) in progress
+- SSOT: `docs/operations/issue93_p0_hardening_status.yaml` (`merged_pending_live`)
