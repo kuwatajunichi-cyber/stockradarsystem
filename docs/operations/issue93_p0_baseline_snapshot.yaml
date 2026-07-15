@@ -1,0 +1,43 @@
+schema_version: 1
+issue: 93
+phase: p0_hardening
+captured_at_utc: '2026-07-16T00:00:00+09:00'
+supabase_project_ref: wocvepixlzqupasoipbk
+
+migration_history_before_p0:
+  - version: '20260714003112'
+    name: 002_phase4_control_plane
+
+table_owners:
+  runs: postgres
+  artifact_index: postgres
+  cache_index: postgres
+  cache_pointers: postgres
+  monthly_snapshots: postgres
+  publish_status: postgres
+
+rls_enabled_before_p0:
+  runs: false
+  artifact_index: false
+  cache_index: false
+  cache_pointers: false
+  monthly_snapshots: false
+  publish_status: false
+
+rls_policies_before_p0: 0
+
+default_privilege_owners:
+  - postgres
+  - supabase_admin
+
+security_advisor_p0_findings_before:
+  rls_disabled_in_public: 6
+  anon_security_definer_function_executable: 2
+  authenticated_security_definer_function_executable: 2
+  total: 10
+
+notes:
+  - >-
+    supabase_admin default privileges are not altered in migration 003 because
+    postgres session cannot ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin.
+    Control-plane tables are postgres-owned; postgres default privileges are hardened.

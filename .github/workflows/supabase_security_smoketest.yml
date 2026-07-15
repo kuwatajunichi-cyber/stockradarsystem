@@ -1,0 +1,55 @@
+# Supabase P0 security smoke (Secrets required).
+# Manual dispatch after P0 migration apply. CI does not run this automatically.
+name: Supabase Control Plane Security Smoke
+
+on:
+  workflow_dispatch:
+
+env:
+  TZ: Asia/Tokyo
+
+jobs:
+  security_smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run anon/authenticated denial security smoke
+        env:
+          PYTHONPATH: src:.
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          set -euo pipefail
+          python scripts/smoke/supabase_control_plane_security_smoke.py 2>&1 | tee security_smoke_stdout.txt
+          exitcode=${PIPESTATUS[0]}
+          if [ "$exitcode" -ne 0 ]; then
+            echo "::error::Supabase security smoke failed with exit $exitcode"
+            exit "$exitcode"
+          fi
+
+      - name: Write security smoke Step Summary
+        if: always()
+        run: |
+          set -euo pipefail
+          {
+            echo "## Supabase control plane security smoke (P0)"
+            echo "- workflow: \`supabase_security_smoketest.yml\`"
+            echo "- github_run_id: \`${{ github.run_id }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ -f security_smoke_stdout.txt ] && grep -q "security smoke ok:" security_smoke_stdout.txt; then
+            echo "- security_smoke_status: \`ok\`" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- security_smoke_status: \`failed\`" >> "$GITHUB_STEP_SUMMARY"
+          fi

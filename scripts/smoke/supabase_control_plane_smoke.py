@@ -48,6 +48,34 @@ def _delete_cache_pointer(adapter: SupabaseRestAdapter, cache_key: str) -> None:
     resp.raise_for_status()
 
 
+def _delete_run_row(
+    adapter: SupabaseRestAdapter,
+    *,
+    workflow: str,
+    github_run_id: int,
+) -> None:
+    resp = adapter._request(
+        "DELETE",
+        "/rest/v1/runs",
+        params={
+            "workflow": f"eq.{workflow}",
+            "github_run_id": f"eq.{github_run_id}",
+        },
+    )
+    resp.raise_for_status()
+
+
+class _CleanupFailure(Exception):
+    pass
+
+
+def _cleanup_or_raise(label: str, action: str, fn) -> None:
+    try:
+        fn()
+    except Exception as exc:
+        raise _CleanupFailure(f"{label} {action} failed: {exc}") from exc
+
+
 def main() -> int:
     import os
 
@@ -63,6 +91,7 @@ def main() -> int:
     publish_id: str | None = None
     jpx_id: str | None = None
     smoke_github_run_id = int(os.environ.get("GITHUB_RUN_ID") or "0")
+    cleanup_errors: list[str] = []
 
     try:
         run = adapter.get_run(workflow=SMOKE_WORKFLOW, github_run_id=smoke_github_run_id)
@@ -175,39 +204,61 @@ def main() -> int:
     except Exception as exc:
         return _fail(str(exc))
     finally:
-        if artifact_id:
-            try:
-                adapter.delete_row(table="artifact_index", row_id=artifact_id)
-            except Exception:
-                pass
-        if cache_history_id:
-            try:
-                adapter.delete_row(table="cache_index", row_id=cache_history_id)
-            except Exception:
-                pass
-        if monthly_id:
-            try:
-                adapter.delete_row(table="monthly_snapshots", row_id=monthly_id)
-            except Exception:
-                pass
-        if publish_id:
-            try:
-                adapter.delete_row(table="publish_status", row_id=publish_id)
-            except Exception:
-                pass
-        if jpx_id:
-            try:
-                adapter.delete_row(table="cache_index", row_id=jpx_id)
-            except Exception:
-                pass
         try:
-            _delete_cache_pointer(adapter, SMOKE_CACHE_KEY)
-        except Exception:
-            pass
-        try:
-            _delete_cache_pointer(adapter, SMOKE_JPX_CACHE_KEY)
-        except Exception:
-            pass
+            if artifact_id:
+                _cleanup_or_raise(
+                    "artifact_index",
+                    "delete",
+                    lambda: adapter.delete_row(table="artifact_index", row_id=artifact_id),
+                )
+            if cache_history_id:
+                _cleanup_or_raise(
+                    "cache_index",
+                    "delete",
+                    lambda: adapter.delete_row(table="cache_index", row_id=cache_history_id),
+                )
+            if monthly_id:
+                _cleanup_or_raise(
+                    "monthly_snapshots",
+                    "delete",
+                    lambda: adapter.delete_row(table="monthly_snapshots", row_id=monthly_id),
+                )
+            if publish_id:
+                _cleanup_or_raise(
+                    "publish_status",
+                    "delete",
+                    lambda: adapter.delete_row(table="publish_status", row_id=publish_id),
+                )
+            if jpx_id:
+                _cleanup_or_raise(
+                    "cache_index",
+                    "delete",
+                    lambda: adapter.delete_row(table="cache_index", row_id=jpx_id),
+                )
+            _cleanup_or_raise(
+                "cache_pointers",
+                "delete",
+                lambda: _delete_cache_pointer(adapter, SMOKE_CACHE_KEY),
+            )
+            _cleanup_or_raise(
+                "cache_pointers",
+                "delete",
+                lambda: _delete_cache_pointer(adapter, SMOKE_JPX_CACHE_KEY),
+            )
+            _cleanup_or_raise(
+                "runs",
+                "delete",
+                lambda: _delete_run_row(
+                    adapter,
+                    workflow=SMOKE_WORKFLOW,
+                    github_run_id=smoke_github_run_id,
+                ),
+            )
+        except _CleanupFailure as exc:
+            cleanup_errors.append(str(exc))
+
+        if cleanup_errors:
+            return _fail("cleanup incomplete: " + "; ".join(cleanup_errors))
 
 
 if __name__ == "__main__":
