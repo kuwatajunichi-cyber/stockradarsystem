@@ -1,6 +1,6 @@
 schema_version: 1
 phase: p0_hardening
-last_updated_utc: '2026-07-16T01:00:00+09:00'
+last_updated_utc: '2026-07-16T01:30:00+09:00'
 overall_status: local_only
 
 implementation_snapshot:
@@ -14,6 +14,8 @@ implementation_snapshot:
 migration_file: supabase/migrations/003_p0_control_plane_hardening.sql
 migration_merge_commit: null
 pytest_ci_run_url: null
+pr_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/pull/126
+pr_ci_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29429468943
 migration_applied_at_utc: null
 migration_applied_evidence_url: null
 service_role_smoke_run_url: null
