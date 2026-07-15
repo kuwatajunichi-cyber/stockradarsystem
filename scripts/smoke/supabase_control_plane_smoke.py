@@ -91,6 +91,7 @@ def main() -> int:
     publish_id: str | None = None
     jpx_id: str | None = None
     smoke_github_run_id = int(os.environ.get("GITHUB_RUN_ID") or "0")
+    run_inserted_by_smoke = False
     cleanup_errors: list[str] = []
 
     try:
@@ -101,6 +102,7 @@ def main() -> int:
                 github_run_id=smoke_github_run_id,
                 run_date="2026-01-01",
             )
+            run_inserted_by_smoke = True
         got = adapter.get_run(workflow=SMOKE_WORKFLOW, github_run_id=smoke_github_run_id)
         if got is None or got.get("id") != run.get("id"):
             return _fail("upsert-run not readable")
@@ -245,15 +247,16 @@ def main() -> int:
                 "delete",
                 lambda: _delete_cache_pointer(adapter, SMOKE_JPX_CACHE_KEY),
             )
-            _cleanup_or_raise(
-                "runs",
-                "delete",
-                lambda: _delete_run_row(
-                    adapter,
-                    workflow=SMOKE_WORKFLOW,
-                    github_run_id=smoke_github_run_id,
-                ),
-            )
+            if run_inserted_by_smoke:
+                _cleanup_or_raise(
+                    "runs",
+                    "delete",
+                    lambda: _delete_run_row(
+                        adapter,
+                        workflow=SMOKE_WORKFLOW,
+                        github_run_id=smoke_github_run_id,
+                    ),
+                )
         except _CleanupFailure as exc:
             cleanup_errors.append(str(exc))
 
