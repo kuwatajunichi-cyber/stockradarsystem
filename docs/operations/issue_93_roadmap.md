@@ -13,7 +13,7 @@ GitHub Issue: [#93](https://github.com/kuwatajunichi-cyber/stockradarsystem/issu
 |-------|--------|------|
 | 0-2c | 契約 / Cron / R2 artifact bus | 完了 |
 | 3c | warm cache + Supabase | **gate CLOSED** (2026-07-10) |
-| 4 | 月次 + publish + runs + Cron | **PR-4-1〜4-6b マージ済み・U-3/U-4 + Worker monthly dispatch 達成・live gate 4c（daily 証拠）未達** |
+| 4 | 月次 + publish + runs + Cron | **gate CLOSED** (2026-07-15) |
 | 4.5 | 派生 warm cache | ADR-004 |
 | 5 | entitlements + observability | 計画 |
 

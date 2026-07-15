@@ -1,7 +1,7 @@
 schema_version: 1
 phase: 4
-last_updated_utc: '2026-07-15T01:49:53+09:00'
-overall_status: in_progress
+last_updated_utc: '2026-07-15T23:25:51+09:00'
+overall_status: closed
 correction_log:
 - at_utc: '2026-07-13T12:31:00+09:00'
   reason: Plan frontmatter To-Do (pr-4-1..6b) falsely marked completed before U-1/U-3/live gate evidence; step-4.0-design
@@ -17,12 +17,13 @@ correction_log:
   reason: Post-U-3 cutover commits 5f2d0ec/293944b/c791f09 on main; wrangler redeploy MONTHLY=true (0a89bc20); Worker monthly
     dispatch run 29341370858 success (snapshot commit + terminal_status success). Daily 4c evidence blocked by ensure_index_cache
     stale (nikkei/topix).
+- at_utc: '2026-07-15T23:25:51+09:00'
+  reason: 'Live gate 4c closed: daily run 29395132842 (Worker cron 15:45 JST, run_date=2026-07-15, publish committed, terminal_status=success,
+    github release target removed). Monthly Worker dispatch 29341370858 retained as cron_dispatch evidence.'
 implementation_snapshot:
   local_worktree_has_unmerged_changes: false
-  note: 'Post-U-3 cutover on main (5f2d0ec GH monthly schedule removed, MONTHLY_DISPATCH_ENABLED=true, 293944b daily upload
-    github target removed). Worker redeploy version 0a89bc20-8ceb-4632-b8e5-001dd5b52df1. Worker monthly dispatch verified
-    (run 29341370858). Daily live gate evidence pending: cache jobs stale/failed on runs 29343816111/29346342318 (index stale
-    x2).'
+  note: Phase 4 live gate 4c closed. Worker monthly dispatch 29341370858; daily 4c evidence 29395132842 (2026-07-15 15:45
+    JST cron, is_replay=false, TARGETS=r2,dropbox, upload_status=ok, terminal_status=success).
 pr_gates:
   pr-4-1-ddl:
     description: 002_phase4 DDL + phase4_rollout + mapping v4 + contract/smoke
@@ -70,14 +71,14 @@ pr_gates:
     pytest_ci_pass_on_merge: true
     u3_wrangler_deploy_evidence_url: https://dash.cloudflare.com/9bc0de3743f8ddac0056746233b77513/workers/services/view/github-cron-dispatcher/production
     u4_cron_verify_note: API verified 3 schedules; initial deploy b5a383aa, MONTHLY=true redeploy 0a89bc20-8ceb-4632-b8e5-001dd5b52df1
-    note: Cutover code on main; U-3 redeploy with MONTHLY_DISPATCH_ENABLED=true (version 0a89bc20). GH monthly schedule removed.
-      Live gate 4c daily evidence pending.
+    note: 'Cutover complete: GH monthly schedule removed, MONTHLY_DISPATCH_ENABLED=true, Worker 3 crons live. Live gate 4c
+      closed 2026-07-15.'
 live_gate_4c:
-  status: open
-  release_removed_daily_success_run_url: null
-  publish_status_committed_run_url: null
-  runs_status_run_url: null
+  status: closed
   cron_dispatch_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29341370858
-  closed_at_utc: null
+  release_removed_daily_success_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29395132842
+  publish_status_committed_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29395132842
+  runs_status_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29395132842
+  closed_at_utc: '2026-07-15T23:25:51+09:00'
 roadmap:
-  phase4_status_phrase: PR-4-1〜4-6b マージ済み・U-3/U-4 + Worker monthly dispatch 達成・live gate 4c（daily 証拠）未達
+  phase4_status_phrase: gate CLOSED (2026-07-15)
