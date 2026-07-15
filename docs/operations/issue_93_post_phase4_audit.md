@@ -87,3 +87,13 @@ P0 は「未認証主体を遮断する防御」、P3 は「認証済み利用�
 ## Phase 4 gate との関係
 
 本監査所見は Phase 4 live gate 証拠を否定しないため、`phase4_gate_status.yaml` の `overall_status: closed` は変更しない。是正は Phase 4 post-gate hardening として追跡し、P0 / P1 未完了のまま Phase 4.5 の新規 writer 実装へ進まない。
+## P0 hardening progress (2026-07-16)
+
+- Migration: `supabase/migrations/003_p0_control_plane_hardening.sql`
+- Production apply: 2026-07-16 UTC (full DDL via execute_sql; migration history records `003_p0_control_plane_hardening`)
+- RLS enabled on all six control-plane tables; no anon/authenticated policies
+- Table ACL and RPC EXECUTE limited to `service_role`
+- Security advisor P0 findings: 10 -> 0 (residual INFO: `rls_enabled_no_policy` on six tables, expected for P0)
+- Local verification: pytest CI subset 252 passed; service-role smoke passed; anon security smoke passed
+- Pending for P0 closed: main merge + CI URL, GHA security smoke URL, normal patch JPX run, daily/monthly manual dispatch within 3 JPX trading days
+- SSOT: `docs/operations/issue93_p0_hardening_status.yaml` (`local_only`)
