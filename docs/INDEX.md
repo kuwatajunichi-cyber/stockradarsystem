@@ -110,6 +110,7 @@ CI・ワークフロー・ジョブの変更に関わる「原則」「運用基
 ### Issue #93 移行ロードマップ（インフラ）
 
 - **正本（詳細）:** [docs/operations/issue_93_roadmap.md](operations/issue_93_roadmap.md)
+- Phase 4 後監査・是正計画: [issue_93_post_phase4_audit.md](operations/issue_93_post_phase4_audit.md)
 - Phase runbooks: [phase2c](operations/phase2c_r2_only_cutover.md), [phase3](operations/phase3_warm_cache_supabase_cutover.md), [phase4](operations/phase4_cutover.md)
 - Phase 5 observability 調査: [phase5_observability_options.md](operations/phase5_observability_options.md)
 - Phase 5 observability runbook: [phase5_observability_cutover.md](operations/phase5_observability_cutover.md)
