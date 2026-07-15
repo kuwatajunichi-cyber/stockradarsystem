@@ -1,40 +1,41 @@
 schema_version: 1
 phase: p0_hardening
-last_updated_utc: '2026-07-16T01:30:00+09:00'
-overall_status: local_only
+last_updated_utc: '2026-07-16T03:10:00+09:00'
+overall_status: merged_pending_live
 
 implementation_snapshot:
   note: >-
-    Migration 003_p0_control_plane_hardening.sql, Secrets-free contract tests,
-    service-role smoke, and anon security smoke implemented locally. Production
-    DDL applied via execute_sql on 2026-07-16 (MCP apply_migration first recorded
-    an empty 003 entry; corrective execute_sql applied full hardening). Main
-    merge, CI run URL, patch JPX, daily/monthly live gates pending.
+    PR #126 merged (a9e9d43). Migration 003 on main; production DDL applied
+    2026-07-15 via execute_sql. GHA service-role and anon security smokes passed.
+    Post-merge live gates dispatched 2026-07-15: patch 29439142426, daily
+    29439144924, monthly 29439147108.
 
 migration_file: supabase/migrations/003_p0_control_plane_hardening.sql
-migration_merge_commit: null
-pytest_ci_run_url: null
+migration_merge_commit: a9e9d43bdd4d1287ee4c6e7fc40a067fb8f2cffe
+pytest_ci_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29437284600
 pr_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/pull/126
-pr_ci_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29429468943
-migration_applied_at_utc: null
-migration_applied_evidence_url: null
-service_role_smoke_run_url: null
-anon_security_smoke_run_url: null
-patch_jpx_run_url: null
-daily_live_run_url: null
-monthly_live_run_url: null
+pr_ci_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29436116682
+migration_applied_at_utc: '2026-07-15T16:30:00Z'
+migration_applied_evidence_url: https://supabase.com/dashboard/project/wocvepixlzqupasoipbk/database/migrations
+service_role_smoke_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29437920623
+anon_security_smoke_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29438553157
+patch_jpx_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29439142426
+daily_live_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29439144924
+monthly_live_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29439147108
 advisor_p0_findings_remaining: 0
 live_verification_deadline_jpx_trading_days: 3
 
 local_verification:
   pytest_ci_subset_passed: true
-  pytest_ci_subset_count: 252
+  pytest_ci_subset_count: 254
   service_role_smoke_local: passed
   anon_security_smoke_local: passed
+  gha_service_role_smoke: passed
+  gha_anon_security_smoke: passed
   production_advisor_p0_cleared: true
   production_rls_all_six_tables: true
   production_ddl_applied_at_utc: '2026-07-15T16:30:00Z'
   production_ddl_applied_method: execute_sql
 
 roadmap:
-  p0_status_phrase: 未完了（local_only — 本番 migration 適用済み・main 未マージ・live gate 未達）
+  p0_status_phrase: 未完了（merged_pending_live — main マージ済み・post-merge live gate 実行中）

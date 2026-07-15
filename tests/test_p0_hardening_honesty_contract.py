@@ -110,6 +110,7 @@ def test_local_only_allows_production_ddl_timestamp_in_local_verification() -> N
 def test_local_only_rejects_top_level_migration_applied_at() -> None:
     data = _load_p0_status()
     bad = copy.deepcopy(data)
+    bad["overall_status"] = "local_only"
     bad["migration_applied_at_utc"] = "2026-07-15T16:30:00Z"
     violations = validate_p0_status_document(bad)
     assert any("local_only must not set migration_applied_at_utc" in v for v in violations)
