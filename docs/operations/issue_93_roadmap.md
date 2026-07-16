@@ -25,12 +25,12 @@ Phase 3c gate CLOSED（runbook 記録済）。Issue #93 は Phase 4.5/5 が残�
 
 | 優先度 | タイミング | 内容 |
 |--------|------------|------|
-| **P0** | **即時・Phase 4.5 前** | Supabase 6表の RLS / table privilege、`SECURITY DEFINER` RPC の匿名実行権限を hardening |
+| **P0** | **即時・Phase 4.5 前** | **gate CLOSED** (2026-07-16): Supabase 6表の RLS / table privilege、`SECURITY DEFINER` RPC の匿名実行権限を hardening |
 | **P1** | **Phase 4.5 着手ゲート** | terminal semantics、GHA/Supabase 結論一致、stale `running`、publish mismatch fail-fast |
 | **P2** | Phase 4.5 と同時 | bus CLI Fake test、daily publish/finalize 契約、storage mypy、migration baseline |
 | **P3** | Phase 5 | Auth/entitlement に基づく細粒度 RLS、API、heartbeat、distribution |
 
-P0 は現在の匿名変更可能性を遮断する防御であり、Phase 5 の利用者別認可とは分離する。P0 / P1 未完了のまま Phase 4.5 の新規 cache writer 実装へ進まない。
+P0 は現在の匿名変更可能性を遮断する防御であり、Phase 5 の利用者別認可とは分離する。P0 gate CLOSED（2026-07-16）。P1 未完了のまま Phase 4.5 の新規 cache writer 実装へ進まない。
 
 ## Phase 4（2026-07-08 決定: 単体フェーズ）
 
@@ -53,7 +53,7 @@ Out: 派生 cache(4.5), auth(5), published/統一(5), cleanup Cron(5+)。
 
 ## 受け入れ条件
 
-AC-1,5,6,7,10 完了。AC-9→Phase5。AC-2,3,4,8 部分。Phase 4 後監査の P0/P1 は Phase 4.5 着手前に是正。
+AC-1,5,6,7,10 完了。AC-9→Phase5。AC-2,3,4,8 部分。Phase 4 後監査の P0 は完了（2026-07-16）。P1 は Phase 4.5 着手前に是正。
 
 ## Ops Hardening
 

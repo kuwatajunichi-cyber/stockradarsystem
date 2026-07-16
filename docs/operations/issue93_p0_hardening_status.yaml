@@ -1,14 +1,15 @@
 schema_version: 1
 phase: p0_hardening
-last_updated_utc: '2026-07-16T04:30:00+09:00'
-overall_status: merged_pending_live
+last_updated_utc: '2026-07-16T10:50:00+09:00'
+overall_status: closed
 
 implementation_snapshot:
   note: >-
-    PR #126 merged (a9e9d43). Post-merge live gates: patch 29439142426 success;
-    monthly 29439147108 success (Put JPX URL cache RPC); daily 29439144924 and
-    29444244349 failed on ensure_index_cache stale (operational, not P0).
-    Daily replay 29448723855 dispatched (run_date=2026-07-15, force_index=true).
+    P0 gate closed 2026-07-16. PR #126 merged (a9e9d43); migration 003 applied;
+    GHA service-role and anon security smokes passed; post-merge patch
+    29439142426, monthly 29439147108, and daily replay 29448723855 (run_date
+    2026-07-15, force_index=true) all success. Initial daily dispatches failed on
+    ensure_index_cache stale (operational); replay satisfies live gate.
 
 migration_file: supabase/migrations/003_p0_control_plane_hardening.sql
 migration_merge_commit: a9e9d43bdd4d1287ee4c6e7fc40a067fb8f2cffe
@@ -38,4 +39,4 @@ local_verification:
   production_ddl_applied_method: execute_sql
 
 roadmap:
-  p0_status_phrase: 未完了（merged_pending_live — patch/monthly Pass・daily replay 実行中）
+  p0_status_phrase: gate CLOSED（2026-07-16 — PR #126 マージ・live gate 全証拠記録済み）

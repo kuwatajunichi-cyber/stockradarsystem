@@ -86,6 +86,8 @@ def test_p0_closed_rejected_without_advisor_zero() -> None:
 @pytest.mark.unit
 def test_p0_roadmap_rejects_completion_while_local_only() -> None:
     data = _load_p0_status()
+    bad = copy.deepcopy(data)
+    bad["overall_status"] = "local_only"
     roadmap = _ROADMAP.read_text(encoding="utf-8")
     bad_roadmap = re.sub(
         r"(^\|\s*\*\*P0\*\*\s*\|[^\n|]*\|)([^\n|]+)(\|\s*$)",
@@ -94,7 +96,7 @@ def test_p0_roadmap_rejects_completion_while_local_only() -> None:
         count=1,
         flags=re.MULTILINE,
     )
-    violations = validate_roadmap_p0_phrase(bad_roadmap, data)
+    violations = validate_roadmap_p0_phrase(bad_roadmap, bad)
     assert violations
 
 @pytest.mark.unit

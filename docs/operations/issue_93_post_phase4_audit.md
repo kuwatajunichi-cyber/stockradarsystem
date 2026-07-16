@@ -86,16 +86,16 @@ P0 は「未認証主体を遮断する防御」、P3 は「認証済み利用�
 
 ## Phase 4 gate との関係
 
-本監査所見は Phase 4 live gate 証拠を否定しないため、`phase4_gate_status.yaml` の `overall_status: closed` は変更しない。是正は Phase 4 post-gate hardening として追跡し、P0 / P1 未完了のまま Phase 4.5 の新規 writer 実装へ進まない。
+本監査所見は Phase 4 live gate 証拠を否定しないため、`phase4_gate_status.yaml` の `overall_status: closed` は変更しない。是正は Phase 4 post-gate hardening として追跡し、P0 gate CLOSED（2026-07-16）。P1 未完了のまま Phase 4.5 の新規 writer 実装へ進まない。
 ## P0 hardening progress (2026-07-16)
 
 - Migration: `supabase/migrations/003_p0_control_plane_hardening.sql`
-- Production apply: 2026-07-16 UTC (full DDL via execute_sql; migration history records `003_p0_control_plane_hardening`)
+- Production apply: 2026-07-15 UTC (full DDL via execute_sql; migration history records `003_p0_control_plane_hardening`)
 - RLS enabled on all six control-plane tables; no anon/authenticated policies
 - Table ACL and RPC EXECUTE limited to `service_role`
 - Security advisor P0 findings: 10 -> 0 (residual INFO: `rls_enabled_no_policy` on six tables, expected for P0)
 - Local verification: pytest CI subset 254 passed; service-role smoke passed; anon security smoke passed
 - GHA live smokes: service-role [29437920623](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29437920623); anon security [29438553157](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29438553157)
-- Post-merge live gates (2026-07-15): patch [29439142426](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29439142426) success; monthly [29439147108](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29439147108) success (`commit_jpx_url_cache` via put-jpx-url)
-- Daily live gate: dispatches [29439144924](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29439144924) / [29444244349](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29444244349) failed on `ensure_index_cache` stale; replay [29448723855](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29448723855) in progress
-- SSOT: `docs/operations/issue93_p0_hardening_status.yaml` (`merged_pending_live`)
+- Post-merge live gates (2026-07-15): patch [29439142426](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29439142426) success; monthly [29439147108](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29439147108) success (`commit_jpx_url_cache` via put-jpx-url); daily replay [29448723855](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29448723855) success (`run_date=2026-07-15`, `force_index=true`)
+- Initial daily dispatches [29439144924](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29439144924) / [29444244349](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29444244349) failed on `ensure_index_cache` stale (operational; replay satisfies gate)
+- SSOT: `docs/operations/issue93_p0_hardening_status.yaml` (`closed`)
