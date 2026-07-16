@@ -25,7 +25,7 @@ When Worker logs are empty or delayed:
 | Symptom | Action |
 |---------|--------|
 | Cron silent, Worker 5xx | Check Cloudflare status; re-deploy worker; manual dispatch |
-| GitHub 401/403 on dispatch | Rotate `GITHUB_DISPATCH_TOKEN`; verify repo secrets |
+| GitHub 401/403 on dispatch | Rotate `GH_DISPATCH_TOKEN` via `wrangler secret put GH_DISPATCH_TOKEN`; verify `GITHUB_OWNER` / `GITHUB_REPO` / `GITHUB_REF` |
 | Supabase upsert-run fails | Check P0 RLS/privilege; run service-role smoke |
 
 ## 4. 2026-08-01 monthly Cron checkpoint (audit template)
