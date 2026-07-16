@@ -30,6 +30,10 @@ _REQUIRED_CLOSED_MERGE_FIELDS = tuple(f"pr_p1_{n}_merge_commit" for n in range(1
 
 _REQUIRED_CLOSED_CI_URL_FIELDS = tuple(f"pr_p1_{n}_merge_ci_url" for n in range(1, 6))
 
+_REQUIRED_MERGED_PENDING_MERGE_FIELDS = _REQUIRED_CLOSED_MERGE_FIELDS
+
+_REQUIRED_MERGED_PENDING_CI_URL_FIELDS = _REQUIRED_CLOSED_CI_URL_FIELDS
+
 _REQUIRED_CLOSED_URL_FIELDS = (
     "pytest_ci_run_url",
     "daily_live_run_url",
@@ -41,6 +45,17 @@ _REQUIRED_CLOSED_PATH_FIELDS = (
     "stale_after_snapshot_ref",
     "observability_runbook_path",
 )
+
+
+def _validate_merge_and_ci_fields(data: dict[str, Any], violations: list[str], *, label: str) -> None:
+    for field in _REQUIRED_CLOSED_MERGE_FIELDS:
+        value = data.get(field)
+        if not isinstance(value, str) or not _MERGE_COMMIT_SHA_RE.match(value.strip()):
+            violations.append(f"{label} requires SHA-shaped {field}")
+    for field in _REQUIRED_CLOSED_CI_URL_FIELDS:
+        value = data.get(field)
+        if not isinstance(value, str) or not _EVIDENCE_URL_RE.match(value.strip()):
+            violations.append(f"{label} requires URL-shaped {field}")
 
 
 def validate_p1_status_document(data: dict[str, Any]) -> list[str]:
@@ -60,14 +75,7 @@ def validate_p1_status_document(data: dict[str, Any]) -> list[str]:
         for field in _REQUIRED_CLOSED_SCALAR_FIELDS:
             if data.get(field) in (None, ""):
                 violations.append(f"overall_status closed requires {field}")
-        for field in _REQUIRED_CLOSED_MERGE_FIELDS:
-            value = data.get(field)
-            if not isinstance(value, str) or not _MERGE_COMMIT_SHA_RE.match(value.strip()):
-                violations.append(f"overall_status closed requires SHA-shaped {field}")
-        for field in _REQUIRED_CLOSED_CI_URL_FIELDS:
-            value = data.get(field)
-            if not isinstance(value, str) or not _EVIDENCE_URL_RE.match(value.strip()):
-                violations.append(f"overall_status closed requires URL-shaped {field}")
+        _validate_merge_and_ci_fields(data, violations, label="overall_status closed")
         for field in _REQUIRED_CLOSED_URL_FIELDS:
             value = data.get(field)
             if not isinstance(value, str) or not _EVIDENCE_URL_RE.match(value.strip()):
@@ -90,6 +98,11 @@ def validate_p1_status_document(data: dict[str, Any]) -> list[str]:
                 violations.append("stale_running_after must be less than stale_running_before")
         except (TypeError, ValueError):
             violations.append("stale_running_before/after must be integers when closed")
+
+    elif status == P1_STATUS_MERGED_PENDING_LIVE:
+        _validate_merge_and_ci_fields(data, violations, label="merged_pending_live")
+        if data.get("p1_final_merge_commit"):
+            violations.append("merged_pending_live must not set p1_final_merge_commit (closed only)")
 
     elif status == P1_STATUS_LOCAL_ONLY:
         for field in _REQUIRED_CLOSED_MERGE_FIELDS + _REQUIRED_CLOSED_CI_URL_FIELDS:

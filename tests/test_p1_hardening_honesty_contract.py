@@ -114,3 +114,20 @@ def test_p1_roadmap_rejects_completion_while_local_only() -> None:
     )
     violations = validate_p1_roadmap_phrase(bad_roadmap, bad)
     assert violations
+
+@pytest.mark.unit
+def test_merged_pending_live_requires_merge_and_ci_evidence() -> None:
+    bad = {'overall_status': 'merged_pending_live'}
+    violations = validate_p1_status_document(bad)
+    assert any('merged_pending_live requires SHA-shaped pr_p1_1_merge_commit' in v for v in violations)
+    assert any('merged_pending_live requires URL-shaped pr_p1_1_merge_ci_url' in v for v in violations)
+
+
+@pytest.mark.unit
+def test_merged_pending_live_accepts_full_merge_evidence() -> None:
+    good = {'overall_status': 'merged_pending_live'}
+    for n in range(1, 6):
+        good[f'pr_p1_{n}_merge_commit'] = 'abc1234567890abcd'
+        good[f'pr_p1_{n}_merge_ci_url'] = f'https://example.com/pr{n}'
+    violations = validate_p1_status_document(good)
+    assert violations == [], chr(10).join(violations)
