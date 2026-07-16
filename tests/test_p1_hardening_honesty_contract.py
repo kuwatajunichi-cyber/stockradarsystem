@@ -131,3 +131,9 @@ def test_merged_pending_live_accepts_full_merge_evidence() -> None:
         good[f'pr_p1_{n}_merge_ci_url'] = f'https://example.com/pr{n}'
     violations = validate_p1_status_document(good)
     assert violations == [], chr(10).join(violations)
+
+@pytest.mark.unit
+def test_local_only_rejects_p1_final_merge_commit() -> None:
+    bad = {'overall_status': 'local_only', 'p1_final_merge_commit': 'abc1234567890abcd'}
+    violations = validate_p1_status_document(bad)
+    assert any('p1_final_merge_commit' in v for v in violations)

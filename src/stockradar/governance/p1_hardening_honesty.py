@@ -105,6 +105,8 @@ def validate_p1_status_document(data: dict[str, Any]) -> list[str]:
             violations.append("merged_pending_live must not set p1_final_merge_commit (closed only)")
 
     elif status == P1_STATUS_LOCAL_ONLY:
+        if data.get("p1_final_merge_commit"):
+            violations.append("local_only must not set p1_final_merge_commit")
         for field in _REQUIRED_CLOSED_MERGE_FIELDS + _REQUIRED_CLOSED_CI_URL_FIELDS:
             if data.get(field):
                 violations.append(f"local_only must not set {field}")
