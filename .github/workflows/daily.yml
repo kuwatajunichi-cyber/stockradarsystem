@@ -1300,9 +1300,6 @@ jobs:
             UPLOAD_RC="1"
           fi
           ENRICH_RESULT="${{ needs.event_cause_enrichment.result }}"
-          if [ "$ENRICH_RESULT" != "success" ]; then
-            ENRICH_RESULT="skipped"
-          fi
           DECISION=$(python -m stockradar.jobs.finalize_daily_run \
             --is-open "$IS_OPEN" \
             --compute-result "${{ needs.compute_indicators.result }}" \

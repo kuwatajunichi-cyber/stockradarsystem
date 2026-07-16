@@ -1,0 +1,52 @@
+schema_version: 1
+issue: 93
+phase: p1_hardening
+captured_at_utc: '2026-07-16T14:00:00Z'
+supabase_project_ref: wocvepixlzqupasoipbk
+
+runs_status_histogram:
+  failed: 7
+  running: 36
+  success: 15
+
+runs_total: 58
+stale_running_count: 35
+stale_threshold_hours: 48
+stale_threshold_column: started_at_utc
+
+publish_status_committed_count: 12
+
+audit_reference:
+  source: docs/operations/issue_93_post_phase4_audit.md
+  audit_running_total: 48
+  audit_running_stale: 36
+  comparison_note: >-
+    P1 baseline captured 2026-07-16 post-P0 close. running=36 (audit cited 48 at
+    audit time; new runs since audit reduced stale backlog slightly). stale
+    running (48h+) = 35 vs audit 36 — same order of magnitude; reconcile required.
+
+known_bugs_at_baseline:
+  - file: .github/workflows/daily.yml
+    lines: 1302-1305
+    description: enrichment non-success coerced to skipped before finalize_daily_run
+  - file: .github/workflows/daily.yml
+    lines: 1321-1338
+    description: finalize_run update-run succeeds but terminal failed does not exit 1
+  - file: .github/workflows/monthly.yml
+    lines: 258-276
+    description: same finalize_run GHA/Supabase mismatch pattern
+  - file: .github/workflows/daily_universe_patch.yml
+    lines: 202-230
+    description: same finalize_run GHA/Supabase mismatch pattern
+  - file: .github/workflows/daily_event_cause_enrichment.yml
+    lines: 218-235
+    description: same finalize_run GHA/Supabase mismatch pattern
+  - file: scripts/storage/publish_bus_cli.py
+    lines: 128-169
+    description: committed publish mismatch falls through to R2 put instead of fail-fast
+
+design_contract:
+  step_1_0_1_snapshot: true
+  step_1_0_2_invariants: true
+  step_1_0_3_scope: true
+  step_1_0_4_pr_split: true
