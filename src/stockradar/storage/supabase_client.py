@@ -24,6 +24,8 @@ class SupabaseControlPort(Protocol):
 
     def get_run(self, *, workflow: str, github_run_id: int) -> dict[str, Any] | None: ...
 
+    def list_running_runs(self, *, workflows: list[str]) -> list[dict[str, Any]]: ...
+
     def insert_artifact_index_pending(
         self,
         *,
@@ -293,6 +295,24 @@ class SupabaseRestAdapter:
         if not isinstance(rows, list) or not rows:
             return None
         return rows[0]
+
+    def list_running_runs(self, *, workflows: list[str]) -> list[dict[str, Any]]:
+        if not workflows:
+            return []
+        resp = self._request(
+            "GET",
+            "/rest/v1/runs",
+            params={
+                "status": "eq.running",
+                "workflow": f"in.({','.join(workflows)})",
+                "select": "*",
+            },
+        )
+        resp.raise_for_status()
+        rows = resp.json()
+        if not isinstance(rows, list):
+            return []
+        return rows
 
     def insert_artifact_index_pending(
         self,
@@ -904,6 +924,14 @@ class FakeSupabaseControlAdapter:
     def get_run(self, *, workflow: str, github_run_id: int) -> dict[str, Any] | None:
         row = self.runs.get((workflow, github_run_id))
         return dict(row) if row else None
+
+    def list_running_runs(self, *, workflows: list[str]) -> list[dict[str, Any]]:
+        allowed = set(workflows)
+        return [
+            dict(row)
+            for row in self.runs.values()
+            if str(row.get("status") or "") == "running" and str(row.get("workflow") or "") in allowed
+        ]
 
     def insert_artifact_index_pending(
         self,

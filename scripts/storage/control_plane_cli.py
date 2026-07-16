@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -13,6 +14,11 @@ if str(_REPO_ROOT / "src") not in sys.path:
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from stockradar.jobs.reconcile_stale_runs import (  # noqa: E402
+    DEFAULT_STALE_WORKFLOWS,
+    build_reconcile_patch,
+    select_stale_running_rows,
+)
 from stockradar.storage.control_plane import normalize_rollout_stage, supabase_commit_is_fatal  # noqa: E402
 from stockradar.storage.mapping_catalog import get_entry, load_mapping  # noqa: E402
 from stockradar.storage.phase4_rollout import (  # noqa: E402
@@ -193,6 +199,59 @@ def cmd_update_run(args: argparse.Namespace) -> int:
         return 1 if fatal else 0
 
 
+def cmd_reconcile_stale_runs(args: argparse.Namespace) -> int:
+    adapter = _adapter_from_env()
+    if adapter is None:
+        print("error: Supabase not configured", file=sys.stderr)
+        return 1
+
+    workflows = list(args.workflow) if args.workflow else list(DEFAULT_STALE_WORKFLOWS)
+    now_utc = datetime.now(timezone.utc)
+    rows = adapter.list_running_runs(workflows=workflows)
+    stale_rows = select_stale_running_rows(
+        rows,
+        stale_after_hours=float(args.stale_after_hours),
+        now_utc=now_utc,
+        allowed_workflows=frozenset(workflows),
+    )
+
+    payload: dict[str, object] = {
+        "stale_count": len(stale_rows),
+        "dry_run": bool(args.dry_run),
+        "workflows": workflows,
+        "stale_after_hours": float(args.stale_after_hours),
+        "rows": stale_rows,
+    }
+
+    if args.dry_run:
+        _emit(payload, args.json_output)
+        return 2 if args.fail_if_any and stale_rows else 0
+
+    if args.fail_if_any and stale_rows:
+        _emit(payload, args.json_output)
+        return 2
+
+    updated: list[dict[str, object]] = []
+    patch = build_reconcile_patch(finished_at_utc=now_utc)
+    for row in stale_rows:
+        try:
+            result = adapter.update_run(
+                workflow=str(row["workflow"]),
+                github_run_id=int(row["github_run_id"]),
+                status=patch["status"],
+                degraded_reason=patch["degraded_reason"],
+                include_degraded_reason=True,
+            )
+            updated.append(result)
+        except Exception as exc:
+            print(f"error: reconcile failed for {row.get('id')}: {exc}", file=sys.stderr)
+            _emit({**payload, "updated_count": len(updated), "error": str(exc)}, args.json_output)
+            return 1
+
+    _emit({**payload, "updated_count": len(updated), "updated": updated}, args.json_output)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Supabase control plane CLI (Phase 3).")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -224,6 +283,13 @@ def main(argv: list[str] | None = None) -> None:
     p_upd.add_argument("--phase4-rollout-stage", default=None)
     p_upd.add_argument("--json-output", default=None)
 
+    p_rec = sub.add_parser("reconcile-stale-runs")
+    p_rec.add_argument("--stale-after-hours", type=float, default=48.0)
+    p_rec.add_argument("--dry-run", action="store_true")
+    p_rec.add_argument("--fail-if-any", action="store_true")
+    p_rec.add_argument("--workflow", action="append", default=None)
+    p_rec.add_argument("--json-output", default=None)
+
     args = parser.parse_args(argv)
     if args.cmd == "upsert-run":
         sys.exit(cmd_upsert_run(args))
@@ -231,6 +297,8 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(cmd_commit_artifact(args))
     if args.cmd == "update-run":
         sys.exit(cmd_update_run(args))
+    if args.cmd == "reconcile-stale-runs":
+        sys.exit(cmd_reconcile_stale_runs(args))
     parser.error("unknown command")
 
 
