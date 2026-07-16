@@ -139,6 +139,26 @@ def test_local_only_rejects_p1_final_merge_commit() -> None:
     assert any('p1_final_merge_commit' in v for v in violations)
 
 
+
+
+@pytest.mark.unit
+def test_p1_roadmap_rejects_bare_closed_while_local_only() -> None:
+    data = _load_p1_status()
+    bad = copy.deepcopy(data)
+    bad["overall_status"] = "local_only"
+    roadmap = _ROADMAP.read_text(encoding="utf-8")
+    import re
+
+    for replacement in ("**CLOSED** (2026-07-16)", "CLOSED"):
+        bad_roadmap = re.sub(
+            r"(^|\s*\*\*P1\*\*\s*\|[^\n|]*\|)([^\n|]+)(\|\s*$)",
+            lambda m, rep=replacement: f"{m.group(1)}{rep}{m.group(3)}",
+            roadmap,
+            count=1,
+            flags=re.MULTILINE,
+        )
+        violations = validate_p1_roadmap_phrase(bad_roadmap, bad)
+        assert violations, f"expected rejection for {replacement!r}"
 @pytest.mark.unit
 def test_closed_requires_zero_stale_running_after() -> None:
     bad = {

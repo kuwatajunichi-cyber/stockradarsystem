@@ -140,7 +140,7 @@ def validate_p1_roadmap_phrase(roadmap_text: str, p1_status: dict[str, Any]) -> 
         if "CLOSED" not in cell.upper() and "完了" not in cell:
             violations.append(f"roadmap P1 should indicate completion when closed: {cell!r}")
     else:
-        if re.search(r"\bgate CLOSED\b|\b完了\b", cell, re.IGNORECASE):
+        if re.search(r"\bCLOSED\b|\b完了\b", cell, re.IGNORECASE):
             violations.append(
                 f"roadmap P1 must not claim completion while overall_status is {overall!r}: {cell!r}"
             )
