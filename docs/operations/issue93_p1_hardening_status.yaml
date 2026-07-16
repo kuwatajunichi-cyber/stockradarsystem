@@ -1,0 +1,31 @@
+schema_version: 1
+phase: p1_hardening
+last_updated_utc: '2026-07-16T14:50:00Z'
+overall_status: merged_pending_live
+
+implementation_snapshot:
+  note: >-
+    P1 code complete on branch issue93-p1-hardening. Production stale reconcile
+    applied (35 -> 1 stale running). Daily replay dispatched pre-merge for
+    baseline success evidence. closed requires 5 PR merges to main with CI URLs.
+
+stale_before_snapshot_ref: docs/operations/issue93_p1_baseline_snapshot.yaml
+stale_after_snapshot_ref: docs/operations/issue93_p1_after_reconcile_snapshot.yaml
+observability_runbook_path: docs/operations/issue93_p1_observability.md
+
+stale_running_before: 35
+stale_running_after: 1
+reconcile_applied_at_utc: '2026-07-16T14:45:00Z'
+stale_reconcile_run_url: https://supabase.com/dashboard/project/wocvepixlzqupasoipbk/editor
+daily_live_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29503428335
+
+local_verification:
+  pytest_ci_subset_passed: true
+  pytest_ci_subset_count: 278
+  production_reconcile_applied: true
+  reconcile_rows_updated: 33
+
+roadmap:
+  p1_status_phrase: >-
+    実装済み（merged_pending_live — PR 5本マージ・post-P1 daily on main 待ち）:
+    terminal semantics, GHA sync, stale runs, publish fail-fast
