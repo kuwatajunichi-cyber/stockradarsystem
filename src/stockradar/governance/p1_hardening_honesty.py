@@ -15,7 +15,17 @@ _NON_TERMINAL = frozenset({P1_STATUS_PLANNED, P1_STATUS_LOCAL_ONLY, P1_STATUS_ME
 _EVIDENCE_URL_RE = re.compile(r"^https?://\S+$", re.IGNORECASE)
 _MERGE_COMMIT_SHA_RE = re.compile(r"^[0-9a-f]{7,40}$", re.IGNORECASE)
 
-_P1_ROADMAP_IN_PROGRESS_MARKERS = ("未完了", "着手前", "未実施", "in_progress", "pending")
+_P1_ROADMAP_IN_PROGRESS_MARKERS = (
+    "未完了",
+    "着手前",
+    "未実施",
+    "in_progress",
+    "pending",
+    "local_only",
+    "merged_pending_live",
+    "未達",
+    "未マージ",
+)
 
 _FORBIDDEN_P0_KEYS = ("migration_merge_commit", "migration_applied_at_utc")
 
@@ -144,4 +154,17 @@ def validate_p1_roadmap_phrase(roadmap_text: str, p1_status: dict[str, Any]) -> 
             violations.append(
                 f"roadmap P1 must not claim completion while overall_status is {overall!r}: {cell!r}"
             )
+
+    roadmap_meta = p1_status.get("roadmap")
+    if not isinstance(roadmap_meta, dict):
+        violations.append("P1 SSOT must include roadmap.p1_status_phrase")
+        return violations
+    embedded = roadmap_meta.get("p1_status_phrase")
+    if not isinstance(embedded, str) or not embedded.strip():
+        violations.append("roadmap.p1_status_phrase must be a non-empty string")
+    elif embedded.strip() != cell:
+        violations.append(
+            "roadmap.p1_status_phrase must match P1 roadmap cell "
+            + f"(SSOT {embedded.strip()!r} vs roadmap {cell!r})"
+        )
     return violations

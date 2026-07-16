@@ -141,6 +141,35 @@ def test_local_only_rejects_p1_final_merge_commit() -> None:
 
 
 
+
+
+@pytest.mark.unit
+def test_p1_roadmap_rejects_unmet_gate_markers_when_closed() -> None:
+    data = _load_p1_status()
+    bad = copy.deepcopy(data)
+    bad["overall_status"] = "closed"
+    roadmap = _ROADMAP.read_text(encoding="utf-8")
+    import re
+
+    bad_roadmap = re.sub(
+        r"(^|\|\s*\*\*P1\*\*\s*\|[^\n|]*\|)([^\n|]+)(\|\s*$)",
+        lambda m: f"{m.group(1)}gate CLOSED (2026-07-16) — live gate 未達{m.group(3)}",
+        roadmap,
+        count=1,
+        flags=re.MULTILINE,
+    )
+    violations = validate_p1_roadmap_phrase(bad_roadmap, bad)
+    assert violations
+
+
+@pytest.mark.unit
+def test_p1_roadmap_rejects_ssot_phrase_mismatch() -> None:
+    data = _load_p1_status()
+    bad = copy.deepcopy(data)
+    bad.setdefault("roadmap", {})["p1_status_phrase"] = "**gate CLOSED**"
+    roadmap = _ROADMAP.read_text(encoding="utf-8")
+    violations = validate_p1_roadmap_phrase(roadmap, bad)
+    assert any("p1_status_phrase must match" in v for v in violations)
 @pytest.mark.unit
 def test_p1_roadmap_rejects_bare_closed_while_local_only() -> None:
     data = _load_p1_status()
@@ -151,7 +180,7 @@ def test_p1_roadmap_rejects_bare_closed_while_local_only() -> None:
 
     for replacement in ("**CLOSED** (2026-07-16)", "CLOSED"):
         bad_roadmap = re.sub(
-            r"(^|\s*\*\*P1\*\*\s*\|[^\n|]*\|)([^\n|]+)(\|\s*$)",
+            r"(^|\|\s*\*\*P1\*\*\s*\|[^\n|]*\|)([^\n|]+)(\|\s*$)",
             lambda m, rep=replacement: f"{m.group(1)}{rep}{m.group(3)}",
             roadmap,
             count=1,
