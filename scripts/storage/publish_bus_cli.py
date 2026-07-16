@@ -167,6 +167,19 @@ def cmd_commit(args: argparse.Namespace) -> int:
                     args.json_output,
                 )
                 return 0
+            _emit(
+                {
+                    "status": "error",
+                    "error": "publish_mismatch",
+                    "supabase_commit_ok": False,
+                    "publish_id": publish_id,
+                    "object_key": object_key,
+                    "expected_sha256": sha256,
+                    "committed_sha256": pending.get("sha256"),
+                },
+                args.json_output,
+            )
+            return 2
     except Exception as exc:
         _emit({"status": "error", "supabase_commit_ok": False, "supabase_commit_failed": str(exc)}, args.json_output)
         return 1 if fatal else 0

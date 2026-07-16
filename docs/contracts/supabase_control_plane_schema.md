@@ -38,6 +38,7 @@ DDL source of truth:
 - UNIQUE (`run_id`, `logical_kind`) — max 2 rows per daily run
 - Write path: `publish_bus_cli commit` only
 - R2 manifest is derivative; reconcile via `publish_bus_cli reconcile-manifest`
+- **Committed mismatch fail-fast (P1):** if an existing `committed` row disagrees on `sha256`, `size_bytes`, or `object_key`, `commit` returns **exit 2** without R2 put or Supabase mutation. Stage-independent (not gated by `publish_commit_is_fatal`).
 
 ## RPC: commit_jpx_url_cache
 
