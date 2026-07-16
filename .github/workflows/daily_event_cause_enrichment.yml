@@ -233,3 +233,7 @@ jobs:
             --github-run-id "$GITHUB_RUN_ID" \
             --status "$STATUS" \
             --phase4-rollout-stage "$PHASE4_ROLLOUT_STAGE"
+          if [ "$STATUS" = "failed" ]; then
+            echo "::error::runs terminal status is failed; failing workflow to match Supabase"
+            exit 1
+          fi

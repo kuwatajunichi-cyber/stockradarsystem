@@ -274,3 +274,7 @@ jobs:
             --status "$STATUS" \
             --phase4-rollout-stage "$PHASE4_ROLLOUT_STAGE" \
             --json-output /tmp/monthly_update_run.json
+          if [ "$STATUS" = "failed" ]; then
+            echo "::error::runs terminal status is failed; failing workflow to match Supabase"
+            exit 1
+          fi
