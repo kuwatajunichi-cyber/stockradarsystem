@@ -137,3 +137,55 @@ def test_local_only_rejects_p1_final_merge_commit() -> None:
     bad = {'overall_status': 'local_only', 'p1_final_merge_commit': 'abc1234567890abcd'}
     violations = validate_p1_status_document(bad)
     assert any('p1_final_merge_commit' in v for v in violations)
+
+
+@pytest.mark.unit
+def test_closed_requires_zero_stale_running_after() -> None:
+    bad = {
+        "overall_status": "closed",
+        "p1_final_merge_commit": "abc1234567890abcd",
+        "pr_p1_1_merge_commit": "abc1234567890abcd",
+        "pr_p1_2_merge_commit": "abc1234567890abcd",
+        "pr_p1_3_merge_commit": "abc1234567890abcd",
+        "pr_p1_4_merge_commit": "abc1234567890abcd",
+        "pr_p1_5_merge_commit": "abc1234567890abcd",
+        "stale_running_before": 35,
+        "stale_running_after": 34,
+        "reconcile_applied_at_utc": "2026-07-16T14:30:00Z",
+        "pytest_ci_run_url": "https://example.com/pytest",
+        "daily_live_run_url": "https://example.com/daily",
+        "stale_reconcile_run_url": "https://example.com/reconcile",
+        "stale_before_snapshot_ref": "docs/operations/issue93_p1_baseline_snapshot.yaml",
+        "stale_after_snapshot_ref": "docs/operations/issue93_p1_after_reconcile_snapshot.yaml",
+        "observability_runbook_path": "docs/operations/issue93_p1_observability.md",
+    }
+    for n in range(1, 6):
+        bad[f"pr_p1_{n}_merge_ci_url"] = f"https://example.com/pr{n}"
+    violations = validate_p1_status_document(bad)
+    assert any("stale_running_after: 0" in v for v in violations)
+
+
+@pytest.mark.unit
+def test_closed_rejects_non_string_p1_final_merge_commit() -> None:
+    bad = {
+        "overall_status": "closed",
+        "p1_final_merge_commit": 123,
+        "pr_p1_1_merge_commit": "abc1234567890abcd",
+        "pr_p1_2_merge_commit": "abc1234567890abcd",
+        "pr_p1_3_merge_commit": "abc1234567890abcd",
+        "pr_p1_4_merge_commit": "abc1234567890abcd",
+        "pr_p1_5_merge_commit": "abc1234567890abcd",
+        "stale_running_before": 35,
+        "stale_running_after": 0,
+        "reconcile_applied_at_utc": "2026-07-16T14:30:00Z",
+        "pytest_ci_run_url": "https://example.com/pytest",
+        "daily_live_run_url": "https://example.com/daily",
+        "stale_reconcile_run_url": "https://example.com/reconcile",
+        "stale_before_snapshot_ref": "docs/operations/issue93_p1_baseline_snapshot.yaml",
+        "stale_after_snapshot_ref": "docs/operations/issue93_p1_after_reconcile_snapshot.yaml",
+        "observability_runbook_path": "docs/operations/issue93_p1_observability.md",
+    }
+    for n in range(1, 6):
+        bad[f"pr_p1_{n}_merge_ci_url"] = f"https://example.com/pr{n}"
+    violations = validate_p1_status_document(bad)
+    assert any("p1_final_merge_commit" in v for v in violations)

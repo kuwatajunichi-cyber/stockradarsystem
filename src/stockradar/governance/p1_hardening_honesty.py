@@ -85,6 +85,8 @@ def validate_p1_status_document(data: dict[str, Any]) -> list[str]:
                 violations.append(f"overall_status closed requires path {field}")
 
         final = data.get("p1_final_merge_commit")
+        if not isinstance(final, str) or not _MERGE_COMMIT_SHA_RE.match(final.strip()):
+            violations.append("overall_status closed requires SHA-shaped p1_final_merge_commit")
         pr5 = data.get("pr_p1_5_merge_commit")
         if isinstance(final, str) and isinstance(pr5, str) and final.strip() != pr5.strip():
             violations.append("p1_final_merge_commit must equal pr_p1_5_merge_commit")
@@ -96,6 +98,8 @@ def validate_p1_status_document(data: dict[str, Any]) -> list[str]:
             after_n = int(after)  # type: ignore[arg-type]
             if after_n >= before_n:
                 violations.append("stale_running_after must be less than stale_running_before")
+            if after_n != 0:
+                violations.append("overall_status closed requires stale_running_after: 0")
         except (TypeError, ValueError):
             violations.append("stale_running_before/after must be integers when closed")
 
