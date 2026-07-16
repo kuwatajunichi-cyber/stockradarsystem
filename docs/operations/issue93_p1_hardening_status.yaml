@@ -1,13 +1,13 @@
 schema_version: 1
 phase: p1_hardening
-last_updated_utc: '2026-07-16T14:50:00Z'
-overall_status: merged_pending_live
+last_updated_utc: '2026-07-16T15:30:00Z'
+overall_status: local_only
 
 implementation_snapshot:
   note: >-
-    P1 code complete on branch issue93-p1-hardening. Production stale reconcile
-    applied (35 -> 1 stale running). Daily replay dispatched pre-merge for
-    baseline success evidence. closed requires 5 PR merges to main with CI URLs.
+    P1 code on stacked PRs #127-#131. Production stale reconcile applied
+    (35 -> 1 stale running). closed requires all five PR merges with
+    pr_p1_N_merge_commit and CI URLs recorded in this SSOT.
 
 stale_before_snapshot_ref: docs/operations/issue93_p1_baseline_snapshot.yaml
 stale_after_snapshot_ref: docs/operations/issue93_p1_after_reconcile_snapshot.yaml
@@ -27,5 +27,5 @@ local_verification:
 
 roadmap:
   p1_status_phrase: >-
-    実装済み（merged_pending_live — PR 5本マージ・post-P1 daily on main 待ち）:
+    実装済み（local_only — PR #127-#131 マージ・live gate 未達）:
     terminal semantics, GHA sync, stale runs, publish fail-fast
