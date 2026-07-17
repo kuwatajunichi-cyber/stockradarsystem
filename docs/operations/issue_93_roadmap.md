@@ -26,7 +26,7 @@ Phase 3c gate CLOSED（runbook 記録済）。Issue #93 は Phase 4.5/5 が残�
 | 優先度 | タイミング | 内容 |
 |--------|------------|------|
 | **P0** | **即時・Phase 4.5 前** | **gate CLOSED** (2026-07-16): Supabase 6表の RLS / table privilege、`SECURITY DEFINER` RPC の匿名実行権限を hardening |
-| **P1** | **Phase 4.5 着手ゲート** |実装済み（merged_pending_live — PR #127-#131 main マージ済・live gate 未達）: terminal semantics、GHA/Supabase 結論一致、stale `running`、publish mismatch fail-fast|
+| **P1** | **Phase 4.5 着手ゲート** |**gate CLOSED** (2026-07-17): terminal semantics、GHA/Supabase 結論一致、stale `running`、publish mismatch fail-fast|
 | **P2** | Phase 4.5 と同時 | bus CLI Fake test、daily publish/finalize 契約、storage mypy、migration baseline |
 | **P3** | Phase 5 | Auth/entitlement に基づく細粒度 RLS、API、heartbeat、distribution |
 

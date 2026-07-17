@@ -1,27 +1,29 @@
 schema_version: 1
 phase: p1_hardening
-last_updated_utc: '2026-07-17T03:33:46Z'
-overall_status: merged_pending_live
+last_updated_utc: '2026-07-17T08:22:16Z'
+overall_status: closed
 implementation_snapshot:
-  note: 'P1 PR #127-#131 merged to main (2026-07-17). PR #128 re-landed via #132 after
-    stacked-base correction. Live gate pending: stale_running_after=1 and post-merge
-    daily success run.'
+  note: 'P1 PR #127-#131 merged to main. Post-merge daily success on cc7910e (run
+    29565078632). Final stale reconcile via control_plane_cli (36h threshold) cleared
+    last running row.'
+p1_final_merge_commit: f19f587e4ad169a81e5ce00ea56650fe9c7fc055
 stale_before_snapshot_ref: docs/operations/issue93_p1_baseline_snapshot.yaml
 stale_after_snapshot_ref: docs/operations/issue93_p1_after_reconcile_snapshot.yaml
 observability_runbook_path: docs/operations/issue93_p1_observability.md
 stale_running_before: 35
-stale_running_after: 1
-reconcile_applied_at_utc: '2026-07-16T14:45:00Z'
-stale_reconcile_run_url: https://supabase.com/dashboard/project/tovxpixlzquapsoipbke/editor
-daily_live_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29503428335
+stale_running_after: 0
+reconcile_applied_at_utc: '2026-07-17T08:02:55Z'
+stale_reconcile_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29565078632
+daily_live_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29565078632
+pytest_ci_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29552575048
 local_verification:
   pytest_ci_subset_passed: true
   pytest_ci_subset_count: 279
   production_reconcile_applied: true
-  reconcile_rows_updated: 33
+  reconcile_rows_updated: 34
 roadmap:
-  p1_status_phrase: '実装済み（merged_pending_live — PR #127-#131 main マージ済・live gate 未達）:
-    terminal semantics、GHA/Supabase 結論一致、stale `running`、publish mismatch fail-fast'
+  p1_status_phrase: '**gate CLOSED** (2026-07-17): terminal semantics、GHA/Supabase
+    結論一致、stale `running`、publish mismatch fail-fast'
 pr_p1_1_merge_commit: 09935fd64ca9f5a8ccd528049d0b63839df4ec4c
 pr_p1_1_merge_ci_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29552487635
 pr_p1_2_merge_commit: a1011498f3758c6241cf5780e1171bf24bf523ac
