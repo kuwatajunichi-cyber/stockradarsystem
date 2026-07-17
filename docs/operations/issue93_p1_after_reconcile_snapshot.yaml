@@ -1,0 +1,26 @@
+schema_version: 1
+issue: 93
+phase: p1_hardening
+captured_at_utc: '2026-07-16T14:45:00Z'
+supabase_project_ref: wocvepixlzqupasoipbk
+reconcile_method: execute_sql_p1_implementation
+reconcile_applied_at_utc: '2026-07-16T14:45:00Z'
+
+runs_status_histogram:
+  failed: 40
+  running: 3
+  success: 15
+
+runs_total: 58
+stale_running_count: 1
+stale_threshold_hours: 48
+
+baseline_ref: docs/operations/issue93_p1_baseline_snapshot.yaml
+stale_running_before: 35
+stale_running_after: 1
+reconciled_rows: 33
+
+notes:
+  - >-
+    Production reconcile applied during P1 implementation via controlled SQL
+    matching reconcile_stale_runs patch semantics (stale_running_reconciled).
