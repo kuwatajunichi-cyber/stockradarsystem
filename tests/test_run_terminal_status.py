@@ -82,3 +82,35 @@ def test_upload_degraded_is_failed_when_publish_required() -> None:
         )
     )
     assert d.status == "failed"
+
+
+@pytest.mark.unit
+def test_enrichment_failure_is_failed_on_open_day() -> None:
+    d = resolve_daily_run_terminal_status(
+        DailyRunTerminalInput(
+            is_open=True,
+            compute_indicators="success",
+            event_cause_enrichment="failure",
+            render_and_upload="success",
+            skip_publish=True,
+            upload_executed=False,
+            upload_exit_code=0,
+        )
+    )
+    assert d.status == "failed"
+
+
+@pytest.mark.unit
+def test_enrichment_cancelled_is_failed_on_open_day() -> None:
+    d = resolve_daily_run_terminal_status(
+        DailyRunTerminalInput(
+            is_open=True,
+            compute_indicators="success",
+            event_cause_enrichment="cancelled",
+            render_and_upload="success",
+            skip_publish=True,
+            upload_executed=False,
+            upload_exit_code=0,
+        )
+    )
+    assert d.status == "failed"
