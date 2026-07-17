@@ -25,6 +25,7 @@ DDL source of truth:
 - Start: `upsert-run --status running` (always, including market closed days)
 - End: `update-run --status success|failed` via `finalize_run` job
 - `degraded_reason=market_closed` when `is_open=False`
+- Terminal `failed` must propagate to GHA workflow conclusion `failure` (P1: `finalize_run` exits 1 after successful `update-run`)
 
 ## monthly_snapshots
 

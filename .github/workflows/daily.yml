@@ -1333,3 +1333,7 @@ jobs:
             --json-output /tmp/supabase_update_run.json
           )
           python scripts/storage/control_plane_cli.py update-run "${ARGS[@]}"
+          if [ "${{ steps.terminal.outputs.status }}" = "failed" ]; then
+            echo "::error::runs terminal status is failed; failing workflow to match Supabase"
+            exit 1
+          fi

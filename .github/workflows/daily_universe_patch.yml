@@ -228,3 +228,7 @@ jobs:
             ARGS+=(--degraded-reason "$REASON")
           fi
           python scripts/storage/control_plane_cli.py update-run "${ARGS[@]}"
+          if [ "$STATUS" = "failed" ]; then
+            echo "::error::runs terminal status is failed; failing workflow to match Supabase"
+            exit 1
+          fi
