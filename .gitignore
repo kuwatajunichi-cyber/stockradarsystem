@@ -30,3 +30,12 @@ Thumbs.db
 
 # Local-only workflow experiments
 .github/workflows/monthly_alias_refresh.yml
+
+# Agent / local scratch at repo root (see docs/archive/repo_scratch/README.md)
+/.tmp_*
+/_*
+/.phase4_final/
+docs/archive/repo_scratch/20*/
+
+# Cloudflare Wrangler dev/build cache
+workers/**/.wrangler/
