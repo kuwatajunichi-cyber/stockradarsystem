@@ -1,11 +1,10 @@
 schema_version: 1
 phase: p1_hardening
-last_updated_utc: '2026-07-17T08:22:16Z'
+last_updated_utc: '2026-07-22T11:33:18Z'
 overall_status: closed
 implementation_snapshot:
-  note: 'P1 PR #127-#131 merged to main. Post-merge daily success on cc7910e (run
-    29565078632). Final stale reconcile via control_plane_cli (36h threshold) cleared
-    last running row.'
+  note: 'P1 PR #127-#131 merged to main. Latest scheduled daily success: run 29897774884
+    (2026-07-22 Cron, head 867e9d1).'
 p1_final_merge_commit: f19f587e4ad169a81e5ce00ea56650fe9c7fc055
 stale_before_snapshot_ref: docs/operations/issue93_p1_baseline_snapshot.yaml
 stale_after_snapshot_ref: docs/operations/issue93_p1_after_reconcile_snapshot.yaml
@@ -14,7 +13,7 @@ stale_running_before: 35
 stale_running_after: 0
 reconcile_applied_at_utc: '2026-07-17T08:02:55Z'
 stale_reconcile_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29565078632
-daily_live_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29565078632
+daily_live_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29897774884
 pytest_ci_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29552575048
 local_verification:
   pytest_ci_subset_passed: true
