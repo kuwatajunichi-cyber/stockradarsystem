@@ -2,7 +2,7 @@
 
 GitHub Issue: [#93](https://github.com/kuwatajunichi-cyber/stockradarsystem/issues/93)
 
-**改訂日:** 2026-07-15
+**改訂日:** 2026-07-22
 **SSOT:** 詳細正本。Issue #93 本文は要約 + リンク。
 
 設計根拠: [ADR-003](../adr/adr-003-r2-supabase-control-blob-split.md)
@@ -13,7 +13,7 @@ GitHub Issue: [#93](https://github.com/kuwatajunichi-cyber/stockradarsystem/issu
 |-------|--------|------|
 | 0-2c | 契約 / Cron / R2 artifact bus | 完了 |
 | 3c | warm cache + Supabase | **gate CLOSED** (2026-07-10) |
-| 4 | 月次 + publish + runs + Cron | **gate CLOSED** (2026-07-15) |
+| 4 | 月次 + publish + runs + Cron | **gate CLOSED** (2026-07-22) |
 | 4.5 | 派生 warm cache | ADR-004 |
 | 5 | entitlements + observability | 計画 |
 
@@ -30,7 +30,7 @@ Phase 3c gate CLOSED（runbook 記録済）。Issue #93 は Phase 4.5/5 が残�
 | **P2** | Phase 4.5 と同時 | bus CLI Fake test、daily publish/finalize 契約、storage mypy、migration baseline |
 | **P3** | Phase 5 | Auth/entitlement に基づく細粒度 RLS、API、heartbeat、distribution |
 
-P0 は現在の匿名変更可能性を遮断する防御であり、Phase 5 の利用者別認可とは分離する。P0 gate CLOSED（2026-07-16）。P1 未完了のまま Phase 4.5 の新規 cache writer 実装へ進まない。
+P0 は現在の匿名変更可能性を遮断する防御であり、Phase 5 の利用者別認可とは分離する。P0 gate CLOSED（2026-07-16）。P1 gate CLOSED（2026-07-17）。Phase 4.5 着手可能。
 
 ## Phase 4（2026-07-08 決定: 単体フェーズ）
 
@@ -53,7 +53,7 @@ Out: 派生 cache(4.5), auth(5), published/統一(5), cleanup Cron(5+)。
 
 ## 受け入れ条件
 
-AC-1,5,6,7,10 完了。AC-9→Phase5。AC-2,3,4,8 部分。Phase 4 後監査の P0 は完了（2026-07-16）。P1 は Phase 4.5 着手前に是正。
+AC-1,5,6,7,10 完了。AC-9→Phase5。AC-2,3,4,8 部分。Phase 4 後監査の P0 gate CLOSED（2026-07-16）。P1 gate CLOSED（2026-07-17）。
 
 ## Ops Hardening
 
@@ -63,6 +63,7 @@ Worker deploy gate, migration 記録, artifact_index.created_at_utc, contract st
 
 2026-07-08 初版。
 2026-07-15 Phase 4 gate CLOSED および post-gate 監査・是正順序を追記。
+2026-07-22 Phase 4 gate 監査是正（PR-4-2 merge CI 失敗記録・corrective evidence 追加）および P1 closed 反映。
 
 ## 決定事項（2026-07-08 追記）
 

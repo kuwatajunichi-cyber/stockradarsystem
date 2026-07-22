@@ -36,6 +36,26 @@ def test_phase4_roadmap_matches_gate_status() -> None:
     assert violations == [], "\n".join(violations)
 
 
+def _apply_merged_gate_defaults(gate: dict, gate_id: str) -> None:
+    gate["status"] = "merged_and_verified"
+    gate["merge_commit"] = "abc1234567890abcd"
+    gate["merge_ci_run_url"] = "https://example.com/ci"
+    gate["pytest_ci_pass_on_merge"] = True
+    for field in (
+        "corrective_merge_commit",
+        "corrective_ci_run_url",
+        "merge_ci_failure_reason",
+    ):
+        gate.pop(field, None)
+    if gate_id == "pr-4-1-ddl":
+        gate["u1_ddl_applied"] = True
+        gate["u1_evidence_url"] = "https://example.com/u1"
+    if gate_id == "pr-4-3-resolve-4b":
+        gate["live_gate_4b_evidence_url"] = "https://example.com/4b"
+    if gate_id == "pr-4-6b-cutover":
+        gate["u3_wrangler_deploy_evidence_url"] = "https://example.com/u3"
+
+
 @pytest.mark.unit
 def test_phase4_gate_status_allows_legitimate_closure_fixture() -> None:
     data = _load_gate_status()
@@ -43,16 +63,7 @@ def test_phase4_gate_status_allows_legitimate_closure_fixture() -> None:
     good["overall_status"] = "closed"
     good["roadmap"]["phase4_status_phrase"] = "gate CLOSED"
     for gate_id, gate in good["pr_gates"].items():
-        gate["status"] = "merged_and_verified"
-        gate["merge_commit"] = "abc1234567890abcd"
-        gate["pytest_ci_pass_on_merge"] = True
-        if gate_id == "pr-4-1-ddl":
-            gate["u1_ddl_applied"] = True
-            gate["u1_evidence_url"] = "https://example.com/u1"
-        if gate_id == "pr-4-3-resolve-4b":
-            gate["live_gate_4b_evidence_url"] = "https://example.com/4b"
-        if gate_id == "pr-4-6b-cutover":
-            gate["u3_wrangler_deploy_evidence_url"] = "https://example.com/u3"
+        _apply_merged_gate_defaults(gate, gate_id)
     good["live_gate_4c"]["status"] = "closed"
     good["live_gate_4c"]["closed_at_utc"] = "2026-07-10T00:00:00Z"
     for key in (
@@ -73,6 +84,7 @@ def test_merged_and_verified_requires_user_gate_evidence() -> None:
     gate = bad["pr_gates"]["pr-4-1-ddl"]
     gate["status"] = "merged_and_verified"
     gate["merge_commit"] = "abc123"
+    gate["merge_ci_run_url"] = "https://example.com/ci"
     gate["pytest_ci_pass_on_merge"] = True
     gate["u1_ddl_applied"] = False
     gate["u1_evidence_url"] = None
@@ -95,6 +107,7 @@ def test_merged_and_verified_pr_4_3_requires_4b_evidence() -> None:
     gate = bad["pr_gates"]["pr-4-3-resolve-4b"]
     gate["status"] = "merged_and_verified"
     gate["merge_commit"] = "abc123"
+    gate["merge_ci_run_url"] = "https://example.com/ci"
     gate["pytest_ci_pass_on_merge"] = True
     gate["live_gate_4b_evidence_url"] = None
     violations = validate_gate_status_document(bad)
@@ -107,6 +120,7 @@ def test_merged_and_verified_rejects_non_url_evidence() -> None:
     gate = bad["pr_gates"]["pr-4-1-ddl"]
     gate["status"] = "merged_and_verified"
     gate["merge_commit"] = "abc123"
+    gate["merge_ci_run_url"] = "https://example.com/ci"
     gate["pytest_ci_pass_on_merge"] = True
     gate["u1_ddl_applied"] = True
     gate["u1_evidence_url"] = "TBD"
@@ -123,6 +137,7 @@ def test_closed_overall_status_rejects_in_progress_roadmap_phrase() -> None:
     for gate in bad["pr_gates"].values():
         gate["status"] = "merged_and_verified"
         gate["merge_commit"] = "abc123"
+        gate["merge_ci_run_url"] = "https://example.com/ci"
         gate["pytest_ci_pass_on_merge"] = True
     bad["live_gate_4c"]["status"] = "closed"
     bad["live_gate_4c"]["closed_at_utc"] = "2026-07-01T00:00:00Z"
@@ -143,6 +158,7 @@ def test_merged_and_verified_rejects_non_sha_merge_commit() -> None:
     gate = bad["pr_gates"]["pr-4-1-ddl"]
     gate["status"] = "merged_and_verified"
     gate["merge_commit"] = "TBD"
+    gate["merge_ci_run_url"] = "https://example.com/ci"
     gate["pytest_ci_pass_on_merge"] = True
     violations = validate_gate_status_document(bad)
     assert any("SHA-shaped merge_commit" in v for v in violations)
@@ -155,16 +171,7 @@ def test_live_gate_closed_rejects_non_url_run_evidence() -> None:
     bad["overall_status"] = "closed"
     bad["roadmap"]["phase4_status_phrase"] = "完了"
     for gate_id, gate in bad["pr_gates"].items():
-        gate["status"] = "merged_and_verified"
-        gate["merge_commit"] = "abc1234567890abcd"
-        gate["pytest_ci_pass_on_merge"] = True
-        if gate_id == "pr-4-1-ddl":
-            gate["u1_ddl_applied"] = True
-            gate["u1_evidence_url"] = "https://example.com/u1"
-        if gate_id == "pr-4-3-resolve-4b":
-            gate["live_gate_4b_evidence_url"] = "https://example.com/4b"
-        if gate_id == "pr-4-6b-cutover":
-            gate["u3_wrangler_deploy_evidence_url"] = "https://example.com/u3"
+        _apply_merged_gate_defaults(gate, gate_id)
     bad["live_gate_4c"]["status"] = "closed"
     bad["live_gate_4c"]["closed_at_utc"] = "2026-07-10T00:00:00Z"
     for key in (
@@ -200,3 +207,54 @@ def test_roadmap_rejects_trailing_qualifiers_when_closed() -> None:
     roadmap = "| 4 | Phase 4 | **gate CLOSED** (未マージヮlive gate 未達) |"
     violations = validate_roadmap_against_gate_status(roadmap, bad)
     assert any("must not claim in-progress when overall_status is closed" in v for v in violations)
+
+
+@pytest.mark.unit
+def test_merged_and_verified_requires_merge_ci_run_url() -> None:
+    data = _load_gate_status()
+    bad = copy.deepcopy(data)
+    gate = bad["pr_gates"]["pr-4-4-publish-runs"]
+    gate["merge_ci_run_url"] = None
+    violations = validate_gate_status_document(bad)
+    assert any("merge_ci_run_url" in v for v in violations)
+
+
+@pytest.mark.unit
+def test_merged_and_verified_failed_merge_requires_corrective_evidence() -> None:
+    data = _load_gate_status()
+    bad = copy.deepcopy(data)
+    gate = bad["pr_gates"]["pr-4-2-monthly-shadow"]
+    gate["pytest_ci_pass_on_merge"] = False
+    gate["corrective_merge_commit"] = None
+    gate["corrective_ci_run_url"] = None
+    gate["merge_ci_failure_reason"] = None
+    violations = validate_gate_status_document(bad)
+    assert any("corrective_merge_commit" in v for v in violations)
+    assert any("corrective_ci_run_url" in v for v in violations)
+    assert any("merge_ci_failure_reason" in v for v in violations)
+
+
+@pytest.mark.unit
+def test_merged_and_verified_pass_rejects_corrective_fields() -> None:
+    data = _load_gate_status()
+    bad = copy.deepcopy(data)
+    gate = bad["pr_gates"]["pr-4-1-ddl"]
+    gate["corrective_merge_commit"] = "abc1234567890abcd"
+    violations = validate_gate_status_document(bad)
+    assert any("pytest_ci_pass_on_merge true must not set corrective_merge_commit" in v for v in violations)
+
+
+@pytest.mark.unit
+def test_merged_and_verified_allows_corrective_evidence_fixture() -> None:
+    data = _load_gate_status()
+    good = copy.deepcopy(data)
+    gate = good["pr_gates"]["pr-4-2-monthly-shadow"]
+    gate["status"] = "merged_and_verified"
+    gate["merge_commit"] = "cd0e2e884418769efcf2186f22da7617946f26d0"
+    gate["merge_ci_run_url"] = "https://example.com/failed"
+    gate["pytest_ci_pass_on_merge"] = False
+    gate["merge_ci_failure_reason"] = "job_integration mismatch"
+    gate["corrective_merge_commit"] = "37f618e3f9defe9614d6759a1ed5bf2fa572e664"
+    gate["corrective_ci_run_url"] = "https://example.com/corrective"
+    violations = validate_gate_status_document(good)
+    assert violations == [], "\n".join(violations)

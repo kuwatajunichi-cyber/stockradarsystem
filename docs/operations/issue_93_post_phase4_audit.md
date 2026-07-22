@@ -86,7 +86,7 @@ P0 は「未認証主体を遮断する防御」、P3 は「認証済み利用�
 
 ## Phase 4 gate との関係
 
-本監査所見は Phase 4 live gate 証拠を否定しないため、`phase4_gate_status.yaml` の `overall_status: closed` は変更しない。是正は Phase 4 post-gate hardening として追跡し、P0 gate CLOSED（2026-07-16）。P1 未完了のまま Phase 4.5 の新規 writer 実装へ進まない。
+本監査所見は Phase 4 live gate 証拠を否定しない。2026-07-22 ゲート監査で PR-4-2 merge CI 失敗を SSOT に正直記録し、corrective evidence で再検証済み。是正は Phase 4 post-gate hardening として追跡し、P0 gate CLOSED（2026-07-16）。P1 gate CLOSED（2026-07-17）。Phase 4.5 着手可能。
 ## P0 hardening progress (2026-07-16)
 
 - Migration: `supabase/migrations/003_p0_control_plane_hardening.sql`
@@ -99,3 +99,13 @@ P0 は「未認証主体を遮断する防御」、P3 は「認証済み利用�
 - Post-merge live gates (2026-07-15): patch [29439142426](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29439142426) success; monthly [29439147108](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29439147108) success (`commit_jpx_url_cache` via put-jpx-url); daily replay [29448723855](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29448723855) success (`run_date=2026-07-15`, `force_index=true`)
 - Initial daily dispatches [29439144924](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29439144924) / [29444244349](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29444244349) failed on `ensure_index_cache` stale (operational; replay satisfies gate)
 - SSOT: `docs/operations/issue93_p0_hardening_status.yaml` (`closed`)
+
+## P1 hardening progress (2026-07-17)
+
+- PR stack: #127–#131 merged to main (final merge `f19f587`)
+- Terminal semantics: enrichment failure/cancelled no longer masked as skipped
+- GHA conclusion sync: terminal `failed` propagates to workflow exit code
+- Stale `running` reconcile: 35 → 0 rows ([run 29565078632](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29565078632))
+- Publish mismatch fail-fast: committed hash mismatch exits 2 without R2 put
+- Latest scheduled daily success: [run 29897774884](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/29897774884) (2026-07-22)
+- SSOT: `docs/operations/issue93_p1_hardening_status.yaml` (`closed`)
