@@ -44,8 +44,60 @@ _USER_GATE_RULES: dict[str, tuple[tuple[str, bool], ...]] = {
 }
 
 
+_CORRECTIVE_EVIDENCE_FIELDS = (
+    "corrective_merge_commit",
+    "corrective_ci_run_url",
+    "merge_ci_failure_reason",
+)
+
+
+def _validate_merged_pr_ci_evidence(gate_id: str, gate: dict[str, Any]) -> list[str]:
+    violations: list[str] = []
+    merge_ci_url = gate.get("merge_ci_run_url")
+    if not isinstance(merge_ci_url, str) or not _EVIDENCE_URL_RE.match(merge_ci_url.strip()):
+        violations.append(
+            f"pr_gates.{gate_id}: merged_and_verified requires URL-shaped merge_ci_run_url"
+        )
+
+    ci_pass = gate.get("pytest_ci_pass_on_merge")
+    if ci_pass is True:
+        for field in _CORRECTIVE_EVIDENCE_FIELDS:
+            if gate.get(field):
+                violations.append(
+                    f"pr_gates.{gate_id}: pytest_ci_pass_on_merge true must not set {field}"
+                )
+    elif ci_pass is False:
+        reason = gate.get("merge_ci_failure_reason")
+        if not isinstance(reason, str) or not reason.strip():
+            violations.append(
+                f"pr_gates.{gate_id}: pytest_ci_pass_on_merge false requires merge_ci_failure_reason"
+            )
+        corrective_commit = gate.get("corrective_merge_commit")
+        if not isinstance(corrective_commit, str) or not _MERGE_COMMIT_SHA_RE.match(
+            corrective_commit.strip()
+        ):
+            violations.append(
+                f"pr_gates.{gate_id}: pytest_ci_pass_on_merge false requires "
+                "SHA-shaped corrective_merge_commit"
+            )
+        corrective_url = gate.get("corrective_ci_run_url")
+        if not isinstance(corrective_url, str) or not _EVIDENCE_URL_RE.match(
+            corrective_url.strip()
+        ):
+            violations.append(
+                f"pr_gates.{gate_id}: pytest_ci_pass_on_merge false requires "
+                "URL-shaped corrective_ci_run_url"
+            )
+    else:
+        violations.append(
+            f"pr_gates.{gate_id}: merged_and_verified requires pytest_ci_pass_on_merge true or false"
+        )
+    return violations
+
+
 def _validate_merged_pr_gate(gate_id: str, gate: dict[str, Any]) -> list[str]:
     violations: list[str] = []
+    violations.extend(_validate_merged_pr_ci_evidence(gate_id, gate))
     for field, must_be_true in _USER_GATE_RULES.get(gate_id, ()):
         value = gate.get(field)
         if must_be_true:
@@ -92,10 +144,6 @@ def validate_gate_status_document(data: dict[str, Any]) -> list[str]:
             merge_commit = gate.get("merge_commit")
             if not isinstance(merge_commit, str) or not _MERGE_COMMIT_SHA_RE.match(merge_commit.strip()):
                 violations.append(f"pr_gates.{gate_id}: merged_and_verified requires SHA-shaped merge_commit")
-            if gate.get("pytest_ci_pass_on_merge") is not True:
-                violations.append(
-                    f"pr_gates.{gate_id}: merged_and_verified requires pytest_ci_pass_on_merge: true"
-                )
             violations.extend(_validate_merged_pr_gate(gate_id, gate))
 
     live = data.get("live_gate_4c")
