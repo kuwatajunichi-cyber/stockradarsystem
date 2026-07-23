@@ -71,6 +71,7 @@ CREATE TRIGGER derived_object_index_insert_pending_only
 CREATE OR REPLACE FUNCTION public.enforce_metric_set_members_insert_draft_set()
 RETURNS TRIGGER
 LANGUAGE plpgsql
+SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
@@ -224,6 +225,16 @@ BEGIN
       AND tgrelid = 'public.metric_set_members'::regclass
   ) THEN
     RAISE EXCEPTION 'Phase 4.5 check failed: metric_set_members_insert_draft_set_only trigger missing';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'enforce_metric_set_members_insert_draft_set'
+      AND p.prosecdef
+  ) THEN
+    RAISE EXCEPTION 'Phase 4.5 check failed: enforce_metric_set_members_insert_draft_set must be SECURITY DEFINER';
   END IF;
 
   IF NOT has_function_privilege(

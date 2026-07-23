@@ -106,7 +106,10 @@ def test_phase45_hardening_metric_set_members_draft_only(migration_005: str) -> 
     assert "enforce_metric_set_members_insert_draft_set" in migration_005
     assert "metric_set_members_insert_draft_set_only" in migration_005
     assert "metric_set_members insert requires draft set" in migration_005
-    assert "FOR UPDATE" in migration_005.split("enforce_metric_set_members_insert_draft_set")[1].split("REVOKE ALL ON FUNCTION public.enforce_metric_set_members")[0]
+    member_fn = migration_005.split("enforce_metric_set_members_insert_draft_set")[1].split("$$;")[0]
+    assert "FOR UPDATE" in member_fn
+    assert "SECURITY DEFINER" in member_fn
+    assert "enforce_metric_set_members_insert_draft_set must be SECURITY DEFINER" in migration_005
 
 
 def test_phase45_hardening_latest_projection_select_only(migration_005: str) -> None:
