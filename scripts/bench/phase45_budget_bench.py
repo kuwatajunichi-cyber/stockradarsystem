@@ -45,27 +45,39 @@ def generate_daily_parquet_bytes(
     metrics: int,
     trading_days: int,
     seed: int,
-) -> tuple[bytes, str]:
+) -> tuple[int, str]:
     rng = np.random.default_rng(seed)
     dates = pd.bdate_range(end=date.today(), periods=trading_days)
-    rows = []
-    for sym_idx in range(symbols):
-        code = f"{7200 + sym_idx:04d}"
-        for d in dates:
+    total_bytes = 0
+    per_day_sizes: list[int] = []
+    for d in dates:
+        rows = []
+        for sym_idx in range(symbols):
+            code = f"{7200 + sym_idx:04d}"
             row = {"instrument_code": code, "trade_date": d.date().isoformat()}
             for m in range(metrics):
                 row[f"metric_{m:02d}"] = float(rng.uniform(0, 100))
             rows.append(row)
-    df = pd.DataFrame(rows)
-    path = Path("_tmp_bench.parquet")
-    try:
-        df.to_parquet(path, index=False)
-        data = path.read_bytes()
-    finally:
-        if path.exists():
-            path.unlink()
-    digest = _logical_digest({"rows": len(df), "cols": list(df.columns), "seed": seed})
-    return len(data), digest
+        df = pd.DataFrame(rows)
+        path = Path("_tmp_bench.parquet")
+        try:
+            df.to_parquet(path, index=False)
+            day_bytes = len(path.read_bytes())
+        finally:
+            if path.exists():
+                path.unlink()
+        per_day_sizes.append(day_bytes)
+        total_bytes += day_bytes
+    digest = _logical_digest(
+        {
+            "per_day_files": len(per_day_sizes),
+            "per_day_bytes_sum": total_bytes,
+            "symbols": symbols,
+            "metrics": metrics,
+            "seed": seed,
+        }
+    )
+    return total_bytes, digest
 
 
 def generate_series_gzip_bytes(*, trading_days: int, metrics: int, seed: int) -> bytes:
@@ -120,6 +132,7 @@ def build_report(
         },
         "bytes": {
             "snapshots_parquet_total": parquet_bytes,
+            "snapshots_parquet_per_trade_date": trading_days,
             "series_gzip_total": series_total,
             "r2_one_year": r2_one_year,
             "r2_total": r2_total,

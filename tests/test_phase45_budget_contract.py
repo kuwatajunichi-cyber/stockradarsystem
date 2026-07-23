@@ -64,3 +64,20 @@ def test_series_fixture_uses_representative_floats() -> None:
         assert len(vals) == 50
         diffs = {round(vals[i + 1] - vals[i], 6) for i in range(len(vals) - 1)}
         assert len(diffs) > 1
+
+
+def test_daily_snapshots_measured_per_trade_date() -> None:
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("phase45_budget_bench", _BENCH)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    one_day, _ = mod.generate_daily_parquet_bytes(
+        symbols=10, metrics=5, trading_days=1, seed=7
+    )
+    three_days, _ = mod.generate_daily_parquet_bytes(
+        symbols=10, metrics=5, trading_days=3, seed=7
+    )
+    assert three_days > one_day
+    assert three_days >= one_day * 3
