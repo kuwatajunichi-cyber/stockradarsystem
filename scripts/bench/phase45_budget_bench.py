@@ -6,6 +6,7 @@ import gzip
 import hashlib
 import json
 import subprocess
+import tempfile
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -59,13 +60,14 @@ def generate_daily_parquet_bytes(
                 row[f"metric_{m:02d}"] = float(rng.uniform(0, 100))
             rows.append(row)
         df = pd.DataFrame(rows)
-        path = Path("_tmp_bench.parquet")
+        with tempfile.NamedTemporaryFile(suffix=".parquet", delete=False) as tmp:
+            tmp_path = Path(tmp.name)
         try:
-            df.to_parquet(path, index=False)
-            day_bytes = len(path.read_bytes())
+            df.to_parquet(tmp_path, index=False)
+            day_bytes = len(tmp_path.read_bytes())
         finally:
-            if path.exists():
-                path.unlink()
+            if tmp_path.exists():
+                tmp_path.unlink()
         per_day_sizes.append(day_bytes)
         total_bytes += day_bytes
     digest = _logical_digest(

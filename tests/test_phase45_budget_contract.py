@@ -81,3 +81,9 @@ def test_daily_snapshots_measured_per_trade_date() -> None:
     )
     assert three_days > one_day
     assert three_days >= one_day * 3
+
+
+def test_daily_parquet_uses_unique_temp_paths() -> None:
+    source = _BENCH.read_text(encoding="utf-8")
+    assert "_tmp_bench.parquet" not in source
+    assert "NamedTemporaryFile" in source
