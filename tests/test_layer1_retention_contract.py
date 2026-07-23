@@ -87,6 +87,16 @@ def test_calendar_days_for_trading_days() -> None:
     assert calendar_days_for_trading_days(772) >= 1200
 
 
+def test_trading_day_cutoff_uses_jpx_aware_calendar_span() -> None:
+    from datetime import date
+
+    run = date(2026, 7, 1)
+    cutoff = trading_day_cutoff_date(run, retention_trading_days=1250)
+    span = (run - cutoff).days
+    assert span == calendar_days_for_trading_days(1250)
+    assert span > 1760
+
+
 def test_empty_rs_windows_env_falls_back_to_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("RS_WINDOWS", ",")
     assert compute_layer1_required_trading_days() >= 772
