@@ -208,10 +208,27 @@ BEGIN
   IF v_current IS DISTINCT FROM p_expected_set_id THEN
     RAISE EXCEPTION 'active_metric_set_cas_conflict: expected % current %', p_expected_set_id, v_current;
   END IF;
+  IF v_current = p_new_set_id THEN
+    UPDATE active_metric_set SET
+      writer_workflow = p_writer_workflow,
+      source_github_run_id = p_source_github_run_id,
+      updated_at_utc = now()
+    WHERE pointer_key = 'default';
+    RETURN p_new_set_id;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM metric_set_versions
+    WHERE id = p_new_set_id AND lifecycle_status IN ('shadow', 'retired')
+  ) THEN
+    RAISE EXCEPTION 'activate_metric_set_cas: set % not activatable (requires shadow or retired)', p_new_set_id;
+  END IF;
   UPDATE metric_set_versions SET lifecycle_status = 'retired'
   WHERE lifecycle_status = 'active' AND id IS DISTINCT FROM p_new_set_id;
   UPDATE metric_set_versions SET lifecycle_status = 'active'
   WHERE id = p_new_set_id AND lifecycle_status IN ('shadow', 'retired');
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'activate_metric_set_cas: failed to activate %', p_new_set_id;
+  END IF;
   INSERT INTO active_metric_set (pointer_key, metric_set_version_id, writer_workflow, source_github_run_id, updated_at_utc)
   VALUES ('default', p_new_set_id, p_writer_workflow, p_source_github_run_id, now())
   ON CONFLICT (pointer_key) DO UPDATE SET

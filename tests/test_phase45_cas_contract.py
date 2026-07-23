@@ -94,3 +94,24 @@ def test_cas_retires_all_active_sets() -> None:
     assert store.metric_set_versions[stale_a]["lifecycle_status"] == "retired"
     assert store.metric_set_versions[stale_b]["lifecycle_status"] == "retired"
     assert store.metric_set_versions[new_id]["lifecycle_status"] == "active"
+
+
+def test_cas_rejects_draft_activation() -> None:
+    store = FakeMetricRegistryStore()
+    active_id = store.seed_set(lifecycle="shadow")
+    store.activate_metric_set_cas(
+        expected_set_id=None,
+        new_set_id=active_id,
+        writer_workflow="test",
+        source_github_run_id=1,
+    )
+    draft_id = store.seed_set(lifecycle="draft")
+    with pytest.raises(RuntimeError, match="not activatable"):
+        store.activate_metric_set_cas(
+            expected_set_id=active_id,
+            new_set_id=draft_id,
+            writer_workflow="test",
+            source_github_run_id=2,
+        )
+    assert store.get_active_metric_set_id() == active_id
+    assert store.metric_set_versions[active_id]["lifecycle_status"] == "active"

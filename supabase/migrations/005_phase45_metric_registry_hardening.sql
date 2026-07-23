@@ -30,7 +30,7 @@ GRANT SELECT, INSERT ON TABLE public.metric_set_versions TO service_role;
 GRANT SELECT, INSERT ON TABLE public.metric_set_members TO service_role;
 GRANT SELECT ON TABLE public.active_metric_set TO service_role;
 GRANT SELECT, INSERT ON TABLE public.derived_object_index TO service_role;
-GRANT SELECT, INSERT, UPDATE ON TABLE public.latest_derived_observations TO service_role;
+GRANT SELECT ON TABLE public.latest_derived_observations TO service_role;
 
 CREATE OR REPLACE FUNCTION public.enforce_metric_set_versions_insert_draft()
 RETURNS TRIGGER
@@ -190,6 +190,16 @@ BEGIN
   END IF;
   IF NOT has_table_privilege('service_role', 'public.derived_object_index', 'INSERT') THEN
     RAISE EXCEPTION 'Phase 4.5 check failed: service_role missing INSERT on derived_object_index';
+  END IF;
+
+  IF has_table_privilege('service_role', 'public.latest_derived_observations', 'INSERT') THEN
+    RAISE EXCEPTION 'Phase 4.5 check failed: service_role must not INSERT public.latest_derived_observations';
+  END IF;
+  IF has_table_privilege('service_role', 'public.latest_derived_observations', 'UPDATE') THEN
+    RAISE EXCEPTION 'Phase 4.5 check failed: service_role must not UPDATE public.latest_derived_observations';
+  END IF;
+  IF NOT has_table_privilege('service_role', 'public.latest_derived_observations', 'SELECT') THEN
+    RAISE EXCEPTION 'Phase 4.5 check failed: service_role missing SELECT on latest_derived_observations';
   END IF;
 
   IF NOT EXISTS (

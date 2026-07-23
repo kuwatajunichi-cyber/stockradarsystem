@@ -64,6 +64,11 @@ def test_phase45_migration_cas_activation_requires_shadow_or_retired(migration_0
     assert "lifecycle_status IN ('draft', 'shadow', 'retired')" not in migration_004
 
 
+def test_phase45_migration_cas_validates_before_retire(migration_004: str) -> None:
+    assert "not activatable (requires shadow or retired)" in migration_004
+    assert "failed to activate" in migration_004
+
+
 def test_phase45_hardening_enables_rls(migration_005: str) -> None:
     for table in _PHASE45_TABLES:
         assert f"ALTER TABLE public.{table} ENABLE ROW LEVEL SECURITY;" in migration_005
@@ -102,6 +107,12 @@ def test_phase45_hardening_metric_set_members_draft_only(migration_005: str) -> 
     assert "metric_set_members_insert_draft_set_only" in migration_005
     assert "metric_set_members insert requires draft set" in migration_005
     assert "FOR UPDATE" in migration_005.split("enforce_metric_set_members_insert_draft_set")[1].split("REVOKE ALL ON FUNCTION public.enforce_metric_set_members")[0]
+
+
+def test_phase45_hardening_latest_projection_select_only(migration_005: str) -> None:
+    assert "GRANT SELECT ON TABLE public.latest_derived_observations TO service_role;" in migration_005
+    assert "GRANT SELECT, INSERT, UPDATE ON TABLE public.latest_derived_observations" not in migration_005
+    assert "service_role must not INSERT public.latest_derived_observations" in migration_005
 
 
 def test_phase45_hardening_rpc_revoke(migration_005: str) -> None:

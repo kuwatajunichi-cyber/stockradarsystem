@@ -44,6 +44,11 @@ class FakeMetricRegistryStore:
             }
             return
         new_row = self.metric_set_versions[new_set_id]
+        if new_row.get("lifecycle_status") not in ("shadow", "retired"):
+            raise RuntimeError(
+                f"set {new_set_id!r} not activatable (requires shadow or retired)"
+            )
+        new_row = self.metric_set_versions[new_set_id]
         new_row["lifecycle_status"] = "active"
         for sid, row in self.metric_set_versions.items():
             if sid != new_set_id and row.get("lifecycle_status") == "active":
