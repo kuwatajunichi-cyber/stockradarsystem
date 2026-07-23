@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generator_git_sha": "7b3afb5ecf0af939af0771c814557c7c4742b0e7",
+  "generator_git_sha": "3b5429f7cd86cc65df089bb6d979c66a66b3c623",
   "generator_seed": 42,
   "scale": "ci",
   "counts": {
@@ -10,20 +10,21 @@
     "latest_rows": 30
   },
   "bytes": {
-    "snapshots_parquet_total": 227937,
-    "series_gzip_total": 12630,
-    "r2_one_year": 240567,
-    "r2_total": 4811340,
+    "snapshots_parquet_total": 670050,
+    "snapshots_parquet_per_trade_date": 25,
+    "series_gzip_total": 221340,
+    "r2_one_year": 891390,
+    "r2_total": 17827800,
     "latest_projection": 15360,
     "layer1_r2": 0
   },
   "digests": {
-    "parquet_logical": "d8693d3dd92164f9270e2a3486dc4a08a150b77ffbb98368f4ef046c8c5e355a"
+    "parquet_logical": "71468c774861aeb20c4e2eacb687339dc1dc58dff4a0866e302b2243a2d7c0e9"
   },
   "verdict": {
     "within_free_tier": true,
     "notes": [
-      "layer1_r2: 0 (deferred — pass --layer1-r2-bytes from Layer 1 PoC for full-scale budget)"
+      "layer1_r2: 0 (deferred \u2014 pass --layer1-r2-bytes from Layer 1 PoC for full-scale budget)"
     ]
   }
 }
