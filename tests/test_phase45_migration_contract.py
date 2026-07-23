@@ -1,0 +1,71 @@
+"""Contract: Phase 4.5 migration SQL must match registry plan."""
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+pytestmark = pytest.mark.unit
+
+_REPO = Path(__file__).resolve().parents[1]
+_M004 = _REPO / "supabase" / "migrations" / "004_phase45_metric_registry.sql"
+_M005 = _REPO / "supabase" / "migrations" / "005_phase45_metric_registry_hardening.sql"
+
+_PHASE45_TABLES = (
+    "metric_definitions",
+    "metric_versions",
+    "metric_set_versions",
+    "metric_set_members",
+    "active_metric_set",
+    "derived_object_index",
+    "latest_derived_observations",
+)
+
+_COMMIT_DERIVED_SIG = "commit_derived_object(uuid, text, bigint, text)"
+_TRANSITION_SET_SIG = "transition_metric_set(uuid, text, text)"
+_ACTIVATE_CAS_SIG = "activate_metric_set_cas(uuid, uuid, text, bigint)"
+
+
+@pytest.fixture(name="migration_004")
+def fixture_migration_004() -> str:
+    raw = _M004.read_bytes()
+    if b"\x00" in raw:
+        return raw.decode("utf-16-le")
+    return raw.decode("utf-8")
+
+
+@pytest.fixture(name="migration_005")
+def fixture_migration_005() -> str:
+    raw = _M005.read_bytes()
+    if b"\x00" in raw:
+        return raw.decode("utf-16-le")
+    return raw.decode("utf-8")
+
+
+def test_phase45_migration_creates_all_tables(migration_004: str) -> None:
+    for table in _PHASE45_TABLES:
+        assert f"CREATE TABLE IF NOT EXISTS {table}" in migration_004
+
+
+def test_phase45_migration_rpc_signatures(migration_004: str) -> None:
+    assert "CREATE OR REPLACE FUNCTION commit_derived_object" in migration_004
+    assert "CREATE OR REPLACE FUNCTION transition_metric_set" in migration_004
+    assert "CREATE OR REPLACE FUNCTION activate_metric_set_cas" in migration_004
+    assert "GRANT EXECUTE ON FUNCTION activate_metric_set_cas" in migration_004
+
+
+def test_phase45_hardening_enables_rls(migration_005: str) -> None:
+    for table in _PHASE45_TABLES:
+        assert f"ALTER TABLE public.{table} ENABLE ROW LEVEL SECURITY;" in migration_005
+
+
+def test_phase45_hardening_revokes_anon(migration_005: str) -> None:
+    for table in _PHASE45_TABLES:
+        assert (
+            f"REVOKE ALL ON TABLE public.{table} FROM PUBLIC, anon, authenticated;" in migration_005
+        )
+
+
+def test_phase45_hardening_rpc_revoke(migration_005: str) -> None:
+    assert "REVOKE ALL ON FUNCTION public.activate_metric_set_cas(" in migration_005
+    assert "GRANT EXECUTE ON FUNCTION public.activate_metric_set_cas(" in migration_005

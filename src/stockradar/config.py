@@ -190,6 +190,35 @@ def get_buffer_days() -> int:
     return _env_int("BUFFER_DAYS", 20)
 
 
+def get_max_graph_window_days() -> int:
+    """Web UI グラフ最大窓（営業日）。環境変数 MAX_GRAPH_WINDOW_DAYS（default=500）。"""
+    return _env_int("MAX_GRAPH_WINDOW_DAYS", 500)
+
+
+def get_max_metric_lookback_days() -> int:
+    """指標計算の最大 lookback（営業日）。RS_WINDOWS と Z_LOOKBACK の max。"""
+    return max(max(get_rs_windows()), get_z_lookback_days())
+
+
+def compute_layer1_required_trading_days() -> int:
+    """
+    ADR-004: required_history = max_graph_window + max_metric_lookback + buffer
+    （max_metric_lookback は max(RS, Z) を単一値として加算）。
+    """
+    return get_max_graph_window_days() + get_max_metric_lookback_days() + get_buffer_days()
+
+
+def get_layer1_retention_years() -> int:
+    """Layer 1 保持年数目標。環境変数 LAYER1_RETENTION_YEARS（default=5）。"""
+    return _env_int("LAYER1_RETENTION_YEARS", 5)
+
+
+def compute_layer1_retention_trading_days(*, trading_days_per_year: int = 250) -> int:
+    """5年目標と required_history の max（営業日基準）。"""
+    five_year = get_layer1_retention_years() * trading_days_per_year
+    return max(five_year, compute_layer1_required_trading_days())
+
+
 def get_stale_retry_max_passes() -> int:
     """
     run_date 指定時、manifest が stale の銘柄に対する再試行を含めた最大パス数。

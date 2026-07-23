@@ -1,0 +1,60 @@
+"""CAS contract for metric registry (Phase 4.5 Blocker 3)."""
+from __future__ import annotations
+
+import pytest
+
+from stockradar.storage.metric_registry import ActiveMetricSetCasConflictError, FakeMetricRegistryStore
+
+pytestmark = pytest.mark.unit
+
+
+def test_cas_first_activation() -> None:
+    store = FakeMetricRegistryStore()
+    new_id = store.seed_set(lifecycle="shadow")
+    store.activate_metric_set_cas(
+        expected_set_id=None,
+        new_set_id=new_id,
+        writer_workflow="test",
+        source_github_run_id=1,
+    )
+    assert store.get_active_metric_set_id() == new_id
+
+
+def test_cas_conflict_no_mutation() -> None:
+    store = FakeMetricRegistryStore()
+    a = store.seed_set()
+    b = store.seed_set()
+    store.activate_metric_set_cas(
+        expected_set_id=None,
+        new_set_id=a,
+        writer_workflow="test",
+        source_github_run_id=1,
+    )
+    with pytest.raises(ActiveMetricSetCasConflictError):
+        store.activate_metric_set_cas(
+            expected_set_id=b,
+            new_set_id=b,
+            writer_workflow="test",
+            source_github_run_id=2,
+        )
+    assert store.get_active_metric_set_id() == a
+
+
+def test_cas_successful_switch() -> None:
+    store = FakeMetricRegistryStore()
+    a = store.seed_set()
+    b = store.seed_set()
+    store.activate_metric_set_cas(
+        expected_set_id=None,
+        new_set_id=a,
+        writer_workflow="test",
+        source_github_run_id=1,
+    )
+    store.activate_metric_set_cas(
+        expected_set_id=a,
+        new_set_id=b,
+        writer_workflow="test",
+        source_github_run_id=2,
+    )
+    assert store.get_active_metric_set_id() == b
+    assert store.metric_set_versions[a]["lifecycle_status"] == "retired"

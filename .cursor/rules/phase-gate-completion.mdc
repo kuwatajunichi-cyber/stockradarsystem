@@ -11,9 +11,10 @@ alwaysApply: true
 
 ## 正本（SSOT）
 
-- リポジトリ内: `docs/operations/phase4_gate_status.yaml`
+- リポジトリ内 Phase 4: `docs/operations/phase4_gate_status.yaml`
+- リポジトリ内 Phase 4.5: `docs/operations/phase4_5_gate_status.yaml`
 - ロードマップ: `docs/operations/issue_93_roadmap.md`（gate_status と整合必須）
-- プラン frontmatter `todos`: gate_status の `pr_gates` / `live_gate_4c` と **同一意味** であること
+- プラン frontmatter `todos`: gate_status の `pr_gates` / `live_gate_4c`（Phase 4）または `live_gate_45c`（Phase 4.5）と **同一意味** であること
 
 ## Agent が completed にしてよい条件
 
@@ -36,7 +37,7 @@ alwaysApply: true
 1. 進捗を主張する **前に** phase4_gate_status.yaml を更新する（local_only は未マージ明示用のみ）
 2. プラン frontmatter の status は gate_status と同期する
 3. ユーザーへの報告は gate_status の overall_status と矛盾させない
-4. 変更後 pytest tests/test_phase_gate_honesty_contract.py -v が Pass すること
+4. 変更後 pytest tests/test_phase_gate_honesty_contract.py tests/test_phase4_5_gate_honesty_contract.py -v が Pass すること
 
 ## ローカル実装のみの正しい表現
 

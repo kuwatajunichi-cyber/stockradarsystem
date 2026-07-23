@@ -4,9 +4,10 @@
 # Phase 2: artifact bus entries include structured optional; workflows use R2 runs/ staging.
 # Phase 2c: source_kind=artifact and source_name_pattern are legacy logical tokens only
 # (historical GitHub artifact names). Phase 2 daily bus handoff is R2-only; no GH upload/download.
-schema_version: 4
+schema_version: 5
 phase3_rollout_stage: "3c"
 phase4_rollout_stage: "4c"
+phase4_5_rollout_stage: "off"
 
 scan_workflows:
   - daily.yml

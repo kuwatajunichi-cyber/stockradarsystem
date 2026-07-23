@@ -10,6 +10,7 @@
 - **日次 replay（β 再現性）**: 同一の patch 後 core CSV・同一 OHLC／指数系列・同一算出設定であれば指標計算結果は決定的に再現する。JPX 廃止ページ・イベント取得の揺れは入力差として切り離す（詳細は `docs/contracts/daily_replay_and_monthly_universe.md`）。
 - 直列実行と並列実行（例: workers=1/2/4）で結果契約は同一である。
 - 成果物は安定キー（例: `code`）でソートし、出力順序を固定する。
+- **Phase 4.5 派生 snapshot**: 行順、列順、null / NaN、日付、float serialization を canonicalize した logical SHA-256 を一致条件とする。Parquet writer metadata / codec 差による object byte hash 差は、logical hash が一致する場合に限り許容する。
 
 ## 許容
 
@@ -20,3 +21,8 @@
 
 - 並列同値テスト（serial vs workers）を維持する。
 - 再実行冪等性テストを維持する。
+- 派生日次断面 CSV、daily snapshot、Web series projection の同日値と lineage 一致テストを維持する。
+
+## Phase 4.5 related
+
+- `docs/adr/adr-004-derived-indicators-warm-cache.md`

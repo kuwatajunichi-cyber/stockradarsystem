@@ -104,7 +104,7 @@ def cmd_put_fixed(args: argparse.Namespace) -> int:
 
     supabase = _adapter_supabase()
     if supabase is not None:
-        existing = supabase.get_cache_pointer(cache_key=JPX_CACHE_KEY)
+        existing = supabase.get_cache_pointer(cache_key=cache_key)
         if existing and str(existing.get("sha256") or "") == sha256:
             _emit({"status": "ok", "supabase_commit_ok": True, "object_key": object_key, "noop": True}, args.json_output)
             return 0

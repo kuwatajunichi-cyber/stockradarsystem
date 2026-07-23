@@ -64,7 +64,7 @@ Phase 4.5 着手ゲートへ、terminal semantics 修正、stale row backfill、
 - `src/stockradar/storage` の段階的 mypy 対象化
 - 本番 migration history に `001_phase3_control_plane` がない状態の baseline / drift 確認
 
-Phase 4.5 は `commit_fixed_cache` を再利用するため、既存 bus の Fake / 冪等性テストを同時に強化する。
+Phase 4.5 初版は `commit_fixed_cache` 再利用を想定したが、2026-07-22 の ADR-004 改訂で派生 snapshot は immutable key + logical digest を採用した。既存 bus の Fake / 冪等性テスト強化は P2 として継続するが、派生 snapshot の active commit に固定 key の last-write-wins を再利用しない。
 
 ### P3: Phase 5 に維持する工程
 
@@ -86,7 +86,43 @@ P0 は「未認証主体を遮断する防御」、P3 は「認証済み利用�
 
 ## Phase 4 gate との関係
 
-本監査所見は Phase 4 live gate 証拠を否定しない。2026-07-22 ゲート監査で PR-4-2 merge CI 失敗を SSOT に正直記録し、corrective evidence で再検証済み。是正は Phase 4 post-gate hardening として追跡し、P0 gate CLOSED（2026-07-16）。P1 gate CLOSED（2026-07-17）。Phase 4.5 着手可能。
+本監査所見は Phase 4 live gate 証拠を否定しない。2026-07-22 ゲート監査で PR-4-2 merge CI 失敗を SSOT に正直記録し、corrective evidence で再検証済み。是正は Phase 4 post-gate hardening として追跡し、P0 gate CLOSED（2026-07-16）。P1 gate CLOSED（2026-07-17）。Phase 4.5 は契約・PoC・pure logic に着手可能。本番 writer / active cutover は Phase 4.5 preflight 完了まで未承認。
+
+## Phase 4.5 設計再評価（2026-07-22）
+
+利用者が内部・少数の間はインフラ固定費を避け、利用者増加時に拡張する前提で ADR-004 を改訂した。
+
+主要変更:
+
+- 全期間単一 zip の固定 key 上書きを廃止。
+- R2 immutable daily Parquet を監査・再構築の正本とする。
+- Web UI 用に R2 銘柄×年 JSON gzip projection を持つ。
+- Supabase Free は metric registry、active set、R2 metadata、最新断面だけを保持する。
+- 指標追加・削除・式変更を immutable metric version / metric set で管理する。
+- active set は CAS、通常 mismatch は fail-fast、訂正は reconcile に分離する。
+
+再評価:
+
+- **推進判定:** 条件付き GO。
+- **許可範囲:** 契約、容量・backfill PoC、pure logic、Fake I/O、shadow。
+- **未承認:** 本番 shared writer、active cutover、Phase 4.5 CLOSED 報告。
+- **主要 blocker:** Layer 1 5 年保持、Free budget 実測、DDL/RLS/CAS、専用 gate SSOT、現行 `put-fixed` defect。
+
+リスク再評価:
+
+| リスク | 重大度 / 可能性 | 対策 / gate |
+|--------|-----------------|-------------|
+| 現行 730 暦日の Layer 1 では長期グラフ + RS252 の backfill に不足 | High / High | `graph window + lookback + buffer` で5年保持を PoC。取得元ポリシー、容量、時間を検証 |
+| 3,000 銘柄の当年 series 更新による R2 request / workflow 時間増 | Medium / Medium | bounded parallelism と shard 実測。月80万 Class A または job SLO 超過で設計見直し |
+| Supabase Free 500 MB と既存 control/Auth growth の競合 | High / Medium | latest only、350 MB warning、400 MB cleanup、全履歴 DB projection 禁止 |
+| metric version 増加による R2 容量・意味の混乱 | Medium / High | definition fingerprint、draft/shadow/active/retired、retired retention |
+| 日次 CSV と Web 系列の同日値不一致 | High / Medium | 同一 pure 関数、cross-artifact contract test、logical digest |
+| normal / replay / backfill / reconcile 混同による過去値書換え | High / Medium | entrypoint 分離、expected old digest、監査ログ |
+| Free plan の pause・性能・復旧制約 | Medium（内部）/ High（外部） | 内部・βに限定し、外部 SLO 導入前に Pro 移行 |
+| R2 series の無認可公開 | High / Medium | private bucket、Phase 5 API で entitlement 確認後に配信 |
+
+詳細仕様は [ADR-004](../adr/adr-004-derived-indicators-warm-cache.md)、進捗判定は [Issue #93 roadmap](issue_93_roadmap.md) を正本とする。
+
 ## P0 hardening progress (2026-07-16)
 
 - Migration: `supabase/migrations/003_p0_control_plane_hardening.sql`

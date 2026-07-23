@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "generator_git_sha": "7b3afb5ecf0af939af0771c814557c7c4742b0e7",
+  "generator_seed": 42,
+  "scale": "ci",
+  "counts": {
+    "symbols": 30,
+    "metrics": 30,
+    "trading_days": 25,
+    "latest_rows": 30
+  },
+  "bytes": {
+    "snapshots_parquet_total": 227937,
+    "series_gzip_total": 12630,
+    "r2_one_year": 240567,
+    "r2_total": 4811340,
+    "latest_projection": 15360,
+    "layer1_r2": 0
+  },
+  "digests": {
+    "parquet_logical": "d8693d3dd92164f9270e2a3486dc4a08a150b77ffbb98368f4ef046c8c5e355a"
+  },
+  "verdict": {
+    "within_free_tier": true,
+    "notes": []
+  }
+}
