@@ -118,9 +118,15 @@ def build_report(
     )
     notes = list(reasons)
     if layer1_r2_bytes == 0:
-        notes.append(
-            "layer1_r2: 0 (deferred — pass --layer1-r2-bytes from Layer 1 PoC for full-scale budget)"
-        )
+        if scale == "full":
+            ok = False
+            notes.append(
+                "layer1_r2: missing (full-scale budget requires --layer1-r2-bytes from Layer 1 PoC)"
+            )
+        else:
+            notes.append(
+                "layer1_r2: 0 (deferred — pass --layer1-r2-bytes from Layer 1 PoC for full-scale budget)"
+            )
     return {
         "schema_version": BUDGET_SCHEMA_VERSION,
         "generator_git_sha": _git_sha(),
@@ -155,7 +161,7 @@ def main(argv: list[str] | None = None) -> int:
         "--layer1-r2-bytes",
         type=int,
         default=0,
-        help="Layer 1 R2 bytes to add (0 = deferred; use PoC report for full scale)",
+        help="Layer 1 R2 bytes to add (required >0 for --scale full; optional for ci)",
     )
     args = parser.parse_args(argv)
     if args.scale == "ci":

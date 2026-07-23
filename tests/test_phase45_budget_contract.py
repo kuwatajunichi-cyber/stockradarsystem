@@ -87,3 +87,22 @@ def test_daily_parquet_uses_unique_temp_paths() -> None:
     source = _BENCH.read_text(encoding="utf-8")
     assert "_tmp_bench.parquet" not in source
     assert "NamedTemporaryFile" in source
+
+
+def test_full_scale_fails_without_layer1_bytes() -> None:
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("phase45_budget_bench", _BENCH)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    report = mod.build_report(
+        scale="full",
+        symbols=2,
+        metrics=2,
+        trading_days=2,
+        seed=1,
+        layer1_r2_bytes=0,
+    )
+    assert report["verdict"]["within_free_tier"] is False
+    assert any("layer1_r2: missing" in note for note in report["verdict"]["notes"])
