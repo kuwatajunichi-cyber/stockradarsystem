@@ -21,6 +21,7 @@ from stockradar.storage.phase45_budget import (
 )
 
 DEFAULT_SEED = 42
+DEFAULT_AS_OF_DATE = date(2026, 6, 30)
 
 
 def _git_sha() -> str:
@@ -46,9 +47,10 @@ def generate_daily_parquet_bytes(
     metrics: int,
     trading_days: int,
     seed: int,
+    as_of_date: date,
 ) -> tuple[int, str]:
     rng = np.random.default_rng(seed)
-    dates = pd.bdate_range(end=date.today(), periods=trading_days)
+    dates = pd.bdate_range(end=as_of_date, periods=trading_days)
     total_bytes = 0
     per_day_sizes: list[int] = []
     for d in dates:
@@ -72,6 +74,7 @@ def generate_daily_parquet_bytes(
         total_bytes += day_bytes
     digest = _logical_digest(
         {
+            "as_of_date": as_of_date.isoformat(),
             "per_day_files": len(per_day_sizes),
             "per_day_bytes_sum": total_bytes,
             "symbols": symbols,
@@ -82,14 +85,18 @@ def generate_daily_parquet_bytes(
     return total_bytes, digest
 
 
-def generate_series_gzip_bytes(*, trading_days: int, metrics: int, seed: int) -> bytes:
+def generate_series_gzip_bytes(
+    *, trading_days: int, metrics: int, seed: int, as_of_date: date
+) -> bytes:
     rng = np.random.default_rng(seed)
-    dates = [(date.today() - timedelta(days=i)).isoformat() for i in range(trading_days - 1, -1, -1)]
+    dates = [
+        (as_of_date - timedelta(days=i)).isoformat() for i in range(trading_days - 1, -1, -1)
+    ]
     series = {
         f"metric_{m:02d}": [float(v) for v in rng.uniform(0.0, 100.0, size=trading_days)]
         for m in range(metrics)
     }
-    payload = {"dates": dates, "series": series, "seed": seed}
+    payload = {"as_of_date": as_of_date.isoformat(), "dates": dates, "series": series, "seed": seed}
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return gzip.compress(raw, compresslevel=9, mtime=0)
 
@@ -102,11 +109,18 @@ def build_report(
     trading_days: int,
     seed: int,
     layer1_r2_bytes: int = 0,
+    as_of_date: date = DEFAULT_AS_OF_DATE,
 ) -> dict:
     parquet_bytes, parquet_digest = generate_daily_parquet_bytes(
-        symbols=symbols, metrics=metrics, trading_days=trading_days, seed=seed
+        symbols=symbols,
+        metrics=metrics,
+        trading_days=trading_days,
+        seed=seed,
+        as_of_date=as_of_date,
     )
-    series_bytes = generate_series_gzip_bytes(trading_days=trading_days, metrics=metrics, seed=seed)
+    series_bytes = generate_series_gzip_bytes(
+        trading_days=trading_days, metrics=metrics, seed=seed, as_of_date=as_of_date
+    )
     series_total = len(series_bytes) * symbols
     r2_one_year = parquet_bytes + series_total
     r2_total = extrapolate_r2_five_years(one_year_bytes=r2_one_year) + layer1_r2_bytes
@@ -131,6 +145,7 @@ def build_report(
         "schema_version": BUDGET_SCHEMA_VERSION,
         "generator_git_sha": _git_sha(),
         "generator_seed": seed,
+        "as_of_date": as_of_date.isoformat(),
         "scale": scale,
         "counts": {
             "symbols": symbols,
@@ -158,12 +173,19 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     parser.add_argument(
+        "--as-of-date",
+        type=str,
+        default=DEFAULT_AS_OF_DATE.isoformat(),
+        help="Fixed calendar anchor for deterministic fixture dates (ISO YYYY-MM-DD)",
+    )
+    parser.add_argument(
         "--layer1-r2-bytes",
         type=int,
         default=0,
         help="Layer 1 R2 bytes to add (required >0 for --scale full; optional for ci)",
     )
     args = parser.parse_args(argv)
+    as_of_date = date.fromisoformat(args.as_of_date)
     if args.scale == "ci":
         symbols, metrics, trading_days = 30, 30, 25
     else:
@@ -175,6 +197,7 @@ def main(argv: list[str] | None = None) -> int:
         trading_days=trading_days,
         seed=args.seed,
         layer1_r2_bytes=args.layer1_r2_bytes,
+        as_of_date=as_of_date,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")

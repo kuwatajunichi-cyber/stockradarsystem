@@ -88,6 +88,13 @@ CREATE TABLE IF NOT EXISTS derived_object_index (
   ),
   CONSTRAINT derived_object_committed_ts CHECK (
     (status = 'committed' AND committed_at_utc IS NOT NULL) OR status IN ('pending', 'orphan')
+  ),
+  CONSTRAINT derived_object_snapshot_layer1_fingerprint CHECK (
+    object_kind <> 'snapshot'
+    OR (
+      layer1_input_fingerprint IS NOT NULL
+      AND layer1_input_fingerprint ~ '^[a-f0-9]{64}$'
+    )
   )
 );
 
@@ -137,6 +144,12 @@ BEGIN
       RETURN p_history_id;
     END IF;
     RAISE EXCEPTION 'derived_object commit conflict for %', p_history_id;
+  END IF;
+  IF v_row.object_kind = 'snapshot' THEN
+    IF v_row.layer1_input_fingerprint IS NULL
+       OR v_row.layer1_input_fingerprint !~ '^[a-f0-9]{64}$' THEN
+      RAISE EXCEPTION 'snapshot commit requires SHA-shaped layer1_input_fingerprint';
+    END IF;
   END IF;
   UPDATE derived_object_index
   SET status = 'committed',

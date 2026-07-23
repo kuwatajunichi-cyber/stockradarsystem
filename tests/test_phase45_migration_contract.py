@@ -154,6 +154,8 @@ def test_phase45_migration_derived_object_key_constraints(migration_004: str) ->
     assert "object_key TEXT NOT NULL UNIQUE" not in migration_004
     assert "derived_object_index_pending_object_key" in migration_004
     assert "derived_object_index_snapshot_committed_object_key" in migration_004
+    assert "derived_object_snapshot_layer1_fingerprint" in migration_004
+    assert "snapshot commit requires SHA-shaped layer1_input_fingerprint" in migration_004
 
 
 def test_phase45_migration_series_recommit_orphans_prior(migration_004: str) -> None:

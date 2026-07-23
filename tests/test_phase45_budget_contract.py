@@ -58,7 +58,9 @@ def test_series_fixture_uses_representative_floats() -> None:
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    raw_gz = mod.generate_series_gzip_bytes(trading_days=50, metrics=5, seed=42)
+    raw_gz = mod.generate_series_gzip_bytes(
+        trading_days=50, metrics=5, seed=42, as_of_date=mod.DEFAULT_AS_OF_DATE
+    )
     payload = json.loads(__import__("gzip").decompress(raw_gz))
     for vals in payload["series"].values():
         assert len(vals) == 50
@@ -74,10 +76,10 @@ def test_daily_snapshots_measured_per_trade_date() -> None:
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     one_day, _ = mod.generate_daily_parquet_bytes(
-        symbols=10, metrics=5, trading_days=1, seed=7
+        symbols=10, metrics=5, trading_days=1, seed=7, as_of_date=mod.DEFAULT_AS_OF_DATE
     )
     three_days, _ = mod.generate_daily_parquet_bytes(
-        symbols=10, metrics=5, trading_days=3, seed=7
+        symbols=10, metrics=5, trading_days=3, seed=7, as_of_date=mod.DEFAULT_AS_OF_DATE
     )
     assert three_days > one_day
     assert three_days >= one_day * 3
@@ -87,6 +89,8 @@ def test_daily_parquet_uses_unique_temp_paths() -> None:
     source = _BENCH.read_text(encoding="utf-8")
     assert "_tmp_bench.parquet" not in source
     assert "NamedTemporaryFile" in source
+    assert "date.today()" not in source
+    assert "DEFAULT_AS_OF_DATE" in source
 
 
 def test_full_scale_fails_without_layer1_bytes() -> None:
