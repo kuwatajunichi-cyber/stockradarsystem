@@ -47,6 +47,7 @@ DECLARE
     'metric_definitions', 'metric_versions', 'metric_set_versions', 'metric_set_members',
     'active_metric_set', 'derived_object_index', 'latest_derived_observations'
   ];
+  r record;
 BEGIN
   FOREACH t IN ARRAY tables LOOP
     IF NOT EXISTS (
@@ -56,6 +57,31 @@ BEGIN
     ) THEN
       RAISE EXCEPTION 'RLS not enabled on %', t;
     END IF;
+  END LOOP;
+
+  FOR r IN
+    SELECT grantee, table_name, privilege_type
+    FROM information_schema.role_table_grants
+    WHERE table_schema = 'public'
+      AND table_name = ANY (tables)
+      AND grantee IN ('anon', 'authenticated', 'PUBLIC')
+  LOOP
+    RAISE EXCEPTION 'Phase 4.5 check failed: residual grant % on public.% (%)',
+      r.grantee, r.table_name, r.privilege_type;
+  END LOOP;
+
+  FOR r IN
+    SELECT grantee, routine_name
+    FROM information_schema.routine_privileges
+    WHERE specific_schema = 'public'
+      AND routine_name IN (
+        'commit_derived_object', 'transition_metric_set', 'activate_metric_set_cas'
+      )
+      AND grantee IN ('PUBLIC', 'anon', 'authenticated')
+      AND privilege_type = 'EXECUTE'
+  LOOP
+    RAISE EXCEPTION 'Phase 4.5 check failed: residual RPC EXECUTE for % on %',
+      r.grantee, r.routine_name;
   END LOOP;
 END $$;
 

@@ -158,7 +158,10 @@ def get_rs_windows() -> list[int]:
     if not raw:
         return [31, 63, 126, 252]
     try:
-        return [int(x.strip()) for x in raw.split(",") if x.strip()]
+        windows = [int(x.strip()) for x in raw.split(",") if x.strip()]
+        if not windows:
+            return [31, 63, 126, 252]
+        return windows
     except ValueError:
         return [31, 63, 126, 252]
 

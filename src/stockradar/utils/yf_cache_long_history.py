@@ -4,7 +4,7 @@ Daily pipeline default paths in yf_cache.py are unchanged; this module is PoC-on
 """
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Callable, Iterable
 
 import pandas as pd

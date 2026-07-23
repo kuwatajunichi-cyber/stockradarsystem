@@ -42,7 +42,7 @@ def derived_latest_projection_update_allowed(stage: str, mode: RunMode) -> bool:
     if normalized_mode == "replay":
         return False
     if normalized_mode == "backfill":
-        return normalized_stage in {"4.5a", "4.5b"}
+        return False
     if normalized_mode == "reconcile":
         return normalized_stage == "4.5c"
     if normalized_mode == "normal":

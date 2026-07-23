@@ -36,6 +36,11 @@ def test_replay_never_updates_shared_state() -> None:
         assert derived_active_pointer_update_allowed(stage, "replay") is False
 
 
+def test_backfill_never_updates_latest_projection() -> None:
+    for stage in ("4.5a", "4.5b", "4.5c"):
+        assert derived_latest_projection_update_allowed(stage, "backfill") is False
+
+
 def test_invalid_stage_raises() -> None:
     with pytest.raises(ValueError):
         normalize_phase4_5_rollout_stage("4.5d")

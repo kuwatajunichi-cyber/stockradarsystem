@@ -69,3 +69,16 @@ def test_phase45_hardening_revokes_anon(migration_005: str) -> None:
 def test_phase45_hardening_rpc_revoke(migration_005: str) -> None:
     assert "REVOKE ALL ON FUNCTION public.activate_metric_set_cas(" in migration_005
     assert "GRANT EXECUTE ON FUNCTION public.activate_metric_set_cas(" in migration_005
+
+
+def test_phase45_migration_commit_derived_object_fails_on_missing_pending(
+    migration_004: str,
+) -> None:
+    assert "IF NOT FOUND THEN" in migration_004
+    assert "pending derived_object_index row not found" in migration_004
+
+
+def test_phase45_hardening_rejects_residual_grants(migration_005: str) -> None:
+    assert "information_schema.role_table_grants" in migration_005
+    assert "information_schema.routine_privileges" in migration_005
+    assert "Phase 4.5 check failed: residual grant" in migration_005

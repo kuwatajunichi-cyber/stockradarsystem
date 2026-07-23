@@ -9,7 +9,6 @@ from stockradar.governance.phase_gate_honesty import (
     OVERALL_IN_PROGRESS,
     PR_GATE_NON_TERMINAL,
     PR_GATE_TERMINAL,
-    _CORRECTIVE_EVIDENCE_FIELDS,
     _EVIDENCE_URL_RE,
     _MERGE_COMMIT_SHA_RE,
     _validate_merged_pr_ci_evidence,
@@ -48,6 +47,13 @@ REQUIRED_PREFLIGHT_BLOCKER_IDS: frozenset[str] = frozenset(
 
 VALID_ROLLOUT_STAGES: frozenset[str] = frozenset({"off", "4.5a", "4.5b", "4.5c"})
 _ROLLOUT_STAGE_ORDER: tuple[str, ...] = ("off", "4.5a", "4.5b", "4.5c")
+
+_LIVE_GATE_45C_EVIDENCE_KEYS: tuple[str, ...] = (
+    "normal_daily_success_run_url",
+    "replay_no_shared_mutation_run_url",
+    "backfill_shadow_only_run_url",
+    "reconcile_isolated_run_url",
+)
 
 _USER_GATE_RULES: dict[str, tuple[tuple[str, bool], ...]] = {
     "pr-45-0d-budget": (("postgres_measurement_evidence_url", False),),
@@ -155,12 +161,20 @@ def validate_gate_status_document(data: dict[str, Any]) -> list[str]:
             violations.extend(_validate_merged_pr_gate(gate_id, gate))
 
     live = data.get("live_gate_45c")
+    live_status = ""
     if not isinstance(live, dict):
         violations.append("live_gate_45c must be a mapping")
     else:
         live_status = str(live.get("status") or "")
         if live_status not in {"open", "closed"}:
             violations.append("live_gate_45c.status must be open or closed")
+        elif live_status == "closed":
+            for key in _LIVE_GATE_45C_EVIDENCE_KEYS:
+                value = live.get(key)
+                if not isinstance(value, str) or not _EVIDENCE_URL_RE.match(value.strip()):
+                    violations.append(f"live_gate_45c closed requires URL-shaped {key}")
+            if not live.get("closed_at_utc"):
+                violations.append("live_gate_45c closed requires closed_at_utc")
 
     all_merged = all(
         isinstance(g, dict) and g.get("status") == "merged_and_verified" for g in pr_gates.values()
@@ -186,9 +200,10 @@ def validate_gate_status_document(data: dict[str, Any]) -> list[str]:
             violations.append("overall_status closed requires all preflight_blockers closed")
         if isinstance(live, dict) and live.get("status") != "closed":
             violations.append("overall_status closed requires live_gate_45c closed")
-    elif all_merged and all_preflight_closed:
+    elif all_merged and all_preflight_closed and live_status == "closed":
         violations.append(
-            "overall_status must be closed when all pr_gates merged and preflight_blockers closed"
+            "overall_status must be closed when all pr_gates merged, "
+            "preflight_blockers closed, and live_gate_45c closed"
         )
 
     gate_ssot = preflight.get("gate_ssot_and_rollout") if isinstance(preflight, dict) else None

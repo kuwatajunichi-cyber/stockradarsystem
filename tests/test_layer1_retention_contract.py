@@ -84,3 +84,8 @@ def test_trading_day_prune_pure() -> None:
 
 def test_calendar_days_for_trading_days() -> None:
     assert calendar_days_for_trading_days(772) > 772
+
+
+def test_empty_rs_windows_env_falls_back_to_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("RS_WINDOWS", ",")
+    assert compute_layer1_required_trading_days() >= 772

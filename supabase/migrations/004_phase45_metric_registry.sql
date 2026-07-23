@@ -133,6 +133,9 @@ BEGIN
       byte_sha256 = p_byte_sha256,
       committed_at_utc = now()
   WHERE id = p_history_id AND status = 'pending';
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'pending derived_object_index row not found: %', p_history_id;
+  END IF;
   RETURN p_history_id;
 END;
 $$;

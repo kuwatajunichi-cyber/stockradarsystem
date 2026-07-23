@@ -6,7 +6,6 @@ import gzip
 import hashlib
 import json
 import subprocess
-import sys
 from datetime import date, timedelta
 from pathlib import Path
 
