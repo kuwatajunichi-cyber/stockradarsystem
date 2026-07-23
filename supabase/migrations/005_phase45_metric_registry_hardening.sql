@@ -78,7 +78,8 @@ DECLARE
 BEGIN
   SELECT lifecycle_status INTO v_status
   FROM metric_set_versions
-  WHERE id = NEW.metric_set_version_id;
+  WHERE id = NEW.metric_set_version_id
+  FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'metric_set_members insert: unknown metric_set_version_id %', NEW.metric_set_version_id;
   END IF;
