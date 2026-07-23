@@ -59,6 +59,11 @@ CREATE TABLE IF NOT EXISTS active_metric_set (
   source_github_run_id BIGINT
 );
 
+-- Seed default pointer so concurrent first activations serialize on FOR UPDATE.
+INSERT INTO active_metric_set (pointer_key, metric_set_version_id, updated_at_utc)
+VALUES ('default', NULL, now())
+ON CONFLICT (pointer_key) DO NOTHING;
+
 CREATE TABLE IF NOT EXISTS derived_object_index (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   object_kind TEXT NOT NULL CHECK (object_kind IN ('snapshot', 'series')),
@@ -150,6 +155,16 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
+  IF (p_from_status, p_to_status) NOT IN (
+    ('draft', 'shadow'),
+    ('shadow', 'draft'),
+    ('draft', 'retired'),
+    ('shadow', 'retired')
+  ) THEN
+    RAISE EXCEPTION
+      'metric_set transition not allowed: % -> % (activation requires activate_metric_set_cas)',
+      p_from_status, p_to_status;
+  END IF;
   UPDATE metric_set_versions
   SET lifecycle_status = p_to_status
   WHERE id = p_set_id AND lifecycle_status = p_from_status;

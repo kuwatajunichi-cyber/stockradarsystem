@@ -82,3 +82,14 @@ def test_phase45_hardening_rejects_residual_grants(migration_005: str) -> None:
     assert "information_schema.role_table_grants" in migration_005
     assert "information_schema.routine_privileges" in migration_005
     assert "Phase 4.5 check failed: residual grant" in migration_005
+
+
+def test_phase45_migration_seeds_active_metric_set_default_row(migration_004: str) -> None:
+    assert "INSERT INTO active_metric_set (pointer_key, metric_set_version_id" in migration_004
+    assert "ON CONFLICT (pointer_key) DO NOTHING" in migration_004
+
+
+def test_phase45_migration_transition_whitelist(migration_004: str) -> None:
+    assert "metric_set transition not allowed" in migration_004
+    assert "('draft', 'shadow')" in migration_004
+    assert "activate_metric_set_cas" in migration_004

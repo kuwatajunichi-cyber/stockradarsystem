@@ -83,7 +83,8 @@ def test_trading_day_prune_pure() -> None:
 
 
 def test_calendar_days_for_trading_days() -> None:
-    assert calendar_days_for_trading_days(772) > 772
+    # 772 JPX sessions need >1150 calendar days at observed holiday density (~0.67).
+    assert calendar_days_for_trading_days(772) >= 1200
 
 
 def test_empty_rs_windows_env_falls_back_to_defaults(monkeypatch: pytest.MonkeyPatch) -> None:

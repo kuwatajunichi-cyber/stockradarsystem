@@ -44,8 +44,8 @@ def merge_ohlc_frames(frames: Iterable[pd.DataFrame]) -> pd.DataFrame:
 
 
 def calendar_days_for_trading_days(trading_days: int) -> int:
-    """Approximate calendar days to cover trading_days (7/5 ratio + buffer)."""
-    return int(trading_days * 7 / 5) + 30
+    """Approximate calendar span for JPX trading days (~245 sessions/year) + holiday buffer."""
+    return int(trading_days * 366 / 245) + 90
 
 
 FetchChunkFn = Callable[[datetime, datetime], pd.DataFrame]
