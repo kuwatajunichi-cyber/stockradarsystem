@@ -28,7 +28,7 @@ GRANT SELECT, INSERT ON TABLE public.metric_definitions TO service_role;
 GRANT SELECT, INSERT ON TABLE public.metric_versions TO service_role;
 GRANT SELECT, INSERT ON TABLE public.metric_set_versions TO service_role;
 GRANT SELECT, INSERT ON TABLE public.metric_set_members TO service_role;
-GRANT SELECT, INSERT, UPDATE ON TABLE public.active_metric_set TO service_role;
+GRANT SELECT ON TABLE public.active_metric_set TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.derived_object_index TO service_role;
 GRANT SELECT, INSERT, UPDATE ON TABLE public.latest_derived_observations TO service_role;
 
@@ -98,8 +98,17 @@ BEGIN
     END IF;
   END LOOP;
 
+  IF has_table_privilege('service_role', 'public.active_metric_set', 'INSERT') THEN
+    RAISE EXCEPTION 'Phase 4.5 check failed: service_role must not INSERT public.active_metric_set';
+  END IF;
+  IF has_table_privilege('service_role', 'public.active_metric_set', 'UPDATE') THEN
+    RAISE EXCEPTION 'Phase 4.5 check failed: service_role must not UPDATE public.active_metric_set';
+  END IF;
   IF has_table_privilege('service_role', 'public.active_metric_set', 'DELETE') THEN
     RAISE EXCEPTION 'Phase 4.5 check failed: service_role must not DELETE public.active_metric_set';
+  END IF;
+  IF NOT has_table_privilege('service_role', 'public.active_metric_set', 'SELECT') THEN
+    RAISE EXCEPTION 'Phase 4.5 check failed: service_role missing SELECT on active_metric_set';
   END IF;
 
   IF NOT has_table_privilege('service_role', 'public.metric_set_versions', 'SELECT') THEN

@@ -70,6 +70,8 @@ def test_phase45_hardening_revokes_anon(migration_005: str) -> None:
 def test_phase45_hardening_revokes_service_role_before_grant(migration_005: str) -> None:
     assert "service_role must not UPDATE public." in migration_005
     assert "service_role must not DELETE public." in migration_005
+    assert "GRANT SELECT ON TABLE public.active_metric_set TO service_role;" in migration_005
+    assert "GRANT SELECT, INSERT, UPDATE ON TABLE public.active_metric_set" not in migration_005
 
 
 def test_phase45_hardening_rpc_revoke(migration_005: str) -> None:

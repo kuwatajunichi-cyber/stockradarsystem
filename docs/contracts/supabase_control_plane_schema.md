@@ -30,7 +30,7 @@ Phase 4.5 の metric registry / latest projection は設計済み・未実装で
 | metric_versions | Immutable formula / parameters / missing policy | Versions are retained |
 | metric_set_versions | Ordered version set / draft-shadow-active-retired | Sets are retained |
 | metric_set_members | FK-ordered junction (set ↔ metric version) | Members are retained |
-| active_metric_set | Single active pointer updated by CAS | One active pointer |
+| active_metric_set | Single active pointer updated by CAS | One active pointer; service_role SELECT only (mutations via `activate_metric_set_cas`) |
 | derived_object_index | Committed R2 snapshot / series metadata | Audit and active objects; snapshots immutable (one committed per object_key), series regeneratable (pending per object_key, prior committed orphaned on commit) |
 | latest_derived_observations | Latest values per instrument and active set | Latest row only |
 
