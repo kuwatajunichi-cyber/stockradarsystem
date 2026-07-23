@@ -57,6 +57,10 @@ def test_in_progress_rejects_closed_roadmap_phrase() -> None:
     assert any("must not claim completion" in v for v in violations)
 
 
+_VALID_DIGEST = "a" * 64
+_VALID_EVIDENCE_PATH = "docs/operations/evidence/phase45_fixture.json"
+
+
 @pytest.mark.unit
 def test_preflight_blocker_closed_requires_evidence() -> None:
     data = _load_gate_status()
@@ -65,6 +69,21 @@ def test_preflight_blocker_closed_requires_evidence() -> None:
     bad["preflight_blockers"]["put_fixed_defect"]["closed_at_utc"] = "2026-07-23T00:00:00Z"
     violations = validate_gate_status_document(bad)
     assert any("evidence_digest" in v for v in violations)
+    assert any("evidence_url" in v for v in violations)
+
+
+@pytest.mark.unit
+def test_preflight_blocker_closed_rejects_placeholder_evidence() -> None:
+    data = _load_gate_status()
+    bad = copy.deepcopy(data)
+    blocker = bad["preflight_blockers"]["put_fixed_defect"]
+    blocker["status"] = "closed"
+    blocker["closed_at_utc"] = "2026-07-23T00:00:00Z"
+    blocker["evidence_digest"] = "abc123"
+    blocker["evidence_url"] = "TBD"
+    violations = validate_gate_status_document(bad)
+    assert any("SHA256-shaped evidence_digest" in v for v in violations)
+    assert any("evidence_url" in v for v in violations)
 
 
 @pytest.mark.unit
@@ -74,7 +93,8 @@ def test_budget_blocker_closed_requires_postgres_evidence_url() -> None:
     blocker = bad["preflight_blockers"]["supabase_r2_budget_fixture"]
     blocker["status"] = "closed"
     blocker["closed_at_utc"] = "2026-07-23T00:00:00Z"
-    blocker["evidence_digest"] = "abc123"
+    blocker["evidence_digest"] = _VALID_DIGEST
+    blocker["evidence_url"] = _VALID_EVIDENCE_PATH
     blocker["postgres_measurement_evidence_url"] = None
     violations = validate_gate_status_document(bad)
     assert any("postgres_measurement_evidence_url" in v for v in violations)
@@ -95,7 +115,8 @@ def test_preflight_closed_with_live_open_allows_in_progress() -> None:
     for blocker in interim["preflight_blockers"].values():
         blocker["status"] = "closed"
         blocker["closed_at_utc"] = "2026-07-23T00:00:00Z"
-        blocker["evidence_digest"] = "abc123"
+        blocker["evidence_digest"] = _VALID_DIGEST
+        blocker["evidence_url"] = _VALID_EVIDENCE_PATH
     budget = interim["preflight_blockers"]["supabase_r2_budget_fixture"]
     budget["postgres_measurement_evidence_url"] = "https://example.com/pg"
     for gate in interim["pr_gates"].values():
@@ -130,7 +151,8 @@ def test_all_gates_closed_requires_overall_closed() -> None:
     for blocker in good["preflight_blockers"].values():
         blocker["status"] = "closed"
         blocker["closed_at_utc"] = "2026-07-23T00:00:00Z"
-        blocker["evidence_digest"] = "abc123"
+        blocker["evidence_digest"] = _VALID_DIGEST
+        blocker["evidence_url"] = _VALID_EVIDENCE_PATH
     good["preflight_blockers"]["supabase_r2_budget_fixture"]["postgres_measurement_evidence_url"] = (
         "https://example.com/pg"
     )

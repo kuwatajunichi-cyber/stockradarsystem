@@ -48,6 +48,12 @@ REQUIRED_PREFLIGHT_BLOCKER_IDS: frozenset[str] = frozenset(
 VALID_ROLLOUT_STAGES: frozenset[str] = frozenset({"off", "4.5a", "4.5b", "4.5c"})
 _ROLLOUT_STAGE_ORDER: tuple[str, ...] = ("off", "4.5a", "4.5b", "4.5c")
 
+_EVIDENCE_REPO_PATH_RE = re.compile(
+    r"^docs/operations/evidence/[a-z0-9_./-]+\.(json|md|yaml|yml)$",
+    re.IGNORECASE,
+)
+_EVIDENCE_DIGEST_RE = re.compile(r"^[a-f0-9]{64}$", re.IGNORECASE)
+
 _LIVE_GATE_45C_EVIDENCE_KEYS: tuple[str, ...] = (
     "normal_daily_success_run_url",
     "replay_no_shared_mutation_run_url",
@@ -58,6 +64,11 @@ _LIVE_GATE_45C_EVIDENCE_KEYS: tuple[str, ...] = (
 _USER_GATE_RULES: dict[str, tuple[tuple[str, bool], ...]] = {
     "pr-45-0d-budget": (("postgres_measurement_evidence_url", False),),
 }
+
+
+def _is_verifiable_evidence_ref(value: str) -> bool:
+    stripped = value.strip()
+    return bool(_EVIDENCE_URL_RE.match(stripped) or _EVIDENCE_REPO_PATH_RE.match(stripped))
 
 
 def _validate_merged_pr_gate(gate_id: str, gate: dict[str, Any]) -> list[str]:
@@ -88,8 +99,16 @@ def _validate_preflight_blocker(blocker_id: str, blocker: dict[str, Any]) -> lis
         if not blocker.get("closed_at_utc"):
             violations.append(f"preflight_blockers.{blocker_id}: closed requires closed_at_utc")
         digest = blocker.get("evidence_digest")
-        if not isinstance(digest, str) or not digest.strip():
-            violations.append(f"preflight_blockers.{blocker_id}: closed requires evidence_digest")
+        if not isinstance(digest, str) or not _EVIDENCE_DIGEST_RE.match(digest.strip()):
+            violations.append(
+                f"preflight_blockers.{blocker_id}: closed requires SHA256-shaped evidence_digest"
+            )
+        evidence_url = blocker.get("evidence_url")
+        if not isinstance(evidence_url, str) or not _is_verifiable_evidence_ref(evidence_url):
+            violations.append(
+                f"preflight_blockers.{blocker_id}: closed requires "
+                "URL- or repo-path-shaped evidence_url"
+            )
         if blocker_id == "supabase_r2_budget_fixture":
             pg_url = blocker.get("postgres_measurement_evidence_url")
             if not isinstance(pg_url, str) or not _EVIDENCE_URL_RE.match(pg_url.strip()):
