@@ -49,3 +49,18 @@ def test_within_free_tier_rejects_warning_exceed() -> None:
     )
     assert ok is False
     assert reasons
+
+
+def test_series_fixture_uses_representative_floats() -> None:
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("phase45_budget_bench", _BENCH)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    raw_gz = mod.generate_series_gzip_bytes(trading_days=50, metrics=5, seed=42)
+    payload = json.loads(__import__("gzip").decompress(raw_gz))
+    for vals in payload["series"].values():
+        assert len(vals) == 50
+        diffs = {round(vals[i + 1] - vals[i], 6) for i in range(len(vals) - 1)}
+        assert len(diffs) > 1

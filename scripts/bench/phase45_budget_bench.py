@@ -69,8 +69,12 @@ def generate_daily_parquet_bytes(
 
 
 def generate_series_gzip_bytes(*, trading_days: int, metrics: int, seed: int) -> bytes:
+    rng = np.random.default_rng(seed)
     dates = [(date.today() - timedelta(days=i)).isoformat() for i in range(trading_days - 1, -1, -1)]
-    series = {f"metric_{m:02d}": [float(i + m) for i in range(trading_days)] for m in range(metrics)}
+    series = {
+        f"metric_{m:02d}": [float(v) for v in rng.uniform(0.0, 100.0, size=trading_days)]
+        for m in range(metrics)
+    }
     payload = {"dates": dates, "series": series, "seed": seed}
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return gzip.compress(raw, compresslevel=9, mtime=0)
