@@ -87,6 +87,12 @@ def test_phase45_hardening_derived_object_pending_insert_only(migration_005: str
     assert "service_role must not UPDATE public.derived_object_index" in migration_005
 
 
+def test_phase45_hardening_metric_set_members_draft_only(migration_005: str) -> None:
+    assert "enforce_metric_set_members_insert_draft_set" in migration_005
+    assert "metric_set_members_insert_draft_set_only" in migration_005
+    assert "metric_set_members insert requires draft set" in migration_005
+
+
 def test_phase45_hardening_rpc_revoke(migration_005: str) -> None:
     assert "REVOKE ALL ON FUNCTION public.activate_metric_set_cas(" in migration_005
     assert "service_role" in migration_005.split("REVOKE ALL ON FUNCTION public.activate_metric_set_cas")[1].split("GRANT EXECUTE")[0]

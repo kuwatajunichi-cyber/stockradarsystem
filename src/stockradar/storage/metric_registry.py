@@ -35,6 +35,14 @@ class FakeMetricRegistryStore:
             )
         if new_set_id not in self.metric_set_versions:
             raise RuntimeError(f"unknown metric_set_version: {new_set_id}")
+        if current == new_set_id:
+            self.active_metric_set = {
+                "pointer_key": "default",
+                "metric_set_version_id": new_set_id,
+                "writer_workflow": writer_workflow,
+                "source_github_run_id": source_github_run_id,
+            }
+            return
         new_row = self.metric_set_versions[new_set_id]
         new_row["lifecycle_status"] = "active"
         if current and current in self.metric_set_versions:

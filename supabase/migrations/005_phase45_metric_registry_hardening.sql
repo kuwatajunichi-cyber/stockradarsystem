@@ -68,8 +68,35 @@ CREATE TRIGGER derived_object_index_insert_pending_only
   FOR EACH ROW
   EXECUTE FUNCTION public.enforce_derived_object_index_insert_pending();
 
+CREATE OR REPLACE FUNCTION public.enforce_metric_set_members_insert_draft_set()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+DECLARE
+  v_status TEXT;
+BEGIN
+  SELECT lifecycle_status INTO v_status
+  FROM metric_set_versions
+  WHERE id = NEW.metric_set_version_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'metric_set_members insert: unknown metric_set_version_id %', NEW.metric_set_version_id;
+  END IF;
+  IF v_status IS DISTINCT FROM 'draft' THEN
+    RAISE EXCEPTION 'metric_set_members insert requires draft set, got lifecycle %', v_status;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER metric_set_members_insert_draft_set_only
+  BEFORE INSERT ON public.metric_set_members
+  FOR EACH ROW
+  EXECUTE FUNCTION public.enforce_metric_set_members_insert_draft_set();
+
 REVOKE ALL ON FUNCTION public.enforce_metric_set_versions_insert_draft() FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.enforce_derived_object_index_insert_pending() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.enforce_metric_set_members_insert_draft_set() FROM PUBLIC, anon, authenticated;
 
 REVOKE ALL ON FUNCTION public.commit_derived_object(uuid, text, bigint, text)
   FROM PUBLIC, anon, authenticated, service_role;
@@ -178,6 +205,14 @@ BEGIN
       AND tgrelid = 'public.derived_object_index'::regclass
   ) THEN
     RAISE EXCEPTION 'Phase 4.5 check failed: derived_object_index_insert_pending_only trigger missing';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgname = 'metric_set_members_insert_draft_set_only'
+      AND tgrelid = 'public.metric_set_members'::regclass
+  ) THEN
+    RAISE EXCEPTION 'Phase 4.5 check failed: metric_set_members_insert_draft_set_only trigger missing';
   END IF;
 
   IF NOT has_function_privilege(

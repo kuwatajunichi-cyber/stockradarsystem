@@ -58,3 +58,22 @@ def test_cas_successful_switch() -> None:
     )
     assert store.get_active_metric_set_id() == b
     assert store.metric_set_versions[a]["lifecycle_status"] == "retired"
+
+
+def test_cas_idempotent_retry_keeps_active_set() -> None:
+    store = FakeMetricRegistryStore()
+    active_id = store.seed_set(lifecycle="shadow")
+    store.activate_metric_set_cas(
+        expected_set_id=None,
+        new_set_id=active_id,
+        writer_workflow="test",
+        source_github_run_id=1,
+    )
+    store.activate_metric_set_cas(
+        expected_set_id=active_id,
+        new_set_id=active_id,
+        writer_workflow="test",
+        source_github_run_id=2,
+    )
+    assert store.get_active_metric_set_id() == active_id
+    assert store.metric_set_versions[active_id]["lifecycle_status"] == "active"
