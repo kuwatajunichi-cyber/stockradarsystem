@@ -62,12 +62,19 @@ def test_phase45_hardening_enables_rls(migration_005: str) -> None:
 def test_phase45_hardening_revokes_anon(migration_005: str) -> None:
     for table in _PHASE45_TABLES:
         assert (
-            f"REVOKE ALL ON TABLE public.{table} FROM PUBLIC, anon, authenticated;" in migration_005
+            f"REVOKE ALL ON TABLE public.{table} FROM PUBLIC, anon, authenticated, service_role;"
+            in migration_005
         )
+
+
+def test_phase45_hardening_revokes_service_role_before_grant(migration_005: str) -> None:
+    assert "service_role must not UPDATE public." in migration_005
+    assert "service_role must not DELETE public." in migration_005
 
 
 def test_phase45_hardening_rpc_revoke(migration_005: str) -> None:
     assert "REVOKE ALL ON FUNCTION public.activate_metric_set_cas(" in migration_005
+    assert "service_role" in migration_005.split("REVOKE ALL ON FUNCTION public.activate_metric_set_cas")[1].split("GRANT EXECUTE")[0]
     assert "GRANT EXECUTE ON FUNCTION public.activate_metric_set_cas(" in migration_005
 
 
