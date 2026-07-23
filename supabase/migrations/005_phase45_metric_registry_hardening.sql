@@ -29,8 +29,47 @@ GRANT SELECT, INSERT ON TABLE public.metric_versions TO service_role;
 GRANT SELECT, INSERT ON TABLE public.metric_set_versions TO service_role;
 GRANT SELECT, INSERT ON TABLE public.metric_set_members TO service_role;
 GRANT SELECT ON TABLE public.active_metric_set TO service_role;
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.derived_object_index TO service_role;
+GRANT SELECT, INSERT ON TABLE public.derived_object_index TO service_role;
 GRANT SELECT, INSERT, UPDATE ON TABLE public.latest_derived_observations TO service_role;
+
+CREATE OR REPLACE FUNCTION public.enforce_metric_set_versions_insert_draft()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+  IF NEW.lifecycle_status IS DISTINCT FROM 'draft' THEN
+    RAISE EXCEPTION 'metric_set_versions insert must be draft, got %', NEW.lifecycle_status;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER metric_set_versions_insert_draft_only
+  BEFORE INSERT ON public.metric_set_versions
+  FOR EACH ROW
+  EXECUTE FUNCTION public.enforce_metric_set_versions_insert_draft();
+
+CREATE OR REPLACE FUNCTION public.enforce_derived_object_index_insert_pending()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+  IF NEW.status IS DISTINCT FROM 'pending' THEN
+    RAISE EXCEPTION 'derived_object_index insert must be pending, got %', NEW.status;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER derived_object_index_insert_pending_only
+  BEFORE INSERT ON public.derived_object_index
+  FOR EACH ROW
+  EXECUTE FUNCTION public.enforce_derived_object_index_insert_pending();
+
+REVOKE ALL ON FUNCTION public.enforce_metric_set_versions_insert_draft() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.enforce_derived_object_index_insert_pending() FROM PUBLIC, anon, authenticated;
 
 REVOKE ALL ON FUNCTION public.commit_derived_object(uuid, text, bigint, text)
   FROM PUBLIC, anon, authenticated, service_role;
@@ -114,8 +153,31 @@ BEGIN
   IF NOT has_table_privilege('service_role', 'public.metric_set_versions', 'SELECT') THEN
     RAISE EXCEPTION 'Phase 4.5 check failed: service_role missing SELECT on metric_set_versions';
   END IF;
-  IF NOT has_table_privilege('service_role', 'public.derived_object_index', 'DELETE') THEN
-    RAISE EXCEPTION 'Phase 4.5 check failed: service_role missing DELETE on derived_object_index';
+
+  IF has_table_privilege('service_role', 'public.derived_object_index', 'UPDATE') THEN
+    RAISE EXCEPTION 'Phase 4.5 check failed: service_role must not UPDATE public.derived_object_index';
+  END IF;
+  IF has_table_privilege('service_role', 'public.derived_object_index', 'DELETE') THEN
+    RAISE EXCEPTION 'Phase 4.5 check failed: service_role must not DELETE public.derived_object_index';
+  END IF;
+  IF NOT has_table_privilege('service_role', 'public.derived_object_index', 'INSERT') THEN
+    RAISE EXCEPTION 'Phase 4.5 check failed: service_role missing INSERT on derived_object_index';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgname = 'metric_set_versions_insert_draft_only'
+      AND tgrelid = 'public.metric_set_versions'::regclass
+  ) THEN
+    RAISE EXCEPTION 'Phase 4.5 check failed: metric_set_versions_insert_draft_only trigger missing';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgname = 'derived_object_index_insert_pending_only'
+      AND tgrelid = 'public.derived_object_index'::regclass
+  ) THEN
+    RAISE EXCEPTION 'Phase 4.5 check failed: derived_object_index_insert_pending_only trigger missing';
   END IF;
 
   IF NOT has_function_privilege(

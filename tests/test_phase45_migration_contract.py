@@ -74,6 +74,19 @@ def test_phase45_hardening_revokes_service_role_before_grant(migration_005: str)
     assert "GRANT SELECT, INSERT, UPDATE ON TABLE public.active_metric_set" not in migration_005
 
 
+def test_phase45_hardening_draft_only_metric_set_insert(migration_005: str) -> None:
+    assert "enforce_metric_set_versions_insert_draft" in migration_005
+    assert "metric_set_versions_insert_draft_only" in migration_005
+    assert "metric_set_versions insert must be draft" in migration_005
+
+
+def test_phase45_hardening_derived_object_pending_insert_only(migration_005: str) -> None:
+    assert "GRANT SELECT, INSERT ON TABLE public.derived_object_index TO service_role;" in migration_005
+    assert "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.derived_object_index" not in migration_005
+    assert "enforce_derived_object_index_insert_pending" in migration_005
+    assert "service_role must not UPDATE public.derived_object_index" in migration_005
+
+
 def test_phase45_hardening_rpc_revoke(migration_005: str) -> None:
     assert "REVOKE ALL ON FUNCTION public.activate_metric_set_cas(" in migration_005
     assert "service_role" in migration_005.split("REVOKE ALL ON FUNCTION public.activate_metric_set_cas")[1].split("GRANT EXECUTE")[0]
