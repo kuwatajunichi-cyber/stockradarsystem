@@ -77,3 +77,20 @@ def test_cas_idempotent_retry_keeps_active_set() -> None:
     )
     assert store.get_active_metric_set_id() == active_id
     assert store.metric_set_versions[active_id]["lifecycle_status"] == "active"
+
+
+def test_cas_retires_all_active_sets() -> None:
+    store = FakeMetricRegistryStore()
+    stale_a = store.seed_set(lifecycle="active")
+    stale_b = store.seed_set(lifecycle="active")
+    new_id = store.seed_set(lifecycle="shadow")
+    store.activate_metric_set_cas(
+        expected_set_id=None,
+        new_set_id=new_id,
+        writer_workflow="test",
+        source_github_run_id=1,
+    )
+    assert store.get_active_metric_set_id() == new_id
+    assert store.metric_set_versions[stale_a]["lifecycle_status"] == "retired"
+    assert store.metric_set_versions[stale_b]["lifecycle_status"] == "retired"
+    assert store.metric_set_versions[new_id]["lifecycle_status"] == "active"

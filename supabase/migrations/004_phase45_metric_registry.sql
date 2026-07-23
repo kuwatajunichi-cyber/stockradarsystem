@@ -211,7 +211,7 @@ BEGIN
   UPDATE metric_set_versions SET lifecycle_status = 'retired'
   WHERE lifecycle_status = 'active' AND id IS DISTINCT FROM p_new_set_id;
   UPDATE metric_set_versions SET lifecycle_status = 'active'
-  WHERE id = p_new_set_id AND lifecycle_status IN ('draft', 'shadow', 'retired');
+  WHERE id = p_new_set_id AND lifecycle_status IN ('shadow', 'retired');
   INSERT INTO active_metric_set (pointer_key, metric_set_version_id, writer_workflow, source_github_run_id, updated_at_utc)
   VALUES ('default', p_new_set_id, p_writer_workflow, p_source_github_run_id, now())
   ON CONFLICT (pointer_key) DO UPDATE SET
@@ -222,6 +222,10 @@ BEGIN
   RETURN p_new_set_id;
 END;
 $$;
+
+REVOKE ALL ON FUNCTION commit_derived_object(uuid, text, bigint, text) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION transition_metric_set(uuid, text, text) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION activate_metric_set_cas(uuid, uuid, text, bigint) FROM PUBLIC, anon, authenticated;
 
 GRANT EXECUTE ON FUNCTION commit_derived_object TO service_role;
 GRANT EXECUTE ON FUNCTION transition_metric_set TO service_role;

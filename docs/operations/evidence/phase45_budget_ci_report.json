@@ -22,6 +22,8 @@
   },
   "verdict": {
     "within_free_tier": true,
-    "notes": []
+    "notes": [
+      "layer1_r2: 0 (deferred — pass --layer1-r2-bytes from Layer 1 PoC for full-scale budget)"
+    ]
   }
 }

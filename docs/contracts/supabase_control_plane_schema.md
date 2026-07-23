@@ -34,7 +34,7 @@ Phase 4.5 の metric registry / latest projection は設計済み・未実装で
 | derived_object_index | Committed R2 snapshot / series metadata | Audit and active objects; snapshots immutable (one committed per object_key), series regeneratable (pending per object_key, prior committed orphaned on commit); REST insert pending-only, commit via RPC |
 | latest_derived_observations | Latest values per instrument and active set | Latest row only |
 
-Phase 4.5 RPC (service_role only): `commit_derived_object`, `transition_metric_set`, `activate_metric_set_cas`.
+Phase 4.5 RPC (service_role only): `commit_derived_object`, `transition_metric_set`, `activate_metric_set_cas`. `activate_metric_set_cas` accepts `shadow` or `retired` sets only (ADR §5 draft→shadow→active).
 
 DDL source of truth:
 

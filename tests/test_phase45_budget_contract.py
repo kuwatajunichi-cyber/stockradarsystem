@@ -39,6 +39,7 @@ def test_ci_scale_within_free_tier(tmp_path: Path) -> None:
     assert report["schema_version"] == BUDGET_SCHEMA_VERSION
     assert report["verdict"]["within_free_tier"] is True
     assert report["generator_git_sha"]
+    assert any("layer1_r2: 0 (deferred" in note for note in report["verdict"]["notes"])
 
 
 def test_within_free_tier_rejects_warning_exceed() -> None:

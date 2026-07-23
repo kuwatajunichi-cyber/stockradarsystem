@@ -54,6 +54,16 @@ def test_phase45_migration_rpc_signatures(migration_004: str) -> None:
     assert "GRANT EXECUTE ON FUNCTION activate_metric_set_cas" in migration_004
 
 
+def test_phase45_migration_rpc_revokes_public_before_grant(migration_004: str) -> None:
+    assert "REVOKE ALL ON FUNCTION commit_derived_object(uuid, text, bigint, text) FROM PUBLIC" in migration_004
+    assert "REVOKE ALL ON FUNCTION activate_metric_set_cas(uuid, uuid, text, bigint) FROM PUBLIC" in migration_004
+
+
+def test_phase45_migration_cas_activation_requires_shadow_or_retired(migration_004: str) -> None:
+    assert "lifecycle_status IN ('shadow', 'retired')" in migration_004
+    assert "lifecycle_status IN ('draft', 'shadow', 'retired')" not in migration_004
+
+
 def test_phase45_hardening_enables_rls(migration_005: str) -> None:
     for table in _PHASE45_TABLES:
         assert f"ALTER TABLE public.{table} ENABLE ROW LEVEL SECURITY;" in migration_005
@@ -98,6 +108,8 @@ def test_phase45_hardening_rpc_revoke(migration_005: str) -> None:
     assert "REVOKE ALL ON FUNCTION public.activate_metric_set_cas(" in migration_005
     assert "service_role" in migration_005.split("REVOKE ALL ON FUNCTION public.activate_metric_set_cas")[1].split("GRANT EXECUTE")[0]
     assert "GRANT EXECUTE ON FUNCTION public.activate_metric_set_cas(" in migration_005
+    assert "service_role missing EXECUTE on commit_derived_object" in migration_005
+    assert "service_role missing EXECUTE on transition_metric_set" in migration_005
 
 
 def test_phase45_migration_commit_derived_object_fails_on_missing_pending(

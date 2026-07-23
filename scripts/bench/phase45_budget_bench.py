@@ -98,6 +98,11 @@ def build_report(
         supabase_projection_bytes=supabase_projection,
         r2_total_bytes=r2_total,
     )
+    notes = list(reasons)
+    if layer1_r2_bytes == 0:
+        notes.append(
+            "layer1_r2: 0 (deferred — pass --layer1-r2-bytes from Layer 1 PoC for full-scale budget)"
+        )
     return {
         "schema_version": BUDGET_SCHEMA_VERSION,
         "generator_git_sha": _git_sha(),
@@ -118,7 +123,7 @@ def build_report(
             "layer1_r2": layer1_r2_bytes,
         },
         "digests": {"parquet_logical": parquet_digest},
-        "verdict": {"within_free_tier": ok, "notes": reasons},
+        "verdict": {"within_free_tier": ok, "notes": notes},
     }
 
 
@@ -127,7 +132,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--scale", choices=("ci", "full"), default="ci")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
-    parser.add_argument("--layer1-r2-bytes", type=int, default=0)
+    parser.add_argument(
+        "--layer1-r2-bytes",
+        type=int,
+        default=0,
+        help="Layer 1 R2 bytes to add (0 = deferred; use PoC report for full scale)",
+    )
     args = parser.parse_args(argv)
     if args.scale == "ci":
         symbols, metrics, trading_days = 30, 30, 25

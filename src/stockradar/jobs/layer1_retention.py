@@ -10,9 +10,9 @@ def trading_day_cutoff_date(
     retention_trading_days: int,
 ) -> date:
     """
-    run_date を含む直近 retention_trading_days 営業日の最古日（暦日近似なし）。
+    run_date を含む直近 retention_trading_days 営業日の最古 cutoff 日（暦日近似）。
 
-    PoC/契約用: 営業日カレンダーが未注入の場合は 7/5 暦日→営業日換算で近似。
+    PoC/契約用: 営業日カレンダー未注入時は 7/5 暦日→営業日換算で近似する。
     """
     if retention_trading_days <= 0:
         raise ValueError("retention_trading_days must be positive")

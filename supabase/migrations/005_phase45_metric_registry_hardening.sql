@@ -218,6 +218,22 @@ BEGIN
 
   IF NOT has_function_privilege(
     'service_role',
+    'public.commit_derived_object(uuid, text, bigint, text)',
+    'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'Phase 4.5 check failed: service_role missing EXECUTE on commit_derived_object';
+  END IF;
+
+  IF NOT has_function_privilege(
+    'service_role',
+    'public.transition_metric_set(uuid, text, text)',
+    'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'Phase 4.5 check failed: service_role missing EXECUTE on transition_metric_set';
+  END IF;
+
+  IF NOT has_function_privilege(
+    'service_role',
     'public.activate_metric_set_cas(uuid, uuid, text, bigint)',
     'EXECUTE'
   ) THEN

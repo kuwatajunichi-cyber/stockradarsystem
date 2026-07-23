@@ -45,8 +45,9 @@ class FakeMetricRegistryStore:
             return
         new_row = self.metric_set_versions[new_set_id]
         new_row["lifecycle_status"] = "active"
-        if current and current in self.metric_set_versions:
-            self.metric_set_versions[current]["lifecycle_status"] = "retired"
+        for sid, row in self.metric_set_versions.items():
+            if sid != new_set_id and row.get("lifecycle_status") == "active":
+                row["lifecycle_status"] = "retired"
         self.active_metric_set = {
             "pointer_key": "default",
             "metric_set_version_id": new_set_id,
