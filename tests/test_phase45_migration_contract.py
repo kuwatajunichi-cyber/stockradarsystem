@@ -93,3 +93,14 @@ def test_phase45_migration_transition_whitelist(migration_004: str) -> None:
     assert "metric_set transition not allowed" in migration_004
     assert "('draft', 'shadow')" in migration_004
     assert "activate_metric_set_cas" in migration_004
+
+
+def test_phase45_migration_derived_object_key_constraints(migration_004: str) -> None:
+    assert "object_key TEXT NOT NULL UNIQUE" not in migration_004
+    assert "derived_object_index_pending_object_key" in migration_004
+    assert "derived_object_index_snapshot_committed_object_key" in migration_004
+
+
+def test_phase45_migration_series_recommit_orphans_prior(migration_004: str) -> None:
+    assert "IF v_row.object_kind = 'series' THEN" in migration_004
+    assert "SET status = 'orphan'" in migration_004

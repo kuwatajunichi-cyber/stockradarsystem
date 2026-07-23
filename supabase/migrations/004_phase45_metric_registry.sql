@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS derived_object_index (
   trade_date DATE,
   instrument_code TEXT,
   series_year INT CHECK (series_year BETWEEN 1900 AND 2100),
-  object_key TEXT NOT NULL UNIQUE,
+  object_key TEXT NOT NULL,
   logical_digest TEXT NOT NULL CHECK (logical_digest ~ '^[a-f0-9]{64}$'),
   byte_sha256 TEXT CHECK (byte_sha256 IS NULL OR byte_sha256 ~ '^[a-f0-9]{64}$'),
   size_bytes BIGINT CHECK (size_bytes > 0),
@@ -93,6 +93,13 @@ CREATE TABLE IF NOT EXISTS derived_object_index (
 
 CREATE INDEX IF NOT EXISTS derived_object_index_status_orphan
   ON derived_object_index (status) WHERE status = 'orphan';
+
+CREATE UNIQUE INDEX IF NOT EXISTS derived_object_index_pending_object_key
+  ON derived_object_index (object_key) WHERE status = 'pending';
+
+CREATE UNIQUE INDEX IF NOT EXISTS derived_object_index_snapshot_committed_object_key
+  ON derived_object_index (object_key)
+  WHERE object_kind = 'snapshot' AND status = 'committed';
 
 CREATE TABLE IF NOT EXISTS latest_derived_observations (
   instrument_code TEXT NOT NULL,
@@ -140,6 +147,14 @@ BEGIN
   WHERE id = p_history_id AND status = 'pending';
   IF NOT FOUND THEN
     RAISE EXCEPTION 'pending derived_object_index row not found: %', p_history_id;
+  END IF;
+  IF v_row.object_kind = 'series' THEN
+    UPDATE derived_object_index
+    SET status = 'orphan'
+    WHERE object_key = v_row.object_key
+      AND object_kind = 'series'
+      AND status = 'committed'
+      AND id <> p_history_id;
   END IF;
   RETURN p_history_id;
 END;
