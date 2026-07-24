@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "measurement_kind": "postgres_local",
+  "generator_git_sha": "d6f2cb683eefbdda982b0ae3e9d23bd1bf000435",
+  "generator_seed": 42,
+  "postgres_connection": "localhost:5432/postgres",
+  "postgres_version": "PostgreSQL 16.14, compiled by Visual C++ build 1944, 64-bit",
+  "migrations_applied": [
+    "001_phase3_control_plane.sql",
+    "002_phase4_control_plane.sql",
+    "003_p0_control_plane_hardening.sql",
+    "004_phase45_metric_registry.sql",
+    "005_phase45_metric_registry_hardening.sql"
+  ],
+  "counts": {
+    "symbols": 3000,
+    "metrics": 30,
+    "latest_rows": 3000
+  },
+  "ids": {
+    "metric_set_version_id": "13feac4d-79ea-4336-92e2-285668a0cfc0",
+    "run_id": "6a721a73-aece-484c-bf31-8f6fec84654e"
+  },
+  "bytes": {
+    "database_bytes": 12770327,
+    "latest_projection_table_bytes": 3735552,
+    "latest_projection_row_avg_bytes": 1144,
+    "latest_projection_rows": 3000,
+    "registry_metadata_bytes": 294912,
+    "control_plane_baseline_bytes": 229376,
+    "tables": {
+      "active_metric_set": 32768,
+      "artifact_index": 32768,
+      "cache_index": 40960,
+      "cache_pointers": 16384,
+      "derived_object_index": 40960,
+      "latest_derived_observations": 3735552,
+      "metric_definitions": 32768,
+      "metric_set_members": 57344,
+      "metric_set_versions": 65536,
+      "metric_versions": 65536,
+      "monthly_snapshots": 40960,
+      "publish_status": 49152,
+      "runs": 49152
+    },
+    "supabase_projection_estimated": 3432000
+  },
+  "verdict": {
+    "within_free_tier": true,
+    "notes": [
+      "postgres_measurement uses pg_database_size after DDL apply + full-scale latest seed"
+    ]
+  }
+}
