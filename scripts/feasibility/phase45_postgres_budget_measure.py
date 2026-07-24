@@ -12,7 +12,7 @@ import subprocess
 import sys
 from datetime import date
 from pathlib import Path
-from urllib.parse import quote_plus, urlparse
+from urllib.parse import quote_plus
 
 import numpy as np
 
@@ -62,7 +62,6 @@ def _git_sha() -> str:
 def _connect(admin_url: str, database: str):
     import psycopg
 
-    parsed = urlparse(admin_url)
     base = admin_url.rsplit("/", 1)[0]
     admin_db_url = f"{base}/postgres"
     with psycopg.connect(admin_db_url, autocommit=True) as conn:
