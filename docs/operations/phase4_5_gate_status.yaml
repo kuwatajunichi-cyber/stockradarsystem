@@ -1,16 +1,20 @@
 schema_version: 1
 phase: "4.5"
-last_updated_utc: '2026-07-24T09:40:00+09:00'
+last_updated_utc: '2026-07-24T10:15:00+09:00'
 overall_status: in_progress
 
 implementation_snapshot:
   local_worktree_has_unmerged_changes: false
   note: >-
-    PR #134 merged (bff96a4). Preflight code on main; 4/5 preflight_blockers closed.
-    supabase_r2_budget_fixture remains open (Postgres full-scale measurement pending).
-    rollout off. Phase 4 gate CLOSED unchanged in phase4_gate_status.yaml.
+    PR #134 merged (bff96a4). Preflight code on main; 5/5 preflight_blockers closed
+    including Postgres full-scale measurement (12.8 MB DB, within_free_tier).
+    rollout off. live gate 4.5c open. Phase 4 gate CLOSED unchanged.
 
 correction_log:
+  - at_utc: '2026-07-24T10:15:00+09:00'
+    reason: >-
+      Blocker 4 closed: local Postgres 16 DDL apply + full-scale seed measurement;
+      postgres_measurement_evidence_url recorded; pr-45-0d-budget merged_and_verified.
   - at_utc: '2026-07-24T09:40:00+09:00'
     reason: >-
       Evidence PR after PR #134 merge: pr_gates merged_and_verified (except
@@ -39,11 +43,12 @@ preflight_blockers:
     evidence_digest: cf14067f53ed619bf9bf5d9b6d3f3bb9abfda2786334fc16e7a9d53ed2d8913f
     evidence_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/30041611136
   supabase_r2_budget_fixture:
-    status: open
-    closed_at_utc: null
-    evidence_digest: null
+    status: closed
+    closed_at_utc: '2026-07-24T01:15:00Z'
+    evidence_digest: 73b8c49cdbc9562492456abe813acef198998b4713f3bc11fd730e84c5ee1f5f
     evidence_url: docs/operations/evidence/phase45_budget_ci_report.json
-    postgres_measurement_evidence_url: null
+    postgres_measurement_evidence_url: >-
+      https://github.com/kuwatajunichi-cyber/stockradarsystem/blob/docs/phase45-gate-evidence/docs/operations/evidence/phase45_postgres_budget_report.json
   gate_ssot_and_rollout:
     status: closed
     closed_at_utc: '2026-07-24T09:40:00+09:00'
@@ -78,16 +83,17 @@ pr_gates:
     note: merged via PR #134
   pr-45-0d-budget:
     description: budget fixture generator + pyarrow + threshold contract tests
-    status: local_only
-    merge_commit: null
-    merge_ci_run_url: null
-    pytest_ci_pass_on_merge: null
+    status: merged_and_verified
+    merge_commit: bff96a4cbdc02554e0d4502b0942c4d64a920e41
+    merge_ci_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/30041611136
+    pytest_ci_pass_on_merge: true
     local_pytest_pass: true
     budget_report_path: docs/operations/evidence/phase45_budget_ci_report.json
-    postgres_measurement_evidence_url: null
+    postgres_measurement_evidence_url: >-
+      https://github.com/kuwatajunichi-cyber/stockradarsystem/blob/docs/phase45-gate-evidence/docs/operations/evidence/phase45_postgres_budget_report.json
     note: >-
-      CI-scale fixture merged via PR #134; merged_and_verified blocked until
-      postgres_measurement_evidence_url (full-scale Postgres measurement).
+      merged via PR #134; Postgres full-scale measurement 12.8 MB DB
+      (3000×30 latest rows, within_free_tier) via phase45_postgres_budget_measure.py
   pr-45-0e-registry:
     description: 004/005 DDL + RLS + CAS RPC + Fake CAS + migration contract
     status: merged_and_verified
@@ -109,4 +115,4 @@ live_gate_45c:
   soak_run_urls: []
 
 roadmap:
-  phase45_status_phrase: "preflight マージ済み（PR #134）・Postgres 実測 pending・rollout off"
+  phase45_status_phrase: "preflight マージ済み（PR #134）・Postgres 実測完了・live gate 4.5c 未達・rollout off"
