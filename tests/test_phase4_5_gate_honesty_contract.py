@@ -65,8 +65,11 @@ _VALID_EVIDENCE_PATH = "docs/operations/evidence/phase45_fixture.json"
 def test_preflight_blocker_closed_requires_evidence() -> None:
     data = _load_gate_status()
     bad = copy.deepcopy(data)
-    bad["preflight_blockers"]["put_fixed_defect"]["status"] = "closed"
-    bad["preflight_blockers"]["put_fixed_defect"]["closed_at_utc"] = "2026-07-23T00:00:00Z"
+    blocker = bad["preflight_blockers"]["put_fixed_defect"]
+    blocker["status"] = "closed"
+    blocker["closed_at_utc"] = "2026-07-23T00:00:00Z"
+    blocker["evidence_digest"] = None
+    blocker["evidence_url"] = None
     violations = validate_gate_status_document(bad)
     assert any("evidence_digest" in v for v in violations)
     assert any("evidence_url" in v for v in violations)
