@@ -67,6 +67,15 @@ When patched cache is used:
 - **`compute_indicators`**: consumes R2 handoff artifacts (plus optional stale exclusions). No warm cache write in this job.
 - **Replay**: `is_replay=true` skips warm cache **pointer update** (`put-fixed` / `put-patched` idempotent skip). R2 run staging handoff unchanged.
 
+### Phase 4.5 planned derived-series behavior
+
+- Normal run: committed daily derived snapshot から R2 Web series projection と Supabase latest projection を更新する。
+- Replay: run scope の派生計算・比較は許可するが、shared `derived-snapshots/`、`derived-series/`、Supabase latest projection、active metric set を更新しない。
+- Backfill: `draft` / `shadow` metric set のみ更新し、active set と latest projection を更新しない。
+- Reconcile: replay / backfill と別 entrypoint とし、expected old logical digest と変更理由を必須にする。
+
+詳細は `docs/adr/adr-004-derived-indicators-warm-cache.md` を参照する。Phase 4.5 は設計済み・未実装であり、この節は現行 workflow が既に派生系列を更新することを意味しない。
+
 ### Warm cache writes (Phase 3c)
 
 On a normal successful run, index + OHLC warm cache commits occur via `cache_bus_cli put-fixed` when incremental ensure jobs produce new zip bodies.  

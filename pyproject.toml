@@ -23,6 +23,7 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "boto3>=1.28.0",
     "httpx>=0.27.0",
+    "pyarrow>=14.0.0",
 ]
 
 [project.optional-dependencies]
@@ -45,6 +46,7 @@ markers = [
     "smoke: CLI and contract smoke tests",
     "live_dispatch: manual live API smoke (not CI required)",
     "slow: long-running tests excluded from default local runs",
+    "postgres_integration: local PostgreSQL integration (not CI required)",
 ]
 
 [tool.ruff]

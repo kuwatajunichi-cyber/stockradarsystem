@@ -1,0 +1,209 @@
+"""Generate Phase 4.5 budget fixtures and report JSON (deterministic, Secrets-free)."""
+from __future__ import annotations
+
+import argparse
+import gzip
+import hashlib
+import json
+import subprocess
+import tempfile
+from datetime import date, timedelta
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+from stockradar.storage.phase45_budget import (
+    BUDGET_SCHEMA_VERSION,
+    extrapolate_r2_five_years,
+    extrapolate_supabase_latest_rows,
+    within_free_tier,
+)
+
+DEFAULT_SEED = 42
+DEFAULT_AS_OF_DATE = date(2026, 6, 30)
+
+
+def _git_sha() -> str:
+    try:
+        out = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+        return out[:40] if out else "unknown"
+    except Exception:
+        return "unknown"
+
+
+def _logical_digest(payload: dict) -> str:
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def generate_daily_parquet_bytes(
+    *,
+    symbols: int,
+    metrics: int,
+    trading_days: int,
+    seed: int,
+    as_of_date: date,
+) -> tuple[int, str]:
+    rng = np.random.default_rng(seed)
+    dates = pd.bdate_range(end=as_of_date, periods=trading_days)
+    total_bytes = 0
+    per_day_sizes: list[int] = []
+    for d in dates:
+        rows = []
+        for sym_idx in range(symbols):
+            code = f"{7200 + sym_idx:04d}"
+            row = {"instrument_code": code, "trade_date": d.date().isoformat()}
+            for m in range(metrics):
+                row[f"metric_{m:02d}"] = float(rng.uniform(0, 100))
+            rows.append(row)
+        df = pd.DataFrame(rows)
+        with tempfile.NamedTemporaryFile(suffix=".parquet", delete=False) as tmp:
+            tmp_path = Path(tmp.name)
+        try:
+            df.to_parquet(tmp_path, index=False)
+            day_bytes = len(tmp_path.read_bytes())
+        finally:
+            if tmp_path.exists():
+                tmp_path.unlink()
+        per_day_sizes.append(day_bytes)
+        total_bytes += day_bytes
+    digest = _logical_digest(
+        {
+            "as_of_date": as_of_date.isoformat(),
+            "per_day_files": len(per_day_sizes),
+            "per_day_bytes_sum": total_bytes,
+            "symbols": symbols,
+            "metrics": metrics,
+            "seed": seed,
+        }
+    )
+    return total_bytes, digest
+
+
+def generate_series_gzip_bytes(
+    *, trading_days: int, metrics: int, seed: int, as_of_date: date
+) -> bytes:
+    rng = np.random.default_rng(seed)
+    dates = [
+        (as_of_date - timedelta(days=i)).isoformat() for i in range(trading_days - 1, -1, -1)
+    ]
+    series = {
+        f"metric_{m:02d}": [float(v) for v in rng.uniform(0.0, 100.0, size=trading_days)]
+        for m in range(metrics)
+    }
+    payload = {"as_of_date": as_of_date.isoformat(), "dates": dates, "series": series, "seed": seed}
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return gzip.compress(raw, compresslevel=9, mtime=0)
+
+
+def build_report(
+    *,
+    scale: str,
+    symbols: int,
+    metrics: int,
+    trading_days: int,
+    seed: int,
+    layer1_r2_bytes: int = 0,
+    as_of_date: date = DEFAULT_AS_OF_DATE,
+) -> dict:
+    parquet_bytes, parquet_digest = generate_daily_parquet_bytes(
+        symbols=symbols,
+        metrics=metrics,
+        trading_days=trading_days,
+        seed=seed,
+        as_of_date=as_of_date,
+    )
+    series_bytes = generate_series_gzip_bytes(
+        trading_days=trading_days, metrics=metrics, seed=seed, as_of_date=as_of_date
+    )
+    series_total = len(series_bytes) * symbols
+    r2_one_year = parquet_bytes + series_total
+    r2_total = extrapolate_r2_five_years(one_year_bytes=r2_one_year) + layer1_r2_bytes
+    latest_row_bytes = 512
+    supabase_projection = extrapolate_supabase_latest_rows(row_bytes=latest_row_bytes, n_rows=symbols)
+    ok, reasons = within_free_tier(
+        supabase_projection_bytes=supabase_projection,
+        r2_total_bytes=r2_total,
+    )
+    notes = list(reasons)
+    if layer1_r2_bytes == 0:
+        if scale == "full":
+            ok = False
+            notes.append(
+                "layer1_r2: missing (full-scale budget requires --layer1-r2-bytes from Layer 1 PoC)"
+            )
+        else:
+            notes.append(
+                "layer1_r2: 0 (deferred — pass --layer1-r2-bytes from Layer 1 PoC for full-scale budget)"
+            )
+    return {
+        "schema_version": BUDGET_SCHEMA_VERSION,
+        "generator_git_sha": _git_sha(),
+        "generator_seed": seed,
+        "as_of_date": as_of_date.isoformat(),
+        "scale": scale,
+        "counts": {
+            "symbols": symbols,
+            "metrics": metrics,
+            "trading_days": trading_days,
+            "latest_rows": symbols,
+        },
+        "bytes": {
+            "snapshots_parquet_total": parquet_bytes,
+            "snapshots_parquet_per_trade_date": trading_days,
+            "series_gzip_total": series_total,
+            "r2_one_year": r2_one_year,
+            "r2_total": r2_total,
+            "latest_projection": supabase_projection,
+            "layer1_r2": layer1_r2_bytes,
+        },
+        "digests": {"parquet_logical": parquet_digest},
+        "verdict": {"within_free_tier": ok, "notes": notes},
+    }
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Phase 4.5 budget bench")
+    parser.add_argument("--scale", choices=("ci", "full"), default="ci")
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    parser.add_argument(
+        "--as-of-date",
+        type=str,
+        default=DEFAULT_AS_OF_DATE.isoformat(),
+        help="Fixed calendar anchor for deterministic fixture dates (ISO YYYY-MM-DD)",
+    )
+    parser.add_argument(
+        "--layer1-r2-bytes",
+        type=int,
+        default=0,
+        help="Layer 1 R2 bytes to add (required >0 for --scale full; optional for ci)",
+    )
+    args = parser.parse_args(argv)
+    as_of_date = date.fromisoformat(args.as_of_date)
+    if args.scale == "ci":
+        symbols, metrics, trading_days = 30, 30, 25
+    else:
+        symbols, metrics, trading_days = 3000, 30, 250
+    report = build_report(
+        scale=args.scale,
+        symbols=symbols,
+        metrics=metrics,
+        trading_days=trading_days,
+        seed=args.seed,
+        layer1_r2_bytes=args.layer1_r2_bytes,
+        as_of_date=as_of_date,
+    )
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    print(json.dumps({"status": "ok", "within_free_tier": report["verdict"]["within_free_tier"]}))
+    return 0 if report["verdict"]["within_free_tier"] else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
