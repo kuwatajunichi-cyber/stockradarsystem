@@ -1103,7 +1103,7 @@ jobs:
           MODE=normal
           IS_LATEST=true
           LIFECYCLE=shadow
-          if [ "$IS_REPLAY" = "True" ]; then
+          if [ "$(echo "$IS_REPLAY" | tr '[:upper:]' '[:lower:]')" = "true" ]; then
             MODE=replay
             IS_LATEST=false
           fi
