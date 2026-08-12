@@ -1,0 +1,213 @@
+schema_version: 1
+set_family: daily_core_v1
+writer_workflow: derived_writer
+version_parameters:
+  rs_windows:
+  - 31
+  - 63
+  - 126
+  - 252
+  rs_benchmark: BOTH
+  z_lookback_days: 60
+members:
+- metric_key: rs31_topix
+  value_type: float
+  min_history_days: 31
+  parameters: {}
+  required_inputs:
+  - ohlcv
+  missing_policy:
+    on_missing: 'null'
+  definition_canonical:
+    metric_key: rs31_topix
+    value_type: float
+    parameters: {}
+    min_history_days: 31
+  definition_fingerprint: 8e39118c3e11e0a66ae222e248e8cb15789891abaf192c604288c1efecfb8b3d
+  ordinal: 0
+- metric_key: rs63_topix
+  value_type: float
+  min_history_days: 63
+  parameters: {}
+  required_inputs:
+  - ohlcv
+  missing_policy:
+    on_missing: 'null'
+  definition_canonical:
+    metric_key: rs63_topix
+    value_type: float
+    parameters: {}
+    min_history_days: 63
+  definition_fingerprint: 2deebebf227febd8e38b9ae7d5d18029456b5c70d2a4f04eccaedb1459f2e265
+  ordinal: 1
+- metric_key: rs126_topix
+  value_type: float
+  min_history_days: 126
+  parameters: {}
+  required_inputs:
+  - ohlcv
+  missing_policy:
+    on_missing: 'null'
+  definition_canonical:
+    metric_key: rs126_topix
+    value_type: float
+    parameters: {}
+    min_history_days: 126
+  definition_fingerprint: 60e332b088b8fc5ba0d3eca2e0c4b3753db1dfd67af6fdb1669b725d1fca3216
+  ordinal: 2
+- metric_key: rs252_topix
+  value_type: float
+  min_history_days: 252
+  parameters: {}
+  required_inputs:
+  - ohlcv
+  missing_policy:
+    on_missing: 'null'
+  definition_canonical:
+    metric_key: rs252_topix
+    value_type: float
+    parameters: {}
+    min_history_days: 252
+  definition_fingerprint: d9025d2b5278f0084a2c9673a95c2765fdb491bf307a56c758972fe9146ef9f7
+  ordinal: 3
+- metric_key: rs31_nikkei
+  value_type: float
+  min_history_days: 31
+  parameters: {}
+  required_inputs:
+  - ohlcv
+  missing_policy:
+    on_missing: 'null'
+  definition_canonical:
+    metric_key: rs31_nikkei
+    value_type: float
+    parameters: {}
+    min_history_days: 31
+  definition_fingerprint: e364ed2cfb87c9bce959957c7090ed6d1d428683caa16a9248779b0181767a6d
+  ordinal: 4
+- metric_key: rs63_nikkei
+  value_type: float
+  min_history_days: 63
+  parameters: {}
+  required_inputs:
+  - ohlcv
+  missing_policy:
+    on_missing: 'null'
+  definition_canonical:
+    metric_key: rs63_nikkei
+    value_type: float
+    parameters: {}
+    min_history_days: 63
+  definition_fingerprint: 37ad72d7a69ee7c7013f646b3414530a50ad2d79b59bdc3d2e499601dbf00c6d
+  ordinal: 5
+- metric_key: rs126_nikkei
+  value_type: float
+  min_history_days: 126
+  parameters: {}
+  required_inputs:
+  - ohlcv
+  missing_policy:
+    on_missing: 'null'
+  definition_canonical:
+    metric_key: rs126_nikkei
+    value_type: float
+    parameters: {}
+    min_history_days: 126
+  definition_fingerprint: e3964b059239f7745d157d39683c49bbe9ea445cc006097155056606271bc429
+  ordinal: 6
+- metric_key: rs252_nikkei
+  value_type: float
+  min_history_days: 252
+  parameters: {}
+  required_inputs:
+  - ohlcv
+  missing_policy:
+    on_missing: 'null'
+  definition_canonical:
+    metric_key: rs252_nikkei
+    value_type: float
+    parameters: {}
+    min_history_days: 252
+  definition_fingerprint: b360ff97006c2c34f07e6ec806703454c30094f8b729eed0148c11ad6db7b1a0
+  ordinal: 7
+- metric_key: z_turnover_60
+  value_type: float
+  min_history_days: 60
+  parameters: &id001
+    z_lookback: 60
+  required_inputs:
+  - ohlcv
+  missing_policy:
+    on_missing: 'null'
+  definition_canonical:
+    metric_key: z_turnover_60
+    value_type: float
+    parameters: *id001
+    min_history_days: 60
+  definition_fingerprint: ec897151250324b5429dd0cbf2af008fc3942baa8970f446bed3a6c5ee5605dd
+  ordinal: 8
+- metric_key: turnover_ma_ratio_60
+  value_type: float
+  min_history_days: 60
+  parameters: &id002
+    z_lookback: 60
+  required_inputs:
+  - ohlcv
+  missing_policy:
+    on_missing: 'null'
+  definition_canonical:
+    metric_key: turnover_ma_ratio_60
+    value_type: float
+    parameters: *id002
+    min_history_days: 60
+  definition_fingerprint: 01aa27aeaa3fd0910d88b21d99cf310ce4bb74e51df7b4d6601ae23756765168
+  ordinal: 9
+- metric_key: turnover_yen
+  value_type: float
+  min_history_days: 1
+  parameters: {}
+  required_inputs:
+  - ohlcv
+  missing_policy:
+    on_missing: 'null'
+  definition_canonical:
+    metric_key: turnover_yen
+    value_type: float
+    parameters: {}
+    min_history_days: 1
+  definition_fingerprint: a842df6702a9568e344262bee973fe11824487f77198be3e9f7734637b64966a
+  ordinal: 10
+- metric_key: price_change_pct
+  value_type: float
+  min_history_days: 2
+  parameters: {}
+  required_inputs:
+  - ohlcv
+  missing_policy:
+    on_missing: 'null'
+  definition_canonical:
+    metric_key: price_change_pct
+    value_type: float
+    parameters: {}
+    min_history_days: 2
+  definition_fingerprint: 16d0e35113fc8bb83bdc0af012ab2f4897affd7c659fa9bf482caa6f361c9488
+  ordinal: 11
+- metric_key: perfect_order_days
+  value_type: int
+  min_history_days: 220
+  parameters: &id003
+    sma_windows:
+    - 25
+    - 75
+    - 200
+  required_inputs:
+  - ohlcv
+  missing_policy:
+    on_missing: 'null'
+  definition_canonical:
+    metric_key: perfect_order_days
+    value_type: int
+    parameters: *id003
+    min_history_days: 220
+  definition_fingerprint: 1f271cce8699e99fcd9ac56c7b411b3e2133d89a604c84af6c91ebef8749d95b
+  ordinal: 12
