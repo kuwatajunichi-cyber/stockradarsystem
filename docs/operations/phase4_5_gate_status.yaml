@@ -1,36 +1,27 @@
-schema_version: 1
-phase: "4.5"
-last_updated_utc: '2026-08-12T13:50:00+09:00'
+schema_version: 2
+phase: '4.5'
+last_updated_utc: '2026-08-13T02:45:00+09:00'
 overall_status: in_progress
-
 implementation_snapshot:
   local_worktree_has_unmerged_changes: false
-  note: >-
-    Preflight 5/5 closed (PR #134 + #135). Production Supabase 004/005 applied
-    2026-08-12. Full-scale R2 extrapolation 8710924023 bytes exceeds 8 GB warn.
-    live gate 4.5c open (blocked on 4.5-1..4 implementation). rollout off.
-
+  note: 'Step 0: schema v2 + canonical digest SSOT; PR-45-1..4 pending; capacity_gate
+    open.'
 correction_log:
-  - at_utc: '2026-08-12T04:52:36Z'
-    reason: >-
-      Production DDL apply: 004_phase45_metric_registry + 005 hardening on
-      stock-radar-system (wocvepixlzqupasoipbk). Full-scale R2 budget measured;
-      layer1_r2 estimate added to Layer1 PoC; live gate prerequisites documented.
-  - at_utc: '2026-07-24T10:15:00+09:00'
-    reason: >-
-      Blocker 4 closed: local Postgres 16 DDL apply + full-scale seed measurement;
-      postgres_measurement_evidence_url recorded; pr-45-0d-budget merged_and_verified.
-  - at_utc: '2026-07-24T09:40:00+09:00'
-    reason: >-
-      Evidence PR after PR #134 merge: pr_gates merged_and_verified (except
-      pr-45-0d-budget pending postgres_measurement_evidence_url); preflight
-      blockers closed except budget Postgres measurement.
-
+- at_utc: '2026-08-12T04:52:36Z'
+  reason: 'Production DDL apply: 004_phase45_metric_registry + 005 hardening on stock-radar-system
+    (wocvepixlzqupasoipbk). Full-scale R2 budget measured; layer1_r2 estimate added
+    to Layer1 PoC; live gate prerequisites documented.'
+- at_utc: '2026-07-24T10:15:00+09:00'
+  reason: 'Blocker 4 closed: local Postgres 16 DDL apply + full-scale seed measurement;
+    postgres_measurement_evidence_url recorded; pr-45-0d-budget merged_and_verified.'
+- at_utc: '2026-07-24T09:40:00+09:00'
+  reason: 'Evidence PR after PR #134 merge: pr_gates merged_and_verified (except pr-45-0d-budget
+    pending postgres_measurement_evidence_url); preflight blockers closed except budget
+    Postgres measurement.'
 rollout:
   machine_readable_key: phase4_5_rollout_stage
-  current_stage: "off"
+  current_stage: 'off'
   stage_history: []
-
 preflight_blockers:
   layer1_5y_feasibility:
     status: closed
@@ -52,15 +43,56 @@ preflight_blockers:
     closed_at_utc: '2026-07-24T01:15:00Z'
     evidence_digest: 73b8c49cdbc9562492456abe813acef198998b4713f3bc11fd730e84c5ee1f5f
     evidence_url: docs/operations/evidence/phase45_budget_ci_report.json
-    postgres_measurement_evidence_url: >-
-      https://github.com/kuwatajunichi-cyber/stockradarsystem/blob/main/docs/operations/evidence/phase45_postgres_budget_report.json
+    postgres_measurement_evidence_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/blob/main/docs/operations/evidence/phase45_postgres_budget_report.json
   gate_ssot_and_rollout:
     status: closed
     closed_at_utc: '2026-07-24T09:40:00+09:00'
     evidence_digest: cf14067f53ed619bf9bf5d9b6d3f3bb9abfda2786334fc16e7a9d53ed2d8913f
     evidence_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/pull/135
-
 pr_gates:
+  pr-45-1:
+    description: versioned pure metrics + canonical digest + YAML catalogs
+    status: pending
+    merge_commit: null
+    merge_ci_run_url: null
+    pytest_ci_pass_on_merge: null
+    local_pytest_pass: null
+  pr-45-2:
+    description: control plane migration 006 + Phase A-B-C + ops CAS seed + budget
+      v2
+    status: pending
+    merge_commit: null
+    merge_ci_run_url: null
+    pytest_ci_pass_on_merge: null
+    local_pytest_pass: null
+  pr-45-3:
+    description: immutable derived generation writer + CLI/job + Fakes
+    status: pending
+    merge_commit: null
+    merge_ci_run_url: null
+    pytest_ci_pass_on_merge: null
+    local_pytest_pass: null
+  pr-45-4:
+    description: workflows cutover live gate wiring + budget monitor
+    status: pending
+    merge_commit: null
+    merge_ci_run_url: null
+    pytest_ci_pass_on_merge: null
+    local_pytest_pass: null
+live_gate_45c:
+  status: open
+  closed_at_utc: null
+  normal_daily_success_run_url: null
+  replay_no_shared_mutation_run_url: null
+  backfill_shadow_only_run_url: null
+  reconcile_isolated_run_url: null
+  soak_trading_days: 3
+  soak_run_urls: []
+  note: Blocked on 4.5-1..4 implementation and workflow wiring; see phase4_5_cutover.md
+roadmap:
+  phase45_status_phrase: preflight 完了・schema v2 移行・canonical digest SSOT・PR-45-1..4
+    pending・capacity_gate open・rollout off
+historical_pr_gates:
   pr-45-0-gate-ssot:
     description: gate SSOT + honesty + cutover runbook + rollout helpers
     status: merged_and_verified
@@ -68,7 +100,7 @@ pr_gates:
     merge_ci_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/30041611136
     pytest_ci_pass_on_merge: true
     local_pytest_pass: true
-    note: merged via PR #134
+    note: merged via PR
   pr-45-0b-put-fixed:
     description: put-fixed cache_key noop defect + Fake regression tests
     status: merged_and_verified
@@ -76,16 +108,17 @@ pr_gates:
     merge_ci_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/30041611136
     pytest_ci_pass_on_merge: true
     local_pytest_pass: true
-    note: merged via PR #134
+    note: merged via PR
   pr-45-0c-layer1-poc:
-    description: Layer 1 retention contract + long-history PoC module + feasibility script
+    description: Layer 1 retention contract + long-history PoC module + feasibility
+      script
     status: merged_and_verified
     merge_commit: bff96a4cbdc02554e0d4502b0942c4d64a920e41
     merge_ci_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/30041611136
     pytest_ci_pass_on_merge: true
     local_pytest_pass: true
     poc_report_path: docs/operations/evidence/phase45_layer1_poc_report.json
-    note: merged via PR #134; layer1_r2_bytes estimate added 2026-08-12
+    note: merged via PR
   pr-45-0d-budget:
     description: budget fixture generator + pyarrow + threshold contract tests
     status: merged_and_verified
@@ -95,10 +128,8 @@ pr_gates:
     local_pytest_pass: true
     budget_report_path: docs/operations/evidence/phase45_budget_ci_report.json
     budget_full_report_path: docs/operations/evidence/phase45_budget_full_report.json
-    postgres_measurement_evidence_url: >-
-      https://github.com/kuwatajunichi-cyber/stockradarsystem/blob/main/docs/operations/evidence/phase45_postgres_budget_report.json
-    note: >-
-      CI + Postgres within_free_tier; full-scale R2 extrapolation 8710924023 bytes
+    postgres_measurement_evidence_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/blob/main/docs/operations/evidence/phase45_postgres_budget_report.json
+    note: CI + Postgres within_free_tier; full-scale R2 extrapolation 8710924023 bytes
       exceeds 8 GB warn — paid-tier gate required before cutover
   pr-45-0e-registry:
     description: 004/005 DDL + RLS + CAS RPC + Fake CAS + migration contract
@@ -110,21 +141,13 @@ pr_gates:
     production_ddl_applied: true
     production_ddl_applied_at_utc: '2026-08-12T04:52:36Z'
     production_ddl_evidence_url: docs/operations/evidence/phase45_production_ddl_applied.json
-    note: >-
-      production 004/005 applied via Supabase MCP (migrations
-      004_phase45_metric_registry, 005_phase45_metric_registry_hardening)
-
-live_gate_45c:
+    note: production 004/005 applied via Supabase MCP (migrations 004_phase45_metric_registry,
+      005_phase45_metric_registry_hardening)
+capacity_gate:
   status: open
-  closed_at_utc: null
-  normal_daily_success_run_url: null
-  replay_no_shared_mutation_run_url: null
-  backfill_shadow_only_run_url: null
-  reconcile_isolated_run_url: null
-  soak_trading_days: 3
-  soak_run_urls: []
-  note: >-
-    Blocked on 4.5-1..4 implementation and workflow wiring; see phase4_5_cutover.md
-
-roadmap:
-  phase45_status_phrase: "preflight 完了・本番 DDL apply 済み・R2 full-scale warn 超過・live gate 4.5c 未達・rollout off"
+  path: null
+  catalog: null
+  projection_inputs: {}
+  evidence_report_hash: null
+  evidence_url: null
+  note: Blocked until PR-45-3 measurement + path A/B decision
