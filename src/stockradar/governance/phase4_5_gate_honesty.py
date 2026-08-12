@@ -396,6 +396,16 @@ def _validate_gate_status_document_v2(data: dict[str, Any]) -> list[str]:
             "preflight_blockers closed, capacity_gate closed, and live_gate_45c closed"
         )
 
+    gate_ssot = preflight.get("gate_ssot_and_rollout") if isinstance(preflight, dict) else None
+    historical = data.get("historical_pr_gates")
+    pr_45_0 = historical.get("pr-45-0-gate-ssot") if isinstance(historical, dict) else None
+    if isinstance(gate_ssot, dict) and isinstance(pr_45_0, dict):
+        if gate_ssot.get("status") == "closed" and pr_45_0.get("status") != "merged_and_verified":
+            violations.append(
+                "preflight_blockers.gate_ssot_and_rollout closed requires "
+                "historical_pr_gates.pr-45-0-gate-ssot merged_and_verified"
+            )
+
     return violations
 
 
