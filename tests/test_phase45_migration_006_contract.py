@@ -69,3 +69,14 @@ def test_phase45_migration_006_generation_coordinate_unique(migration_006: str) 
     assert "derived_object_index_generation_coordinate" in migration_006
     assert "derived_object_index_committed_snapshot_coordinate" in migration_006
     assert "derived_object_index_committed_series_coordinate" in migration_006
+
+def test_phase45_migration_006_uses_valid_postgres_dollar_quoting(migration_006: str) -> None:
+    bad_open = "AS " + chr(92) + chr(36) + chr(36)
+    bad_close = chr(92) + chr(36) + chr(36) + ";"
+    good_open = "AS " + chr(36) + chr(36)
+    good_close = chr(36) + chr(36) + ";"
+    assert bad_open not in migration_006
+    assert bad_close not in migration_006
+    assert good_open in migration_006
+    assert migration_006.count(good_open) >= 8
+    assert migration_006.count(good_close) >= 8

@@ -113,7 +113,7 @@ CREATE OR REPLACE FUNCTION begin_derived_generation(
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS \$\$
+AS $$
 DECLARE
   v_existing derived_generation_runs%ROWTYPE;
   v_id UUID;
@@ -165,7 +165,7 @@ BEGIN
   RETURNING id INTO v_id;
   RETURN v_id;
 END;
-\$\$;
+$$;
 
 CREATE OR REPLACE FUNCTION register_pending_derived_object(
   p_generation_id UUID,
@@ -181,7 +181,7 @@ CREATE OR REPLACE FUNCTION register_pending_derived_object(
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS \$\$
+AS $$
 DECLARE
   v_gen derived_generation_runs%ROWTYPE;
   v_row derived_object_index%ROWTYPE;
@@ -220,7 +220,7 @@ BEGIN
   RETURNING id INTO v_id;
   RETURN v_id;
 END;
-\$\$;
+$$;
 
 CREATE OR REPLACE FUNCTION mark_derived_object_uploaded(
   p_object_id UUID,
@@ -230,7 +230,7 @@ CREATE OR REPLACE FUNCTION mark_derived_object_uploaded(
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS \$\$
+AS $$
 DECLARE
   v_row derived_object_index%ROWTYPE;
 BEGIN
@@ -248,14 +248,14 @@ BEGIN
   WHERE id = p_object_id AND status = 'pending';
   RETURN p_object_id;
 END;
-\$\$;
+$$;
 
 CREATE OR REPLACE FUNCTION heartbeat_derived_generation(p_generation_id UUID)
 RETURNS VOID
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS \$\$
+AS $$
 BEGIN
   UPDATE derived_generation_runs
   SET heartbeat_at = now(), updated_at_utc = now()
@@ -264,7 +264,7 @@ BEGIN
     RAISE EXCEPTION 'heartbeat_derived_generation: pending generation % not found', p_generation_id;
   END IF;
 END;
-\$\$;
+$$;
 
 CREATE OR REPLACE FUNCTION commit_derived_generation(
   p_generation_id UUID,
@@ -273,7 +273,7 @@ CREATE OR REPLACE FUNCTION commit_derived_generation(
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS \$\$
+AS $$
 DECLARE
   v_gen derived_generation_runs%ROWTYPE;
   v_obj_count INT;
@@ -387,14 +387,14 @@ BEGIN
 
   RETURN p_generation_id;
 END;
-\$\$;
+$$;
 
 CREATE OR REPLACE FUNCTION mark_derived_generation_failed(p_generation_id UUID)
 RETURNS VOID
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS \$\$
+AS $$
 BEGIN
   UPDATE derived_generation_runs
   SET status = 'failed', failed_at_utc = now(), updated_at_utc = now()
@@ -406,7 +406,7 @@ BEGIN
   SET status = 'orphan'
   WHERE generation_id = p_generation_id AND status = 'pending';
 END;
-\$\$;
+$$;
 
 CREATE OR REPLACE FUNCTION list_stale_derived_generations(p_stale_before TIMESTAMPTZ)
 RETURNS SETOF derived_generation_runs
@@ -414,7 +414,7 @@ LANGUAGE sql
 SECURITY DEFINER
 SET search_path = public
 STABLE
-AS \$\$
+AS $$
   SELECT *
   FROM derived_generation_runs
   WHERE status = 'pending'
@@ -422,14 +422,14 @@ AS \$\$
       heartbeat_at IS NULL
       OR heartbeat_at < p_stale_before
     );
-\$\$;
+$$;
 
 CREATE OR REPLACE FUNCTION mark_orphan_object_purged(p_object_id UUID)
 RETURNS UUID
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS \$\$
+AS $$
 BEGIN
   UPDATE derived_object_index
   SET purged_at = now()
@@ -439,7 +439,7 @@ BEGIN
   END IF;
   RETURN p_object_id;
 END;
-\$\$;
+$$;
 
 REVOKE ALL ON FUNCTION public.commit_derived_object(uuid, text, bigint, text)
   FROM PUBLIC, anon, authenticated, service_role;
