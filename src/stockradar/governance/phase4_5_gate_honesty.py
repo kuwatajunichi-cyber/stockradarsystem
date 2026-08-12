@@ -320,6 +320,10 @@ def _validate_gate_status_document_v2(data: dict[str, Any]) -> list[str]:
                 violations.append(f"historical_pr_gates.{gate_id} must be a mapping")
                 continue
             status = str(gate.get("status") or "")
+            allowed = PR_GATE_TERMINAL | PR_GATE_NON_TERMINAL
+            if status not in allowed:
+                violations.append(f"historical_pr_gates.{gate_id}.status invalid: {status!r}")
+                continue
             if status == "merged_and_verified":
                 merge_commit = gate.get("merge_commit")
                 if not isinstance(merge_commit, str) or not _MERGE_COMMIT_SHA_RE.match(

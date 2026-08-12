@@ -24,6 +24,16 @@ _REQUIRED_PR_GATE_IDS_V2 = frozenset(
     {"pr-45-1", "pr-45-2", "pr-45-3", "pr-45-4"}
 )
 
+_REQUIRED_HISTORICAL_PR_GATE_IDS_V2 = frozenset(
+    {
+        "pr-45-0-gate-ssot",
+        "pr-45-0b-put-fixed",
+        "pr-45-0c-layer1-poc",
+        "pr-45-0d-budget",
+        "pr-45-0e-registry",
+    }
+)
+
 _REQUIRED_DOCS_STEP0 = (
     _REPO / "docs" / "adr" / "phase45_canonical_digest.md",
     _REPO / "tests" / "fixtures" / "phase45_golden_vectors.json",
@@ -119,6 +129,12 @@ def validate_gate_schema_v2_minimum(data: dict[str, Any]) -> list[str]:
     historical = data.get("historical_pr_gates")
     if not isinstance(historical, dict):
         violations.append("historical_pr_gates mapping required for schema v2")
+    else:
+        missing_hist = _REQUIRED_HISTORICAL_PR_GATE_IDS_V2 - set(historical)
+        if missing_hist:
+            violations.append(
+                f"historical_pr_gates missing required gate ids: {sorted(missing_hist)}"
+            )
     capacity = data.get("capacity_gate")
     if not isinstance(capacity, dict):
         violations.append("capacity_gate section required for schema v2")
