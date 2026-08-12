@@ -14,7 +14,7 @@ GitHub Issue: [#93](https://github.com/kuwatajunichi-cyber/stockradarsystem/issu
 | 0-2c | 契約 / Cron / R2 artifact bus | 完了 |
 | 3c | warm cache + Supabase | **gate CLOSED** (2026-07-10) |
 | 4 | 月次 + publish + runs + Cron | **gate CLOSED** (2026-07-22) |
-| 4.5 | 派生指標時系列基盤 | **preflight マージ済み（PR #134）・Postgres 実測完了・live gate 4.5c 未達・rollout off** |
+| 4.5 | 派生指標時系列基盤 | **preflight 完了・本番 DDL apply 済み・R2 full-scale warn 超過・live gate 4.5c 未達・rollout off** |
 | 5 | entitlements + observability | 計画 |
 
 Phase 3c gate CLOSED（runbook 記録済）。Issue #93 は Phase 4.5/5 が残るため **OPEN** 維持。残: delisting effective-day gate（任意）。
@@ -54,13 +54,15 @@ Out: 派生 cache(4.5), auth(5), published/統一(5), cleanup Cron(5+)。
 - 無料段階は内部・少数利用に限定し、容量・MAU・SLO gate で有料構成へ移行する。
 - normal / replay / backfill / reconcile を分離し、active 切替は CAS とする。
 
-現時点の blocker:
+現時点の preflight blocker（**5/5 closed**, PR #134 + #135）:
 
-1. Layer 1 の5年保持・backfill 実現性検証。
-2. 現行 `put-fixed` の誤 cache key 参照修正と Fake idempotency test。
-3. metric registry / RLS / active CAS の DDL 契約。
-4. Supabase / R2 budget の fixture 実測。
-5. Phase 4.5 専用 gate SSOT。
+1. ~~Layer 1 5年保持・backfill 実現性~~ → closed（PoC eligible + layer1_r2 見積）
+2. ~~put-fixed 誤 cache key~~ → closed
+3. ~~metric registry DDL 契約~~ → closed（本番 004/005 apply 2026-08-12）
+4. ~~Supabase / R2 budget fixture~~ → closed（CI + Postgres 実測；full-scale R2 extrapolation は warn 超過 → 有料移行 gate 要検討）
+5. ~~Phase 4.5 gate SSOT~~ → closed
+
+**次ゲート:** live_gate_45c（4.5-1〜4.5-4 実装 + live run 証拠 + 3 営業日 soak）。詳細: [phase4_5_cutover.md](phase4_5_cutover.md)。
 
 推奨 rollout:
 
