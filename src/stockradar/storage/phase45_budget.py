@@ -1,12 +1,19 @@
 """Phase 4.5 Free-tier budget thresholds and aggregation (ADR-004)."""
 from __future__ import annotations
 
+import gzip
+import hashlib
 import io
+import json
+import tempfile
 import zipfile
-from datetime import date
+from dataclasses import asdict, dataclass
+from datetime import date, timedelta
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import yaml
 
 # Supabase database bytes
 SUPABASE_WARN_BYTES = 350 * 1024 * 1024
@@ -22,7 +29,50 @@ R2_CLASS_A_MONTHLY_PLAN = 800_000
 R2_CLASS_B_MONTHLY_PLAN = 8_000_000
 SUPABASE_EGRESS_MONTHLY_PLAN_BYTES = int(4 * 1024 * 1024 * 1024)
 
-BUDGET_SCHEMA_VERSION = 1
+BUDGET_SCHEMA_VERSION_V1 = 1
+BUDGET_SCHEMA_VERSION = 2
+
+DEFAULT_PATH_B_RETENTION_YEARS = 3
+DEFAULT_PATH_B_METRIC_SET_VERSIONS = 2
+DEFAULT_PATH_B_CATALOG = "config/metrics/metric_set_v1_free.yaml"
+DEFAULT_TRADING_DAYS_PER_YEAR = 250
+DEFAULT_PRODUCTION_SYMBOLS = 3000
+DEFAULT_BUDGET_SEED = 42
+DEFAULT_BUDGET_AS_OF_DATE = date(2026, 6, 30)
+DEFAULT_SUPERSEDED_FRACTION = 0.10
+DEFAULT_ORPHAN_FRACTION = 0.05
+DEFAULT_FAILED_FRACTION = 0.02
+DEFAULT_SAFETY_FACTOR = 1.10
+
+
+@dataclass(frozen=True)
+class BudgetProjectionInputs:
+    symbols: int
+    metrics: int
+    trading_days_per_year: int = DEFAULT_TRADING_DAYS_PER_YEAR
+    retention_years: int = DEFAULT_PATH_B_RETENTION_YEARS
+    metric_set_versions: int = DEFAULT_PATH_B_METRIC_SET_VERSIONS
+    snapshot_bytes_per_trade_date: int = 0
+    series_bytes_per_symbol_year: int = 0
+    superseded_fraction: float = DEFAULT_SUPERSEDED_FRACTION
+    orphan_fraction: float = DEFAULT_ORPHAN_FRACTION
+    failed_fraction: float = DEFAULT_FAILED_FRACTION
+    safety_factor: float = DEFAULT_SAFETY_FACTOR
+    layer1_r2_bytes: int = 0
+    catalog: str = DEFAULT_PATH_B_CATALOG
+    path: str = "B"
+
+
+@dataclass(frozen=True)
+class BudgetProjectionBreakdown:
+    snapshots: int
+    series: int
+    superseded: int
+    orphan: int
+    failed: int
+    layer1_r2: int
+    subtotal_before_safety: int
+    r2_total: int
 
 
 def within_free_tier(
@@ -110,3 +160,224 @@ def estimate_layer1_warm_cache_r2_bytes(
             zf.writestr(name, df.to_csv(encoding="utf-8-sig"))
 
     return len(ohlc_buf.getvalue()) + len(index_buf.getvalue())
+
+
+def measure_snapshot_bytes_per_trade_date(
+    *,
+    symbols: int,
+    metrics: int,
+    seed: int = DEFAULT_BUDGET_SEED,
+    as_of_date: date = DEFAULT_BUDGET_AS_OF_DATE,
+) -> int:
+    """Deterministic parquet size for one trade-date snapshot (all symbols)."""
+    rng = np.random.default_rng(seed)
+    dates = pd.bdate_range(end=as_of_date, periods=1)
+    rows = []
+    for sym_idx in range(symbols):
+        code = f"{7200 + sym_idx:04d}"
+        row = {"instrument_code": code, "trade_date": dates[0].date().isoformat()}
+        for m in range(metrics):
+            row[f"metric_{m:02d}"] = float(rng.uniform(0, 100))
+        rows.append(row)
+    df = pd.DataFrame(rows)
+    with tempfile.NamedTemporaryFile(suffix=".parquet", delete=False) as tmp:
+        tmp_path = Path(tmp.name)
+    try:
+        df.to_parquet(tmp_path, index=False)
+        return len(tmp_path.read_bytes())
+    finally:
+        if tmp_path.exists():
+            tmp_path.unlink()
+
+
+def measure_series_bytes_per_symbol_year(
+    *,
+    metrics: int,
+    trading_days_per_year: int = DEFAULT_TRADING_DAYS_PER_YEAR,
+    seed: int = DEFAULT_BUDGET_SEED,
+    as_of_date: date = DEFAULT_BUDGET_AS_OF_DATE,
+) -> int:
+    """Deterministic gzip JSON size for one symbol-year series projection."""
+    rng = np.random.default_rng(seed)
+    dates = [
+        (as_of_date - timedelta(days=i)).isoformat()
+        for i in range(trading_days_per_year - 1, -1, -1)
+    ]
+    series = {
+        f"metric_{m:02d}": [float(v) for v in rng.uniform(0.0, 100.0, size=trading_days_per_year)]
+        for m in range(metrics)
+    }
+    payload = {"as_of_date": as_of_date.isoformat(), "dates": dates, "series": series, "seed": seed}
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return len(gzip.compress(raw, compresslevel=9, mtime=0))
+
+
+def project_r2_budget_v2(inputs: BudgetProjectionInputs) -> BudgetProjectionBreakdown:
+    """
+    Path B plan formula: active snapshots + series, plus superseded/orphan/failed
+    overhead, then safety_factor. Layer 1 warm cache is additive before safety.
+    """
+    if inputs.symbols <= 0 or inputs.metrics <= 0:
+        raise ValueError("symbols and metrics must be positive")
+    if inputs.snapshot_bytes_per_trade_date <= 0 or inputs.series_bytes_per_symbol_year <= 0:
+        raise ValueError("byte rate inputs must be positive")
+
+    snapshots = (
+        inputs.snapshot_bytes_per_trade_date
+        * inputs.trading_days_per_year
+        * inputs.retention_years
+        * inputs.metric_set_versions
+    )
+    series = (
+        inputs.series_bytes_per_symbol_year
+        * inputs.symbols
+        * inputs.retention_years
+        * inputs.metric_set_versions
+    )
+    active = snapshots + series
+    superseded = int(active * inputs.superseded_fraction)
+    orphan = int(active * inputs.orphan_fraction)
+    failed = int(active * inputs.failed_fraction)
+    subtotal = active + superseded + orphan + failed + inputs.layer1_r2_bytes
+    r2_total = int(subtotal * inputs.safety_factor)
+    return BudgetProjectionBreakdown(
+        snapshots=snapshots,
+        series=series,
+        superseded=superseded,
+        orphan=orphan,
+        failed=failed,
+        layer1_r2=inputs.layer1_r2_bytes,
+        subtotal_before_safety=subtotal,
+        r2_total=r2_total,
+    )
+
+
+def canonical_report_hash(report: dict[str, object]) -> str:
+    """SHA-256 of canonical JSON excluding volatile generator fields."""
+    payload = {
+        key: value
+        for key, value in report.items()
+        if key not in {"generator_git_sha", "report_hash"}
+    }
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def load_metric_count_from_catalog(catalog_path: Path) -> int:
+    data = yaml.safe_load(catalog_path.read_text(encoding="utf-8"))
+    members = data.get("members")
+    if not isinstance(members, list) or not members:
+        raise ValueError(f"catalog {catalog_path} has no members")
+    return len(members)
+
+
+def build_path_b_projection_inputs(
+    *,
+    repo_root: Path,
+    symbols: int = DEFAULT_PRODUCTION_SYMBOLS,
+    seed: int = DEFAULT_BUDGET_SEED,
+    as_of_date: date = DEFAULT_BUDGET_AS_OF_DATE,
+    catalog: str = DEFAULT_PATH_B_CATALOG,
+    retention_years: int = DEFAULT_PATH_B_RETENTION_YEARS,
+    metric_set_versions: int = DEFAULT_PATH_B_METRIC_SET_VERSIONS,
+    include_layer1: bool = True,
+) -> BudgetProjectionInputs:
+    catalog_path = repo_root / catalog
+    metrics = load_metric_count_from_catalog(catalog_path)
+    snapshot_bytes = measure_snapshot_bytes_per_trade_date(
+        symbols=symbols,
+        metrics=metrics,
+        seed=seed,
+        as_of_date=as_of_date,
+    )
+    series_bytes = measure_series_bytes_per_symbol_year(
+        metrics=metrics,
+        seed=seed,
+        as_of_date=as_of_date,
+    )
+    layer1 = 0
+    if include_layer1:
+        layer1 = estimate_layer1_warm_cache_r2_bytes(
+            symbols=symbols,
+            retention_trading_days=772,
+            seed=seed,
+            as_of_date=as_of_date,
+        )
+    return BudgetProjectionInputs(
+        symbols=symbols,
+        metrics=metrics,
+        retention_years=retention_years,
+        metric_set_versions=metric_set_versions,
+        snapshot_bytes_per_trade_date=snapshot_bytes,
+        series_bytes_per_symbol_year=series_bytes,
+        layer1_r2_bytes=layer1,
+        catalog=catalog,
+        path="B",
+    )
+
+
+def build_budget_v2_report(
+    *,
+    inputs: BudgetProjectionInputs,
+    breakdown: BudgetProjectionBreakdown,
+    generator_git_sha: str = "unknown",
+    generator_seed: int = DEFAULT_BUDGET_SEED,
+    as_of_date: date = DEFAULT_BUDGET_AS_OF_DATE,
+    supabase_projection_bytes: int | None = None,
+) -> dict[str, object]:
+    if supabase_projection_bytes is None:
+        supabase_projection_bytes = extrapolate_supabase_latest_rows(
+            row_bytes=512,
+            n_rows=inputs.symbols,
+        )
+    ok, reasons = within_free_tier(
+        supabase_projection_bytes=supabase_projection_bytes,
+        r2_total_bytes=breakdown.r2_total,
+    )
+    report: dict[str, object] = {
+        "schema_version": BUDGET_SCHEMA_VERSION,
+        "path": inputs.path,
+        "catalog": inputs.catalog,
+        "generator_git_sha": generator_git_sha,
+        "generator_seed": generator_seed,
+        "as_of_date": as_of_date.isoformat(),
+        "projection_inputs": asdict(inputs),
+        "bytes": {
+            "snapshots": breakdown.snapshots,
+            "series": breakdown.series,
+            "superseded": breakdown.superseded,
+            "orphan": breakdown.orphan,
+            "failed": breakdown.failed,
+            "layer1_r2": breakdown.layer1_r2,
+            "subtotal_before_safety": breakdown.subtotal_before_safety,
+            "r2_total": breakdown.r2_total,
+            "latest_projection": supabase_projection_bytes,
+        },
+        "verdict": {"within_free_tier": ok, "notes": reasons},
+    }
+    report["report_hash"] = canonical_report_hash(report)
+    return report
+
+
+def evaluate_capacity_path_b(
+    *,
+    repo_root: Path,
+    symbols: int = DEFAULT_PRODUCTION_SYMBOLS,
+    seed: int = DEFAULT_BUDGET_SEED,
+    as_of_date: date = DEFAULT_BUDGET_AS_OF_DATE,
+) -> tuple[bool, int, dict[str, object]]:
+    """Return (within_free_tier, r2_total, full_report) for Path B defaults."""
+    inputs = build_path_b_projection_inputs(
+        repo_root=repo_root,
+        symbols=symbols,
+        seed=seed,
+        as_of_date=as_of_date,
+    )
+    breakdown = project_r2_budget_v2(inputs)
+    report = build_budget_v2_report(
+        inputs=inputs,
+        breakdown=breakdown,
+        generator_seed=seed,
+        as_of_date=as_of_date,
+    )
+    return bool(report["verdict"]["within_free_tier"]), breakdown.r2_total, report
