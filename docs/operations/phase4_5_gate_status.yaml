@@ -1,16 +1,21 @@
 schema_version: 1
 phase: "4.5"
-last_updated_utc: '2026-07-24T10:15:00+09:00'
+last_updated_utc: '2026-08-12T13:50:00+09:00'
 overall_status: in_progress
 
 implementation_snapshot:
   local_worktree_has_unmerged_changes: false
   note: >-
-    PR #134 merged (bff96a4). Preflight code on main; 5/5 preflight_blockers closed
-    including Postgres full-scale measurement (12.8 MB DB, within_free_tier).
-    rollout off. live gate 4.5c open. Phase 4 gate CLOSED unchanged.
+    Preflight 5/5 closed (PR #134 + #135). Production Supabase 004/005 applied
+    2026-08-12. Full-scale R2 extrapolation exceeds 8 GB warn (8710948119 bytes).
+    live gate 4.5c open (blocked on 4.5-1..4 implementation). rollout off.
 
 correction_log:
+  - at_utc: '2026-08-12T04:52:36Z'
+    reason: >-
+      Production DDL apply: 004_phase45_metric_registry + 005 hardening on
+      stock-radar-system (wocvepixlzqupasoipbk). Full-scale R2 budget measured;
+      layer1_r2 estimate added to Layer1 PoC; live gate prerequisites documented.
   - at_utc: '2026-07-24T10:15:00+09:00'
     reason: >-
       Blocker 4 closed: local Postgres 16 DDL apply + full-scale seed measurement;
@@ -30,7 +35,7 @@ preflight_blockers:
   layer1_5y_feasibility:
     status: closed
     closed_at_utc: '2026-07-24T00:34:49Z'
-    evidence_digest: 4c695d0d423aa371d796a8b8145739c1ea3946828d5bf58030445ea91fe73174
+    evidence_digest: 1221bd55c29a988f24997840a0eeaaf031df4b6749bb82eaf05418ecfaa2c7e6
     evidence_url: docs/operations/evidence/phase45_layer1_poc_report.json
   put_fixed_defect:
     status: closed
@@ -39,7 +44,7 @@ preflight_blockers:
     evidence_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/30041611136
   metric_registry_ddl:
     status: closed
-    closed_at_utc: '2026-07-24T00:34:49Z'
+    closed_at_utc: '2026-08-12T04:52:36Z'
     evidence_digest: cf14067f53ed619bf9bf5d9b6d3f3bb9abfda2786334fc16e7a9d53ed2d8913f
     evidence_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/30041611136
   supabase_r2_budget_fixture:
@@ -48,12 +53,12 @@ preflight_blockers:
     evidence_digest: 73b8c49cdbc9562492456abe813acef198998b4713f3bc11fd730e84c5ee1f5f
     evidence_url: docs/operations/evidence/phase45_budget_ci_report.json
     postgres_measurement_evidence_url: >-
-      https://github.com/kuwatajunichi-cyber/stockradarsystem/blob/docs/phase45-gate-evidence/docs/operations/evidence/phase45_postgres_budget_report.json
+      https://github.com/kuwatajunichi-cyber/stockradarsystem/blob/main/docs/operations/evidence/phase45_postgres_budget_report.json
   gate_ssot_and_rollout:
     status: closed
     closed_at_utc: '2026-07-24T09:40:00+09:00'
     evidence_digest: cf14067f53ed619bf9bf5d9b6d3f3bb9abfda2786334fc16e7a9d53ed2d8913f
-    evidence_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/pull/134
+    evidence_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/pull/135
 
 pr_gates:
   pr-45-0-gate-ssot:
@@ -80,7 +85,7 @@ pr_gates:
     pytest_ci_pass_on_merge: true
     local_pytest_pass: true
     poc_report_path: docs/operations/evidence/phase45_layer1_poc_report.json
-    note: merged via PR #134
+    note: merged via PR #134; layer1_r2_bytes estimate added 2026-08-12
   pr-45-0d-budget:
     description: budget fixture generator + pyarrow + threshold contract tests
     status: merged_and_verified
@@ -89,11 +94,12 @@ pr_gates:
     pytest_ci_pass_on_merge: true
     local_pytest_pass: true
     budget_report_path: docs/operations/evidence/phase45_budget_ci_report.json
+    budget_full_report_path: docs/operations/evidence/phase45_budget_full_report.json
     postgres_measurement_evidence_url: >-
-      https://github.com/kuwatajunichi-cyber/stockradarsystem/blob/docs/phase45-gate-evidence/docs/operations/evidence/phase45_postgres_budget_report.json
+      https://github.com/kuwatajunichi-cyber/stockradarsystem/blob/main/docs/operations/evidence/phase45_postgres_budget_report.json
     note: >-
-      merged via PR #134; Postgres full-scale measurement 12.8 MB DB
-      (3000×30 latest rows, within_free_tier) via phase45_postgres_budget_measure.py
+      CI + Postgres within_free_tier; full-scale R2 extrapolation 8710948119 bytes
+      exceeds 8 GB warn — paid-tier gate required before cutover
   pr-45-0e-registry:
     description: 004/005 DDL + RLS + CAS RPC + Fake CAS + migration contract
     status: merged_and_verified
@@ -101,8 +107,13 @@ pr_gates:
     merge_ci_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/30041611136
     pytest_ci_pass_on_merge: true
     local_pytest_pass: true
-    production_ddl_applied: false
-    note: merged via PR #134; production DDL apply is follow-up
+    production_ddl_applied: true
+    production_ddl_applied_at_utc: '2026-08-12T04:52:36Z'
+    production_ddl_evidence_url: >-
+      https://supabase.com/dashboard/project/wocvepixlzqupasoipbk/database/migrations
+    note: >-
+      production 004/005 applied via Supabase MCP (migrations
+      004_phase45_metric_registry, 005_phase45_metric_registry_hardening)
 
 live_gate_45c:
   status: open
@@ -113,6 +124,8 @@ live_gate_45c:
   reconcile_isolated_run_url: null
   soak_trading_days: 3
   soak_run_urls: []
+  note: >-
+    Blocked on 4.5-1..4 implementation and workflow wiring; see phase4_5_cutover.md
 
 roadmap:
-  phase45_status_phrase: "preflight マージ済み（PR #134）・Postgres 実測完了・live gate 4.5c 未達・rollout off"
+  phase45_status_phrase: "preflight 完了・本番 DDL apply 済み・R2 full-scale warn 超過・live gate 4.5c 未達・rollout off"

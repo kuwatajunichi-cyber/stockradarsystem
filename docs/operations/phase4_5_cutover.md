@@ -32,3 +32,24 @@ Phase 4.5 preflight blocker 解消（実装着手前ゲート）。本番 writer
 | 4.5c | normal のみ active/latest 更新 |
 
 Phase 4 gate SSOT（phase4_gate_status.yaml）は変更しない。
+
+## Live gate 4.5c（4.5-4 以降）
+
+`live_gate_45c` を close するには、**4.5-1〜4.5-4 の実装完了後**に以下の live run 証拠 URL を記録する。
+
+| 証拠キー | 意味 |
+|----------|------|
+| `normal_daily_success_run_url` | rollout `4.5c` + mode `normal` で daily 成功 |
+| `replay_no_shared_mutation_run_url` | replay が derived shared 状態を更新しない |
+| `backfill_shadow_only_run_url` | backfill が shadow のみ更新 |
+| `reconcile_isolated_run_url` | reconcile 専用 entrypoint で isolated 訂正 |
+
+加えてロードマップ上は **3 営業日 soak**（`soak_run_urls`）が必要。
+
+**前提（未達のため live gate は open 維持）:**
+
+- `daily.yml` 等に `PHASE4_5_ROLLOUT_STAGE` / derived writer ステップが未配線
+- mapping `phase4_5_rollout_stage: "off"`
+- 本番 Supabase 004/005 DDL apply 済み（2026-08-12）だが writer / CAS adapter 未接続
+
+**推奨実行順:** 4.5-1 pure metrics → 4.5-2 shadow → 4.5-3 registry shadow → 4.5-4 cutover → rollout `4.5c` → live 証拠取得。

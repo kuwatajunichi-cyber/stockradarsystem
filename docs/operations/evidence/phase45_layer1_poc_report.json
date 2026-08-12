@@ -1,10 +1,15 @@
 {
   "schema_version": 1,
-  "generator_git_sha": "7b3afb5ecf0af939af0771c814557c7c4742b0e7",
+  "generator_git_sha": "87225ce793e8bedbe3230b566371bbac7b2664ac",
   "required_trading_days": 772,
   "retention_trading_days": 1250,
-  "fetched_bars": 1757,
+  "fetched_bars": 1852,
   "classification": "eligible",
-  "wall_time_sec": 0.023,
-  "listing_ages": {}
+  "wall_time_sec": 0.031,
+  "listing_ages": {},
+  "layer1_r2_bytes": 161629153,
+  "layer1_r2_estimate": {
+    "universe_symbols": 3000,
+    "seed": 42
+  }
 }

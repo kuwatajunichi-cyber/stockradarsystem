@@ -12,6 +12,7 @@ from stockradar.storage.phase45_budget import (
     BUDGET_SCHEMA_VERSION,
     R2_WARN_BYTES,
     SUPABASE_WARN_BYTES,
+    estimate_layer1_warm_cache_r2_bytes,
     within_free_tier,
 )
 
@@ -91,6 +92,12 @@ def test_daily_parquet_uses_unique_temp_paths() -> None:
     assert "NamedTemporaryFile" in source
     assert "date.today()" not in source
     assert "DEFAULT_AS_OF_DATE" in source
+
+
+def test_layer1_r2_estimate_grows_with_symbol_count() -> None:
+    small = estimate_layer1_warm_cache_r2_bytes(symbols=5, retention_trading_days=50, seed=1)
+    large = estimate_layer1_warm_cache_r2_bytes(symbols=20, retention_trading_days=50, seed=1)
+    assert large > small
 
 
 def test_full_scale_fails_without_layer1_bytes() -> None:
