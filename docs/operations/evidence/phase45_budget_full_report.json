@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generator_git_sha": "87225ce793e8bedbe3230b566371bbac7b2664ac",
+  "generator_git_sha": "04ab203f4bed8597353980e2f784741228f028a4",
   "generator_seed": 42,
   "as_of_date": "2026-06-30",
   "scale": "full",
@@ -15,9 +15,9 @@
     "snapshots_parquet_per_trade_date": 250,
     "series_gzip_total": 204231000,
     "r2_one_year": 427464250,
-    "r2_total": 8710914153,
+    "r2_total": 8710924023,
     "latest_projection": 1536000,
-    "layer1_r2": 161629153
+    "layer1_r2": 161639023
   },
   "digests": {
     "parquet_logical": "a3211ac03e77d088bcea86905c88adfb70ecc8db1596591d16b3bd9668e255ff"
@@ -25,7 +25,7 @@
   "verdict": {
     "within_free_tier": false,
     "notes": [
-      "r2_total 8710914153 >= warn 8589934592"
+      "r2_total 8710924023 >= warn 8589934592"
     ]
   }
 }

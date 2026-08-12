@@ -7,7 +7,7 @@ implementation_snapshot:
   local_worktree_has_unmerged_changes: false
   note: >-
     Preflight 5/5 closed (PR #134 + #135). Production Supabase 004/005 applied
-    2026-08-12. Full-scale R2 extrapolation exceeds 8 GB warn (8710948119 bytes).
+    2026-08-12. Full-scale R2 extrapolation 8710924023 bytes exceeds 8 GB warn.
     live gate 4.5c open (blocked on 4.5-1..4 implementation). rollout off.
 
 correction_log:
@@ -35,7 +35,7 @@ preflight_blockers:
   layer1_5y_feasibility:
     status: closed
     closed_at_utc: '2026-07-24T00:34:49Z'
-    evidence_digest: 1221bd55c29a988f24997840a0eeaaf031df4b6749bb82eaf05418ecfaa2c7e6
+    evidence_digest: 013285b955503cb90b3af044c695c501556eda3416a9833fea56279c554bad3a
     evidence_url: docs/operations/evidence/phase45_layer1_poc_report.json
   put_fixed_defect:
     status: closed
@@ -45,8 +45,8 @@ preflight_blockers:
   metric_registry_ddl:
     status: closed
     closed_at_utc: '2026-08-12T04:52:36Z'
-    evidence_digest: cf14067f53ed619bf9bf5d9b6d3f3bb9abfda2786334fc16e7a9d53ed2d8913f
-    evidence_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/30041611136
+    evidence_digest: 6ee6787af16f9b84fab22902cc8865fa2b1e416689f560663c1bb91724c309f1
+    evidence_url: docs/operations/evidence/phase45_production_ddl_applied.json
   supabase_r2_budget_fixture:
     status: closed
     closed_at_utc: '2026-07-24T01:15:00Z'
@@ -98,7 +98,7 @@ pr_gates:
     postgres_measurement_evidence_url: >-
       https://github.com/kuwatajunichi-cyber/stockradarsystem/blob/main/docs/operations/evidence/phase45_postgres_budget_report.json
     note: >-
-      CI + Postgres within_free_tier; full-scale R2 extrapolation 8710948119 bytes
+      CI + Postgres within_free_tier; full-scale R2 extrapolation 8710924023 bytes
       exceeds 8 GB warn — paid-tier gate required before cutover
   pr-45-0e-registry:
     description: 004/005 DDL + RLS + CAS RPC + Fake CAS + migration contract
@@ -109,8 +109,7 @@ pr_gates:
     local_pytest_pass: true
     production_ddl_applied: true
     production_ddl_applied_at_utc: '2026-08-12T04:52:36Z'
-    production_ddl_evidence_url: >-
-      https://supabase.com/dashboard/project/wocvepixlzqupasoipbk/database/migrations
+    production_ddl_evidence_url: docs/operations/evidence/phase45_production_ddl_applied.json
     note: >-
       production 004/005 applied via Supabase MCP (migrations
       004_phase45_metric_registry, 005_phase45_metric_registry_hardening)

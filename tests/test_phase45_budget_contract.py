@@ -100,6 +100,47 @@ def test_layer1_r2_estimate_grows_with_symbol_count() -> None:
     assert large > small
 
 
+def test_layer1_r2_estimate_uses_archive_csv_layout() -> None:
+    source = (_REPO / "src/stockradar/storage/phase45_budget.py").read_text(encoding="utf-8")
+    assert 'zf.writestr(f"{code}.csv"' in source
+    assert "_LAYER1_INDEX_FILES" in source
+    assert 'zf.writestr("yf_daily/' not in source
+    assert 'zf.writestr("yf_index/' not in source
+
+
+def test_layer1_poc_fetched_bars_is_reproducible() -> None:
+    import importlib.util
+    import pandas as pd
+
+    poc_path = _REPO / "scripts" / "feasibility" / "phase45_layer1_backfill_poc.py"
+    spec = importlib.util.spec_from_file_location("phase45_layer1_backfill_poc", poc_path)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    def fake_chunk(start, end):
+        idx = pd.bdate_range(start=start.date(), end=end.date())
+        return pd.DataFrame(
+            {"Open": 1.0, "High": 1.0, "Low": 1.0, "Close": 1.0, "Volume": 1000},
+            index=idx,
+        )
+
+    first = mod.run_poc(
+        required_trading_days=772,
+        fetch_chunk=fake_chunk,
+        universe_symbols=10,
+        layer1_seed=1,
+    )
+    second = mod.run_poc(
+        required_trading_days=772,
+        fetch_chunk=fake_chunk,
+        universe_symbols=10,
+        layer1_seed=1,
+    )
+    assert first["fetched_bars"] == second["fetched_bars"]
+    assert first["fetched_bars"] >= 772
+
+
 def test_full_scale_fails_without_layer1_bytes() -> None:
     import importlib.util
 

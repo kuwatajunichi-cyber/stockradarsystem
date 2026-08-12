@@ -54,7 +54,24 @@ def extrapolate_supabase_latest_rows(*, row_bytes: int, n_rows: int) -> int:
     return row_bytes * n_rows
 
 
-_LAYER1_INDEX_SYMBOLS: tuple[str, ...] = ("^N225", "^TOPX")
+_LAYER1_INDEX_FILES: tuple[str, ...] = ("topix.csv", "nikkei.csv")
+
+
+def _synthetic_ohlc_frame(
+    rng: np.random.Generator,
+    dates: pd.DatetimeIndex,
+) -> pd.DataFrame:
+    n = len(dates)
+    return pd.DataFrame(
+        {
+            "Open": rng.uniform(100.0, 200.0, size=n),
+            "High": rng.uniform(100.0, 200.0, size=n),
+            "Low": rng.uniform(100.0, 200.0, size=n),
+            "Close": rng.uniform(100.0, 200.0, size=n),
+            "Volume": rng.integers(1000, 100_000, size=n),
+        },
+        index=dates,
+    )
 
 
 def estimate_layer1_warm_cache_r2_bytes(
@@ -67,8 +84,8 @@ def estimate_layer1_warm_cache_r2_bytes(
     """
     Deterministic zip-size estimate for Layer 1 warm caches (ohlc-store + index-store).
 
-    Builds representative per-symbol CSV payloads and compresses them like archive jobs.
-    Secrets-free; used by Layer 1 PoC and full-scale budget bench.
+    Matches archive layout: ``data/cache/yf_daily/{code}.csv`` and
+    ``data/cache/yf_index/{topix,nikkei}.csv`` flattened into each zip root.
     """
     if symbols <= 0:
         raise ValueError("symbols must be positive")
@@ -82,26 +99,14 @@ def estimate_layer1_warm_cache_r2_bytes(
     ohlc_buf = io.BytesIO()
     with zipfile.ZipFile(ohlc_buf, "w", zipfile.ZIP_DEFLATED) as zf:
         for sym_idx in range(symbols):
-            code = f"{7200 + sym_idx:04d}.T"
-            df = pd.DataFrame(
-                {
-                    "Open": rng.uniform(100.0, 200.0, size=retention_trading_days),
-                    "High": rng.uniform(100.0, 200.0, size=retention_trading_days),
-                    "Low": rng.uniform(100.0, 200.0, size=retention_trading_days),
-                    "Close": rng.uniform(100.0, 200.0, size=retention_trading_days),
-                    "Volume": rng.integers(1000, 100_000, size=retention_trading_days),
-                },
-                index=dates,
-            )
-            zf.writestr(f"yf_daily/{code}.csv", df.to_csv(encoding="utf-8-sig"))
+            code = f"{7200 + sym_idx:04d}"
+            df = _synthetic_ohlc_frame(rng, dates)
+            zf.writestr(f"{code}.csv", df.to_csv(encoding="utf-8-sig"))
 
     index_buf = io.BytesIO()
     with zipfile.ZipFile(index_buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for name in _LAYER1_INDEX_SYMBOLS:
-            df = pd.DataFrame(
-                {"Close": rng.uniform(1000.0, 3000.0, size=retention_trading_days)},
-                index=dates,
-            )
-            zf.writestr(f"yf_index/{name}.csv", df.to_csv(encoding="utf-8-sig"))
+        for name in _LAYER1_INDEX_FILES:
+            df = _synthetic_ohlc_frame(rng, dates)
+            zf.writestr(name, df.to_csv(encoding="utf-8-sig"))
 
     return len(ohlc_buf.getvalue()) + len(index_buf.getvalue())
