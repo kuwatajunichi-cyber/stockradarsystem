@@ -7,7 +7,11 @@ from typing import Any
 
 import yaml
 
-from stockradar.metrics.fingerprint import compute_set_fingerprint, short_fingerprint12
+from stockradar.metrics.fingerprint import (
+    compute_definition_fingerprint,
+    compute_set_fingerprint,
+    short_fingerprint12,
+)
 
 
 @dataclass(frozen=True)
@@ -79,6 +83,12 @@ def load_metric_set_spec(path: Path | str | None = None) -> MetricSetSpec:
     for idx, item in enumerate(members_raw):
         if not isinstance(item, dict):
             raise ValueError(f"member {idx} must be mapping")
+        fp = str(item["definition_fingerprint"])
+        expected_fp = compute_definition_fingerprint(dict(item["definition_canonical"]))
+        if fp != expected_fp:
+            raise ValueError(
+                f"definition_fingerprint mismatch for {item['metric_key']}: {fp} != {expected_fp}"
+            )
         members.append(
             MetricMemberSpec(
                 metric_key=str(item["metric_key"]),

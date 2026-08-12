@@ -18,6 +18,7 @@ def compute_perfect_order_days(
     *,
     run_date: date,
     min_history_days: int = PERFECT_ORDER_MIN_HISTORY_DAYS,
+    sma_windows: tuple[int, int, int] = SMA_WINDOWS,
 ) -> int | None:
     """
     Count consecutive trading days (ending at run_date) where SMA25 > SMA75 > SMA200.
@@ -33,9 +34,9 @@ def compute_perfect_order_days(
         return None
     if pd.Timestamp(sub.index.max()).date() < run_date:
         return None
-    sma25 = _sma(sub, SMA_WINDOWS[0])
-    sma75 = _sma(sub, SMA_WINDOWS[1])
-    sma200 = _sma(sub, SMA_WINDOWS[2])
+    sma25 = _sma(sub, sma_windows[0])
+    sma75 = _sma(sub, sma_windows[1])
+    sma200 = _sma(sub, sma_windows[2])
     ordered = (sma25 > sma75) & (sma75 > sma200)
     if ordered.isna().all():
         return None

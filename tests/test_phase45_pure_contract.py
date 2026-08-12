@@ -8,7 +8,11 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from stockradar.metrics.canonicalize import canonical_decimal_string, compute_logical_digest
+from stockradar.metrics.canonicalize import (
+    build_digest_row,
+    canonical_decimal_string,
+    compute_logical_digest,
+)
 from stockradar.metrics.fingerprint import compute_definition_fingerprint, compute_set_fingerprint
 from stockradar.metrics.normalize_instrument_code import normalize_instrument_code
 from stockradar.metrics.perfect_order import PERFECT_ORDER_MIN_HISTORY_DAYS, compute_perfect_order_days
@@ -55,7 +59,62 @@ def test_logical_digest_golden_vectors_match_fixture() -> None:
 
 
 @pytest.mark.unit
-def test_metric_set_yaml_member_counts() -> None:
+def test_logical_digest_golden_vectors_via_build_digest_row() -> None:
+    data = _load_golden_vectors()
+    for item in data["logical_digest_vectors"]:
+        if item["name"] == "unicode_row_order":
+            rows = [
+                build_digest_row(
+                    instrument_code="Ab12",
+                    metric_keys_ordered=["beta_metric"],
+                    metric_types={"beta_metric": "int"},
+                    values_by_key={"beta_metric": 3},
+                ),
+                build_digest_row(
+                    instrument_code="0001",
+                    metric_keys_ordered=["beta_metric"],
+                    metric_types={"beta_metric": "int"},
+                    values_by_key={"beta_metric": 1},
+                ),
+            ]
+        elif item["name"] == "neg_zero_float":
+            rows = [
+                build_digest_row(
+                    instrument_code="0001",
+                    metric_keys_ordered=["alpha_metric"],
+                    metric_types={"alpha_metric": "float"},
+                    values_by_key={"alpha_metric": -0.0},
+                )
+            ]
+        else:
+            continue
+        digest, _ = compute_logical_digest(
+            trade_date=data["trade_date"],
+            metric_set_version_id=data["metric_set_version_id"],
+            rows=rows,
+        )
+        assert digest == item["digest"], item["name"]
+
+
+@pytest.mark.unit
+def test_int_metric_invalid_string_becomes_missing() -> None:
+    row = build_digest_row(
+        instrument_code="0001",
+        metric_keys_ordered=["beta_metric"],
+        metric_types={"beta_metric": "int"},
+        values_by_key={"beta_metric": "abc"},
+    )
+    assert row["values"][0]["value"] is None
+    assert "beta_metric" in row["flags"]["missing_metrics"]
+
+
+@pytest.mark.unit
+def test_yaml_definition_fingerprints_match_canonical() -> None:
+    for path in (default_metric_set_v1_path(), default_metric_set_v1_free_path()):
+        spec = load_metric_set_spec(path)
+        for member in spec.members:
+            expected = compute_definition_fingerprint(member.definition_canonical)
+            assert member.definition_fingerprint == expected, member.metric_key
     full = load_metric_set_spec(default_metric_set_v1_path())
     free = load_metric_set_spec(default_metric_set_v1_free_path())
     assert len(full.members) == 21

@@ -137,7 +137,19 @@ def classify_metric_value(
         if raw_value is None:
             missing.append(metric_key)
             return None, missing, non_finite
-        return int(raw_value), missing, non_finite
+        try:
+            if isinstance(raw_value, float):
+                if not math.isfinite(raw_value):
+                    non_finite.append(metric_key)
+                    return None, missing, non_finite
+                if raw_value != int(raw_value):
+                    missing.append(metric_key)
+                    return None, missing, non_finite
+                return int(raw_value), missing, non_finite
+            return int(raw_value), missing, non_finite
+        except (TypeError, ValueError):
+            missing.append(metric_key)
+            return None, missing, non_finite
     if value_type == "bool":
         return bool(raw_value), missing, non_finite
     if value_type == "string":
