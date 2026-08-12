@@ -462,6 +462,8 @@ class FakeMetricGenerationStore:
     has_snapshot = any(row["object_kind"] == "snapshot" for row in objects)
     if profile == ArtifactProfile.SNAPSHOT_ONLY.value and has_series:
       raise GenerationConflictError("snapshot_only profile rejects series objects")
+    if profile in {ArtifactProfile.SNAPSHOT_SERIES.value, ArtifactProfile.SNAPSHOT_SERIES_LATEST.value} and not has_series:
+      raise GenerationConflictError("series profile requires series objects")
     if profile != ArtifactProfile.SNAPSHOT_SERIES_LATEST.value and self._latest_rows(generation_id):
       raise GenerationConflictError("latest staging not allowed for profile")
     if profile == ArtifactProfile.SNAPSHOT_SERIES_LATEST.value and not has_snapshot:

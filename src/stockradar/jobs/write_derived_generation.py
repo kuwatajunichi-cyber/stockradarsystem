@@ -11,6 +11,7 @@ from stockradar.storage.derived_generation import (
     FakeMetricGenerationStore,
     GenerationConflictError,
     GenerationNotFoundError,
+    GenerationStatus,
     MetricGenerationPort,
     SourceRunIdentity,
     compute_object_set_digest,
@@ -25,6 +26,11 @@ from stockradar.storage.derived_snapshot import (
     compute_object_sha256,
     compute_snapshot_logical_digest,
     snapshot_content_type,
+)
+from stockradar.storage.derived_series import (
+    SERIES_GZIP_CONTENT_TYPE,
+    build_series_canonical_bytes,
+    gzip_series_bytes,
 )
 from stockradar.storage.phase4_5_rollout import (
     DerivedArtifact,
@@ -81,6 +87,64 @@ class DerivedGenerationResult:
     object_keys: tuple[str, ...] = ()
     reason: str | None = None
 
+
+
+
+def build_default_series_builders(
+    *,
+    trade_date: str,
+    metric_keys_ordered: list[str],
+    values_by_instrument: dict[str, dict[str, object]],
+    prefixes,
+    generation_id: str,
+) -> list[Callable[[], tuple[dict[str, Any], bytes, str]]]:
+    """Shadow series builders: one gzip object per instrument for trade_date year."""
+    year = int(trade_date[:4])
+    builders: list[Callable[[], tuple[dict[str, Any], bytes, str]]] = []
+
+    for instrument_code in sorted(values_by_instrument):
+        values = values_by_instrument[instrument_code]
+        series = {
+            key: [values.get(key)]
+            for key in metric_keys_ordered
+        }
+
+        def _builder(
+            instrument_code: str = instrument_code,
+            series: dict[str, list[object]] = series,
+        ) -> tuple[dict[str, Any], bytes, str]:
+            canonical = build_series_canonical_bytes(
+                instrument_code=instrument_code,
+                year=year,
+                dates=[trade_date],
+                series=series,
+                flags=[{}],
+            )
+            content = gzip_series_bytes(canonical)
+            byte_sha = compute_object_sha256(content)
+            logical_digest = compute_object_sha256(canonical)
+            object_key = object_key_for(
+                prefixes=prefixes,
+                object_kind=DerivedArtifact.SERIES,
+                instrument_code=instrument_code,
+                year=year,
+                generation_uuid=generation_id,
+                object_sha256=byte_sha,
+            )
+            return (
+                {
+                    "object_kind": "series",
+                    "object_key": object_key,
+                    "logical_digest": logical_digest,
+                    "instrument_code": instrument_code,
+                    "series_year": year,
+                },
+                content,
+                SERIES_GZIP_CONTENT_TYPE,
+            )
+
+        builders.append(_builder)
+    return builders
 
 def run_derived_generation(
     request: DerivedGenerationRequest,
@@ -188,6 +252,16 @@ def run_derived_generation(
     except GenerationConflictError as exc:
         return DerivedGenerationResult(status="error", exit_code=2, reason=str(exc))
 
+    if generation.status == GenerationStatus.COMMITTED.value:
+        return DerivedGenerationResult(
+            status="skipped",
+            skipped=True,
+            exit_code=0,
+            generation_id=generation.generation_id,
+            logical_digest=logical_digest,
+            reason="generation_already_committed",
+        )
+
     generation_id = generation.generation_id
     object_keys: list[str] = []
 
@@ -261,6 +335,15 @@ def run_derived_generation(
             generation_id=generation_id,
         )
 
+    if profile_allows_series(profile.value):
+        if series_builders is None:
+            series_builders = build_default_series_builders(
+                trade_date=request.trade_date,
+                metric_keys_ordered=snapshot_input.metric_keys_ordered,
+                values_by_instrument=snapshot_input.values_by_instrument,
+                prefixes=prefixes,
+                generation_id=generation_id,
+            )
     if profile_allows_series(profile.value) and series_builders:
         for builder in series_builders:
             register_kwargs, content, content_type = builder()
@@ -320,14 +403,13 @@ def run_derived_generation(
             object_keys=tuple(object_keys),
         )
 
-    digest_check = compute_object_set_digest(object_keys)
     return DerivedGenerationResult(
-        status="ok",
-        exit_code=0,
+        status="error",
+        exit_code=2,
         generation_id=generation_id,
         logical_digest=logical_digest,
         object_keys=tuple(object_keys),
-        reason=f"object_set_digest={digest_check}",
+        reason=f"commit_incomplete:{committed.status}",
     )
 
 

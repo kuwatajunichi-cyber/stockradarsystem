@@ -274,3 +274,93 @@ def test_run_derived_generation_stages_latest_rows() -> None:
     staged = generation_store.latest_staging[(result.generation_id, "1301")]
     assert staged["trade_date"] == TRADE_DATE
     assert staged["logical_digest"] == DIGEST_A
+
+
+@pytest.mark.unit
+def test_run_derived_generation_committed_replay_is_noop() -> None:
+    from stockradar.jobs.write_derived_generation import (
+        DerivedGenerationRequest,
+        SnapshotInput,
+        run_derived_generation,
+    )
+
+    generation_store = FakeMetricGenerationStore()
+    r2_store = FakeR2ObjectStore()
+    values = {"1301": {"alpha_metric": 1.0}}
+    snapshot_input = SnapshotInput(
+        metric_keys_ordered=["alpha_metric"],
+        metric_types={"alpha_metric": "float"},
+        values_by_instrument=values,
+        layer1_input_fingerprint=SHA,
+    )
+    request = DerivedGenerationRequest(
+        stage="4.5a",
+        mode="normal",
+        trade_date=TRADE_DATE,
+        repository="org/repo",
+        workflow="derived_writer",
+        github_run_id=RUN_ID,
+        metric_set_version_id=SET_ID,
+        active_metric_set_id=None,
+        lifecycle_status="shadow",
+        is_active=False,
+        is_current_latest_trade_date=False,
+    )
+    first = run_derived_generation(
+        request,
+        snapshot_input=snapshot_input,
+        generation_store=generation_store,
+        r2_store=r2_store,
+    )
+    second = run_derived_generation(
+        request,
+        snapshot_input=snapshot_input,
+        generation_store=generation_store,
+        r2_store=r2_store,
+    )
+    assert first.exit_code == 0
+    assert second.exit_code == 0
+    assert second.skipped
+    assert second.reason == "generation_already_committed"
+
+
+@pytest.mark.unit
+def test_run_derived_generation_4_5b_includes_series_object() -> None:
+    from stockradar.jobs.write_derived_generation import (
+        DerivedGenerationRequest,
+        SnapshotInput,
+        run_derived_generation,
+    )
+
+    generation_store = FakeMetricGenerationStore()
+    r2_store = FakeR2ObjectStore()
+    values = {"1301": {"alpha_metric": 1.0}}
+    snapshot_input = SnapshotInput(
+        metric_keys_ordered=["alpha_metric"],
+        metric_types={"alpha_metric": "float"},
+        values_by_instrument=values,
+        layer1_input_fingerprint=SHA,
+    )
+    request = DerivedGenerationRequest(
+        stage="4.5b",
+        mode="normal",
+        trade_date=TRADE_DATE,
+        repository="org/repo",
+        workflow="derived_writer",
+        github_run_id=RUN_ID + 1,
+        metric_set_version_id=SET_ID,
+        active_metric_set_id=None,
+        lifecycle_status="shadow",
+        is_active=False,
+        is_current_latest_trade_date=False,
+    )
+    result = run_derived_generation(
+        request,
+        snapshot_input=snapshot_input,
+        generation_store=generation_store,
+        r2_store=r2_store,
+    )
+    assert result.exit_code == 0
+    pending = generation_store.list_pending_objects(result.generation_id)
+    kinds = {row.object_kind for row in pending}
+    assert kinds == {"snapshot", "series"}
