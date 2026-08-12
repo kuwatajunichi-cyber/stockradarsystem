@@ -44,6 +44,8 @@ REQUIRED_PR_GATE_IDS: frozenset[str] = frozenset(
     }
 )
 
+REQUIRED_HISTORICAL_PR_GATE_IDS: frozenset[str] = REQUIRED_PR_GATE_IDS_V1
+
 REQUIRED_PREFLIGHT_BLOCKER_IDS: frozenset[str] = frozenset(
     {
         "layer1_5y_feasibility",
@@ -307,6 +309,27 @@ def _validate_gate_status_document_v2(data: dict[str, Any]) -> list[str]:
     historical = data.get("historical_pr_gates")
     if not isinstance(historical, dict):
         violations.append("historical_pr_gates must be a mapping for schema v2")
+    else:
+        missing_hist = REQUIRED_HISTORICAL_PR_GATE_IDS - set(historical)
+        if missing_hist:
+            violations.append(
+                f"historical_pr_gates missing required gate ids: {sorted(missing_hist)}"
+            )
+        for gate_id, gate in historical.items():
+            if not isinstance(gate, dict):
+                violations.append(f"historical_pr_gates.{gate_id} must be a mapping")
+                continue
+            status = str(gate.get("status") or "")
+            if status == "merged_and_verified":
+                merge_commit = gate.get("merge_commit")
+                if not isinstance(merge_commit, str) or not _MERGE_COMMIT_SHA_RE.match(
+                    merge_commit.strip()
+                ):
+                    violations.append(
+                        f"historical_pr_gates.{gate_id}: merged_and_verified requires "
+                        "SHA-shaped merge_commit"
+                    )
+                violations.extend(_validate_merged_pr_gate(gate_id, gate))
 
     pr_gates = data.get("pr_gates")
     if not isinstance(pr_gates, dict) or not pr_gates:

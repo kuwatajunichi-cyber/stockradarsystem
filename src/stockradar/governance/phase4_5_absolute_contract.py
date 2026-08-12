@@ -124,6 +124,11 @@ def validate_gate_schema_v2_minimum(data: dict[str, Any]) -> list[str]:
         violations.append("capacity_gate section required for schema v2")
     elif "path" not in capacity or "status" not in capacity:
         violations.append("capacity_gate requires path and status")
+    live = data.get("live_gate_45c")
+    if not isinstance(live, dict):
+        violations.append("live_gate_45c section required for schema v2")
+    elif "status" not in live:
+        violations.append("live_gate_45c requires status")
     return violations
 
 
