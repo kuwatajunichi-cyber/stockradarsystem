@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import random
 import sys
@@ -51,6 +52,118 @@ class Candidate:
     exists_in_base: bool
     confidence: str
     reason: str
+
+
+def _serialize_candidate(c: Candidate) -> dict[str, Any]:
+    return {
+        "alias": c.alias,
+        "sources": sorted(c.sources),
+        "seen_count": int(c.seen_count),
+        "code": c.code,
+        "name": c.name,
+        "exists_in_base": c.exists_in_base,
+        "confidence": c.confidence,
+        "reason": c.reason,
+    }
+
+
+def _deserialize_candidate(raw: dict[str, Any]) -> Candidate:
+    return Candidate(
+        alias=str(raw["alias"]),
+        sources=set(raw.get("sources", [])),
+        seen_count=int(raw.get("seen_count", 0)),
+        code=str(raw["code"]),
+        name=str(raw["name"]),
+        exists_in_base=bool(raw.get("exists_in_base", False)),
+        confidence=str(raw.get("confidence", "medium")),
+        reason=str(raw.get("reason", "")),
+    )
+
+
+def _serialize_media_stats(stats: dict[str, MediaStats]) -> dict[str, dict[str, float | int]]:
+    return {k: v.as_dict() for k, v in stats.items()}
+
+
+def _deserialize_media_stats(raw: dict[str, Any], media_list: list[str]) -> dict[str, MediaStats]:
+    out = {m: MediaStats() for m in media_list}
+    for m in media_list:
+        d = raw.get(m, {})
+        if not isinstance(d, dict):
+            continue
+        s = out[m]
+        s.requests = int(d.get("requests", 0))
+        s.success = int(d.get("success", 0))
+        s.fail = int(d.get("fail", 0))
+        s.retry = int(d.get("retry", 0))
+        s.latency_ms_total = int(d.get("latency_ms_total", 0))
+    return out
+
+
+def _run_fingerprint(*, run_date: str, media_list: list[str], codes: list[str]) -> str:
+    payload = f"{run_date}|{','.join(media_list)}|{','.join(codes)}"
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+
+def _checkpoint_path(checkpoint_dir: Path, fingerprint: str) -> Path:
+    return checkpoint_dir / f"{fingerprint}.checkpoint.json"
+
+
+def _load_checkpoint(path: Path, fingerprint: str) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(data, dict) or data.get("fingerprint") != fingerprint:
+        return None
+    completed_raw = data.get("completed_codes", [])
+    completed = {str(c) for c in completed_raw} if isinstance(completed_raw, list) else set()
+    candidates_raw = data.get("candidates_by_code", {})
+    candidates: dict[str, list[Candidate]] = {}
+    if isinstance(candidates_raw, dict):
+        for code, vals in candidates_raw.items():
+            if not isinstance(vals, list):
+                continue
+            candidates[str(code)] = [_deserialize_candidate(v) for v in vals if isinstance(v, dict)]
+    media_stats_raw = data.get("media_stats", {})
+    media_stats = media_stats_raw if isinstance(media_stats_raw, dict) else {}
+    return {
+        "completed_codes": completed,
+        "candidates_by_code": candidates,
+        "media_stats": media_stats,
+    }
+
+
+def _save_checkpoint(
+    *,
+    path: Path,
+    fingerprint: str,
+    run_date: str,
+    media_list: list[str],
+    completed_codes: set[str],
+    candidates_by_code: dict[str, list[Candidate]],
+    media_stats: dict[str, MediaStats],
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "fingerprint": fingerprint,
+        "run_date": run_date,
+        "media_list": media_list,
+        "completed_codes": sorted(completed_codes),
+        "candidates_by_code": {
+            code: [_serialize_candidate(c) for c in vals] for code, vals in sorted(candidates_by_code.items())
+        },
+        "media_stats": _serialize_media_stats(media_stats),
+    }
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(path)
+
+
+def _clear_checkpoint(path: Path) -> None:
+    if path.exists():
+        path.unlink()
 
 
 def _parse_backoff(raw: str) -> list[int]:
@@ -148,6 +261,9 @@ def _collect_candidates(
     media_list: list[str],
     tdnet_lookback_days: int,
     policy: FetchPolicy,
+    run_date: str,
+    checkpoint_dir: Path | None = None,
+    checkpoint_interval: int = 25,
 ) -> tuple[dict[str, list[Candidate]], dict[str, MediaStats]]:
     per_code: dict[str, list[Candidate]] = {}
     code_name: dict[str, str] = {str(r.code): str(r.name) for r in universe.itertuples(index=False)}
@@ -166,9 +282,25 @@ def _collect_candidates(
         }
     )
 
+    fingerprint = _run_fingerprint(run_date=run_date, media_list=media_list, codes=codes)
+    checkpoint_path = _checkpoint_path(checkpoint_dir, fingerprint) if checkpoint_dir is not None else None
+    completed_codes: set[str] = set()
+    if checkpoint_path is not None:
+        loaded = _load_checkpoint(checkpoint_path, fingerprint)
+        if loaded is not None:
+            completed_codes = set(loaded["completed_codes"])
+            per_code = dict(loaded["candidates_by_code"])
+            stats = _deserialize_media_stats(loaded["media_stats"], media_list)
+            print(
+                f"checkpoint: resume {len(completed_codes)}/{len(codes)} codes from {checkpoint_path}",
+                file=sys.stderr,
+                flush=True,
+            )
+
+    pending_codes = [c for c in codes if c not in completed_codes]
     tdnet_counts: dict[str, dict[str, int]] = {}
-    if "tdnet" in media_list:
-        run_d = date.today()
+    if "tdnet" in media_list and pending_codes:
+        run_d = date.fromisoformat(run_date)
         start_d = run_d - timedelta(days=max(tdnet_lookback_days, 1))
         tdnet_counts = fetch_tdnet_issuer_counts(
             codes=set(codes),
@@ -181,7 +313,11 @@ def _collect_candidates(
             rng=rng,
         )
 
+    processed_since_save = 0
+    total = len(codes)
     for code in codes:
+        if code in completed_codes:
+            continue
         name = code_name[code]
         exists = base_aliases.get(code, [])
         known_set = _base_alias_norm_set(name, exists)
@@ -232,12 +368,29 @@ def _collect_candidates(
                 exists_in_base=c.exists_in_base,
             )
             c.reason = "invalid_alias" if not is_valid_alias(c.alias) else c.reason
-            # bring historical state count if exists
             old = base_state.get(code, {}).get(dk, {})
             if isinstance(old, dict) and isinstance(old.get("seen_count"), int):
                 c.seen_count += int(old.get("seen_count", 0))
 
         per_code[code] = list(obs.values())
+        completed_codes.add(code)
+        processed_since_save += 1
+
+        if len(completed_codes) % 100 == 0 or code == codes[-1]:
+            print(f"progress: {len(completed_codes)}/{total} codes", file=sys.stderr, flush=True)
+
+        if checkpoint_path is not None and processed_since_save >= max(checkpoint_interval, 1):
+            _save_checkpoint(
+                path=checkpoint_path,
+                fingerprint=fingerprint,
+                run_date=run_date,
+                media_list=media_list,
+                completed_codes=completed_codes,
+                candidates_by_code=per_code,
+                media_stats=stats,
+            )
+            processed_since_save = 0
+
     return per_code, stats
 
 
@@ -387,6 +540,18 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--low-ratio-max", type=float, default=0.35)
     parser.add_argument("--resolved-monthly-tag", type=str, default="")
     parser.add_argument("--upstream-run-id", type=str, default="")
+    parser.add_argument(
+        "--checkpoint-dir",
+        type=str,
+        default="data/cache/name_aliases/checkpoints",
+        help="Checkpoint directory for resumable fetch (empty disables)",
+    )
+    parser.add_argument(
+        "--checkpoint-interval",
+        type=int,
+        default=25,
+        help="Save checkpoint every N processed codes",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -446,6 +611,13 @@ def main(argv: list[str] | None = None) -> None:
         retry_backoff_ms=_parse_backoff(args.retry_backoff_ms),
         per_host_qps=args.per_host_qps if args.per_host_qps > 0 else None,
     )
+    codes = sorted(universe["code"].astype(str).tolist())
+    fingerprint = _run_fingerprint(run_date=run_date, media_list=media_list, codes=codes)
+    checkpoint_dir: Path | None = None
+    if str(args.checkpoint_dir).strip():
+        checkpoint_dir = _to_abs(args.checkpoint_dir)
+    checkpoint_path = _checkpoint_path(checkpoint_dir, fingerprint) if checkpoint_dir is not None else None
+
     candidates_by_code, media_stats = _collect_candidates(
         universe=universe,
         base_aliases=base_aliases,
@@ -453,6 +625,9 @@ def main(argv: list[str] | None = None) -> None:
         media_list=media_list,
         tdnet_lookback_days=args.tdnet_lookback_days,
         policy=policy,
+        run_date=run_date,
+        checkpoint_dir=checkpoint_dir,
+        checkpoint_interval=max(args.checkpoint_interval, 1),
     )
     merged_aliases, delta_df = _merge_aliases(
         universe=universe,
@@ -544,6 +719,9 @@ def main(argv: list[str] | None = None) -> None:
         "anomalies": anomalies,
     }
     out_summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    if checkpoint_path is not None:
+        _clear_checkpoint(checkpoint_path)
 
     print(
         f"aliases={out_alias_path} codes={len(merged_aliases)} added={add_cnt} review={low_cnt}",

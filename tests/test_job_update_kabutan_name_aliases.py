@@ -219,3 +219,101 @@ def test_update_alias_job_fail_on_anomaly(tmp_path: Path, monkeypatch) -> None:
         assert e.code == 1
     assert raised
 
+
+def test_update_alias_job_resumes_from_checkpoint(tmp_path: Path, monkeypatch) -> None:
+    core = tmp_path / "in" / "core.csv"
+    illiquid = tmp_path / "in" / "illiquid.csv"
+    ipo = tmp_path / "in" / "ipo.csv"
+    _write_universe_csv(core, [{"code": "7203", "name": "トヨタ自動車"}])
+    _write_universe_csv(illiquid, [{"code": "9432", "name": "NTT"}])
+    _write_universe_csv(ipo, [{"code": "130A", "name": "Veritas In Silico"}])
+
+    base_alias = tmp_path / "config" / "kabutan_name_aliases.yaml"
+    base_alias.parent.mkdir(parents=True, exist_ok=True)
+    base_alias.write_text("aliases_by_code: {}\n", encoding="utf-8")
+    base_state = tmp_path / "cache" / "alias_state.json"
+    base_state.parent.mkdir(parents=True, exist_ok=True)
+    base_state.write_text(json.dumps({"aliases_by_code": {}}, ensure_ascii=False), encoding="utf-8")
+
+    kabutan_calls: list[str] = []
+
+    def _kabutan(code: str, **kwargs: object) -> list[str]:
+        kabutan_calls.append(code)
+        return [f"alias-{code}"]
+
+    monkeypatch.setattr("stockradar.jobs.update_kabutan_name_aliases.fetch_kabutan_aliases_for_code", _kabutan)
+    monkeypatch.setattr("stockradar.jobs.update_kabutan_name_aliases.fetch_nikkei_aliases_for_code", lambda code, **kwargs: [])
+    monkeypatch.setattr("stockradar.jobs.update_kabutan_name_aliases.fetch_tdnet_issuer_counts", lambda **kwargs: {})
+
+    checkpoint_dir = tmp_path / "checkpoints"
+    from stockradar.jobs import update_kabutan_name_aliases as job
+
+    codes = ["130A", "7203", "9432"]
+    fingerprint = job._run_fingerprint(run_date="2026-08-12", media_list=["kabutan"], codes=codes)
+    checkpoint_path = job._checkpoint_path(checkpoint_dir, fingerprint)
+    job._save_checkpoint(
+        path=checkpoint_path,
+        fingerprint=fingerprint,
+        run_date="2026-08-12",
+        media_list=["kabutan"],
+        completed_codes={"130A"},
+        candidates_by_code={
+            "130A": [
+                job.Candidate(
+                    alias="alias-130A",
+                    sources={"kabutan"},
+                    seen_count=1,
+                    code="130A",
+                    name="Veritas In Silico",
+                    exists_in_base=False,
+                    confidence="medium",
+                    reason="new_candidate",
+                )
+            ]
+        },
+        media_stats={"kabutan": job.MediaStats(requests=1, success=1)},
+    )
+
+    out_alias = tmp_path / "out" / "kabutan_name_aliases.yaml"
+    out_state = tmp_path / "out" / "alias_state.json"
+    out_delta = tmp_path / "out" / "alias_delta.csv"
+    out_summary = tmp_path / "out" / "alias_summary.json"
+    main(
+        [
+            "--input-core",
+            str(core),
+            "--input-illiquid",
+            str(illiquid),
+            "--input-ipo",
+            str(ipo),
+            "--base-alias-yaml",
+            str(base_alias),
+            "--base-state-json",
+            str(base_state),
+            "--output-alias-yaml",
+            str(out_alias),
+            "--output-state-json",
+            str(out_state),
+            "--output-delta-csv",
+            str(out_delta),
+            "--output-summary-json",
+            str(out_summary),
+            "--run-date",
+            "2026-08-12",
+            "--media",
+            "kabutan",
+            "--sleep-ms",
+            "0",
+            "--sleep-jitter-ms",
+            "0",
+            "--checkpoint-dir",
+            str(checkpoint_dir),
+            "--checkpoint-interval",
+            "1",
+        ]
+    )
+    assert kabutan_calls == ["7203", "9432"]
+    cfg = yaml.safe_load(out_alias.read_text(encoding="utf-8"))
+    assert "7203" in cfg["aliases_by_code"]
+    assert not checkpoint_path.exists()
+
