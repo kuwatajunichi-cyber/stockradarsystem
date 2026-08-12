@@ -383,6 +383,18 @@ def run_derived_generation(
                 logical_digest=str(row["logical_digest"]),
             )
 
+    if profile_allows_latest(profile.value) and request.is_current_latest_trade_date and not latest_rows:
+        generation_store.fail_generation(
+            generation_id=generation_id,
+            reason="latest_rows_required_for_current_trade_date",
+        )
+        return DerivedGenerationResult(
+            status="error",
+            exit_code=2,
+            reason="latest_rows_required_for_current_trade_date",
+            generation_id=generation_id,
+        )
+
     generation_store.heartbeat(generation_id=generation_id)
     try:
         committed = generation_store.commit_generation(
