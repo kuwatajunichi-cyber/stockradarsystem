@@ -1,4 +1,5 @@
 # 単体テスト（Secrets 不要）
+# pull_request bases: main and phase45/** (stack PRs)
 name: Test
 
 on:
