@@ -14,7 +14,6 @@ from stockradar.storage.derived_generation import (
     GenerationStatus,
     MetricGenerationPort,
     SourceRunIdentity,
-    compute_object_set_digest,
     profile_allows_latest,
     profile_allows_series,
     resolve_artifact_profile,
