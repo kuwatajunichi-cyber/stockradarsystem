@@ -108,10 +108,19 @@ def validate_golden_vectors_fixture() -> list[str]:
         if not isinstance(expected_digest, str) or not _SHA256_RE.match(expected_digest):
             violations.append(f"vector {name}: invalid digest")
             continue
+        utf8_hex = item.get("utf8_hex")
         if isinstance(utf8, str):
             actual = hashlib.sha256(utf8.encode("utf-8")).hexdigest()
             if actual != expected_digest:
                 violations.append(f"vector {name}: digest mismatch")
+            if isinstance(utf8_hex, str):
+                try:
+                    from_hex = bytes.fromhex(utf8_hex)
+                except ValueError:
+                    violations.append(f"vector {name}: invalid utf8_hex")
+                else:
+                    if from_hex != utf8.encode("utf-8"):
+                        violations.append(f"vector {name}: utf8_hex mismatch")
     return violations
 
 

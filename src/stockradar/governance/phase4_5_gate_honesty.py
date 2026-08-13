@@ -20,7 +20,7 @@ _PHASE45_ROW_RE = re.compile(
 )
 _CLOSED_PHRASE_FORBIDDEN_MARKERS = ("未マージ", "live gate 未達", "未達", "in_progress")
 _FORBIDDEN_PHASE45_IF_NOT_CLOSED = (
-    re.compile(r"gate\s+CLOSED", re.IGNORECASE),
+    re.compile(r"(?<![_\w])gate\s+CLOSED", re.IGNORECASE),
     re.compile(r"\*\*" + "\u5b8c\u4e86" + r"\*\*"),
     re.compile(r"\*\*CLOSED\*\*", re.IGNORECASE),
 )
@@ -344,7 +344,8 @@ def _validate_gate_status_document_v2(data: dict[str, Any]) -> list[str]:
     if missing_gates:
         violations.append(f"pr_gates missing required gate ids: {sorted(missing_gates)}")
 
-    duplicate_historical = REQUIRED_PR_GATE_IDS & set(historical or {})
+    historical_keys = historical.keys() if isinstance(historical, dict) else ()
+    duplicate_historical = REQUIRED_PR_GATE_IDS & set(historical_keys)
     if duplicate_historical:
         violations.append(
             f"historical_pr_gates must not duplicate active pr gate ids: {sorted(duplicate_historical)}"
@@ -387,6 +388,12 @@ def _validate_gate_status_document_v2(data: dict[str, Any]) -> list[str]:
             soak = live.get("soak_run_urls")
             if not isinstance(soak, list) or len(soak) < 3:
                 violations.append("live_gate_45c closed requires soak_run_urls length >= 3")
+            elif isinstance(soak, list):
+                for i, url in enumerate(soak):
+                    if not isinstance(url, str) or not _EVIDENCE_URL_RE.match(url.strip()):
+                        violations.append(
+                            f"live_gate_45c closed requires URL-shaped soak_run_urls[{i}]"
+                        )
             if not live.get("closed_at_utc"):
                 violations.append("live_gate_45c closed requires closed_at_utc")
 

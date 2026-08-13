@@ -54,6 +54,7 @@ Supported types: `float`, `int`, `bool`, `string`, `null`.
 3. Strip trailing zeros and trailing decimal point
 4. `-0` → `"0"`
 5. NaN / ±Inf → null atom + metric listed in `non_finite_metrics`
+   Tagged atom for non-finite **float** metrics keeps `"type":"float"` with JSON `null` for `value` (not `"type":"null"`).
 
 ### Int / bool / string / null
 
