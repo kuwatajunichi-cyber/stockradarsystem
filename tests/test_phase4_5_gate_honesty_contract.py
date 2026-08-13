@@ -188,3 +188,21 @@ def test_all_gates_closed_requires_overall_closed() -> None:
     good["roadmap"]["phase45_status_phrase"] = "gate CLOSED"
     violations = validate_gate_status_document(good)
     assert any("overall_status must be closed" in v for v in violations)
+
+
+@pytest.mark.unit
+def test_live_gate_45c_closed_rejects_invalid_soak_urls() -> None:
+    good = copy.deepcopy(_load_gate_status())
+    good["capacity_gate"]["status"] = "closed"
+    good["live_gate_45c"]["status"] = "closed"
+    good["live_gate_45c"]["closed_at_utc"] = "2026-07-23T00:00:00Z"
+    for key in (
+        "normal_daily_success_run_url",
+        "replay_no_shared_mutation_run_url",
+        "backfill_shadow_only_run_url",
+        "reconcile_isolated_run_url",
+    ):
+        good["live_gate_45c"][key] = "https://example.com/evidence"
+    good["live_gate_45c"]["soak_run_urls"] = ["TBD", "TBD", "TBD"]
+    violations = validate_gate_status_document(good)
+    assert any("soak_run_urls" in v for v in violations)

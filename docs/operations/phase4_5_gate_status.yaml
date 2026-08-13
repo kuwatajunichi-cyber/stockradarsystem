@@ -4,8 +4,7 @@ last_updated_utc: '2026-08-13T02:45:00+09:00'
 overall_status: in_progress
 implementation_snapshot:
   local_worktree_has_unmerged_changes: false
-  note: 'Step 0: schema v2 + canonical digest SSOT; PR-45-1..4 pending; capacity_gate
-    open.'
+  note: 'Step 0: schema v2 + canonical digest SSOT; PR-45-1..4 pending; capacity_gate closed (Path B).'
 correction_log:
 - at_utc: '2026-08-12T04:52:36Z'
   reason: 'Production DDL apply: 004_phase45_metric_registry + 005 hardening on stock-radar-system
@@ -91,7 +90,7 @@ live_gate_45c:
   note: Blocked on 4.5-1..4 implementation and workflow wiring; see phase4_5_cutover.md
 roadmap:
   phase45_status_phrase: preflight 完了・schema v2 移行・canonical digest SSOT・PR-45-1..4
-    pending・capacity_gate open・rollout off
+    pending・capacity_gate closed (Path B)・rollout off
 historical_pr_gates:
   pr-45-0-gate-ssot:
     description: gate SSOT + honesty + cutover runbook + rollout helpers
