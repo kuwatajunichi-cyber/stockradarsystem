@@ -62,7 +62,7 @@ def test_phase45_migration_006_revokes_legacy_commit_derived_object(migration_00
 def test_phase45_migration_006_service_role_grants(migration_006: str) -> None:
     assert "GRANT EXECUTE ON FUNCTION public.begin_derived_generation" in migration_006
     assert "GRANT EXECUTE ON FUNCTION public.commit_derived_generation(uuid, text) TO service_role" in migration_006
-    assert "GRANT SELECT, INSERT, UPDATE ON TABLE public.derived_generation_runs TO service_role" in migration_006
+    assert "GRANT SELECT, INSERT ON TABLE public.derived_generation_runs TO service_role" in migration_006
 
 
 def test_phase45_migration_006_generation_coordinate_unique(migration_006: str) -> None:

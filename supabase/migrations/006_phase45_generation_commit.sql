@@ -133,6 +133,14 @@ BEGIN
       RAISE EXCEPTION 'derived generation failed; new source identity required (set_uuid=%)', p_metric_set_version_id;
     END IF;
     IF v_existing.status = 'committed' THEN
+      IF v_existing.artifact_profile IS DISTINCT FROM p_artifact_profile
+         OR v_existing.expected_object_count IS DISTINCT FROM p_expected_object_count
+         OR v_existing.expected_object_set_digest IS DISTINCT FROM p_expected_object_set_digest
+         OR v_existing.expected_latest_set_digest IS DISTINCT FROM p_expected_latest_set_digest
+         OR v_existing.declared_new_digest IS DISTINCT FROM p_declared_new_digest
+         OR (p_expected_old_digest IS NOT NULL AND v_existing.expected_old_digest IS DISTINCT FROM p_expected_old_digest) THEN
+        RAISE EXCEPTION 'derived generation payload mismatch for committed source identity (set_uuid=%)', p_metric_set_version_id;
+      END IF;
       RETURN v_existing.id;
     END IF;
     IF v_existing.artifact_profile IS DISTINCT FROM p_artifact_profile
@@ -322,6 +330,44 @@ BEGIN
     RAISE EXCEPTION 'commit_derived_generation: not all objects uploaded';
   END IF;
 
+  IF v_gen.expected_object_set_digest IS NOT NULL THEN
+    PERFORM 1 FROM (
+      SELECT encode(
+        sha256(convert_to(string_agg(object_key, E'\n' ORDER BY object_key), 'UTF8')),
+        'hex'
+      ) AS digest
+      FROM derived_object_index
+      WHERE generation_id = p_generation_id AND status = 'pending'
+    ) AS computed
+    WHERE computed.digest <> v_gen.expected_object_set_digest;
+    IF FOUND THEN
+      RAISE EXCEPTION 'commit_derived_generation: object_set_digest mismatch';
+    END IF;
+  END IF;
+
+  IF v_gen.artifact_profile = 'snapshot_series_latest' THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM latest_derived_observations_staging
+      WHERE generation_id = p_generation_id
+    ) THEN
+      RAISE EXCEPTION 'commit_derived_generation: latest staging required for profile';
+    END IF;
+    IF v_gen.expected_latest_set_digest IS NOT NULL THEN
+      PERFORM 1 FROM (
+        SELECT encode(
+          sha256(convert_to(string_agg(instrument_code, E'\n' ORDER BY instrument_code), 'UTF8')),
+          'hex'
+        ) AS digest
+        FROM latest_derived_observations_staging
+        WHERE generation_id = p_generation_id
+      ) AS computed
+      WHERE computed.digest <> v_gen.expected_latest_set_digest;
+      IF FOUND THEN
+        RAISE EXCEPTION 'commit_derived_generation: latest_set_digest mismatch';
+      END IF;
+    END IF;
+  END IF;
+
   IF v_gen.artifact_profile IN ('snapshot_only', 'snapshot_series', 'snapshot_series_latest') THEN
     UPDATE derived_object_index d
     SET status = 'orphan'
@@ -485,7 +531,7 @@ ALTER TABLE public.latest_derived_observations_staging ENABLE ROW LEVEL SECURITY
 REVOKE ALL ON TABLE public.derived_generation_runs FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON TABLE public.latest_derived_observations_staging FROM PUBLIC, anon, authenticated, service_role;
 
-GRANT SELECT, INSERT, UPDATE ON TABLE public.derived_generation_runs TO service_role;
+GRANT SELECT, INSERT ON TABLE public.derived_generation_runs TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.latest_derived_observations_staging TO service_role;
 
 COMMIT;
