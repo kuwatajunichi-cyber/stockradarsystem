@@ -113,7 +113,13 @@ def test_yaml_definition_fingerprints_match_canonical() -> None:
     for path in (default_metric_set_v1_path(), default_metric_set_v1_free_path()):
         spec = load_metric_set_spec(path)
         for member in spec.members:
-            expected = compute_definition_fingerprint(member.definition_canonical)
+            expected = compute_definition_fingerprint(
+                {
+                    **member.definition_canonical,
+                    "required_inputs": member.required_inputs,
+                    "missing_policy": member.missing_policy,
+                }
+            )
             assert member.definition_fingerprint == expected, member.metric_key
     full = load_metric_set_spec(default_metric_set_v1_path())
     free = load_metric_set_spec(default_metric_set_v1_free_path())

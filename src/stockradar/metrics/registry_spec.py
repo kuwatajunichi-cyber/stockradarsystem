@@ -68,6 +68,13 @@ def default_metric_set_v1_free_path() -> Path:
     return _repo_root() / "config" / "metrics" / "metric_set_v1_free.yaml"
 
 
+def definition_payload_for_fingerprint(item: dict[str, Any]) -> dict[str, Any]:
+    payload = dict(item["definition_canonical"])
+    payload["required_inputs"] = list(item.get("required_inputs") or [])
+    payload["missing_policy"] = dict(item.get("missing_policy") or {})
+    return payload
+
+
 def load_metric_set_spec(path: Path | str | None = None) -> MetricSetSpec:
     yaml_path = Path(path) if path is not None else default_metric_set_v1_path()
     raw = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
@@ -84,7 +91,7 @@ def load_metric_set_spec(path: Path | str | None = None) -> MetricSetSpec:
         if not isinstance(item, dict):
             raise ValueError(f"member {idx} must be mapping")
         fp = str(item["definition_fingerprint"])
-        expected_fp = compute_definition_fingerprint(dict(item["definition_canonical"]))
+        expected_fp = compute_definition_fingerprint(definition_payload_for_fingerprint(item))
         if fp != expected_fp:
             raise ValueError(
                 f"definition_fingerprint mismatch for {item['metric_key']}: {fp} != {expected_fp}"

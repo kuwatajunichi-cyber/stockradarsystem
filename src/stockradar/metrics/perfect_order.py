@@ -38,6 +38,8 @@ def compute_perfect_order_days(
     sma75 = _sma(sub, sma_windows[1])
     sma200 = _sma(sub, sma_windows[2])
     ordered = (sma25 > sma75) & (sma75 > sma200)
+    if ordered.isna().any():
+        return None
     if ordered.isna().all():
         return None
     count = 0
