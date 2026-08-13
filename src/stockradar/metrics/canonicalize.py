@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import struct
 import unicodedata
 from decimal import ROUND_HALF_EVEN, Decimal, InvalidOperation
 from typing import Any
@@ -17,11 +18,15 @@ TaggedAtom = dict[str, Any]
 DigestRow = dict[str, Any]
 
 
+def _binary64_to_decimal(value: float) -> Decimal:
+    return Decimal(struct.unpack('!d', struct.pack('!d', value))[0])
+
+
 def canonical_decimal_string(value: float) -> str:
     """Convert finite float to canonical decimal string (round-half-even, 10 dp)."""
     if not math.isfinite(value):
         raise ValueError(f"non-finite float cannot be canonicalized: {value!r}")
-    dec = Decimal(str(value)).quantize(Decimal("0.0000000001"), rounding=ROUND_HALF_EVEN)
+    dec = _binary64_to_decimal(value).quantize(Decimal("0.0000000001"), rounding=ROUND_HALF_EVEN)
     if dec == 0:
         return "0"
     normalized = format(dec.normalize(), "f")
