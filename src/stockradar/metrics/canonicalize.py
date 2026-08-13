@@ -6,7 +6,7 @@ import json
 import math
 import struct
 import unicodedata
-from decimal import ROUND_HALF_EVEN, Decimal, InvalidOperation
+from decimal import ROUND_HALF_EVEN, Decimal
 from typing import Any
 
 from stockradar.metrics.normalize_instrument_code import normalize_instrument_code
