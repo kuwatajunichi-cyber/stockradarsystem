@@ -15,7 +15,6 @@ from stockradar.storage.phase45_budget import (
     DEFAULT_PATH_B_RETENTION_YEARS,
     R2_WARN_BYTES,
     BudgetProjectionInputs,
-    build_path_b_projection_inputs,
     canonical_report_hash,
     evaluate_capacity_path_b,
     project_r2_budget_v2,
