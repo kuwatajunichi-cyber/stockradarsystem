@@ -127,9 +127,7 @@ def test_preflight_closed_with_live_open_allows_in_progress() -> None:
         gate["merge_commit"] = "a" * 40
         gate["merge_ci_run_url"] = "https://github.com/org/repo/actions/runs/1"
         gate["pytest_ci_pass_on_merge"] = True
-    interim["pr_gates"]["pr-45-0d-budget"]["postgres_measurement_evidence_url"] = (
-        "https://example.com/pg"
-    )
+    interim["capacity_gate"]["status"] = "open"
     interim["live_gate_45c"]["status"] = "open"
     interim["overall_status"] = "in_progress"
     violations = validate_gate_status_document(interim)
@@ -164,9 +162,14 @@ def test_all_gates_closed_requires_overall_closed() -> None:
         gate["merge_commit"] = "a" * 40
         gate["merge_ci_run_url"] = "https://github.com/org/repo/actions/runs/1"
         gate["pytest_ci_pass_on_merge"] = True
-    good["pr_gates"]["pr-45-0d-budget"]["postgres_measurement_evidence_url"] = (
-        "https://example.com/pg"
-    )
+    good["capacity_gate"] = {
+        "status": "closed",
+        "path": "A",
+        "catalog": "metric_set_v1",
+        "projection_inputs": {"trade_days": 252},
+        "evidence_report_hash": _VALID_DIGEST,
+        "evidence_url": _VALID_EVIDENCE_PATH,
+    }
     good["live_gate_45c"]["status"] = "closed"
     good["live_gate_45c"]["closed_at_utc"] = "2026-07-23T00:00:00Z"
     for key in (
@@ -176,7 +179,30 @@ def test_all_gates_closed_requires_overall_closed() -> None:
         "reconcile_isolated_run_url",
     ):
         good["live_gate_45c"][key] = "https://example.com/evidence"
+    good["live_gate_45c"]["soak_run_urls"] = [
+        "https://example.com/soak/1",
+        "https://example.com/soak/2",
+        "https://example.com/soak/3",
+    ]
     good["overall_status"] = "in_progress"
     good["roadmap"]["phase45_status_phrase"] = "gate CLOSED"
     violations = validate_gate_status_document(good)
     assert any("overall_status must be closed" in v for v in violations)
+
+
+@pytest.mark.unit
+def test_live_gate_45c_closed_rejects_invalid_soak_urls() -> None:
+    good = copy.deepcopy(_load_gate_status())
+    good["capacity_gate"]["status"] = "closed"
+    good["live_gate_45c"]["status"] = "closed"
+    good["live_gate_45c"]["closed_at_utc"] = "2026-07-23T00:00:00Z"
+    for key in (
+        "normal_daily_success_run_url",
+        "replay_no_shared_mutation_run_url",
+        "backfill_shadow_only_run_url",
+        "reconcile_isolated_run_url",
+    ):
+        good["live_gate_45c"][key] = "https://example.com/evidence"
+    good["live_gate_45c"]["soak_run_urls"] = ["TBD", "TBD", "TBD"]
+    violations = validate_gate_status_document(good)
+    assert any("soak_run_urls" in v for v in violations)

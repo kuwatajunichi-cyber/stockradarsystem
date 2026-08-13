@@ -20,12 +20,12 @@ _PHASE45_ROW_RE = re.compile(
 )
 _CLOSED_PHRASE_FORBIDDEN_MARKERS = ("未マージ", "live gate 未達", "未達", "in_progress")
 _FORBIDDEN_PHASE45_IF_NOT_CLOSED = (
-    re.compile(r"gate\s+CLOSED", re.IGNORECASE),
+    re.compile(r"(?<![_\w])gate\s+CLOSED", re.IGNORECASE),
     re.compile(r"\*\*" + "\u5b8c\u4e86" + r"\*\*"),
     re.compile(r"\*\*CLOSED\*\*", re.IGNORECASE),
 )
 
-REQUIRED_PR_GATE_IDS: frozenset[str] = frozenset(
+REQUIRED_PR_GATE_IDS_V1: frozenset[str] = frozenset(
     {
         "pr-45-0-gate-ssot",
         "pr-45-0b-put-fixed",
@@ -34,6 +34,17 @@ REQUIRED_PR_GATE_IDS: frozenset[str] = frozenset(
         "pr-45-0e-registry",
     }
 )
+
+REQUIRED_PR_GATE_IDS: frozenset[str] = frozenset(
+    {
+        "pr-45-1",
+        "pr-45-2",
+        "pr-45-3",
+        "pr-45-4",
+    }
+)
+
+REQUIRED_HISTORICAL_PR_GATE_IDS: frozenset[str] = REQUIRED_PR_GATE_IDS_V1
 
 REQUIRED_PREFLIGHT_BLOCKER_IDS: frozenset[str] = frozenset(
     {
@@ -134,9 +145,47 @@ def _validate_rollout(data: dict[str, Any]) -> list[str]:
     return violations
 
 
+def _validate_capacity_gate(capacity: dict[str, Any], *, require_closed: bool) -> list[str]:
+    violations: list[str] = []
+    status = str(capacity.get("status") or "")
+    if status not in {"open", "closed"}:
+        violations.append("capacity_gate.status must be open or closed")
+        return violations
+    if require_closed or status == "closed":
+        path = capacity.get("path")
+        if path not in {"A", "B"}:
+            violations.append("capacity_gate closed requires path A or B")
+        catalog = capacity.get("catalog")
+        if not isinstance(catalog, str) or not catalog:
+            violations.append("capacity_gate closed requires catalog")
+        if not isinstance(capacity.get("projection_inputs"), dict):
+            violations.append("capacity_gate closed requires projection_inputs mapping")
+        digest = capacity.get("evidence_report_hash")
+        if not isinstance(digest, str) or not _EVIDENCE_DIGEST_RE.match(digest.strip()):
+            violations.append("capacity_gate closed requires SHA256-shaped evidence_report_hash")
+        evidence_url = capacity.get("evidence_url")
+        if not isinstance(evidence_url, str) or not _is_verifiable_evidence_ref(evidence_url):
+            violations.append("capacity_gate closed requires verifiable evidence_url")
+    return violations
+
+
 def validate_gate_status_document(data: dict[str, Any]) -> list[str]:
     """Return human-readable contract violations (empty if OK)."""
     violations: list[str] = []
+
+    schema_version = data.get("schema_version")
+    if schema_version == 1:
+        return _validate_gate_status_document_v1(data)
+    if schema_version != 2:
+        violations.append("schema_version must be 1 (legacy) or 2")
+        return violations
+    return _validate_gate_status_document_v2(data)
+
+
+def _validate_gate_status_document_v1(data: dict[str, Any]) -> list[str]:
+    """Legacy schema v1 validation (preflight era)."""
+    violations: list[str] = []
+    old_required = REQUIRED_PR_GATE_IDS_V1
 
     overall = str(data.get("overall_status") or "")
     if overall not in {OVERALL_CLOSED, OVERALL_IN_PROGRESS}:
@@ -160,7 +209,7 @@ def validate_gate_status_document(data: dict[str, Any]) -> list[str]:
         violations.append("pr_gates must be a non-empty mapping")
         return violations
 
-    missing_gates = REQUIRED_PR_GATE_IDS - set(pr_gates)
+    missing_gates = old_required - set(pr_gates)
     if missing_gates:
         violations.append(f"pr_gates missing required gate ids: {sorted(missing_gates)}")
 
@@ -235,6 +284,168 @@ def validate_gate_status_document(data: dict[str, Any]) -> list[str]:
             )
 
     return violations
+
+
+def _validate_gate_status_document_v2(data: dict[str, Any]) -> list[str]:
+    violations: list[str] = []
+
+    overall = str(data.get("overall_status") or "")
+    if overall not in {OVERALL_CLOSED, OVERALL_IN_PROGRESS}:
+        violations.append(f"overall_status must be {OVERALL_IN_PROGRESS!r} or {OVERALL_CLOSED!r}")
+
+    violations.extend(_validate_rollout(data))
+
+    preflight = data.get("preflight_blockers")
+    if not isinstance(preflight, dict):
+        violations.append("preflight_blockers must be a mapping")
+    else:
+        missing = REQUIRED_PREFLIGHT_BLOCKER_IDS - set(preflight)
+        if missing:
+            violations.append(f"preflight_blockers missing ids: {sorted(missing)}")
+        for blocker_id, blocker in preflight.items():
+            if isinstance(blocker, dict):
+                violations.extend(_validate_preflight_blocker(blocker_id, blocker))
+
+    historical = data.get("historical_pr_gates")
+    if not isinstance(historical, dict):
+        violations.append("historical_pr_gates must be a mapping for schema v2")
+    else:
+        missing_hist = REQUIRED_HISTORICAL_PR_GATE_IDS - set(historical)
+        if missing_hist:
+            violations.append(
+                f"historical_pr_gates missing required gate ids: {sorted(missing_hist)}"
+            )
+        for gate_id, gate in historical.items():
+            if not isinstance(gate, dict):
+                violations.append(f"historical_pr_gates.{gate_id} must be a mapping")
+                continue
+            status = str(gate.get("status") or "")
+            allowed = PR_GATE_TERMINAL | PR_GATE_NON_TERMINAL
+            if status not in allowed:
+                violations.append(f"historical_pr_gates.{gate_id}.status invalid: {status!r}")
+                continue
+            if status == "merged_and_verified":
+                merge_commit = gate.get("merge_commit")
+                if not isinstance(merge_commit, str) or not _MERGE_COMMIT_SHA_RE.match(
+                    merge_commit.strip()
+                ):
+                    violations.append(
+                        f"historical_pr_gates.{gate_id}: merged_and_verified requires "
+                        "SHA-shaped merge_commit"
+                    )
+                violations.extend(_validate_merged_pr_gate(gate_id, gate))
+
+    pr_gates = data.get("pr_gates")
+    if not isinstance(pr_gates, dict) or not pr_gates:
+        violations.append("pr_gates must be a non-empty mapping")
+        return violations
+
+    missing_gates = REQUIRED_PR_GATE_IDS - set(pr_gates)
+    if missing_gates:
+        violations.append(f"pr_gates missing required gate ids: {sorted(missing_gates)}")
+
+    historical_keys = historical.keys() if isinstance(historical, dict) else ()
+    duplicate_historical = REQUIRED_PR_GATE_IDS & set(historical_keys)
+    if duplicate_historical:
+        violations.append(
+            f"historical_pr_gates must not duplicate active pr gate ids: {sorted(duplicate_historical)}"
+        )
+
+    for gate_id, gate in pr_gates.items():
+        if not isinstance(gate, dict):
+            violations.append(f"pr_gates.{gate_id} must be a mapping")
+            continue
+        status = str(gate.get("status") or "")
+        allowed = PR_GATE_TERMINAL | PR_GATE_NON_TERMINAL
+        if status not in allowed:
+            violations.append(f"pr_gates.{gate_id}.status invalid: {status!r}")
+            continue
+        if status == "merged_and_verified":
+            merge_commit = gate.get("merge_commit")
+            if not isinstance(merge_commit, str) or not _MERGE_COMMIT_SHA_RE.match(merge_commit.strip()):
+                violations.append(f"pr_gates.{gate_id}: merged_and_verified requires SHA-shaped merge_commit")
+            violations.extend(_validate_merged_pr_gate(gate_id, gate))
+
+    capacity = data.get("capacity_gate")
+    if not isinstance(capacity, dict):
+        violations.append("capacity_gate must be a mapping for schema v2")
+    else:
+        violations.extend(_validate_capacity_gate(capacity, require_closed=overall == OVERALL_CLOSED))
+
+    live = data.get("live_gate_45c")
+    live_status = ""
+    if not isinstance(live, dict):
+        violations.append("live_gate_45c must be a mapping")
+    else:
+        live_status = str(live.get("status") or "")
+        if live_status not in {"open", "closed"}:
+            violations.append("live_gate_45c.status must be open or closed")
+        elif live_status == "closed":
+            for key in _LIVE_GATE_45C_EVIDENCE_KEYS:
+                value = live.get(key)
+                if not isinstance(value, str) or not _EVIDENCE_URL_RE.match(value.strip()):
+                    violations.append(f"live_gate_45c closed requires URL-shaped {key}")
+            soak = live.get("soak_run_urls")
+            if not isinstance(soak, list) or len(soak) < 3:
+                violations.append("live_gate_45c closed requires soak_run_urls length >= 3")
+            elif isinstance(soak, list):
+                for i, url in enumerate(soak):
+                    if not isinstance(url, str) or not _EVIDENCE_URL_RE.match(url.strip()):
+                        violations.append(
+                            f"live_gate_45c closed requires URL-shaped soak_run_urls[{i}]"
+                        )
+            if not live.get("closed_at_utc"):
+                violations.append("live_gate_45c closed requires closed_at_utc")
+
+    all_merged = all(
+        isinstance(g, dict) and g.get("status") == "merged_and_verified" for g in pr_gates.values()
+    )
+    all_preflight_closed = isinstance(preflight, dict) and all(
+        isinstance(b, dict) and b.get("status") == "closed" for b in preflight.values()
+    )
+    capacity_closed = isinstance(capacity, dict) and capacity.get("status") == "closed"
+
+    if overall == OVERALL_CLOSED:
+        roadmap = data.get("roadmap")
+        if isinstance(roadmap, dict):
+            phrase = str(roadmap.get("phase45_status_phrase") or "")
+            for marker in _CLOSED_PHRASE_FORBIDDEN_MARKERS:
+                if marker in phrase:
+                    violations.append(
+                        "overall_status closed but roadmap.phase45_status_phrase "
+                        f"still indicates in-progress: {phrase!r}"
+                    )
+                    break
+        if not all_merged:
+            violations.append("overall_status closed requires all pr_gates merged_and_verified")
+        if not all_preflight_closed:
+            violations.append("overall_status closed requires all preflight_blockers closed")
+        if not capacity_closed:
+            violations.append("overall_status closed requires capacity_gate closed")
+        if isinstance(live, dict) and live.get("status") != "closed":
+            violations.append("overall_status closed requires live_gate_45c closed")
+    elif all_merged and all_preflight_closed and capacity_closed and live_status == "closed":
+        violations.append(
+            "overall_status must be closed when all pr_gates merged, "
+            "preflight_blockers closed, capacity_gate closed, and live_gate_45c closed"
+        )
+
+    gate_ssot = preflight.get("gate_ssot_and_rollout") if isinstance(preflight, dict) else None
+    historical = data.get("historical_pr_gates")
+    pr_45_0 = historical.get("pr-45-0-gate-ssot") if isinstance(historical, dict) else None
+    if isinstance(gate_ssot, dict) and isinstance(pr_45_0, dict):
+        if gate_ssot.get("status") == "closed" and pr_45_0.get("status") != "merged_and_verified":
+            violations.append(
+                "preflight_blockers.gate_ssot_and_rollout closed requires "
+                "historical_pr_gates.pr-45-0-gate-ssot merged_and_verified"
+            )
+
+    return violations
+
+
+def validate_gate_status_document_legacy(data: dict[str, Any]) -> list[str]:
+    """Backward-compatible alias."""
+    return validate_gate_status_document(data)
 
 
 def _normalize_roadmap_status_cell(cell: str) -> str:
