@@ -1374,8 +1374,8 @@ jobs:
             --json-output /tmp/publish_xlsx.json
 
   finalize_run:
-    needs: [resolve_trading_day, compute_indicators, event_cause_enrichment, render_and_upload]
-    if: always()
+    needs: [preflight, resolve_trading_day, compute_indicators, event_cause_enrichment, render_and_upload]
+    if: always() && needs.preflight.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
