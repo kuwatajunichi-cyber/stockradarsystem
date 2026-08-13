@@ -225,17 +225,35 @@ def _utc_now(now_utc: datetime | None = None) -> datetime:
     return now_utc.astimezone(timezone.utc)
 
 
+def _generation_payload_mismatch(
+    row: dict[str, Any],
+    request: BeginGenerationRequest,
+    profile: str,
+) -> bool:
+    if profile != str(row.get("artifact_profile")):
+        return True
+    pairs = (
+        ("expected_object_count", request.expected_object_count),
+        ("expected_object_set_digest", request.expected_object_set_digest),
+        ("expected_latest_set_digest", request.expected_latest_set_digest),
+        ("new_logical_digest", request.new_logical_digest),
+        ("expected_logical_digest", request.expected_logical_digest),
+    )
+    for key, expected in pairs:
+        if expected is not None and row.get(key) != expected:
+            return True
+    return False
+
+
 def _object_coordinate_key(
     *,
     object_kind: str,
-    object_key: str,
     trade_date: str | None,
     instrument_code: str | None,
     series_year: int | None,
-) -> tuple[str, str, str | None, str | None, int | None]:
+) -> tuple[str, str | None, str | None, int | None]:
     return (
         object_kind.strip().lower(),
-        object_key.strip(),
         trade_date,
         instrument_code,
         series_year,
@@ -250,6 +268,7 @@ class FakeMetricGenerationStore:
   pending_objects: dict[str, dict[str, Any]] = field(default_factory=dict)
   latest_staging: dict[tuple[str, str], dict[str, Any]] = field(default_factory=dict)
   committed_snapshot_digest_by_set_date: dict[tuple[str, str], str] = field(default_factory=dict)
+  committed_latest_observations: dict[tuple[str, str], dict[str, Any]] = field(default_factory=dict)
   identity_index: dict[tuple[str, ...], str] = field(default_factory=dict)
   _clock: datetime | None = None
 
@@ -267,16 +286,17 @@ class FakeMetricGenerationStore:
       row = self.generations[existing_id]
       status = str(row["status"])
       if status == GenerationStatus.COMMITTED.value:
-        if (
-          request.new_logical_digest
-          and row.get("new_logical_digest") == request.new_logical_digest
-        ):
-          return self._to_generation_record(row)
-        raise GenerationConflictError(
-          f"committed generation {existing_id!r} cannot be restarted with different payload"
-        )
+        if _generation_payload_mismatch(row, request, profile):
+          raise GenerationConflictError(
+            f"committed generation {existing_id!r} cannot be restarted with different payload"
+          )
+        return self._to_generation_record(row)
       if status == GenerationStatus.FAILED.value:
         raise GenerationConflictError(f"generation {existing_id!r} is failed")
+      if status == GenerationStatus.PENDING.value and _generation_payload_mismatch(row, request, profile):
+        raise GenerationConflictError(
+          f"pending generation {existing_id!r} payload mismatch on retry"
+        )
       row["heartbeat_at"] = now
       return self._to_generation_record(row)
 
@@ -322,7 +342,6 @@ class FakeMetricGenerationStore:
     generation = self._require_pending_generation(generation_id)
     coord = _object_coordinate_key(
       object_kind=object_kind,
-      object_key=object_key,
       trade_date=trade_date,
       instrument_code=instrument_code,
       series_year=series_year,
@@ -332,7 +351,6 @@ class FakeMetricGenerationStore:
         continue
       existing_coord = _object_coordinate_key(
         object_kind=str(existing["object_kind"]),
-        object_key=str(existing["object_key"]),
         trade_date=existing.get("trade_date"),
         instrument_code=existing.get("instrument_code"),
         series_year=existing.get("series_year"),
@@ -473,6 +491,22 @@ class FakeMetricGenerationStore:
     if expected_count is not None and int(expected_count) != len(objects):
       raise GenerationConflictError("expected_object_count mismatch")
 
+    object_keys = [str(row["object_key"]) for row in objects]
+    actual_object_set_digest = compute_object_set_digest(object_keys)
+    expected_object_set = generation.get("expected_object_set_digest")
+    if expected_object_set is not None and actual_object_set_digest != str(expected_object_set).strip().lower():
+      raise GenerationConflictError("expected_object_set_digest mismatch")
+
+    staging_rows = self._latest_rows(generation_id)
+    if profile == ArtifactProfile.SNAPSHOT_SERIES_LATEST.value and not staging_rows:
+      raise GenerationConflictError("latest staging required for profile")
+    if staging_rows:
+      instrument_codes = sorted({row.instrument_code for row in staging_rows})
+      actual_latest_digest = compute_object_set_digest(instrument_codes)
+      expected_latest = generation.get("expected_latest_set_digest")
+      if expected_latest is not None and actual_latest_digest != str(expected_latest).strip().lower():
+        raise GenerationConflictError("expected_latest_set_digest mismatch")
+
     now = self._now()
     generation["status"] = GenerationStatus.COMMITTED.value
     generation["new_logical_digest"] = digest
@@ -482,6 +516,19 @@ class FakeMetricGenerationStore:
       row["status"] = "committed"
     if has_snapshot:
       self.committed_snapshot_digest_by_set_date[(set_id, trade_date)] = digest
+    for row in staging_rows:
+      key = (set_id, row.instrument_code)
+      self.committed_latest_observations[key] = {
+        "instrument_code": row.instrument_code,
+        "metric_set_version_id": set_id,
+        "trade_date": row.trade_date,
+        "values_json": dict(row.values_json),
+        "logical_digest": row.logical_digest,
+        "generation_id": generation_id,
+      }
+    for key in list(self.latest_staging):
+      if key[0] == generation_id:
+        del self.latest_staging[key]
     return self._to_generation_record(generation)
 
   def fail_generation(self, *, generation_id: str, reason: str) -> GenerationRecord:
