@@ -1,10 +1,10 @@
 schema_version: 2
 phase: '4.5'
-last_updated_utc: '2026-08-13T02:45:00+09:00'
+last_updated_utc: '2026-08-13T18:45:00+09:00'
 overall_status: in_progress
 implementation_snapshot:
   local_worktree_has_unmerged_changes: false
-  note: 'Step 0: schema v2 + canonical digest SSOT; PR-45-1..4 pending; capacity_gate closed (Path B).'
+  note: 'Step 0: schema v2 + canonical digest SSOT; PR-45-1..4 open PRs with audit fixes; local pytest 452 pass; capacity_gate closed (Path B).'
 correction_log:
 - at_utc: '2026-08-12T04:52:36Z'
   reason: 'Production DDL apply: 004_phase45_metric_registry + 005 hardening on stock-radar-system
@@ -55,7 +55,7 @@ pr_gates:
     merge_commit: null
     merge_ci_run_url: null
     pytest_ci_pass_on_merge: null
-    local_pytest_pass: null
+    local_pytest_pass: true
   pr-45-2:
     description: control plane migration 006 + Phase A-B-C + ops CAS seed + budget
       v2
@@ -63,21 +63,21 @@ pr_gates:
     merge_commit: null
     merge_ci_run_url: null
     pytest_ci_pass_on_merge: null
-    local_pytest_pass: null
+    local_pytest_pass: true
   pr-45-3:
     description: immutable derived generation writer + CLI/job + Fakes
     status: pending
     merge_commit: null
     merge_ci_run_url: null
     pytest_ci_pass_on_merge: null
-    local_pytest_pass: null
+    local_pytest_pass: true
   pr-45-4:
     description: workflows cutover live gate wiring + budget monitor
     status: pending
     merge_commit: null
     merge_ci_run_url: null
     pytest_ci_pass_on_merge: null
-    local_pytest_pass: null
+    local_pytest_pass: true
 live_gate_45c:
   status: open
   closed_at_utc: null
