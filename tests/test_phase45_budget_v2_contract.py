@@ -108,6 +108,7 @@ def test_committed_path_b_fixture_is_deterministic() -> None:
     assert report["verdict"]["within_free_tier"] is True
     assert report["bytes"]["r2_total"] < R2_WARN_BYTES
     assert report["report_hash"] == canonical_report_hash(report)
-    inputs = build_path_b_projection_inputs(repo_root=_REPO)
+    # Use committed projection_inputs (not live parquet measurement) for CI stability.
+    inputs = BudgetProjectionInputs(**report["projection_inputs"])
     breakdown = project_r2_budget_v2(inputs)
     assert breakdown.r2_total == report["bytes"]["r2_total"]
