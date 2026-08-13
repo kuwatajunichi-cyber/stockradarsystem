@@ -271,9 +271,9 @@ def test_run_derived_generation_stages_latest_rows() -> None:
         latest_rows=latest_rows,
     )
     assert result.exit_code == 0
-    staged = generation_store.latest_staging[(result.generation_id, "1301")]
-    assert staged["trade_date"] == TRADE_DATE
-    assert staged["logical_digest"] == DIGEST_A
+    committed = generation_store.committed_latest_observations[(SET_ID, "1301")]
+    assert committed["trade_date"] == TRADE_DATE
+    assert committed["logical_digest"] == DIGEST_A
 
 
 @pytest.mark.unit
