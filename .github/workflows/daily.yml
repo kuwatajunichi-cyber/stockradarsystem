@@ -1081,6 +1081,29 @@ jobs:
           STAGE=$(python -c "import yaml; from pathlib import Path; m=yaml.safe_load(Path('config/github_state_to_r2_supabase_mapping.yaml').read_text(encoding='utf-8')); print(m.get('phase4_5_rollout_stage','off'))")
           echo "rollout_stage=$STAGE" >> "$GITHUB_OUTPUT"
 
+      - name: R2 get indicators for derived writer
+        if: steps.phase45.outputs.rollout_stage != 'off'
+        env:
+          PYTHONPATH: src:.
+          RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
+          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+        run: |
+          set -euo pipefail
+          RUN_DATE_COMPACT="${RUN_DATE//-/}"
+          mkdir -p /tmp/r2_handoff/write_derived_generation data/indicators/daily
+          python scripts/storage/artifact_bus_cli.py get \
+            --entry-id artifact-daily-indicators \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-date "$RUN_DATE" \
+            --local-path "data/indicators/daily/indicators_${RUN_DATE_COMPACT}.csv" \
+            --json-output /tmp/r2_handoff/write_derived_generation/artifact-daily-indicators.json
+
       - name: Phase A-B-C preflight
         if: steps.phase45.outputs.rollout_stage != 'off'
         env:
@@ -1093,7 +1116,6 @@ jobs:
         if: steps.phase45.outputs.rollout_stage != 'off'
         env:
           PYTHONPATH: src:.
-          DERIVED_GENERATION_FAKE: "1"
           RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
           IS_REPLAY: ${{ needs.resolve_trading_day.outputs.is_replay }}
           GITHUB_RUN_ID: ${{ github.run_id }}
@@ -1110,6 +1132,17 @@ jobs:
           if [ "${{ steps.phase45.outputs.rollout_stage }}" = "4.5c" ] && [ "$MODE" = "normal" ]; then
             LIFECYCLE=active
           fi
+          RUN_DATE_COMPACT="${RUN_DATE//-/}"
+          INDICATORS_CSV="data/indicators/daily/indicators_${RUN_DATE_COMPACT}.csv"
+          SNAPSHOT_JSON="/tmp/derived_snapshot_${RUN_DATE_COMPACT}.json"
+          python scripts/storage/indicators_csv_to_snapshot_json.py \
+            --csv "$INDICATORS_CSV" \
+            --metric-set-yaml config/metrics/metric_set_v1_free.yaml \
+            --output "$SNAPSHOT_JSON"
+          LAYER1_FP=$(python -c "import hashlib; from pathlib import Path; p=Path('$INDICATORS_CSV'); print(hashlib.sha256(p.read_bytes()).hexdigest())")
+          if [ "$LIFECYCLE" = "shadow" ]; then
+            export DERIVED_GENERATION_FAKE=1
+          fi
           python scripts/storage/derived_bus_cli.py put-generation \
             --mode "$MODE" \
             --trade-date "$RUN_DATE" \
@@ -1117,8 +1150,8 @@ jobs:
             --metric-set-version-id "$PHASE45_SHADOW_METRIC_SET_ID" \
             --lifecycle-status "$LIFECYCLE" \
             --metric-set-yaml config/metrics/metric_set_v1_free.yaml \
-            --snapshot-json tests/fixtures/phase45_ci_snapshot.json \
-            --layer1-input-fingerprint "$(python -c 'print("c"*64)')" \
+            --snapshot-json "$SNAPSHOT_JSON" \
+            --layer1-input-fingerprint "$LAYER1_FP" \
             --workflow daily.yml \
             --github-run-id "$GITHUB_RUN_ID" \
             --is-current-latest-trade-date "$IS_LATEST" \
