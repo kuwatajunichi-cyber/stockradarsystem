@@ -143,10 +143,17 @@ historical_pr_gates:
     note: production 004/005 applied via Supabase MCP (migrations 004_phase45_metric_registry,
       005_phase45_metric_registry_hardening)
 capacity_gate:
-  status: open
-  path: null
-  catalog: null
-  projection_inputs: {}
-  evidence_report_hash: null
-  evidence_url: null
-  note: Blocked until PR-45-3 measurement + path A/B decision
+  status: closed
+  path: B
+  catalog: config/metrics/metric_set_v1_free.yaml
+  projection_inputs:
+    symbols: 3000
+    metrics: 13
+    trading_days_per_year: 250
+    retention_years: 3
+    metric_set_versions: 2
+    snapshot_bytes_per_trade_date: 398361
+    series_bytes_per_symbol_year: 30856
+  evidence_report_hash: af83677abe7c00606da125c6041e25d0591accb000283bf4233a9d23e21ec84c
+  evidence_url: docs/operations/evidence/phase45_budget_v2_path_b_report.json
+  note: Path B v2 projection within R2 free tier; pytest test_phase45_budget_v2_contract.py
