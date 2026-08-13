@@ -1,11 +1,14 @@
 # 単体テスト（Secrets 不要）
+# pull_request bases: main and phase45/** (stack PRs)
 name: Test
 
 on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    branches:
+      - main
+      - "phase45/**"
 
 jobs:
   unit:
