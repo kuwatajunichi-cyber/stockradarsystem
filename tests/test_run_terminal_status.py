@@ -114,3 +114,37 @@ def test_enrichment_cancelled_is_failed_on_open_day() -> None:
         )
     )
     assert d.status == "failed"
+
+
+@pytest.mark.unit
+def test_write_derived_failure_is_failed_on_open_day() -> None:
+    d = resolve_daily_run_terminal_status(
+        DailyRunTerminalInput(
+            is_open=True,
+            compute_indicators="success",
+            event_cause_enrichment="success",
+            render_and_upload="success",
+            skip_publish=True,
+            upload_executed=False,
+            upload_exit_code=0,
+            write_derived_generation="failure",
+        )
+    )
+    assert d.status == "failed"
+
+
+@pytest.mark.unit
+def test_write_derived_skipped_does_not_fail_open_day_run() -> None:
+    d = resolve_daily_run_terminal_status(
+        DailyRunTerminalInput(
+            is_open=True,
+            compute_indicators="success",
+            event_cause_enrichment="success",
+            render_and_upload="success",
+            skip_publish=True,
+            upload_executed=False,
+            upload_exit_code=0,
+            write_derived_generation="skipped",
+        )
+    )
+    assert d.status == "success"

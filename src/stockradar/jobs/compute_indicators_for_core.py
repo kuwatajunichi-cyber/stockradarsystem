@@ -14,6 +14,7 @@
 - 情報比率（Information Ratio）：日次超過リターンの平均を標準偏差で割った値
 - 売買代金の移動平均比：当日売買代金 ÷ 直近 Z_LOOKBACK_DAYS 営業日の売買代金平均（窓は出来高 z と同一）
 - 騰落率（前日比）：終値の前営業日終値に対する変化率（百分率）
+- Perfect Order days：SMA25 > SMA75 > SMA200 が連続した営業日数
 """
 from __future__ import annotations
 
@@ -53,6 +54,7 @@ from stockradar.indicators.zscore import (
     compute_turnover_ma_ratio_from_prepared,
     compute_zscore_turnover_from_prepared,
 )
+from stockradar.metrics.perfect_order import compute_perfect_order_days
 from stockradar.utils.external_links import build_external_links
 from stockradar.utils.paths import (
     PATTERN_SETS_SECONDARY,
@@ -178,6 +180,10 @@ def _compute_one_code(task: tuple[str, str]) -> dict:
         f"z_turnover_{z_lookback_days}": z_turnover.iloc[0] if not z_turnover.empty else None,
         f"turnover_ma_ratio_{z_lookback_days}": turnover_ma_ratio.iloc[0] if not turnover_ma_ratio.empty else None,
         "price_change_pct": price_change_pct,
+        "perfect_order_days": compute_perfect_order_days(
+            close=stock_df["Close"],
+            run_date=run_date,
+        ),
         **build_external_links(code, "link_prefix"),
         "n_bars_used": len(stock_df),
     }

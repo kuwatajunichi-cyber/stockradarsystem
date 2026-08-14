@@ -316,6 +316,15 @@ def cmd_verify_digest(args: argparse.Namespace) -> int:
     return 0 if verified else 2
 
 
+def cmd_get_object(args: argparse.Namespace) -> int:
+    store = _r2_store()
+    dest = Path(args.local_path)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(store.get_object(args.object_key))
+    _emit({"status": "ok", "object_key": args.object_key, "local_path": str(dest)}, None)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Derived writer bus CLI (Fake-friendly).")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -343,8 +352,13 @@ def main(argv: list[str] | None = None) -> None:
     verify.add_argument("--expected-digest")
     verify.set_defaults(func=cmd_verify_digest)
 
+    geto = sub.add_parser("get-object")
+    geto.add_argument("--object-key", required=True)
+    geto.add_argument("--local-path", required=True)
+    geto.set_defaults(func=cmd_get_object)
+
     args = parser.parse_args(argv)
-    if args.metric_set_yaml is None:
+    if getattr(args, "metric_set_yaml", None) is None and hasattr(args, "snapshot_json"):
         args.metric_set_yaml = str(
             _REPO_ROOT / "config" / "metrics" / "metric_set_v1.yaml"
         )

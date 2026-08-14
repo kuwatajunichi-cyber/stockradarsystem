@@ -13,9 +13,12 @@ from stockradar.metrics.registry_spec import load_metric_set_spec
 
 def indicators_csv_to_snapshot(csv_path: Path, metric_set_yaml: Path) -> dict[str, dict[str, object]]:
     spec = load_metric_set_spec(metric_set_yaml)
-    df = pd.read_csv(csv_path, encoding="utf-8-sig")
+    df = pd.read_csv(csv_path, encoding="utf-8-sig", dtype={"code": str})
     if "code" not in df.columns:
         raise ValueError("indicators CSV requires code column")
+    missing_cols = [member.metric_key for member in spec.members if member.metric_key not in df.columns]
+    if missing_cols:
+        raise ValueError(f"indicators CSV missing catalog columns: {missing_cols}")
     out: dict[str, dict[str, object]] = {}
     for _, row in df.iterrows():
         code = normalize_instrument_code(str(row["code"]))

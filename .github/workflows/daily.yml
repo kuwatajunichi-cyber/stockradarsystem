@@ -1119,7 +1119,14 @@ jobs:
           RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
           IS_REPLAY: ${{ needs.resolve_trading_day.outputs.is_replay }}
           GITHUB_RUN_ID: ${{ github.run_id }}
-          PHASE45_SHADOW_METRIC_SET_ID: "11111111-2222-3333-4444-555555555555"
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
+          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
           set -euo pipefail
           MODE=normal
@@ -1141,14 +1148,19 @@ jobs:
             --output "$SNAPSHOT_JSON"
           LAYER1_FP=$(python -c "import hashlib; from pathlib import Path; p=Path('$INDICATORS_CSV'); print(hashlib.sha256(p.read_bytes()).hexdigest())")
           METRIC_SET_ARGS=()
-          if [ "${{ steps.phase45.outputs.rollout_stage }}" = "4.5a" ] || [ "${{ steps.phase45.outputs.rollout_stage }}" = "4.5b" ]; then
-            export DERIVED_GENERATION_FAKE=1
-            METRIC_SET_ARGS=(--metric-set-version-id "$PHASE45_SHADOW_METRIC_SET_ID")
+          STAGE="${{ steps.phase45.outputs.rollout_stage }}"
+          if [ "$STAGE" = "4.5a" ] || [ "$STAGE" = "4.5b" ]; then
+            SHADOW_SET=$(python -c "import yaml; from pathlib import Path; m=yaml.safe_load(Path('config/github_state_to_r2_supabase_mapping.yaml').read_text(encoding='utf-8')); print((m.get('phase4_5_shadow_metric_set_version_id') or '').strip())")
+            if [ -z "$SHADOW_SET" ]; then
+              echo "error: phase4_5_shadow_metric_set_version_id required for shadow stages (Fake stores forbidden)"
+              exit 2
+            fi
+            METRIC_SET_ARGS=(--metric-set-version-id "$SHADOW_SET")
           fi
           python scripts/storage/derived_bus_cli.py put-generation \
             --mode "$MODE" \
             --trade-date "$RUN_DATE" \
-            --phase4-5-rollout-stage "${{ steps.phase45.outputs.rollout_stage }}" \
+            --phase4-5-rollout-stage "$STAGE" \
             "${METRIC_SET_ARGS[@]}" \
             --lifecycle-status "$LIFECYCLE" \
             --metric-set-yaml config/metrics/metric_set_v1_free.yaml \
@@ -1376,7 +1388,7 @@ jobs:
             --json-output /tmp/publish_xlsx.json
 
   finalize_run:
-    needs: [preflight, resolve_trading_day, compute_indicators, event_cause_enrichment, render_and_upload]
+    needs: [preflight, resolve_trading_day, compute_indicators, event_cause_enrichment, render_and_upload, write_derived_generation]
     if: always() && needs.preflight.result == 'success'
     runs-on: ubuntu-latest
     steps:
@@ -1419,6 +1431,7 @@ jobs:
             --compute-result "${{ needs.compute_indicators.result }}" \
             --enrichment-result "$ENRICH_RESULT" \
             --render-result "${{ needs.render_and_upload.result }}" \
+            --write-derived-result "${{ needs.write_derived_generation.result }}" \
             --skip-publish "$SKIP_PUBLISH" \
             --upload-executed "$UPLOAD_EXEC" \
             --upload-exit-code "$UPLOAD_RC" \
