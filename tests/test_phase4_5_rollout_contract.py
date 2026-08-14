@@ -27,7 +27,8 @@ def test_4_5a_allows_shadow_snapshot_only() -> None:
 
 def test_4_5c_normal_allows_latest_and_active() -> None:
     assert derived_latest_projection_update_allowed("4.5c", "normal") is True
-    assert derived_active_pointer_update_allowed("4.5c", "normal") is True
+    # Job path: ops-only CAS — daily must never see CAS-required True
+    assert derived_active_pointer_update_allowed("4.5c", "normal") is False
 
 
 def test_replay_never_updates_shared_state() -> None:
