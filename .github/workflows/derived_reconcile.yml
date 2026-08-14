@@ -2,7 +2,7 @@ name: Derived Reconcile
 
 # Phase 4.5 reconcile entrypoint (isolated correction path).
 # Unit job: DERIVED_GENERATION_FAKE=1 (Secrets-free).
-# Prod job: fail-closed until SupabaseMetricRegistryAdapter + prod R2 adapters land (PR-45-3).
+# Prod job: SupabaseMetricGenerationAdapter + S3R2ObjectStore (requires migration 006).
 
 on:
   workflow_dispatch:
@@ -121,7 +121,18 @@ jobs:
           fi
           python -c "from stockradar.storage.phase4_5_rollout import preflight_derived_write; r=preflight_derived_write('$STAGE','reconcile'); print('preflight', r.value); exit(2 if r.name=='EXIT2' else 0)"
 
-      - name: Derived reconcile put-generation (prod — adapters not wired)
+      - name: Derived reconcile put-generation (prod adapters)
+        env:
+          PYTHONPATH: src:.
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
+          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
           set -euo pipefail
           STAGE="${{ github.event.inputs.phase4_5_rollout_stage }}"
@@ -132,5 +143,14 @@ jobs:
             echo "reconcile prod path requires rollout stage 4.5c (current: $STAGE)"
             exit 2
           fi
-          echo "::error::Production MetricGenerationStore/R2 adapters not wired (PR-45-3 incomplete). unit_path Fake job is CI-only. Do not use prod job for live_gate_45c evidence."
-          exit 1
+          python scripts/storage/derived_bus_cli.py put-generation \
+            --mode reconcile \
+            --trade-date "${{ github.event.inputs.trade_date }}" \
+            --metric-set-version-id "${{ github.event.inputs.metric_set_version_id }}" \
+            --phase4-5-rollout-stage "$STAGE" \
+            --lifecycle-status active \
+            --metric-set-yaml config/metrics/metric_set_v1_free.yaml \
+            --snapshot-json tests/fixtures/phase45_ci_snapshot.json \
+            --layer1-input-fingerprint "$(python -c 'print("b"*64)')" \
+            --workflow derived_reconcile.yml \
+            --json-output /tmp/derived_reconcile_prod.json

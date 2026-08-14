@@ -19,13 +19,19 @@ from stockradar.jobs.write_derived_generation import (  # noqa: E402
     run_derived_generation,
 )
 from stockradar.metrics.registry_spec import load_metric_set_spec  # noqa: E402
-from stockradar.storage.derived_generation import FakeMetricGenerationStore  # noqa: E402
+from stockradar.storage.derived_adapters import (  # noqa: E402
+    generation_store_from_env,
+    is_derived_generation_fake,
+    registry_store_from_env,
+    r2_store_from_env,
+)
+from stockradar.storage.derived_generation import MetricGenerationPort  # noqa: E402
 from stockradar.storage.derived_snapshot import (  # noqa: E402
     build_snapshot_rows,
     compute_snapshot_logical_digest,
 )
 from stockradar.storage.mapping_catalog import load_mapping  # noqa: E402
-from stockradar.storage.metric_registry import FakeMetricRegistryStore  # noqa: E402
+from stockradar.storage.metric_registry import FakeMetricRegistryStore, MetricRegistryPort  # noqa: E402
 from stockradar.storage.phase4_5_rollout import (  # noqa: E402
     PreflightResult,
     ResolveResult,
@@ -36,7 +42,7 @@ from stockradar.storage.phase4_5_rollout import (  # noqa: E402
     resolve_phase4_5_rollout_stage,
     validate_resolved_set_for_mode,
 )
-from stockradar.storage.r2_object_store import FakeR2ObjectStore  # noqa: E402
+from stockradar.storage.r2_object_store import R2ObjectStorePort  # noqa: E402
 
 
 def _emit(payload: dict[str, object], json_output: str | None) -> None:
@@ -55,15 +61,19 @@ def _stage(args: argparse.Namespace) -> str:
     )
 
 
-def _registry_store(args: argparse.Namespace) -> FakeMetricRegistryStore:
-    store = FakeMetricRegistryStore()
-    if args.metric_set_version_id:
-        set_id = store.seed_set(
+def _registry_store(args: argparse.Namespace) -> MetricRegistryPort:
+    store = registry_store_from_env()
+    if is_derived_generation_fake() and args.metric_set_version_id:
+        fake_store = store
+        if not isinstance(fake_store, FakeMetricRegistryStore):
+            fake_store = FakeMetricRegistryStore()
+            store = fake_store
+        set_id = fake_store.seed_set(
             set_id=args.metric_set_version_id,
             lifecycle=args.lifecycle_status,
         )
         if args.lifecycle_status == "active":
-            store.active_metric_set = {
+            fake_store.active_metric_set = {
                 "pointer_key": "default",
                 "metric_set_version_id": set_id,
                 "writer_workflow": args.workflow if hasattr(args, "workflow") else "derived_writer.yml",
@@ -72,20 +82,12 @@ def _registry_store(args: argparse.Namespace) -> FakeMetricRegistryStore:
     return store
 
 
-def _generation_store() -> FakeMetricGenerationStore:
-    if os.environ.get("DERIVED_GENERATION_FAKE", "").strip().lower() not in ("1", "true", "yes"):
-        raise SystemExit(
-            "DERIVED_GENERATION_FAKE=1 is required until production store adapters are wired"
-        )
-    return FakeMetricGenerationStore()
+def _generation_store() -> MetricGenerationPort:
+    return generation_store_from_env()
 
 
-def _r2_store() -> FakeR2ObjectStore:
-    if os.environ.get("DERIVED_GENERATION_FAKE", "").strip().lower() not in ("1", "true", "yes"):
-        raise SystemExit(
-            "DERIVED_GENERATION_FAKE=1 is required until production R2 adapters are wired"
-        )
-    return FakeR2ObjectStore()
+def _r2_store() -> R2ObjectStorePort:
+    return r2_store_from_env()
 
 
 def _load_snapshot_values(path: Path) -> dict[str, dict[str, object]]:
@@ -101,7 +103,7 @@ def _phase_abc_preflight(
     stage: str,
     mode: str,
     metric_set_version_id: str | None,
-    registry: FakeMetricRegistryStore,
+    registry: MetricRegistryPort,
 ) -> tuple[int, str | None, str | None]:
     """Phase A→B→C gate. Returns (exit_code, resolved_set_id, reason)."""
     preflight = preflight_derived_write(stage, mode)
@@ -130,7 +132,7 @@ def _phase_abc_preflight(
     if not resolved_id:
         return 2, None, "resolve_missing_uuid"
 
-    row = registry.metric_set_versions.get(resolved_id)
+    row = registry.get_metric_set_version(resolved_id)
     if row is None:
         return 2, None, "unknown_metric_set_version"
     resolved = ResolvedMetricSet(
@@ -177,7 +179,9 @@ def cmd_put_generation(args: argparse.Namespace) -> int:
         values_by_instrument=values_by_instrument,
         layer1_input_fingerprint=args.layer1_input_fingerprint,
     )
-    row = registry.metric_set_versions[resolved_id]
+    row = registry.get_metric_set_version(resolved_id)
+    if row is None:
+        return 2, None, "unknown_metric_set_version"
     request = DerivedGenerationRequest(
         stage=stage,
         mode=args.mode,

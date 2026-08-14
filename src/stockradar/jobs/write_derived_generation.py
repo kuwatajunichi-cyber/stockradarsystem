@@ -6,9 +6,9 @@ import json
 from dataclasses import dataclass
 from typing import Any, Callable
 
+from stockradar.storage.derived_adapters import generation_store_from_env, r2_store_from_env
 from stockradar.storage.derived_generation import (
     BeginGenerationRequest,
-    FakeMetricGenerationStore,
     GenerationConflictError,
     GenerationNotFoundError,
     GenerationStatus,
@@ -45,7 +45,6 @@ from stockradar.storage.phase4_5_rollout import (
     write_allowed,
 )
 from stockradar.storage.r2_object_store import (
-    FakeR2ObjectStore,
     R2ObjectAlreadyExistsError,
     R2ObjectStorePort,
 )
@@ -473,8 +472,8 @@ def main(argv: list[str] | None = None) -> None:
     result = run_derived_generation(
         request,
         snapshot_input=snapshot_input,
-        generation_store=FakeMetricGenerationStore(),
-        r2_store=FakeR2ObjectStore(),
+        generation_store=generation_store_from_env(),
+        r2_store=r2_store_from_env(),
     )
     print(
         json.dumps(
