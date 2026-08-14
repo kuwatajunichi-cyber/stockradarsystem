@@ -14,8 +14,7 @@ _M006 = _REPO / "supabase" / "migrations" / "006_phase45_generation_commit.sql"
 @pytest.fixture(name="migration_006")
 def fixture_migration_006() -> str:
     raw = _M006.read_bytes()
-    if b"\x00" in raw:
-        return raw.decode("utf-16-le")
+    assert b"\x00" not in raw, "migration 006 must be UTF-8 without NUL bytes"
     return raw.decode("utf-8")
 
 

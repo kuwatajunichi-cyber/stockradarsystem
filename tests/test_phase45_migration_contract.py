@@ -29,16 +29,14 @@ _ACTIVATE_CAS_SIG = "activate_metric_set_cas(uuid, uuid, text, bigint)"
 @pytest.fixture(name="migration_004")
 def fixture_migration_004() -> str:
     raw = _M004.read_bytes()
-    if b"\x00" in raw:
-        return raw.decode("utf-16-le")
+    assert b"\x00" not in raw, "migration 004 must be UTF-8 without NUL bytes"
     return raw.decode("utf-8")
 
 
 @pytest.fixture(name="migration_005")
 def fixture_migration_005() -> str:
     raw = _M005.read_bytes()
-    if b"\x00" in raw:
-        return raw.decode("utf-16-le")
+    assert b"\x00" not in raw, "migration 005 must be UTF-8 without NUL bytes"
     return raw.decode("utf-8")
 
 
