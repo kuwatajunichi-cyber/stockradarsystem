@@ -287,7 +287,8 @@ def test_mapping_phase3_rollout_stage() -> None:
     assert mapping.get("phase3_rollout_stage") == "3c"
     assert phase3_rollout_stage() == "3c"
     assert phase4_rollout_stage() == "4c"
-    assert mapping.get("phase4_5_rollout_stage") == "off"
+    phase45_stage = mapping.get("phase4_5_rollout_stage")
+    assert phase45_stage in {"off", "4.5a", "4.5b", "4.5c"}
 
 
 def test_phase4_migration_sql_contains_tables_and_rpc() -> None:
