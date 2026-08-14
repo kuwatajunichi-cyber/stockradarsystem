@@ -5,6 +5,7 @@ import hashlib
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
+from threading import RLock
 from typing import Any, Protocol
 from uuid import uuid4
 
@@ -188,6 +189,34 @@ class MetricGenerationPort(Protocol):
         series_year: int,
     ) -> str | None: ...
 
+    def list_committed_series_keys(
+        self,
+        *,
+        metric_set_version_id: str,
+        series_year: int,
+    ) -> dict[str, str]: ...
+
+    def register_pending_objects(
+        self,
+        *,
+        generation_id: str,
+        objects: list[dict[str, Any]],
+    ) -> list[PendingObjectRecord]: ...
+
+    def mark_objects_uploaded(
+        self,
+        *,
+        generation_id: str,
+        uploads: list[dict[str, Any]],
+    ) -> int: ...
+
+    def stage_latest_observations(
+        self,
+        *,
+        generation_id: str,
+        rows: list[dict[str, Any]],
+    ) -> int: ...
+
 
 def normalize_artifact_profile(raw: str | ArtifactProfile) -> str:
     if isinstance(raw, ArtifactProfile):
@@ -287,11 +316,16 @@ class FakeMetricGenerationStore:
   committed_latest_observations: dict[tuple[str, str], dict[str, Any]] = field(default_factory=dict)
   identity_index: dict[tuple[str, ...], str] = field(default_factory=dict)
   _clock: datetime | None = None
+  _lock: RLock = field(default_factory=RLock)
 
   def _now(self) -> datetime:
     return _utc_now(self._clock)
 
   def begin_generation(self, request: BeginGenerationRequest) -> GenerationRecord:
+    with self._lock:
+      return self._begin_generation_unlocked(request)
+
+  def _begin_generation_unlocked(self, request: BeginGenerationRequest) -> GenerationRecord:
     source = request.source
     identity_key = source.key()
     profile = normalize_artifact_profile(request.artifact_profile)
@@ -355,6 +389,34 @@ class FakeMetricGenerationStore:
     series_year: int | None = None,
     layer1_input_fingerprint: str | None = None,
   ) -> PendingObjectRecord:
+    with self._lock:
+      return self._register_pending_object_unlocked(
+        generation_id=generation_id,
+        object_kind=object_kind,
+        object_key=object_key,
+        logical_digest=logical_digest,
+        byte_sha256=byte_sha256,
+        size_bytes=size_bytes,
+        trade_date=trade_date,
+        instrument_code=instrument_code,
+        series_year=series_year,
+        layer1_input_fingerprint=layer1_input_fingerprint,
+      )
+
+  def _register_pending_object_unlocked(
+    self,
+    *,
+    generation_id: str,
+    object_kind: str,
+    object_key: str,
+    logical_digest: str,
+    byte_sha256: str,
+    size_bytes: int,
+    trade_date: str | None = None,
+    instrument_code: str | None = None,
+    series_year: int | None = None,
+    layer1_input_fingerprint: str | None = None,
+  ) -> PendingObjectRecord:
     generation = self._require_pending_generation(generation_id)
     coord = _object_coordinate_key(
       object_kind=object_kind,
@@ -373,13 +435,10 @@ class FakeMetricGenerationStore:
       )
       if existing_coord != coord:
         continue
-      if (
-        existing["byte_sha256"] == byte_sha256.strip().lower()
-        and int(existing["size_bytes"]) == int(size_bytes)
-      ):
+      if existing["logical_digest"] == logical_digest.strip().lower():
         return self._to_pending_object_record(existing)
       raise ObjectCoordinateConflictError(
-        f"coordinate {coord!r} already reserved with different bytes"
+        f"coordinate {coord!r} already reserved with different logical_digest"
       )
 
     object_id = str(uuid4())
@@ -403,6 +462,22 @@ class FakeMetricGenerationStore:
     return self._to_pending_object_record(row)
 
   def mark_object_uploaded(
+    self,
+    *,
+    generation_id: str,
+    object_key: str,
+    byte_sha256: str,
+    size_bytes: int,
+  ) -> PendingObjectRecord:
+    with self._lock:
+      return self._mark_object_uploaded_unlocked(
+        generation_id=generation_id,
+        object_key=object_key,
+        byte_sha256=byte_sha256,
+        size_bytes=size_bytes,
+      )
+
+  def _mark_object_uploaded_unlocked(
     self,
     *,
     generation_id: str,
@@ -435,6 +510,24 @@ class FakeMetricGenerationStore:
     values_json: dict[str, Any],
     logical_digest: str,
   ) -> LatestStagingRow:
+    with self._lock:
+      return self._stage_latest_observation_unlocked(
+        generation_id=generation_id,
+        instrument_code=instrument_code,
+        trade_date=trade_date,
+        values_json=values_json,
+        logical_digest=logical_digest,
+      )
+
+  def _stage_latest_observation_unlocked(
+    self,
+    *,
+    generation_id: str,
+    instrument_code: str,
+    trade_date: str,
+    values_json: dict[str, Any],
+    logical_digest: str,
+  ) -> LatestStagingRow:
     generation = self._require_pending_generation(generation_id)
     if not profile_allows_latest(str(generation["artifact_profile"])):
       raise GenerationConflictError(
@@ -452,13 +545,28 @@ class FakeMetricGenerationStore:
     return LatestStagingRow(**row)
 
   def heartbeat(self, *, generation_id: str) -> GenerationRecord:
-    row = self._require_generation(generation_id)
-    if row["status"] != GenerationStatus.PENDING.value:
+    with self._lock:
+      row = self._require_generation(generation_id)
+      if row["status"] != GenerationStatus.PENDING.value:
+        return self._to_generation_record(row)
+      row["heartbeat_at"] = self._now()
       return self._to_generation_record(row)
-    row["heartbeat_at"] = self._now()
-    return self._to_generation_record(row)
 
   def commit_generation(
+    self,
+    *,
+    generation_id: str,
+    new_logical_digest: str,
+    expected_old_digest: str | None = None,
+  ) -> GenerationRecord:
+    with self._lock:
+      return self._commit_generation_unlocked(
+        generation_id=generation_id,
+        new_logical_digest=new_logical_digest,
+        expected_old_digest=expected_old_digest,
+      )
+
+  def _commit_generation_unlocked(
     self,
     *,
     generation_id: str,
@@ -602,13 +710,106 @@ class FakeMetricGenerationStore:
     return self._to_generation_record(row)
 
   def list_pending_objects(self, generation_id: str) -> list[PendingObjectRecord]:
-    rows = [
-      row
-      for row in self.pending_objects.values()
-      if row["generation_id"] == generation_id
-    ]
-    rows.sort(key=lambda row: str(row["object_key"]))
-    return [self._to_pending_object_record(row) for row in rows]
+    with self._lock:
+      rows = [
+        row
+        for row in self.pending_objects.values()
+        if row["generation_id"] == generation_id
+      ]
+      rows.sort(key=lambda row: str(row["object_key"]))
+      return [self._to_pending_object_record(row) for row in rows]
+
+  def list_committed_series_keys(
+    self,
+    *,
+    metric_set_version_id: str,
+    series_year: int,
+  ) -> dict[str, str]:
+    with self._lock:
+      set_id = metric_set_version_id.strip().lower()
+      year = int(series_year)
+      out: dict[str, str] = {}
+      for (sid, code, yr), key in self.committed_series_object_key_by_coord.items():
+        if sid == set_id and int(yr) == year:
+          out[str(code)] = str(key)
+      return out
+
+  def register_pending_objects(
+    self,
+    *,
+    generation_id: str,
+    objects: list[dict[str, Any]],
+  ) -> list[PendingObjectRecord]:
+    with self._lock:
+      seen: set[tuple[str, str | None, str | None, int | None]] = set()
+      for item in objects:
+        coord = _object_coordinate_key(
+          object_kind=str(item["object_kind"]),
+          trade_date=item.get("trade_date"),
+          instrument_code=item.get("instrument_code"),
+          series_year=item.get("series_year"),
+        )
+        if coord in seen:
+          raise ObjectCoordinateConflictError(
+            f"duplicate coordinate in chunk: {coord!r}"
+          )
+        seen.add(coord)
+      records: list[PendingObjectRecord] = []
+      for item in objects:
+        records.append(
+          self._register_pending_object_unlocked(
+            generation_id=generation_id,
+            object_kind=str(item["object_kind"]),
+            object_key=str(item["object_key"]),
+            logical_digest=str(item["logical_digest"]),
+            byte_sha256=str(item.get("byte_sha256") or "0" * 64),
+            size_bytes=int(item.get("size_bytes") or 1),
+            trade_date=item.get("trade_date"),
+            instrument_code=item.get("instrument_code"),
+            series_year=item.get("series_year"),
+            layer1_input_fingerprint=item.get("layer1_input_fingerprint"),
+          )
+        )
+      return records
+
+  def mark_objects_uploaded(
+    self,
+    *,
+    generation_id: str,
+    uploads: list[dict[str, Any]],
+  ) -> int:
+    with self._lock:
+      for item in uploads:
+        object_id = str(item["object_id"])
+        row = self.pending_objects.get(object_id)
+        if row is None or row["generation_id"] != generation_id:
+          raise GenerationNotFoundError(
+            f"pending object not found for generation: {object_id!r}"
+          )
+        self._mark_object_uploaded_unlocked(
+          generation_id=generation_id,
+          object_key=str(row["object_key"]),
+          byte_sha256=str(item["byte_sha256"]),
+          size_bytes=int(item["size_bytes"]),
+        )
+      return len(uploads)
+
+  def stage_latest_observations(
+    self,
+    *,
+    generation_id: str,
+    rows: list[dict[str, Any]],
+  ) -> int:
+    with self._lock:
+      for item in rows:
+        self._stage_latest_observation_unlocked(
+          generation_id=generation_id,
+          instrument_code=str(item["instrument_code"]),
+          trade_date=str(item["trade_date"]),
+          values_json=dict(item["values_json"]),
+          logical_digest=str(item["logical_digest"]),
+        )
+      return len(rows)
 
   def get_committed_snapshot_digest(
     self,
@@ -616,9 +817,10 @@ class FakeMetricGenerationStore:
     metric_set_version_id: str,
     trade_date: str,
   ) -> str | None:
-    return self.committed_snapshot_digest_by_set_date.get(
-      (metric_set_version_id.strip().lower(), trade_date.strip())
-    )
+    with self._lock:
+      return self.committed_snapshot_digest_by_set_date.get(
+        (metric_set_version_id.strip().lower(), trade_date.strip())
+      )
 
   def get_committed_series_object_key(
     self,
@@ -627,13 +829,15 @@ class FakeMetricGenerationStore:
     instrument_code: str,
     series_year: int,
   ) -> str | None:
-    return self.committed_series_object_key_by_coord.get(
-      (
-        metric_set_version_id.strip().lower(),
-        instrument_code.strip(),
-        int(series_year),
+    with self._lock:
+      return self.committed_series_object_key_by_coord.get(
+        (
+          metric_set_version_id.strip().lower(),
+          instrument_code.strip(),
+          int(series_year),
+        )
       )
-    )
+
 
   def _latest_rows(self, generation_id: str) -> list[LatestStagingRow]:
     return [

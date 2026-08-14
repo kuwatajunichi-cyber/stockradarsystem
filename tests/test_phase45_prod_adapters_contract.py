@@ -1,4 +1,4 @@
-﻿"""Contract: Phase 4.5 production adapter factories and Supabase RPC mapping."""
+"""Contract: Phase 4.5 production adapter factories and Supabase RPC mapping."""
 from __future__ import annotations
 
 from unittest.mock import patch
@@ -70,7 +70,7 @@ def test_supabase_generation_begin_calls_rpc() -> None:
         "committed_at_utc": None,
     }
 
-    def fake_request(method, path, json_body=None, params=None, prefer=None):
+    def fake_request(method, path, json_body=None, params=None, prefer=None, timeout_s=None):
         request = httpx.Request(method, f"https://example.supabase.co{path}")
         if path.endswith("/rpc/begin_derived_generation"):
             return httpx.Response(200, json=GEN_ID, request=request)
@@ -113,7 +113,7 @@ def test_supabase_registry_get_active() -> None:
         secret_key="secret",
     )
 
-    def fake_request(method, path, json_body=None, params=None, prefer=None):
+    def fake_request(method, path, json_body=None, params=None, prefer=None, timeout_s=None):
         request = httpx.Request(method, f"https://example.supabase.co{path}")
         assert path.endswith("/active_metric_set")
         return httpx.Response(200, json=[{"metric_set_version_id": SET_ID}], request=request)
@@ -142,7 +142,7 @@ def test_mark_object_uploaded_uses_single_row_fetch_after_rpc() -> None:
         "upload_verified_at": "2026-08-14T09:00:00+00:00",
     }
 
-    def fake_request(method, path, json_body=None, params=None, prefer=None):
+    def fake_request(method, path, json_body=None, params=None, prefer=None, timeout_s=None):
         request = httpx.Request(method, f"https://example.supabase.co{path}")
         if path.endswith("/derived_object_index") and params and params.get("id"):
             return httpx.Response(200, json=[row], request=request)
@@ -159,3 +159,142 @@ def test_mark_object_uploaded_uses_single_row_fetch_after_rpc() -> None:
                 )
     assert record.object_id == object_id
     assert record.byte_sha256 == DIGEST
+
+
+def test_supabase_batch_register_chunks_and_maps_by_object_key() -> None:
+    adapter = SupabaseMetricGenerationAdapter(
+        base_url="https://example.supabase.co",
+        secret_key="secret",
+        writer_workflow="daily.yml",
+    )
+    objects = [
+        {
+            "object_kind": "series",
+            "object_key": f"k-{i}",
+            "logical_digest": DIGEST,
+            "byte_sha256": DIGEST,
+            "size_bytes": 10 + i,
+            "instrument_code": str(1000 + i),
+            "series_year": 2026,
+        }
+        for i in range(501)
+    ]
+    calls: list[int] = []
+
+    def fake_rpc(name, body, timeout_s=None):
+        assert name == "register_pending_derived_objects"
+        assert timeout_s == adapter.BATCH_RPC_TIMEOUT_S
+        chunk = body["p_objects"]
+        calls.append(len(chunk))
+        assert len(chunk) <= adapter.BATCH_OBJECT_CHUNK_SIZE
+        return [
+            {"object_key": item["object_key"], "object_id": f"id-{item['object_key']}"}
+            for item in chunk
+        ]
+
+    with patch.object(adapter, "_rpc", fake_rpc):
+        records = adapter.register_pending_objects(generation_id=GEN_ID, objects=objects)
+    assert calls == [500, 1]
+    assert len(records) == 501
+    assert records[0].object_id == "id-k-0"
+    assert adapter._object_ids_by_key[(GEN_ID, "k-0")] == "id-k-0"
+
+
+def test_supabase_list_committed_series_keys_pages() -> None:
+    adapter = SupabaseMetricGenerationAdapter(
+        base_url="https://example.supabase.co",
+        secret_key="secret",
+    )
+    page1 = [{"instrument_code": f"{i}", "object_key": f"ok-{i}"} for i in range(1000)]
+    page2 = [{"instrument_code": "9999", "object_key": "ok-9999"}]
+    offsets: list[str] = []
+
+    def fake_request(method, path, json_body=None, params=None, prefer=None, timeout_s=None):
+        request = httpx.Request(method, f"https://example.supabase.co{path}")
+        assert params["object_kind"] == "eq.series"
+        assert params["status"] == "eq.committed"
+        offsets.append(params["offset"])
+        if params["offset"] == "0":
+            return httpx.Response(200, json=page1, request=request)
+        return httpx.Response(200, json=page2, request=request)
+
+    with patch.object(adapter, "_request", fake_request):
+        out = adapter.list_committed_series_keys(metric_set_version_id=SET_ID, series_year=2026)
+    assert offsets == ["0", "1000"]
+    assert out["0"] == "ok-0"
+    assert out["9999"] == "ok-9999"
+
+
+def test_supabase_stage_latest_chunks_500() -> None:
+    adapter = SupabaseMetricGenerationAdapter(
+        base_url="https://example.supabase.co",
+        secret_key="secret",
+    )
+    rows = [
+        {
+            "instrument_code": str(i),
+            "trade_date": "2026-01-15",
+            "values_json": {"alpha_metric": float(i)},
+            "logical_digest": DIGEST,
+        }
+        for i in range(501)
+    ]
+    calls: list[int] = []
+
+    def fake_rpc(name, body, timeout_s=None):
+        assert name == "stage_latest_derived_observations"
+        assert timeout_s == adapter.BATCH_RPC_TIMEOUT_S
+        calls.append(len(body["p_rows"]))
+        return len(body["p_rows"])
+
+    with patch.object(adapter, "_rpc", fake_rpc):
+        total = adapter.stage_latest_observations(generation_id=GEN_ID, rows=rows)
+    assert calls == [500, 1]
+    assert total == 501
+
+
+def test_supabase_batch_rpc_missing_fails_fast() -> None:
+    from stockradar.storage.derived_generation import GenerationConflictError
+
+    adapter = SupabaseMetricGenerationAdapter(
+        base_url="https://example.supabase.co",
+        secret_key="secret",
+    )
+
+    def fake_request(method, path, json_body=None, params=None, prefer=None, timeout_s=None):
+        request = httpx.Request(method, f"https://example.supabase.co{path}")
+        return httpx.Response(
+            404,
+            text="Could not find the function public.register_pending_derived_objects",
+            request=request,
+        )
+
+    with patch.object(adapter, "_request", fake_request):
+        with pytest.raises(GenerationConflictError) as excinfo:
+            adapter.register_pending_objects(
+                generation_id=GEN_ID,
+                objects=[
+                    {
+                        "object_kind": "series",
+                        "object_key": "k",
+                        "logical_digest": DIGEST,
+                        "byte_sha256": DIGEST,
+                        "size_bytes": 1,
+                        "instrument_code": "1301",
+                        "series_year": 2026,
+                    }
+                ],
+            )
+    assert "migration 008" in str(excinfo.value).lower()
+
+
+def test_s3_r2_pool_tracks_concurrency_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("R2_ACCESS_KEY_ID", "key")
+    monkeypatch.setenv("R2_SECRET_ACCESS_KEY", "secret")
+    monkeypatch.setenv("R2_ACCOUNT_ID", "acct")
+    monkeypatch.setenv("R2_BUCKET", "bucket")
+    monkeypatch.setenv("DERIVED_R2_CONCURRENCY", "32")
+    store = S3R2ObjectStore.from_env()
+    assert store.max_pool_connections >= 32
+    assert hasattr(store, "warm_client")
+
