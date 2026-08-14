@@ -1,0 +1,26 @@
+{
+  "orphan_rows": 1006,
+  "r2_object_keys_deleted": 1006,
+  "r2_prefix_deleted": {},
+  "purged_object_ids": 1006,
+  "errors": [
+    "prefix delete failed derived-snapshots/metric-set=11111111-2222-3333-4444-555555555555/trade-date=2026-01-17/generation=27e3a95f-2105-4817-b341-bde5e372976e/: An error occurred (NoSuchKey) when calling the ListObjectsV2 operation: The specified key does not exist.",
+    "prefix delete failed derived-series/metric-set=11111111-2222-3333-4444-555555555555/generation=27e3a95f-2105-4817-b341-bde5e372976e/: An error occurred (NoSuchKey) when calling the ListObjectsV2 operation: The specified key does not exist.",
+    "prefix delete failed derived-snapshots/metric-set=11111111-2222-3333-4444-555555555555/trade-date=2026-01-21/generation=50d3fa84-d836-4f02-9794-cb7e08ca13d1/: An error occurred (NoSuchKey) when calling the ListObjectsV2 operation: The specified key does not exist.",
+    "prefix delete failed derived-series/metric-set=11111111-2222-3333-4444-555555555555/generation=50d3fa84-d836-4f02-9794-cb7e08ca13d1/: An error occurred (NoSuchKey) when calling the ListObjectsV2 operation: The specified key does not exist.",
+    "prefix delete failed derived-snapshots/metric-set=11111111-2222-3333-4444-555555555555/trade-date=2026-08-14/generation=56004f01-137a-414a-bd71-b8d1fae3168e/: An error occurred (NoSuchKey) when calling the ListObjectsV2 operation: The specified key does not exist.",
+    "prefix delete failed derived-series/metric-set=11111111-2222-3333-4444-555555555555/generation=56004f01-137a-414a-bd71-b8d1fae3168e/: An error occurred (NoSuchKey) when calling the ListObjectsV2 operation: The specified key does not exist.",
+    "prefix delete failed derived-snapshots/metric-set=11111111-2222-3333-4444-555555555555/trade-date=2026-01-15/generation=c5217b8b-e9e4-4ccb-8e21-a000a2958e71/: An error occurred (NoSuchKey) when calling the ListObjectsV2 operation: The specified key does not exist.",
+    "prefix delete failed derived-series/metric-set=11111111-2222-3333-4444-555555555555/generation=c5217b8b-e9e4-4ccb-8e21-a000a2958e71/: An error occurred (NoSuchKey) when calling the ListObjectsV2 operation: The specified key does not exist.",
+    "prefix delete failed derived-snapshots/metric-set=11111111-2222-3333-4444-555555555555/trade-date=2026-01-20/generation=ec10f154-dde4-4490-9d73-8c446ebe5d43/: An error occurred (NoSuchKey) when calling the ListObjectsV2 operation: The specified key does not exist.",
+    "prefix delete failed derived-series/metric-set=11111111-2222-3333-4444-555555555555/generation=ec10f154-dde4-4490-9d73-8c446ebe5d43/: An error occurred (NoSuchKey) when calling the ListObjectsV2 operation: The specified key does not exist."
+  ],
+  "dry_run": false,
+  "by_generation": {
+    "56004f01-137a-414a-bd71-b8d1fae3168e": 1002,
+    "27e3a95f-2105-4817-b341-bde5e372976e": 1,
+    "50d3fa84-d836-4f02-9794-cb7e08ca13d1": 1,
+    "c5217b8b-e9e4-4ccb-8e21-a000a2958e71": 1,
+    "ec10f154-dde4-4490-9d73-8c446ebe5d43": 1
+  }
+}
