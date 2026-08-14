@@ -1,11 +1,13 @@
 schema_version: 2
 phase: '4.5'
-last_updated_utc: '2026-08-14T17:10:00+09:00'
+last_updated_utc: '2026-08-14T17:15:00+09:00'
 overall_status: in_progress
 implementation_snapshot:
   local_worktree_has_unmerged_changes: false
-  note: 'PR #143 on main; PR-45-2..4 + cutover fixes on phase45/to-main-pr-45-4 pending main merge (#147).'
+  note: 'PR #143-#147 merged to main (9661bca). Active metric set seeded prod. Live gate evidence collection started.'
 correction_log:
+- at_utc: '2026-08-14T17:15:00+09:00'
+  reason: 'PR #147 merged to main (PR-45-2..4 + cutover fixes). pr-45-1..4 merged_and_verified on main.'
 - at_utc: '2026-08-14T17:10:00+09:00'
   reason: 'Post-split status: #143 merged to main; #144-#146 merged to stack branches only; remainder on phase45/to-main-pr-45-4 (531ca6e) awaiting main merge.'
 - at_utc: '2026-08-14T15:40:00+09:00'
@@ -70,25 +72,28 @@ pr_gates:
   pr-45-2:
     description: control plane migration 006 + Phase A-B-C + ops CAS seed + budget
       v2
-    status: pending
-    merge_commit: null
-    merge_ci_run_url: null
-    pytest_ci_pass_on_merge: null
+    status: merged_and_verified
+    merge_commit: 9661bca9fc73bf1809b9fa07305ec1456c585d97
+    merge_ci_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/31782687687
+    pytest_ci_pass_on_merge: true
     local_pytest_pass: true
+    note: merged to main via PR #147 (stack PR #144)
   pr-45-3:
     description: immutable derived generation writer + CLI/job + Fakes
-    status: pending
-    merge_commit: null
-    merge_ci_run_url: null
-    pytest_ci_pass_on_merge: null
+    status: merged_and_verified
+    merge_commit: 9661bca9fc73bf1809b9fa07305ec1456c585d97
+    merge_ci_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/31782687687
+    pytest_ci_pass_on_merge: true
     local_pytest_pass: true
+    note: merged to main via PR #147 (stack PR #145); includes prod adapters + migration 007
   pr-45-4:
     description: workflows cutover live gate wiring + budget monitor
-    status: pending
-    merge_commit: null
-    merge_ci_run_url: null
-    pytest_ci_pass_on_merge: null
+    status: merged_and_verified
+    merge_commit: 9661bca9fc73bf1809b9fa07305ec1456c585d97
+    merge_ci_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/31782687687
+    pytest_ci_pass_on_merge: true
     local_pytest_pass: true
+    note: merged to main via PR #147 (stack PR #146); cutover writer secrets wired
 live_gate_45c:
   status: open
   closed_at_utc: null
@@ -98,9 +103,9 @@ live_gate_45c:
   reconcile_isolated_run_url: null
   soak_trading_days: 3
   soak_run_urls: []
-  note: PR-45-1..4 on main after #147; live evidence collection in progress. See phase4_5_cutover.md
+  note: PR-45-1..4 merged to main (#143-#147). Collecting live_gate_45c run URLs.
 roadmap:
-  phase45_status_phrase: 'preflight 完了・PR-45-1 main merged (#143)・PR-45-2..4 pending main (#147)・live_gate open・capacity_gate open・rollout off'
+  phase45_status_phrase: 'PR-45-1..4 merged to main (#143-#147)・live_gate open・capacity_gate open・rollout off'
 historical_pr_gates:
   pr-45-0-gate-ssot:
     description: gate SSOT + honesty + cutover runbook + rollout helpers
@@ -166,4 +171,4 @@ capacity_gate:
     series_bytes_per_symbol_year: 30856
   evidence_report_hash: af83677abe7c00606da125c6041e25d0591accb000283bf4233a9d23e21ec84c
   evidence_url: docs/operations/evidence/phase45_budget_v2_path_b_report.json
-  note: Interim Path B v2 report only — NOT closed. safety_factor 1.10 < AC-CAP 1.20; projection_inputs lack rollback/failed/reconcile fields; prod adapters missing. pytest test_phase45_budget_v2_contract.py
+  note: Interim Path B v2 report only — NOT closed. safety_factor 1.10 < AC-CAP 1.20; projection_inputs lack rollback/failed/reconcile fields. pytest test_phase45_budget_v2_contract.py

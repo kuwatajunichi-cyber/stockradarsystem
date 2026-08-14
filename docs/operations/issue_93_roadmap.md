@@ -14,7 +14,7 @@ GitHub Issue: [#93](https://github.com/kuwatajunichi-cyber/stockradarsystem/issu
 | 0-2c | 契約 / Cron / R2 artifact bus | 完了 |
 | 3c | warm cache + Supabase | **gate CLOSED** (2026-07-10) |
 | 4 | 月次 + publish + runs + Cron | **gate CLOSED** (2026-07-22) |
-| 4.5 | 派生指標時系列基盤 | **preflight 完了・PR-45-1 main merged (#143)・PR-45-2..4 pending main (#147)・live_gate open・capacity_gate open・rollout off** |
+| 4.5 | 派生指標時系列基盤 | **PR-45-1..4 merged to main (#143-#147)・live_gate open・capacity_gate open・rollout off** |
 | 5 | entitlements + observability | 計画 |
 
 Phase 3c gate CLOSED（runbook 記録済）。Issue #93 は Phase 4.5/5 が残るため **OPEN** 維持。残: delisting effective-day gate（任意）。
