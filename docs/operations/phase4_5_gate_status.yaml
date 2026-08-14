@@ -1,11 +1,13 @@
 schema_version: 2
 phase: '4.5'
-last_updated_utc: '2026-08-14T14:50:00+09:00'
+last_updated_utc: '2026-08-14T15:05:00+09:00'
 overall_status: in_progress
 implementation_snapshot:
   local_worktree_has_unmerged_changes: false
-  note: 'PR #142 HOLD: AC-1..4 / §0 incomplete — prod adapters missing, capacity_gate reverted open; do not merge stack to main yet.'
+  note: 'PR #142 HOLD; prod adapters wired (6eb623d); migration 006 applied to production 2026-08-14.'
 correction_log:
+- at_utc: '2026-08-14T06:02:40Z'
+  reason: 'Production DDL apply: 006_phase45_generation_commit (tables + 8 RPCs + grants/RLS) on stock-radar-system (wocvepixlzqupasoipbk) via Supabase MCP. Evidence: phase45_production_ddl_applied.json.'
 - at_utc: '2026-08-14T14:50:00+09:00'
   reason: 'Audit: capacity_gate closed was premature (safety_factor 1.10 < AC-CAP 1.20, incomplete projection_inputs). Reverted to open. PR #142 blocked from main merge.'
 - at_utc: '2026-08-12T04:52:36Z'
@@ -37,7 +39,7 @@ preflight_blockers:
   metric_registry_ddl:
     status: closed
     closed_at_utc: '2026-08-12T04:52:36Z'
-    evidence_digest: 6ee6787af16f9b84fab22902cc8865fa2b1e416689f560663c1bb91724c309f1
+    evidence_digest: c2c217abfc5b4732c6344ea20eb002f27fcff5b2e195ac699003c5d8f32d0ef5
     evidence_url: docs/operations/evidence/phase45_production_ddl_applied.json
   supabase_r2_budget_fixture:
     status: closed

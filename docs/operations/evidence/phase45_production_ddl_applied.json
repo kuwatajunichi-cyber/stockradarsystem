@@ -2,7 +2,7 @@
   "schema_version": 1,
   "project_ref": "wocvepixlzqupasoipbk",
   "project_name": "stock-radar-system",
-  "applied_at_utc": "2026-08-12T04:52:36Z",
+  "applied_at_utc": "2026-08-14T06:02:40Z",
   "method": "supabase_mcp_apply_migration",
   "migrations_applied": [
     {
@@ -12,11 +12,36 @@
     {
       "version": "20260812045236",
       "name": "005_phase45_metric_registry_hardening"
+    },
+    {
+      "version": "20260814060058",
+      "name": "006_phase45_generation_commit"
+    },
+    {
+      "version": "20260814060208",
+      "name": "006_phase45_generation_commit_rpcs"
+    },
+    {
+      "version": "20260814060219",
+      "name": "006_phase45_generation_commit_rpc_register"
+    },
+    {
+      "version": "20260814060231",
+      "name": "006_phase45_generation_commit_rpc_commit"
+    },
+    {
+      "version": "20260814060233",
+      "name": "006_phase45_generation_commit_rpc_aux"
+    },
+    {
+      "version": "20260814060240",
+      "name": "006_phase45_generation_commit_grants"
     }
   ],
   "repo_migration_files": [
     "supabase/migrations/004_phase45_metric_registry.sql",
-    "supabase/migrations/005_phase45_metric_registry_hardening.sql"
+    "supabase/migrations/005_phase45_metric_registry_hardening.sql",
+    "supabase/migrations/006_phase45_generation_commit.sql"
   ],
   "tables_verified": [
     "metric_definitions",
@@ -25,10 +50,24 @@
     "metric_set_members",
     "active_metric_set",
     "derived_object_index",
-    "latest_derived_observations"
+    "latest_derived_observations",
+    "derived_generation_runs",
+    "latest_derived_observations_staging"
+  ],
+  "rpc_functions_verified": [
+    "begin_derived_generation",
+    "register_pending_derived_object",
+    "mark_derived_object_uploaded",
+    "heartbeat_derived_generation",
+    "commit_derived_generation",
+    "mark_derived_generation_failed",
+    "list_stale_derived_generations",
+    "mark_orphan_object_purged"
   ],
   "notes": [
-    "Applied via Supabase MCP to production; RLS enabled on all Phase 4.5 tables",
+    "004/005 applied 2026-08-12 via Supabase MCP",
+    "006 applied 2026-08-14 via Supabase MCP (DDL + RPCs + grants split across MCP apply_migration calls)",
+    "RLS enabled on derived_generation_runs and latest_derived_observations_staging",
     "Prior production migrations: 002_phase4_control_plane, 003_p0_control_plane_hardening"
   ]
 }
