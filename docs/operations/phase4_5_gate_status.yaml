@@ -1,11 +1,13 @@
 schema_version: 2
 phase: '4.5'
-last_updated_utc: '2026-08-14T15:30:00+09:00'
+last_updated_utc: '2026-08-14T15:40:00+09:00'
 overall_status: in_progress
 implementation_snapshot:
   local_worktree_has_unmerged_changes: false
-  note: 'PR #142 HOLD; P1 local: 007 commit CAS, daily 4.5c active pointer, year series accumulation; 007 applied prod 2026-08-14.'
+  note: 'Split PRs #143-#146 to main (closed #142). P1: 007 CAS, series accumulation; 007 applied prod.'
 correction_log:
+- at_utc: '2026-08-14T15:40:00+09:00'
+  reason: 'Split stack to main: closed PR #142; stacked PRs #143 (PR-45-1) through #146 (PR-45-4) on phase45/to-main-pr-45-1..4.'
 - at_utc: '2026-08-14T15:30:00+09:00'
   reason: 'Production DDL apply: 007_phase45_commit_expected_old_digest (commit_derived_generation CAS) via Supabase MCP. Evidence: phase45_production_ddl_applied.json updated.'
 - at_utc: '2026-08-14T06:02:40Z'
@@ -95,7 +97,7 @@ live_gate_45c:
   soak_run_urls: []
   note: Blocked on 4.5-1..4 implementation and workflow wiring; see phase4_5_cutover.md
 roadmap:
-  phase45_status_phrase: 'preflight 完了・schema v2 移行・canonical digest SSOT・PR-45-1..4 pending・capacity_gate open (Path B interim only)・rollout off・PR #142 hold'
+  phase45_status_phrase: 'preflight 完了・schema v2 移行・canonical digest SSOT・split PR #143-#146 to main pending・capacity_gate open (Path B interim only)・rollout off'
 historical_pr_gates:
   pr-45-0-gate-ssot:
     description: gate SSOT + honesty + cutover runbook + rollout helpers
