@@ -17,6 +17,7 @@ class DailyRunTerminalInput:
     upload_executed: bool
     upload_exit_code: int
     upload_status: str = "ok"
+    write_derived_generation: JobResult = "skipped"
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,8 @@ def resolve_daily_run_terminal_status(inp: DailyRunTerminalInput) -> DailyRunTer
     if _optional_job_failed(inp.event_cause_enrichment):
         return DailyRunTerminalDecision(status="failed")
     if _strict_job_failed(inp.render_and_upload):
+        return DailyRunTerminalDecision(status="failed")
+    if _optional_job_failed(inp.write_derived_generation):
         return DailyRunTerminalDecision(status="failed")
 
     if not inp.skip_publish and (

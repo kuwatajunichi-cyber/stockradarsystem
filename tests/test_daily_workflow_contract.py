@@ -546,9 +546,13 @@ ENCODING_CONTRACT_FILES = (
     ".github/workflows/daily.yml",
     ".github/workflows/supabase_smoketest.yml",
     ".github/workflows/daily_event_cause_enrichment.yml",
+    ".github/workflows/derived_backfill.yml",
+    ".github/workflows/derived_reconcile.yml",
     "docs/contracts/github_state_to_r2_supabase_mapping.md",
     "docs/contracts/run_artifact_manifest_schema.md",
     "docs/operations/cloudflare_github_cron.md",
+    "supabase/migrations/006_phase45_generation_commit.sql",
+    "supabase/migrations/007_phase45_commit_expected_old_digest.sql",
 )
 
 
