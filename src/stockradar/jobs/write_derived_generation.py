@@ -29,7 +29,10 @@ from stockradar.storage.derived_snapshot import (
 from stockradar.storage.derived_series import (
     SERIES_GZIP_CONTENT_TYPE,
     build_series_canonical_bytes,
+    gunzip_series_bytes,
     gzip_series_bytes,
+    merge_trade_date_into_series,
+    parse_series_canonical_bytes,
 )
 from stockradar.storage.phase4_5_rollout import (
     DerivedArtifact,
@@ -86,6 +89,84 @@ class DerivedGenerationResult:
     reason: str | None = None
 
 
+
+
+def build_accumulating_series_builders(
+    *,
+    trade_date: str,
+    metric_keys_ordered: list[str],
+    values_by_instrument: dict[str, dict[str, object]],
+    prefixes,
+    generation_id: str,
+    metric_set_version_id: str,
+    generation_store: MetricGenerationPort,
+    r2_store: R2ObjectStorePort,
+) -> list[Callable[[], tuple[dict[str, Any], bytes, str]]]:
+    """Series builders that merge trade_date into prior committed year series when present."""
+    year = int(trade_date[:4])
+    builders: list[Callable[[], tuple[dict[str, Any], bytes, str]]] = []
+
+    for instrument_code in sorted(values_by_instrument):
+        values = values_by_instrument[instrument_code]
+
+        def _builder(
+            instrument_code: str = instrument_code,
+            values: dict[str, object] = values,
+        ) -> tuple[dict[str, Any], bytes, str]:
+            prior_dates: list[str] | None = None
+            prior_series: dict[str, list[object]] | None = None
+            prior_flags: list[dict[str, Any]] | None = None
+            object_key = generation_store.get_committed_series_object_key(
+                metric_set_version_id=metric_set_version_id,
+                instrument_code=instrument_code,
+                series_year=year,
+            )
+            if object_key:
+                gzip_bytes = r2_store.get_object(object_key)
+                canonical_bytes = gunzip_series_bytes(gzip_bytes)
+                prior_dates, prior_series, prior_flags = parse_series_canonical_bytes(
+                    canonical_bytes
+                )
+            dates, series, flags = merge_trade_date_into_series(
+                trade_date=trade_date,
+                metric_keys_ordered=metric_keys_ordered,
+                values=values,
+                prior_dates=prior_dates,
+                prior_series=prior_series,
+                prior_flags=prior_flags,
+            )
+            canonical = build_series_canonical_bytes(
+                instrument_code=instrument_code,
+                year=year,
+                dates=dates,
+                series=series,
+                flags=flags,
+            )
+            content = gzip_series_bytes(canonical)
+            byte_sha = compute_object_sha256(content)
+            logical_digest = compute_object_sha256(canonical)
+            new_object_key = object_key_for(
+                prefixes=prefixes,
+                object_kind=DerivedArtifact.SERIES,
+                instrument_code=instrument_code,
+                year=year,
+                generation_uuid=generation_id,
+                object_sha256=byte_sha,
+            )
+            return (
+                {
+                    "object_kind": "series",
+                    "object_key": new_object_key,
+                    "logical_digest": logical_digest,
+                    "instrument_code": instrument_code,
+                    "series_year": year,
+                },
+                content,
+                SERIES_GZIP_CONTENT_TYPE,
+            )
+
+        builders.append(_builder)
+    return builders
 
 
 def build_default_series_builders(
@@ -335,12 +416,15 @@ def run_derived_generation(
 
     if profile_allows_series(profile.value):
         if series_builders is None:
-            series_builders = build_default_series_builders(
+            series_builders = build_accumulating_series_builders(
                 trade_date=request.trade_date,
                 metric_keys_ordered=snapshot_input.metric_keys_ordered,
                 values_by_instrument=snapshot_input.values_by_instrument,
                 prefixes=prefixes,
                 generation_id=generation_id,
+                metric_set_version_id=resolved_id,
+                generation_store=generation_store,
+                r2_store=r2_store,
             )
     if profile_allows_series(profile.value) and series_builders:
         for builder in series_builders:

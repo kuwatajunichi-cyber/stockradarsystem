@@ -1,11 +1,13 @@
 schema_version: 2
 phase: '4.5'
-last_updated_utc: '2026-08-14T15:05:00+09:00'
+last_updated_utc: '2026-08-14T15:30:00+09:00'
 overall_status: in_progress
 implementation_snapshot:
   local_worktree_has_unmerged_changes: false
-  note: 'PR #142 HOLD; prod adapters wired (6eb623d); migration 006 applied to production 2026-08-14.'
+  note: 'PR #142 HOLD; P1 local: 007 commit CAS, daily 4.5c active pointer, year series accumulation; 007 applied prod 2026-08-14.'
 correction_log:
+- at_utc: '2026-08-14T15:30:00+09:00'
+  reason: 'Production DDL apply: 007_phase45_commit_expected_old_digest (commit_derived_generation CAS) via Supabase MCP. Evidence: phase45_production_ddl_applied.json updated.'
 - at_utc: '2026-08-14T06:02:40Z'
   reason: 'Production DDL apply: 006_phase45_generation_commit (tables + 8 RPCs + grants/RLS) on stock-radar-system (wocvepixlzqupasoipbk) via Supabase MCP. Evidence: phase45_production_ddl_applied.json.'
 - at_utc: '2026-08-14T14:50:00+09:00'
@@ -39,7 +41,7 @@ preflight_blockers:
   metric_registry_ddl:
     status: closed
     closed_at_utc: '2026-08-12T04:52:36Z'
-    evidence_digest: c2c217abfc5b4732c6344ea20eb002f27fcff5b2e195ac699003c5d8f32d0ef5
+    evidence_digest: 4a68bc8fb14af9c4bf05b2e284912207dd5f6768db0602812c44f98ff8f79815
     evidence_url: docs/operations/evidence/phase45_production_ddl_applied.json
   supabase_r2_budget_fixture:
     status: closed

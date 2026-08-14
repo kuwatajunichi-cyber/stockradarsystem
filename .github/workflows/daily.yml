@@ -1140,14 +1140,16 @@ jobs:
             --metric-set-yaml config/metrics/metric_set_v1_free.yaml \
             --output "$SNAPSHOT_JSON"
           LAYER1_FP=$(python -c "import hashlib; from pathlib import Path; p=Path('$INDICATORS_CSV'); print(hashlib.sha256(p.read_bytes()).hexdigest())")
-          if [ "$LIFECYCLE" = "shadow" ]; then
+          METRIC_SET_ARGS=()
+          if [ "${{ steps.phase45.outputs.rollout_stage }}" = "4.5a" ] || [ "${{ steps.phase45.outputs.rollout_stage }}" = "4.5b" ]; then
             export DERIVED_GENERATION_FAKE=1
+            METRIC_SET_ARGS=(--metric-set-version-id "$PHASE45_SHADOW_METRIC_SET_ID")
           fi
           python scripts/storage/derived_bus_cli.py put-generation \
             --mode "$MODE" \
             --trade-date "$RUN_DATE" \
             --phase4-5-rollout-stage "${{ steps.phase45.outputs.rollout_stage }}" \
-            --metric-set-version-id "$PHASE45_SHADOW_METRIC_SET_ID" \
+            "${METRIC_SET_ARGS[@]}" \
             --lifecycle-status "$LIFECYCLE" \
             --metric-set-yaml config/metrics/metric_set_v1_free.yaml \
             --snapshot-json "$SNAPSHOT_JSON" \

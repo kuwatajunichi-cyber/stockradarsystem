@@ -99,3 +99,57 @@ def build_series_manifest_bytes(
 
 def compute_object_sha256(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
+
+
+def gunzip_series_bytes(content: bytes) -> bytes:
+    """Decompress gzip series object bytes to canonical JSON bytes."""
+    return gzip.decompress(content)
+
+
+def parse_series_canonical_bytes(
+    content: bytes,
+) -> tuple[list[str], dict[str, list[Any]], list[dict[str, Any]]]:
+    payload = json.loads(content.decode("utf-8"))
+    dates = [str(item) for item in payload["dates"]]
+    series = {str(key): list(value) for key, value in payload["series"].items()}
+    flags = [dict(item) for item in payload["flags"]]
+    return dates, series, flags
+
+
+def merge_trade_date_into_series(
+    *,
+    trade_date: str,
+    metric_keys_ordered: list[str],
+    values: dict[str, Any],
+    prior_dates: list[str] | None = None,
+    prior_series: dict[str, list[Any]] | None = None,
+    prior_flags: list[dict[str, Any]] | None = None,
+) -> tuple[list[str], dict[str, list[Any]], list[dict[str, Any]]]:
+    """Merge one trade_date observation into an existing year series (or start new)."""
+    if not prior_dates:
+        dates = [trade_date]
+        series = {key: [values.get(key)] for key in metric_keys_ordered}
+        return dates, series, [{}]
+
+    dates = list(prior_dates)
+    flags = list(prior_flags or [{} for _ in prior_dates])
+    if trade_date in dates:
+        idx = dates.index(trade_date)
+        series: dict[str, list[Any]] = {}
+        for key in metric_keys_ordered:
+            prior_vals = list((prior_series or {}).get(key, []))
+            while len(prior_vals) <= idx:
+                prior_vals.append(None)
+            prior_vals[idx] = values.get(key)
+            series[key] = prior_vals
+        while len(flags) <= idx:
+            flags.append({})
+        return dates, series, flags
+
+    dates = prior_dates + [trade_date]
+    series = {}
+    for key in metric_keys_ordered:
+        prior_vals = list((prior_series or {}).get(key, []))
+        series[key] = prior_vals + [values.get(key)]
+    flags = flags + [{}]
+    return dates, series, flags

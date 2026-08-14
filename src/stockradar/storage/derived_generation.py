@@ -173,6 +173,21 @@ class MetricGenerationPort(Protocol):
 
     def list_pending_objects(self, generation_id: str) -> list[PendingObjectRecord]: ...
 
+    def get_committed_snapshot_digest(
+        self,
+        *,
+        metric_set_version_id: str,
+        trade_date: str,
+    ) -> str | None: ...
+
+    def get_committed_series_object_key(
+        self,
+        *,
+        metric_set_version_id: str,
+        instrument_code: str,
+        series_year: int,
+    ) -> str | None: ...
+
 
 def normalize_artifact_profile(raw: str | ArtifactProfile) -> str:
     if isinstance(raw, ArtifactProfile):
@@ -268,6 +283,7 @@ class FakeMetricGenerationStore:
   pending_objects: dict[str, dict[str, Any]] = field(default_factory=dict)
   latest_staging: dict[tuple[str, str], dict[str, Any]] = field(default_factory=dict)
   committed_snapshot_digest_by_set_date: dict[tuple[str, str], str] = field(default_factory=dict)
+  committed_series_object_key_by_coord: dict[tuple[str, str, int], str] = field(default_factory=dict)
   committed_latest_observations: dict[tuple[str, str], dict[str, Any]] = field(default_factory=dict)
   identity_index: dict[tuple[str, ...], str] = field(default_factory=dict)
   _clock: datetime | None = None
@@ -458,7 +474,11 @@ class FakeMetricGenerationStore:
     if expected_old_digest is not None:
       current = self.committed_snapshot_digest_by_set_date.get((set_id, trade_date))
       expected = expected_old_digest.strip().lower()
-      if current is not None and current != expected:
+      if current is None:
+        raise GenerationConflictError(
+          "expected_old_digest provided but no committed snapshot"
+        )
+      if current != expected:
         raise GenerationConflictError(
           f"expected_old_digest mismatch: current={current!r} expected={expected!r}"
         )
@@ -514,6 +534,13 @@ class FakeMetricGenerationStore:
     generation["heartbeat_at"] = now
     for row in objects:
       row["status"] = "committed"
+      if row["object_kind"] == "series":
+        coord = (
+          set_id,
+          str(row["instrument_code"]),
+          int(row["series_year"]),
+        )
+        self.committed_series_object_key_by_coord[coord] = str(row["object_key"])
     if has_snapshot:
       self.committed_snapshot_digest_by_set_date[(set_id, trade_date)] = digest
     for row in staging_rows:
@@ -582,6 +609,31 @@ class FakeMetricGenerationStore:
     ]
     rows.sort(key=lambda row: str(row["object_key"]))
     return [self._to_pending_object_record(row) for row in rows]
+
+  def get_committed_snapshot_digest(
+    self,
+    *,
+    metric_set_version_id: str,
+    trade_date: str,
+  ) -> str | None:
+    return self.committed_snapshot_digest_by_set_date.get(
+      (metric_set_version_id.strip().lower(), trade_date.strip())
+    )
+
+  def get_committed_series_object_key(
+    self,
+    *,
+    metric_set_version_id: str,
+    instrument_code: str,
+    series_year: int,
+  ) -> str | None:
+    return self.committed_series_object_key_by_coord.get(
+      (
+        metric_set_version_id.strip().lower(),
+        instrument_code.strip(),
+        int(series_year),
+      )
+    )
 
   def _latest_rows(self, generation_id: str) -> list[LatestStagingRow]:
     return [

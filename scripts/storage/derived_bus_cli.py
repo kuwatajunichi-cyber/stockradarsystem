@@ -181,7 +181,19 @@ def cmd_put_generation(args: argparse.Namespace) -> int:
     )
     row = registry.get_metric_set_version(resolved_id)
     if row is None:
-        return 2, None, "unknown_metric_set_version"
+        _emit(
+            {"status": "error", "exit_code": 2, "reason": "unknown_metric_set_version"},
+            args.json_output,
+        )
+        return 2
+
+    expected_old_digest = args.expected_old_digest
+    if args.mode == "reconcile" and not expected_old_digest:
+        expected_old_digest = _generation_store().get_committed_snapshot_digest(
+            metric_set_version_id=resolved_id,
+            trade_date=args.trade_date,
+        )
+
     request = DerivedGenerationRequest(
         stage=stage,
         mode=args.mode,
@@ -195,7 +207,7 @@ def cmd_put_generation(args: argparse.Namespace) -> int:
         is_active=registry.get_active_metric_set_id() == resolved_id,
         is_current_latest_trade_date=args.is_current_latest_trade_date.lower()
         in ("true", "1", "yes"),
-        expected_old_digest=args.expected_old_digest,
+        expected_old_digest=expected_old_digest,
         writer_workflow=args.workflow,
     )
     latest_rows: list[dict[str, object]] | None = None

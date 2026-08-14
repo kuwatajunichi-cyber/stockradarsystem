@@ -51,6 +51,7 @@ def _map_generation_conflict(exc: httpx.HTTPStatusError) -> None:
             "object_set_digest",
             "latest_set_digest",
             "new_digest mismatch",
+            "expected_old_digest",
         )
     ):
         raise GenerationConflictError(text) from exc
@@ -304,21 +305,13 @@ class SupabaseMetricGenerationAdapter:
         new_logical_digest: str,
         expected_old_digest: str | None = None,
     ) -> GenerationRecord:
+        body: dict[str, Any] = {
+            "p_generation_id": generation_id,
+            "p_new_digest": new_logical_digest.strip().lower(),
+        }
         if expected_old_digest is not None:
-            row = self._fetch_generation_row(generation_id)
-            current = row.get("expected_old_digest")
-            expected = expected_old_digest.strip().lower()
-            if current is not None and str(current).strip().lower() != expected:
-                raise GenerationConflictError(
-                    f"expected_old_digest mismatch: current={current!r} expected={expected!r}"
-                )
-        self._rpc(
-            "commit_derived_generation",
-            {
-                "p_generation_id": generation_id,
-                "p_new_digest": new_logical_digest.strip().lower(),
-            },
-        )
+            body["p_expected_old_digest"] = expected_old_digest.strip().lower()
+        self._rpc("commit_derived_generation", body)
         return self._to_generation_record(self._fetch_generation_row(generation_id))
 
     def fail_generation(self, *, generation_id: str, reason: str) -> GenerationRecord:
@@ -396,3 +389,60 @@ class SupabaseMetricGenerationAdapter:
             )
         pending.sort(key=lambda item: item.object_key)
         return pending
+
+    def _fetch_committed_object_row(
+        self,
+        *,
+        metric_set_version_id: str,
+        filters: dict[str, str],
+    ) -> dict[str, Any] | None:
+        params: dict[str, str] = {
+            "metric_set_version_id": f"eq.{metric_set_version_id.strip().lower()}",
+            "status": "eq.committed",
+            "select": "object_key,logical_digest,committed_at_utc",
+            "order": "committed_at_utc.desc",
+            "limit": "1",
+        }
+        params.update(filters)
+        resp = self._request("GET", "/rest/v1/derived_object_index", params=params)
+        resp.raise_for_status()
+        rows = resp.json()
+        if not isinstance(rows, list) or not rows:
+            return None
+        return rows[0]
+
+    def get_committed_snapshot_digest(
+        self,
+        *,
+        metric_set_version_id: str,
+        trade_date: str,
+    ) -> str | None:
+        row = self._fetch_committed_object_row(
+            metric_set_version_id=metric_set_version_id,
+            filters={
+                "trade_date": f"eq.{trade_date.strip()}",
+                "object_kind": "eq.snapshot",
+            },
+        )
+        if row is None:
+            return None
+        return str(row["logical_digest"])
+
+    def get_committed_series_object_key(
+        self,
+        *,
+        metric_set_version_id: str,
+        instrument_code: str,
+        series_year: int,
+    ) -> str | None:
+        row = self._fetch_committed_object_row(
+            metric_set_version_id=metric_set_version_id,
+            filters={
+                "object_kind": "eq.series",
+                "instrument_code": f"eq.{instrument_code.strip()}",
+                "series_year": f"eq.{int(series_year)}",
+            },
+        )
+        if row is None:
+            return None
+        return str(row["object_key"])
