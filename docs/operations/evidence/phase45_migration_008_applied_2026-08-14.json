@@ -1,0 +1,11 @@
+{
+  "applied_at_utc": "2026-08-14T14:01:00.723941+00:00",
+  "project_id": "wocvepixlzqupasoipbk",
+  "migration_file": "supabase/migrations/008_phase45_batch_object_rpcs.sql",
+  "functions": [
+    "register_pending_derived_objects",
+    "mark_derived_objects_uploaded",
+    "stage_latest_derived_observations"
+  ],
+  "note": "Applied via Supabase MCP before code merge. Soak evidence = next successful daily writer wall clock."
+}

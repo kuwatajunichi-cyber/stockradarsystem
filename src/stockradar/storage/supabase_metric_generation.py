@@ -91,32 +91,7 @@ class SupabaseMetricGenerationAdapter:
             source_run_id=source_run_id,
         )
 
-    def _request(
-        self,
-        method: str,
-        path: str,
-        *,
-        json_body: Any | None = None,
-        params: dict[str, str] | None = None,
-        prefer: str | None = None,
-    ) -> httpx.Response:
-        headers = _auth_headers(self.secret_key)
-        if prefer:
-            headers["Prefer"] = prefer
-        url = f"{self.base_url}{path}"
-        with httpx.Client(timeout=self.timeout_s) as client:
-            return client.request(method, url, headers=headers, json=json_body, params=params)
 
-    def _rpc(self, name: str, body: dict[str, Any]) -> Any:
-        resp = self._request("POST", f"/rest/v1/rpc/{name}", json_body=body)
-        try:
-            resp.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            _map_generation_conflict(exc)
-            raise
-        if not resp.content:
-            return None
-        return resp.json()
 
     def _fetch_generation_row(self, generation_id: str) -> dict[str, Any]:
         resp = self._request(
@@ -477,3 +452,215 @@ class SupabaseMetricGenerationAdapter:
         if row is None:
             return None
         return str(row["object_key"])
+    BATCH_OBJECT_CHUNK_SIZE = 500
+    BATCH_RPC_TIMEOUT_S = 60.0
+
+    def _request(
+        self,
+        method: str,
+        path: str,
+        *,
+        json_body: Any | None = None,
+        params: dict[str, str] | None = None,
+        prefer: str | None = None,
+        timeout_s: float | None = None,
+    ) -> httpx.Response:
+        headers = _auth_headers(self.secret_key)
+        if prefer:
+            headers["Prefer"] = prefer
+        url = f"{self.base_url}{path}"
+        with httpx.Client(timeout=self.timeout_s if timeout_s is None else timeout_s) as client:
+            return client.request(method, url, headers=headers, json=json_body, params=params)
+
+    def _rpc(self, name: str, body: dict[str, Any], *, timeout_s: float | None = None) -> Any:
+        resp = self._request(
+            "POST",
+            f"/rest/v1/rpc/{name}",
+            json_body=body,
+            timeout_s=timeout_s,
+        )
+        try:
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            text = exc.response.text
+            lowered = text.lower()
+            if (
+                exc.response.status_code == 404
+                or "pgrst202" in lowered
+                or "could not find the function" in lowered
+                or "function public." in lowered and "does not exist" in lowered
+            ):
+                raise GenerationConflictError(
+                    f"batch RPC unavailable (migration 008 required): {name}: {text}"
+                ) from exc
+            _map_generation_conflict(exc)
+            raise
+        if not resp.content:
+            return None
+        return resp.json()
+
+    def _chunked(self, items: list[Any], size: int | None = None) -> list[list[Any]]:
+        chunk_size = int(size or self.BATCH_OBJECT_CHUNK_SIZE)
+        if chunk_size <= 0:
+            raise ValueError("chunk size must be positive")
+        return [items[i : i + chunk_size] for i in range(0, len(items), chunk_size)]
+
+    def list_committed_series_keys(
+        self,
+        *,
+        metric_set_version_id: str,
+        series_year: int,
+    ) -> dict[str, str]:
+        out: dict[str, str] = {}
+        offset = 0
+        page_size = 1000
+        set_id = metric_set_version_id.strip().lower()
+        year = int(series_year)
+        while True:
+            resp = self._request(
+                "GET",
+                "/rest/v1/derived_object_index",
+                params={
+                    "metric_set_version_id": f"eq.{set_id}",
+                    "status": "eq.committed",
+                    "object_kind": "eq.series",
+                    "series_year": f"eq.{year}",
+                    "select": "instrument_code,object_key",
+                    "order": "instrument_code",
+                    "limit": str(page_size),
+                    "offset": str(offset),
+                },
+            )
+            resp.raise_for_status()
+            rows = resp.json()
+            if not isinstance(rows, list) or not rows:
+                break
+            for row in rows:
+                code = str(row.get("instrument_code") or "").strip()
+                key = str(row.get("object_key") or "").strip()
+                if code and key:
+                    out[code] = key
+            if len(rows) < page_size:
+                break
+            offset += page_size
+        return out
+
+    def register_pending_objects(
+        self,
+        *,
+        generation_id: str,
+        objects: list[dict[str, Any]],
+    ) -> list[PendingObjectRecord]:
+        if not objects:
+            return []
+        records: list[PendingObjectRecord] = []
+        by_key: dict[str, dict[str, Any]] = {
+            str(item["object_key"]).strip(): item for item in objects
+        }
+        for chunk in self._chunked(objects):
+            payload = []
+            for item in chunk:
+                payload.append(
+                    {
+                        "object_kind": str(item["object_kind"]).strip().lower(),
+                        "object_key": str(item["object_key"]).strip(),
+                        "logical_digest": str(item["logical_digest"]).strip().lower(),
+                        "trade_date": item.get("trade_date"),
+                        "instrument_code": item.get("instrument_code"),
+                        "series_year": item.get("series_year"),
+                        "layer1_input_fingerprint": item.get("layer1_input_fingerprint"),
+                        "writer_workflow": self.writer_workflow,
+                    }
+                )
+            raw = self._rpc(
+                "register_pending_derived_objects",
+                {"p_generation_id": generation_id, "p_objects": payload},
+                timeout_s=self.BATCH_RPC_TIMEOUT_S,
+            )
+            if not isinstance(raw, list):
+                raise GenerationConflictError(
+                    f"register_pending_derived_objects returned unexpected payload: {raw!r}"
+                )
+            keyed = {
+                str(row["object_key"]).strip(): str(row["object_id"])
+                for row in raw
+                if isinstance(row, dict) and row.get("object_key") and row.get("object_id")
+            }
+            for item in chunk:
+                object_key = str(item["object_key"]).strip()
+                object_id = keyed.get(object_key)
+                if not object_id:
+                    raise GenerationConflictError(
+                        f"register_pending_derived_objects missing object_key={object_key!r}"
+                    )
+                self._object_ids_by_key[(generation_id, object_key)] = object_id
+                src = by_key[object_key]
+                records.append(
+                    PendingObjectRecord(
+                        object_id=object_id,
+                        generation_id=generation_id,
+                        object_kind=str(src["object_kind"]).strip().lower(),
+                        object_key=object_key,
+                        logical_digest=str(src["logical_digest"]).strip().lower(),
+                        byte_sha256=str(src.get("byte_sha256") or "").strip().lower(),
+                        size_bytes=int(src.get("size_bytes") or 0),
+                        trade_date=src.get("trade_date"),
+                        instrument_code=src.get("instrument_code"),
+                        series_year=src.get("series_year"),
+                        layer1_input_fingerprint=src.get("layer1_input_fingerprint"),
+                    )
+                )
+        return records
+
+    def mark_objects_uploaded(
+        self,
+        *,
+        generation_id: str,
+        uploads: list[dict[str, Any]],
+    ) -> int:
+        if not uploads:
+            return 0
+        total = 0
+        for chunk in self._chunked(uploads):
+            payload = [
+                {
+                    "object_id": str(item["object_id"]),
+                    "byte_sha256": str(item["byte_sha256"]).strip().lower(),
+                    "size_bytes": int(item["size_bytes"]),
+                }
+                for item in chunk
+            ]
+            count = self._rpc(
+                "mark_derived_objects_uploaded",
+                {"p_generation_id": generation_id, "p_uploads": payload},
+                timeout_s=self.BATCH_RPC_TIMEOUT_S,
+            )
+            total += int(count or 0)
+        return total
+
+    def stage_latest_observations(
+        self,
+        *,
+        generation_id: str,
+        rows: list[dict[str, Any]],
+    ) -> int:
+        if not rows:
+            return 0
+        total = 0
+        for chunk in self._chunked(rows):
+            payload = [
+                {
+                    "instrument_code": str(item["instrument_code"]).strip(),
+                    "trade_date": str(item["trade_date"]).strip(),
+                    "values_json": dict(item["values_json"]),
+                    "logical_digest": str(item["logical_digest"]).strip().lower(),
+                }
+                for item in chunk
+            ]
+            count = self._rpc(
+                "stage_latest_derived_observations",
+                {"p_generation_id": generation_id, "p_rows": payload},
+                timeout_s=self.BATCH_RPC_TIMEOUT_S,
+            )
+            total += int(count or 0)
+        return total

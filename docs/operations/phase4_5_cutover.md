@@ -51,6 +51,21 @@ Phase 4 gate SSOT（phase4_gate_status.yaml）は変更しない。
 - `daily.yml` に derived writer を配線済み。mapping `phase4_5_rollout_stage: "off"` のため本番書込は skip
 - 4.5a/4.5b は mapping `phase4_5_shadow_metric_set_version_id` が必須（Fake store 禁止）
 - 本番 Supabase 004/005/006/007 DDL apply 済み。writer は mapping 昇格後に接続
+- **008 batch object RPCs**: `register/mark/stage` 一括 RPC。**マージ前に本番へ 008 を適用**すること（逆順だと翌 daily が batch RPC 欠如で fail-fast）
 - `capacity_gate` は open（Path B interim; safety_factor 1.10 < AC-CAP 1.20）
 
 **推奨実行順:** 4.5-1 pure metrics → 4.5-2 shadow → 4.5-3 registry shadow → 4.5-4 cutover → rollout `4.5c` → live 証拠取得。
+
+## Derived writer 性能（008 + 並列 R2）
+
+- Writer は銘柄単位直列 I/O をやめ、committed series の prefetch・並列 R2・500 件チャンク batch RPC を使う。
+- 環境変数 `DERIVED_R2_CONCURRENCY`（既定 32）。boto3 `max_pool_connections` は同値以上。
+- 観測: `derived_bus_cli put-generation` JSON の `series_count` / `r2_concurrency` / `elapsed_ms` が `daily.yml` step summary に出る。壁時計 10 分未満を soak 証拠に使える。
+
+### 失敗後の再実行（重要）
+
+チャンク途中失敗時は `fail_generation` する（部分 commit なし）。`begin_derived_generation` は同一 `github_run_id` の failed を REJECT する。
+
+- **GitHub Actions の Re-run（同一 run id）では回復できない。**
+- 失敗後は **新規 workflow run**（`workflow_dispatch` または翌営業日の schedule）が必要。
+

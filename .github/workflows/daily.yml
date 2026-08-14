@@ -1178,6 +1178,22 @@ jobs:
             echo "## write_derived_generation"
             echo "- rollout_stage: \`${{ steps.phase45.outputs.rollout_stage }}\`"
             echo "- mapping_ssot: \`config/github_state_to_r2_supabase_mapping.yaml\`"
+            if [ -f /tmp/derived_daily_normal.json ]; then
+              python - <<'PY'
+          import json
+          from pathlib import Path
+          payload = json.loads(Path('/tmp/derived_daily_normal.json').read_text(encoding='utf-8'))
+          elapsed = payload.get('elapsed_ms') or {}
+          print("- status: `{0}`".format(payload.get("status")))
+          print("- series_count: `{0}`".format(payload.get("series_count")))
+          print("- r2_concurrency: `{0}`".format(payload.get("r2_concurrency")))
+          print("- elapsed_ms.prefetch: `{0}`".format(elapsed.get("prefetch")))
+          print("- elapsed_ms.put: `{0}`".format(elapsed.get("put")))
+          print("- elapsed_ms.rpc: `{0}`".format(elapsed.get("rpc")))
+          PY
+            else
+              echo "- derived_json: \`(missing - put-generation did not emit)\`"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
   event_cause_enrichment:

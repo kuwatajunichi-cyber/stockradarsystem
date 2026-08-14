@@ -249,6 +249,13 @@ def cmd_put_generation(args: argparse.Namespace) -> int:
             "logical_digest": result.logical_digest,
             "object_keys": list(result.object_keys),
             "reason": result.reason,
+            "series_count": result.series_count,
+            "r2_concurrency": result.r2_concurrency,
+            "elapsed_ms": {
+                "prefetch": result.prefetch_elapsed_ms,
+                "put": result.put_elapsed_ms,
+                "rpc": result.rpc_elapsed_ms,
+            },
         },
         args.json_output,
     )

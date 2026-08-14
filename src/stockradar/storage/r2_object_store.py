@@ -52,8 +52,27 @@ class FakeR2ObjectStore:
 
     objects: dict[str, bytes] = field(default_factory=dict)
     metadata: dict[str, dict[str, Any]] = field(default_factory=dict)
+    _lock: Any = field(default=None, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        if self._lock is None:
+            from threading import RLock
+
+            object.__setattr__(self, "_lock", RLock())
 
     def put_create_only(
+        self,
+        object_key: str,
+        content: bytes,
+        *,
+        content_type: str = "application/octet-stream",
+    ) -> R2PutResult:
+        with self._lock:
+            return self._put_create_only_unlocked(
+                object_key, content, content_type=content_type
+            )
+
+    def _put_create_only_unlocked(
         self,
         object_key: str,
         content: bytes,
@@ -92,6 +111,10 @@ class FakeR2ObjectStore:
         )
 
     def head_object(self, object_key: str) -> R2HeadResult:
+        with self._lock:
+            return self._head_object_unlocked(object_key)
+
+    def _head_object_unlocked(self, object_key: str) -> R2HeadResult:
         key = object_key.strip()
         if key not in self.objects:
             raise FileNotFoundError(f"object not found: {key!r}")
@@ -105,12 +128,20 @@ class FakeR2ObjectStore:
         )
 
     def get_object(self, object_key: str) -> bytes:
+        with self._lock:
+            return self._get_object_unlocked(object_key)
+
+    def _get_object_unlocked(self, object_key: str) -> bytes:
         key = object_key.strip()
         if key not in self.objects:
             raise FileNotFoundError(f"object not found: {key!r}")
         return self.objects[key]
 
     def delete_object(self, object_key: str) -> None:
+        with self._lock:
+            return self._delete_object_unlocked(object_key)
+
+    def _delete_object_unlocked(self, object_key: str) -> None:
         key = object_key.strip()
         self.objects.pop(key, None)
         self.metadata.pop(key, None)
@@ -147,6 +178,7 @@ class S3R2ObjectStore:
     bucket: str
     base_prefix: str
     endpoint_url: str
+    max_pool_connections: int = 32
     _client: Any = field(default=None, repr=False)
 
     @classmethod
@@ -173,12 +205,16 @@ class S3R2ObjectStore:
         ]
         if missing:
             raise RuntimeError(f"R2 configuration required: {', '.join(missing)}")
+        pool = int(os.environ.get("DERIVED_R2_CONCURRENCY", "32") or "32")
+        if pool < 1:
+            pool = 1
         return cls(
             access_key_id=access_key_id,
             secret_access_key=secret_access_key,
             bucket=bucket,
             base_prefix=base,
             endpoint_url=endpoint_url,
+            max_pool_connections=max(pool, 10),
         )
 
     def _physical_key(self, logical_key: str) -> str:
@@ -193,15 +229,23 @@ class S3R2ObjectStore:
             from botocore.config import Config
         except ImportError as exc:
             raise RuntimeError("boto3 is required for S3R2ObjectStore") from exc
+        pool = max(int(self.max_pool_connections), 1)
         self._client = boto3.client(
             "s3",
             endpoint_url=self.endpoint_url,
             aws_access_key_id=self.access_key_id,
             aws_secret_access_key=self.secret_access_key,
             region_name="auto",
-            config=Config(signature_version="s3v4"),
+            config=Config(
+                signature_version="s3v4",
+                max_pool_connections=pool,
+            ),
         )
         return self._client
+
+    def warm_client(self) -> None:
+        """Eager-init boto3 client before ThreadPool workers race lazy init."""
+        self._get_client()
 
     def put_create_only(
         self,
