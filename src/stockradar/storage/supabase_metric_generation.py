@@ -230,12 +230,21 @@ class SupabaseMetricGenerationAdapter:
         key = (generation_id, object_key.strip())
         object_id = self._object_ids_by_key.get(key)
         if object_id is None:
-            pending = self.list_pending_objects(generation_id)
-            for row in pending:
-                if row.object_key == object_key.strip():
-                    object_id = row.object_id
-                    self._object_ids_by_key[key] = object_id
-                    break
+            resp = self._request(
+                "GET",
+                "/rest/v1/derived_object_index",
+                params={
+                    "generation_id": f"eq.{generation_id}",
+                    "object_key": f"eq.{object_key.strip()}",
+                    "status": "eq.pending",
+                    "select": "id",
+                },
+            )
+            resp.raise_for_status()
+            rows = resp.json()
+            if isinstance(rows, list) and rows:
+                object_id = str(rows[0]["id"])
+                self._object_ids_by_key[key] = object_id
         if object_id is None:
             raise GenerationNotFoundError(f"pending object not found: {object_key!r}")
 
@@ -245,10 +254,10 @@ class SupabaseMetricGenerationAdapter:
             "p_size_bytes": int(size_bytes),
         }
         self._rpc("mark_derived_object_uploaded", body)
-        for row in self.list_pending_objects(generation_id):
-            if row.object_id == object_id:
-                return row
-        raise GenerationNotFoundError(f"pending object not found after upload: {object_key!r}")
+        row = self._fetch_object_row(object_id)
+        if row is None:
+            raise GenerationNotFoundError(f"pending object not found after upload: {object_key!r}")
+        return self._pending_record_from_row(row, generation_id)
 
     def stage_latest_observation(
         self,
@@ -351,42 +360,64 @@ class SupabaseMetricGenerationAdapter:
             return None
         return self._to_generation_record(rows[0])
 
-    def list_pending_objects(self, generation_id: str) -> list[PendingObjectRecord]:
+
+    def _pending_record_from_row(self, row: dict[str, Any], generation_id: str) -> PendingObjectRecord:
+        object_id = str(row["id"])
+        object_key = str(row["object_key"])
+        self._object_ids_by_key[(generation_id, object_key)] = object_id
+        upload_verified = row.get("upload_verified_at")
+        return PendingObjectRecord(
+            object_id=object_id,
+            generation_id=generation_id,
+            object_kind=str(row["object_kind"]),
+            object_key=object_key,
+            logical_digest=str(row["logical_digest"]),
+            byte_sha256=str(row.get("byte_sha256") or ""),
+            size_bytes=int(row.get("size_bytes") or 0),
+            trade_date=row.get("trade_date"),
+            instrument_code=row.get("instrument_code"),
+            series_year=row.get("series_year"),
+            layer1_input_fingerprint=row.get("layer1_input_fingerprint"),
+            upload_verified_at=_parse_utc(upload_verified) if upload_verified else None,
+        )
+
+    def _fetch_object_row(self, object_id: str) -> dict[str, Any] | None:
         resp = self._request(
             "GET",
             "/rest/v1/derived_object_index",
-            params={
-                "generation_id": f"eq.{generation_id}",
-                "status": "eq.pending",
-                "select": "*",
-            },
+            params={"id": f"eq.{object_id}", "select": "*"},
         )
         resp.raise_for_status()
         rows = resp.json()
-        if not isinstance(rows, list):
-            return []
+        if not isinstance(rows, list) or not rows:
+            return None
+        return rows[0]
+    def list_pending_objects(self, generation_id: str) -> list[PendingObjectRecord]:
         pending: list[PendingObjectRecord] = []
-        for row in rows:
-            object_id = str(row["id"])
-            object_key = str(row["object_key"])
-            self._object_ids_by_key[(generation_id, object_key)] = object_id
-            upload_verified = row.get("upload_verified_at")
-            pending.append(
-                PendingObjectRecord(
-                    object_id=object_id,
-                    generation_id=generation_id,
-                    object_kind=str(row["object_kind"]),
-                    object_key=object_key,
-                    logical_digest=str(row["logical_digest"]),
-                    byte_sha256=str(row.get("byte_sha256") or ""),
-                    size_bytes=int(row.get("size_bytes") or 0),
-                    trade_date=row.get("trade_date"),
-                    instrument_code=row.get("instrument_code"),
-                    series_year=row.get("series_year"),
-                    layer1_input_fingerprint=row.get("layer1_input_fingerprint"),
-                    upload_verified_at=_parse_utc(upload_verified) if upload_verified else None,
-                )
+        offset = 0
+        page_size = 1000
+        while True:
+            resp = self._request(
+                "GET",
+                "/rest/v1/derived_object_index",
+                params={
+                    "generation_id": f"eq.{generation_id}",
+                    "status": "eq.pending",
+                    "select": "*",
+                    "order": "object_key",
+                    "limit": str(page_size),
+                    "offset": str(offset),
+                },
             )
+            resp.raise_for_status()
+            rows = resp.json()
+            if not isinstance(rows, list) or not rows:
+                break
+            for row in rows:
+                pending.append(self._pending_record_from_row(row, generation_id))
+            if len(rows) < page_size:
+                break
+            offset += page_size
         pending.sort(key=lambda item: item.object_key)
         return pending
 

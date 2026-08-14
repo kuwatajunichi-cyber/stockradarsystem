@@ -120,3 +120,42 @@ def test_supabase_registry_get_active() -> None:
 
     with patch.object(adapter, "_request", fake_request):
         assert adapter.get_active_metric_set_id() == SET_ID
+
+
+def test_mark_object_uploaded_uses_single_row_fetch_after_rpc() -> None:
+    """Regression: PostgREST defaults to 1000 rows; mark must not rely on full pending list."""
+    adapter = SupabaseMetricGenerationAdapter(
+        base_url="https://example.supabase.co",
+        secret_key="secret",
+        writer_workflow="daily.yml",
+    )
+    object_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+    object_key = "derived-series/metric-set=test/symbol=5192/year=2026/gen.json.gz"
+    adapter._object_ids_by_key[(GEN_ID, object_key)] = object_id
+    row = {
+        "id": object_id,
+        "object_kind": "series",
+        "object_key": object_key,
+        "logical_digest": DIGEST,
+        "byte_sha256": DIGEST,
+        "size_bytes": 42,
+        "upload_verified_at": "2026-08-14T09:00:00+00:00",
+    }
+
+    def fake_request(method, path, json_body=None, params=None, prefer=None):
+        request = httpx.Request(method, f"https://example.supabase.co{path}")
+        if path.endswith("/derived_object_index") and params and params.get("id"):
+            return httpx.Response(200, json=[row], request=request)
+        raise AssertionError(f"unexpected request: {method} {path} {params}")
+
+    with patch.object(adapter, "_request", fake_request):
+        with patch.object(adapter, "_rpc", lambda name, body: None):
+            with patch.object(adapter, "list_pending_objects", lambda gid: []):
+                record = adapter.mark_object_uploaded(
+                    generation_id=GEN_ID,
+                    object_key=object_key,
+                    byte_sha256=DIGEST,
+                    size_bytes=42,
+                )
+    assert record.object_id == object_id
+    assert record.byte_sha256 == DIGEST
