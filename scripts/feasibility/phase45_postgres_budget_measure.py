@@ -17,7 +17,7 @@ from urllib.parse import quote_plus
 import numpy as np
 
 from stockradar.storage.phase45_budget import (
-    BUDGET_SCHEMA_VERSION,
+    BUDGET_SCHEMA_VERSION_V1,
     SUPABASE_WARN_BYTES,
     within_free_tier,
 )
@@ -287,7 +287,7 @@ def build_report(
     if sizes["database_bytes"] >= SUPABASE_WARN_BYTES:
         ok = False
     return {
-        "schema_version": BUDGET_SCHEMA_VERSION,
+        "schema_version": BUDGET_SCHEMA_VERSION_V1,
         "measurement_kind": "postgres_local",
         "generator_git_sha": _git_sha(),
         "generator_seed": seed,
