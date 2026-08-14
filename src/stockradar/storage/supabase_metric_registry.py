@@ -7,7 +7,7 @@ from typing import Any
 
 import httpx
 
-from stockradar.storage.metric_registry import ActiveMetricSetCasConflictError, MetricRegistryPort
+from stockradar.storage.metric_registry import ActiveMetricSetCasConflictError
 from stockradar.storage.supabase_client import (
     ENV_SUPABASE_SECRET_KEY,
     ENV_SUPABASE_URL,
