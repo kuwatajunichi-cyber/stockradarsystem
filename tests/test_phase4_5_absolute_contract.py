@@ -52,6 +52,16 @@ def test_in_progress_gate_yaml_forbids_false_closed_claims() -> None:
 
 
 @pytest.mark.unit
+def test_pr45_1_artifacts_present() -> None:
+    from stockradar.governance.phase4_5_absolute_contract import (
+        validate_absolute_contract_artifacts_pr45_1,
+    )
+
+    violations = validate_absolute_contract_artifacts_pr45_1()
+    assert violations == [], "\n".join(violations)
+
+
+@pytest.mark.unit
 def test_closed_overall_requires_live_and_capacity_evidence() -> None:
     data = _load_gate_status()
     closed = dict(data)
