@@ -16,7 +16,7 @@ from stockradar.storage.derived_generation import (
     FakeMetricGenerationStore,
     ObjectCoordinateConflictError,
 )
-from stockradar.storage.r2_object_store import FakeR2ObjectStore, R2ObjectAlreadyExistsError
+from stockradar.storage.r2_object_store import FakeR2ObjectStore
 
 pytestmark = pytest.mark.unit
 
