@@ -1,11 +1,19 @@
 schema_version: 2
 phase: '4.5'
-last_updated_utc: '2026-08-13T18:45:00+09:00'
+last_updated_utc: '2026-08-14T15:40:00+09:00'
 overall_status: in_progress
 implementation_snapshot:
   local_worktree_has_unmerged_changes: false
-  note: 'Step 0: schema v2 + canonical digest SSOT; PR-45-1..4 open PRs with audit fixes; local pytest 452 pass; capacity_gate closed (Path B).'
+  note: 'Split PRs #143-#146 to main (closed #142). P1: 007 CAS, series accumulation; 007 applied prod.'
 correction_log:
+- at_utc: '2026-08-14T15:40:00+09:00'
+  reason: 'Split stack to main: closed PR #142; stacked PRs #143 (PR-45-1) through #146 (PR-45-4) on phase45/to-main-pr-45-1..4.'
+- at_utc: '2026-08-14T15:30:00+09:00'
+  reason: 'Production DDL apply: 007_phase45_commit_expected_old_digest (commit_derived_generation CAS) via Supabase MCP. Evidence: phase45_production_ddl_applied.json updated.'
+- at_utc: '2026-08-14T06:02:40Z'
+  reason: 'Production DDL apply: 006_phase45_generation_commit (tables + 8 RPCs + grants/RLS) on stock-radar-system (wocvepixlzqupasoipbk) via Supabase MCP. Evidence: phase45_production_ddl_applied.json.'
+- at_utc: '2026-08-14T14:50:00+09:00'
+  reason: 'Audit: capacity_gate closed was premature (safety_factor 1.10 < AC-CAP 1.20, incomplete projection_inputs). Reverted to open. PR #142 blocked from main merge.'
 - at_utc: '2026-08-12T04:52:36Z'
   reason: 'Production DDL apply: 004_phase45_metric_registry + 005 hardening on stock-radar-system
     (wocvepixlzqupasoipbk). Full-scale R2 budget measured; layer1_r2 estimate added
@@ -35,7 +43,7 @@ preflight_blockers:
   metric_registry_ddl:
     status: closed
     closed_at_utc: '2026-08-12T04:52:36Z'
-    evidence_digest: 6ee6787af16f9b84fab22902cc8865fa2b1e416689f560663c1bb91724c309f1
+    evidence_digest: 4a68bc8fb14af9c4bf05b2e284912207dd5f6768db0602812c44f98ff8f79815
     evidence_url: docs/operations/evidence/phase45_production_ddl_applied.json
   supabase_r2_budget_fixture:
     status: closed
@@ -89,8 +97,7 @@ live_gate_45c:
   soak_run_urls: []
   note: Blocked on 4.5-1..4 implementation and workflow wiring; see phase4_5_cutover.md
 roadmap:
-  phase45_status_phrase: preflight 完了・schema v2 移行・canonical digest SSOT・PR-45-1..4
-    pending・capacity_gate closed (Path B)・rollout off
+  phase45_status_phrase: 'preflight 完了・schema v2 移行・canonical digest SSOT・split PR #143-#146 to main pending・capacity_gate open (Path B interim only)・rollout off'
 historical_pr_gates:
   pr-45-0-gate-ssot:
     description: gate SSOT + honesty + cutover runbook + rollout helpers
@@ -144,9 +151,16 @@ historical_pr_gates:
       005_phase45_metric_registry_hardening)
 capacity_gate:
   status: open
-  path: null
-  catalog: null
-  projection_inputs: {}
-  evidence_report_hash: null
-  evidence_url: null
-  note: Blocked until PR-45-3 measurement + path A/B decision
+  path: B
+  catalog: config/metrics/metric_set_v1_free.yaml
+  projection_inputs:
+    symbols: 3000
+    metrics: 13
+    trading_days_per_year: 250
+    retention_years: 3
+    metric_set_versions: 2
+    snapshot_bytes_per_trade_date: 398361
+    series_bytes_per_symbol_year: 30856
+  evidence_report_hash: af83677abe7c00606da125c6041e25d0591accb000283bf4233a9d23e21ec84c
+  evidence_url: docs/operations/evidence/phase45_budget_v2_path_b_report.json
+  note: Interim Path B v2 report only — NOT closed. safety_factor 1.10 < AC-CAP 1.20; projection_inputs lack rollback/failed/reconcile fields; prod adapters missing. pytest test_phase45_budget_v2_contract.py
