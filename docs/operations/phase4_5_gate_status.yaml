@@ -1,11 +1,13 @@
 schema_version: 2
 phase: '4.5'
-last_updated_utc: '2026-08-14T15:40:00+09:00'
+last_updated_utc: '2026-08-14T17:10:00+09:00'
 overall_status: in_progress
 implementation_snapshot:
   local_worktree_has_unmerged_changes: false
-  note: 'Split PRs #143-#146 to main (closed #142). P1: 007 CAS, series accumulation; 007 applied prod.'
+  note: 'PR #143 on main; PR-45-2..4 + cutover fixes on phase45/to-main-pr-45-4 pending main merge (#147).'
 correction_log:
+- at_utc: '2026-08-14T17:10:00+09:00'
+  reason: 'Post-split status: #143 merged to main; #144-#146 merged to stack branches only; remainder on phase45/to-main-pr-45-4 (531ca6e) awaiting main merge.'
 - at_utc: '2026-08-14T15:40:00+09:00'
   reason: 'Split stack to main: closed PR #142; stacked PRs #143 (PR-45-1) through #146 (PR-45-4) on phase45/to-main-pr-45-1..4.'
 - at_utc: '2026-08-14T15:30:00+09:00'
@@ -59,11 +61,12 @@ preflight_blockers:
 pr_gates:
   pr-45-1:
     description: versioned pure metrics + canonical digest + YAML catalogs
-    status: pending
-    merge_commit: null
-    merge_ci_run_url: null
-    pytest_ci_pass_on_merge: null
+    status: merged_and_verified
+    merge_commit: 846067395e3c9d933e0d2d7492149f4a31d5c85d
+    merge_ci_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/31778859346
+    pytest_ci_pass_on_merge: true
     local_pytest_pass: true
+    note: merged via PR #143 to main
   pr-45-2:
     description: control plane migration 006 + Phase A-B-C + ops CAS seed + budget
       v2
@@ -95,9 +98,9 @@ live_gate_45c:
   reconcile_isolated_run_url: null
   soak_trading_days: 3
   soak_run_urls: []
-  note: Blocked on 4.5-1..4 implementation and workflow wiring; see phase4_5_cutover.md
+  note: PR-45-1..4 on main after #147; live evidence collection in progress. See phase4_5_cutover.md
 roadmap:
-  phase45_status_phrase: 'preflight 完了・schema v2 移行・canonical digest SSOT・split PR #143-#146 to main pending・capacity_gate open (Path B interim only)・rollout off'
+  phase45_status_phrase: 'preflight 完了・PR-45-1 main merged (#143)・PR-45-2..4 pending main (#147)・live_gate open・capacity_gate open・rollout off'
 historical_pr_gates:
   pr-45-0-gate-ssot:
     description: gate SSOT + honesty + cutover runbook + rollout helpers
