@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "audit_at_utc": "2026-08-14T12:30:00Z",
+  "project_ref": "wocvepixlzqupasoipbk",
+  "method": "supabase_mcp_execute_sql",
+  "purpose": "Post-daily success (#31789729418) Supabase derived control-plane audit",
+  "gha_runs": {
+    "normal_daily_success": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/31789729418",
+    "normal_daily_failed_prior": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/31784726527",
+    "replay_no_shared_mutation": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/31784728984"
+  },
+  "derived_generation_runs": {
+    "by_status": {
+      "committed": 7,
+      "failed": 1,
+      "pending": 0
+    },
+    "by_mode_status": [
+      {
+        "mode": "backfill",
+        "status": "committed",
+        "count": 5
+      },
+      {
+        "mode": "normal",
+        "status": "committed",
+        "count": 1
+      },
+      {
+        "mode": "normal",
+        "status": "failed",
+        "count": 1
+      },
+      {
+        "mode": "reconcile",
+        "status": "committed",
+        "count": 1
+      }
+    ],
+    "trade_date_2026_08_14": {
+      "committed": {
+        "generation_id": "66987a8c-12ee-4603-b2bb-9e5ac7191b80",
+        "github_run_id": 31789729418,
+        "metric_set_version_id": "11111111-2222-3333-4444-555555555555",
+        "mode": "normal",
+        "new_digest": "5bde29210ba5ed347a77e5fe45a9e54d8cb41f7bafa08209d5a4a940070d42e5",
+        "committed_at_utc": "2026-08-14T11:03:42.198718+00:00"
+      },
+      "failed_prior": {
+        "generation_id": "56004f01-137a-414a-bd71-b8d1fae3168e",
+        "github_run_id": 31784726527,
+        "failed_at_utc": "2026-08-14T09:24:06.620401+00:00",
+        "note": "Marked failed; not left pending (post PR #149 fix on subsequent run)"
+      }
+    },
+    "replay_run_31784728984": {
+      "derived_generation_row": null,
+      "expected": "4.5c replay resolves NO_RESOLVE_REPLAY → replay_no_write (no DB mutation)"
+    }
+  },
+  "derived_object_index": {
+    "by_status": {
+      "committed": 2292,
+      "orphan": 1006,
+      "pending": 0
+    },
+    "success_generation_66987a8c": {
+      "committed_objects": 2284,
+      "note": "2283 instruments + snapshot row"
+    },
+    "failed_generation_56004f01": {
+      "orphan_objects": 1002,
+      "note": "Partial upload before mark_object_uploaded failure; cleaned to orphan on failed mark"
+    },
+    "orphan_not_attributed_to_failed_gen": 4
+  },
+  "active_metric_set": {
+    "pointer_key": "default",
+    "metric_set_version_id": "11111111-2222-3333-4444-555555555555",
+    "updated_at_utc": "2026-08-14T08:08:30.680231+00:00"
+  },
+  "metric_set_versions": {
+    "11111111-2222-3333-4444-555555555555": "active",
+    "22222222-3333-4444-5555-666666666666": "shadow"
+  },
+  "latest_derived_observations_active_set": {
+    "trade_dates_present": [
+      "2026-08-14"
+    ],
+    "instrument_rows_2026_08_14": 2283,
+    "replay_trade_date_2026_07_15_rows": 0
+  },
+  "findings": [
+    "No pending derived_generation_runs or derived_object_index rows.",
+    "2026-08-14 normal generation committed on active set 11111111.",
+    "Prior failed run generation marked failed; orphan objects retained (expected).",
+    "Replay run produced no generation row; latest observations unchanged for replay date."
+  ],
+  "verdict": "healthy"
+}

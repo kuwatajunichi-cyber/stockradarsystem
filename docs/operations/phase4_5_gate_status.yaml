@@ -1,11 +1,13 @@
 schema_version: 2
 phase: '4.5'
-last_updated_utc: '2026-08-14T17:35:00+09:00'
+last_updated_utc: '2026-08-14T21:30:00+09:00'
 overall_status: in_progress
 implementation_snapshot:
-  local_worktree_has_unmerged_changes: true
-  note: 'Rollout 4.5c mapping PR + live_gate backfill/reconcile evidence recorded. Daily soak pending.'
+  local_worktree_has_unmerged_changes: false
+  note: 'Rollout 4.5c on main (incl. PR #150 writer perf). normal/replay live evidence + Supabase audit recorded. Soak 1/3 trading days.'
 correction_log:
+- at_utc: '2026-08-14T21:30:00+09:00'
+  reason: 'Live gate: normal daily #31789729418 success (4.5c committed gen). Replay #31784728984 replay_no_write (no shared mutation). Supabase audit: docs/operations/evidence/phase45_supabase_live_audit_2026-08-14.json'
 - at_utc: '2026-08-14T17:35:00+09:00'
   reason: 'Live gate: backfill_shadow_only + reconcile_isolated GHA prod success. Shadow backfill set 22222222 (active set 11111111 remains for 4.5c).'
 - at_utc: '2026-08-14T17:15:00+09:00'
@@ -38,7 +40,7 @@ rollout:
   - at_utc: '2026-08-14T17:35:00+09:00'
     stage: '4.5c'
     evidence_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/blob/main/config/github_state_to_r2_supabase_mapping.yaml
-    note: 'mapping SSOT bump for live_gate normal daily + soak (PR pending merge)'
+    note: 'mapping SSOT 4.5c on main (PR #148 merged)'
 preflight_blockers:
   layer1_5y_feasibility:
     status: closed
@@ -103,15 +105,17 @@ pr_gates:
 live_gate_45c:
   status: open
   closed_at_utc: null
-  normal_daily_success_run_url: null
-  replay_no_shared_mutation_run_url: null
+  normal_daily_success_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/31789729418
+  replay_no_shared_mutation_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/31784728984
   backfill_shadow_only_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/31783499953
   reconcile_isolated_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/31783771525
   soak_trading_days: 3
-  soak_run_urls: []
-  note: 'backfill + reconcile prod evidence collected. Pending normal_daily, replay, soak (3 trading days).'
+  soak_run_urls:
+  - https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/31789729418
+  note: 'normal + replay + backfill/reconcile evidence collected. Soak 1/3 trading days (#31789729418). Pending soak days 2-3 + capacity_gate.'
+  supabase_live_audit_evidence_url: docs/operations/evidence/phase45_supabase_live_audit_2026-08-14.json
 roadmap:
-  phase45_status_phrase: 'PR-45-1..4 merged・rollout 4.5c・live_gate open（backfill/reconcile 証拠済）・capacity_gate open'
+  phase45_status_phrase: 'PR-45-1..4 merged・rollout 4.5c・live_gate open（normal/replay/backfill/reconcile 証拠済・soak 1/3）・capacity_gate open'
 historical_pr_gates:
   pr-45-0-gate-ssot:
     description: gate SSOT + honesty + cutover runbook + rollout helpers

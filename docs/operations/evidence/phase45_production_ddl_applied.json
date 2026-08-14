@@ -40,13 +40,20 @@
     {
       "version": "007",
       "name": "007_phase45_commit_expected_old_digest"
+    },
+    {
+      "version": "008",
+      "name": "008_phase45_batch_object_rpcs",
+      "applied_at_utc": "2026-08-14T14:01:00Z",
+      "evidence_url": "docs/operations/evidence/phase45_migration_008_applied_2026-08-14.json"
     }
   ],
   "repo_migration_files": [
     "supabase/migrations/004_phase45_metric_registry.sql",
     "supabase/migrations/005_phase45_metric_registry_hardening.sql",
     "supabase/migrations/006_phase45_generation_commit.sql",
-    "supabase/migrations/007_phase45_commit_expected_old_digest.sql"
+    "supabase/migrations/007_phase45_commit_expected_old_digest.sql",
+    "supabase/migrations/008_phase45_batch_object_rpcs.sql"
   ],
   "tables_verified": [
     "metric_definitions",
@@ -67,13 +74,18 @@
     "commit_derived_generation",
     "mark_derived_generation_failed",
     "list_stale_derived_generations",
-    "mark_orphan_object_purged"
+    "mark_orphan_object_purged",
+    "register_pending_derived_objects",
+    "mark_derived_objects_uploaded",
+    "stage_latest_derived_observations"
   ],
   "notes": [
     "004/005 applied 2026-08-12 via Supabase MCP",
     "006 applied 2026-08-14 via Supabase MCP (DDL + RPCs + grants split across MCP apply_migration calls)",
     "007 applied 2026-08-14 via Supabase MCP (commit_derived_generation expected_old_digest CAS)",
     "RLS enabled on derived_generation_runs and latest_derived_observations_staging",
-    "Prior production migrations: 002_phase4_control_plane, 003_p0_control_plane_hardening"
-  ]
+    "Prior production migrations: 002_phase4_control_plane, 003_p0_control_plane_hardening",
+    "008 applied 2026-08-14 via Supabase MCP (batch register/mark/stage RPCs; see phase45_migration_008_applied_2026-08-14.json). Code merged PR #150."
+  ],
+  "last_updated_utc": "2026-08-15T02:25:00+09:00"
 }
