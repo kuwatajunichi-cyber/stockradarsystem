@@ -1,0 +1,156 @@
+name: Derived Reconcile
+
+# Phase 4.5 reconcile entrypoint (isolated correction path).
+# Unit job: DERIVED_GENERATION_FAKE=1 (Secrets-free).
+# Prod job: SupabaseMetricGenerationAdapter + S3R2ObjectStore (requires migration 006).
+
+on:
+  workflow_dispatch:
+    inputs:
+      trade_date:
+        description: "Trade date YYYY-MM-DD"
+        required: true
+      metric_set_version_id:
+        description: "Metric set version UUID"
+        required: true
+      phase4_5_rollout_stage:
+        description: "Override rollout stage (default from mapping; reconcile requires 4.5c)"
+        required: false
+        default: ""
+
+concurrency:
+  group: derived-${{ github.event.inputs.metric_set_version_id }}-${{ github.event.inputs.trade_date }}
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    uses: ./.github/workflows/reusable_quality_gate.yml
+
+  unit_path:
+    needs: preflight
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Phase A-B-C preflight (Fake; Secrets-free)
+        env:
+          PYTHONPATH: src:.
+          DERIVED_GENERATION_FAKE: "1"
+          PHASE45_STAGE: ${{ github.event.inputs.phase4_5_rollout_stage }}
+        run: |
+          set -euo pipefail
+          STAGE="${PHASE45_STAGE:-}"
+          if [ -z "$STAGE" ]; then
+            STAGE=$(python -c "import yaml; from pathlib import Path; print(yaml.safe_load(Path('config/github_state_to_r2_supabase_mapping.yaml').read_text(encoding='utf-8')).get('phase4_5_rollout_stage','off'))")
+          fi
+          python - <<'PY'
+          import os
+          from stockradar.storage.mapping_catalog import load_mapping
+          from stockradar.storage.phase4_5_rollout import preflight_derived_write, resolve_phase4_5_rollout_stage
+
+          stage = resolve_phase4_5_rollout_stage(
+              cli_override=os.environ.get("PHASE45_STAGE") or None,
+              mapping=load_mapping(),
+          )
+          result = preflight_derived_write(stage, "reconcile")
+          print(f"phase_a_preflight={result.value} stage={stage}")
+          if result.name == "EXIT2":
+              raise SystemExit(2)
+          PY
+
+      - name: Derived reconcile put-generation (Fake)
+        env:
+          PYTHONPATH: src:.
+          DERIVED_GENERATION_FAKE: "1"
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          STAGE="${{ github.event.inputs.phase4_5_rollout_stage }}"
+          if [ -z "$STAGE" ]; then
+            STAGE=$(python -c "import yaml; from pathlib import Path; print(yaml.safe_load(Path('config/github_state_to_r2_supabase_mapping.yaml').read_text(encoding='utf-8')).get('phase4_5_rollout_stage','off'))")
+          fi
+          python scripts/storage/derived_bus_cli.py put-generation \
+            --mode reconcile \
+            --trade-date "${{ github.event.inputs.trade_date }}" \
+            --metric-set-version-id "${{ github.event.inputs.metric_set_version_id }}" \
+            --phase4-5-rollout-stage "${STAGE:-4.5c}" \
+            --lifecycle-status active \
+            --metric-set-yaml config/metrics/metric_set_v1_free.yaml \
+            --snapshot-json tests/fixtures/phase45_ci_snapshot.json \
+            --layer1-input-fingerprint "$(python -c 'print("b"*64)')" \
+            --workflow derived_reconcile.yml \
+            --json-output /tmp/derived_reconcile_fake.json
+
+  reconcile:
+    needs: [preflight, unit_path]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Phase A-B-C preflight (mapping stage)
+        env:
+          PYTHONPATH: src:.
+        run: |
+          set -euo pipefail
+          STAGE="${{ github.event.inputs.phase4_5_rollout_stage }}"
+          if [ -z "$STAGE" ]; then
+            STAGE=$(python -c "import yaml; from pathlib import Path; print(yaml.safe_load(Path('config/github_state_to_r2_supabase_mapping.yaml').read_text(encoding='utf-8')).get('phase4_5_rollout_stage','off'))")
+          fi
+          python -c "from stockradar.storage.phase4_5_rollout import preflight_derived_write; r=preflight_derived_write('$STAGE','reconcile'); print('preflight', r.value); exit(2 if r.name=='EXIT2' else 0)"
+
+      - name: Derived reconcile put-generation (prod adapters)
+        env:
+          PYTHONPATH: src:.
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
+          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+        run: |
+          set -euo pipefail
+          STAGE="${{ github.event.inputs.phase4_5_rollout_stage }}"
+          if [ -z "$STAGE" ]; then
+            STAGE=$(python -c "import yaml; from pathlib import Path; print(yaml.safe_load(Path('config/github_state_to_r2_supabase_mapping.yaml').read_text(encoding='utf-8')).get('phase4_5_rollout_stage','off'))")
+          fi
+          if [ "$STAGE" != "4.5c" ]; then
+            echo "reconcile prod path requires rollout stage 4.5c (current: $STAGE)"
+            exit 2
+          fi
+          python scripts/storage/derived_bus_cli.py put-generation \
+            --mode reconcile \
+            --trade-date "${{ github.event.inputs.trade_date }}" \
+            --metric-set-version-id "${{ github.event.inputs.metric_set_version_id }}" \
+            --phase4-5-rollout-stage "$STAGE" \
+            --lifecycle-status active \
+            --metric-set-yaml config/metrics/metric_set_v1_free.yaml \
+            --snapshot-json tests/fixtures/phase45_ci_snapshot.json \
+            --layer1-input-fingerprint "$(python -c 'print("b"*64)')" \
+            --workflow derived_reconcile.yml \
+            --json-output /tmp/derived_reconcile_prod.json
