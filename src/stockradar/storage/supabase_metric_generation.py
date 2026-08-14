@@ -14,7 +14,6 @@ from stockradar.storage.derived_generation import (
     GenerationNotFoundError,
     GenerationRecord,
     LatestStagingRow,
-    MetricGenerationPort,
     ObjectCoordinateConflictError,
     PendingObjectRecord,
     normalize_artifact_profile,
