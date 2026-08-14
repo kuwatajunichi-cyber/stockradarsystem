@@ -2,12 +2,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Protocol
 from uuid import uuid4
 
 
 class ActiveMetricSetCasConflictError(RuntimeError):
     """CAS mismatch — no mutation (exit 2 contract)."""
+
+
+class MetricRegistryPort(Protocol):
+    def get_active_metric_set_id(self) -> str | None: ...
+
+    def get_metric_set_version(self, set_id: str) -> dict[str, Any] | None: ...
 
 
 @dataclass
@@ -19,6 +25,9 @@ class FakeMetricRegistryStore:
         if self.active_metric_set is None:
             return None
         return str(self.active_metric_set.get("metric_set_version_id") or "") or None
+
+    def get_metric_set_version(self, set_id: str) -> dict[str, Any] | None:
+        return self.metric_set_versions.get(set_id)
 
     def activate_metric_set_cas(
         self,

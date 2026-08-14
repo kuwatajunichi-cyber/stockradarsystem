@@ -16,6 +16,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--upload-executed", default="false")
     parser.add_argument("--upload-exit-code", type=int, default=0)
     parser.add_argument("--upload-status", default="ok")
+    parser.add_argument("--write-derived-result", default="skipped")
     args = parser.parse_args(argv)
 
     is_open = args.is_open.lower() == "true"
@@ -38,6 +39,7 @@ def main(argv: list[str] | None = None) -> None:
             upload_executed=upload_executed,
             upload_exit_code=args.upload_exit_code,
             upload_status=args.upload_status,
+            write_derived_generation=_norm(args.write_derived_result),  # type: ignore[arg-type]
         )
     )
     payload = {"status": decision.status, "degraded_reason": decision.degraded_reason}

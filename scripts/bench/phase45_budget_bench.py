@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 
 from stockradar.storage.phase45_budget import (
-    BUDGET_SCHEMA_VERSION,
+    BUDGET_SCHEMA_VERSION_V1,
     extrapolate_r2_five_years,
     extrapolate_supabase_latest_rows,
     within_free_tier,
@@ -142,7 +142,7 @@ def build_report(
                 "layer1_r2: 0 (deferred — pass --layer1-r2-bytes from Layer 1 PoC for full-scale budget)"
             )
     return {
-        "schema_version": BUDGET_SCHEMA_VERSION,
+        "schema_version": BUDGET_SCHEMA_VERSION_V1,
         "generator_git_sha": _git_sha(),
         "generator_seed": seed,
         "as_of_date": as_of_date.isoformat(),

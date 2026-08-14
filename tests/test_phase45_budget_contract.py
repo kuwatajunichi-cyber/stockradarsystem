@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from stockradar.storage.phase45_budget import (
-    BUDGET_SCHEMA_VERSION,
+    BUDGET_SCHEMA_VERSION_V1,
     R2_WARN_BYTES,
     SUPABASE_WARN_BYTES,
     estimate_layer1_warm_cache_r2_bytes,
@@ -37,7 +37,7 @@ def test_ci_scale_within_free_tier(tmp_path: Path) -> None:
     )
     assert proc.returncode == 0, proc.stderr
     report = json.loads(out.read_text(encoding="utf-8"))
-    assert report["schema_version"] == BUDGET_SCHEMA_VERSION
+    assert report["schema_version"] == BUDGET_SCHEMA_VERSION_V1
     assert report["verdict"]["within_free_tier"] is True
     assert report["generator_git_sha"]
     assert any("layer1_r2: 0 (deferred" in note for note in report["verdict"]["notes"])
