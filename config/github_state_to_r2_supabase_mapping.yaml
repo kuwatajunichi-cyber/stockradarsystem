@@ -7,8 +7,8 @@
 schema_version: 5
 phase3_rollout_stage: "3c"
 phase4_rollout_stage: "4c"
-phase4_5_rollout_stage: "off"
-# Required when stage is 4.5a or 4.5b (shadow set UUID). Empty while off.
+phase4_5_rollout_stage: "4.5c"
+# Required when stage is 4.5a or 4.5b (shadow set UUID). Empty at 4.5c.
 phase4_5_shadow_metric_set_version_id: ""
 
 scan_workflows:

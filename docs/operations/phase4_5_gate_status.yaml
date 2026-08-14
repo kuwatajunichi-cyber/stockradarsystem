@@ -1,11 +1,13 @@
 schema_version: 2
 phase: '4.5'
-last_updated_utc: '2026-08-14T17:15:00+09:00'
+last_updated_utc: '2026-08-14T17:35:00+09:00'
 overall_status: in_progress
 implementation_snapshot:
-  local_worktree_has_unmerged_changes: false
-  note: 'PR #143-#147 merged to main (9661bca). Active metric set seeded prod. Live gate evidence collection started.'
+  local_worktree_has_unmerged_changes: true
+  note: 'Rollout 4.5c mapping PR + live_gate backfill/reconcile evidence recorded. Daily soak pending.'
 correction_log:
+- at_utc: '2026-08-14T17:35:00+09:00'
+  reason: 'Live gate: backfill_shadow_only + reconcile_isolated GHA prod success. Shadow backfill set 22222222 (active set 11111111 remains for 4.5c).'
 - at_utc: '2026-08-14T17:15:00+09:00'
   reason: 'PR #147 merged to main (PR-45-2..4 + cutover fixes). pr-45-1..4 merged_and_verified on main.'
 - at_utc: '2026-08-14T17:10:00+09:00'
@@ -31,8 +33,12 @@ correction_log:
     Postgres measurement.'
 rollout:
   machine_readable_key: phase4_5_rollout_stage
-  current_stage: 'off'
-  stage_history: []
+  current_stage: '4.5c'
+  stage_history:
+  - at_utc: '2026-08-14T17:35:00+09:00'
+    stage: '4.5c'
+    evidence_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/blob/main/config/github_state_to_r2_supabase_mapping.yaml
+    note: 'mapping SSOT bump for live_gate normal daily + soak (PR pending merge)'
 preflight_blockers:
   layer1_5y_feasibility:
     status: closed
@@ -99,13 +105,13 @@ live_gate_45c:
   closed_at_utc: null
   normal_daily_success_run_url: null
   replay_no_shared_mutation_run_url: null
-  backfill_shadow_only_run_url: null
-  reconcile_isolated_run_url: null
+  backfill_shadow_only_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/31783499953
+  reconcile_isolated_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/31783771525
   soak_trading_days: 3
   soak_run_urls: []
-  note: PR-45-1..4 merged to main (#143-#147). Collecting live_gate_45c run URLs.
+  note: 'backfill + reconcile prod evidence collected. Pending normal_daily, replay, soak (3 trading days).'
 roadmap:
-  phase45_status_phrase: 'PR-45-1..4 merged to main (#143-#147)・live_gate open・capacity_gate open・rollout off'
+  phase45_status_phrase: 'PR-45-1..4 merged・rollout 4.5c・live_gate open（backfill/reconcile 証拠済）・capacity_gate open'
 historical_pr_gates:
   pr-45-0-gate-ssot:
     description: gate SSOT + honesty + cutover runbook + rollout helpers

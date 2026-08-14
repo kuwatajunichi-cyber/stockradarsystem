@@ -79,11 +79,15 @@ def test_reconcile_prod_path_forbids_ci_fixture() -> None:
     assert "derived_bus_cli.py get-object" in prod
 
 
-def test_mapping_shadow_metric_set_id_empty_while_off() -> None:
+def test_mapping_shadow_metric_set_id_contract() -> None:
     mapping = yaml.safe_load(
         (_REPO / "config" / "github_state_to_r2_supabase_mapping.yaml").read_text(
             encoding="utf-8"
         )
     )
-    assert mapping.get("phase4_5_rollout_stage") == "off"
-    assert mapping.get("phase4_5_shadow_metric_set_version_id") == ""
+    stage = mapping.get("phase4_5_rollout_stage")
+    shadow_id = (mapping.get("phase4_5_shadow_metric_set_version_id") or "").strip()
+    if stage in {"off", "4.5c"}:
+        assert shadow_id == ""
+    elif stage in {"4.5a", "4.5b"}:
+        assert shadow_id != ""
