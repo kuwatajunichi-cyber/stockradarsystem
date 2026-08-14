@@ -9,7 +9,7 @@ phase3_rollout_stage: "3c"
 phase4_rollout_stage: "4c"
 phase4_5_rollout_stage: "off"
 # Required when stage is 4.5a or 4.5b (shadow set UUID). Empty while off.
-phase4_5_shadow_metric_set_version_id: "11111111-2222-3333-4444-555555555555"
+phase4_5_shadow_metric_set_version_id: ""
 
 scan_workflows:
   - daily.yml
