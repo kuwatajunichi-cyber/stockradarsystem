@@ -7,7 +7,7 @@ implementation_snapshot:
   note: 'PR #152 merged. 009 applied. Path B catalog seeded as shadow (13209d23). Soak 2/3. live_gate open: 60-day AC-LIVE backfill/reconcile still unmet. Do not CAS-activate.'
 correction_log:
 - at_utc: '2026-08-17T22:15:00+09:00'
-  reason: 'Ops after PR #152: production 009 applied (20260817123824); Path B set 13209d23 seeded shadow (not activated); leftover derived-shadow + failed-gen 56004f01 purged; R2_BASE_PREFIX aligned to existing physical prefix; 8/14 shadow backfill canary dispatched #32033845358. Soak still 2/3. AC-LIVE 60-day unmet (only 3 Path B-compatible indicator CSVs).'
+  reason: 'Ops after PR #152: production 009 applied (20260817123824); Path B set 13209d23 seeded shadow (not activated); leftover derived-shadow + failed-gen 56004f01 purged; R2_BASE_PREFIX aligned to existing physical prefix; 8/14 shadow backfill canary succeeded #32033845358 (2283 series+manifests; not 60-day AC-LIVE). Soak still 2/3. AC-LIVE 60-day unmet (only 3 Path B-compatible indicator CSVs).'
 - at_utc: '2026-08-17T22:00:00+09:00'
   reason: 'Canonical writer+capacity contract: flags/ordinal/manifests/expected digests/safety 1.20. Soak day 2 #32002940778 recorded. AC-LIVE backfill/reconcile still Fail (PoC). capacity_gate closed on Path B report 15d3188d.'
 - at_utc: '2026-08-14T21:30:00+09:00'

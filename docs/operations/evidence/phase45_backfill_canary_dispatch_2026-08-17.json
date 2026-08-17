@@ -13,5 +13,15 @@
     "2026-08-14",
     "2026-08-17"
   ],
-  "note": "Canary only. 60 trading-day AC-LIVE remains unmet: only 3 Path B catalog-compatible indicator CSVs exist in R2. Do not treat this run as live_gate close evidence until 60 dates succeed on the non-active shadow set."
+  "note": "Canary only. 60 trading-day AC-LIVE remains unmet: only 3 Path B catalog-compatible indicator CSVs exist in R2. Do not treat this run as live_gate close evidence until 60 dates succeed on the non-active shadow set.",
+  "conclusion": "success",
+  "generation_id": "e7d0b27f-af5d-4f15-b943-c224c6fbeb2c",
+  "artifact_profile": "snapshot_series",
+  "committed_objects": {
+    "snapshot": 1,
+    "snapshot_manifest": 1,
+    "series": 2283,
+    "series_manifest": 2283
+  },
+  "active_pointer_unchanged": "11111111-2222-3333-4444-555555555555"
 }
