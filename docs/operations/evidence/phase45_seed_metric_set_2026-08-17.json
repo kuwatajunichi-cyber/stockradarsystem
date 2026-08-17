@@ -1,0 +1,14 @@
+{
+  "applied_at_utc": "2026-08-17T12:45:00Z",
+  "project_id": "wocvepixlzqupasoipbk",
+  "method": "supabase_mcp_execute_sql",
+  "yaml": "config/metrics/metric_set_v1_free.yaml",
+  "set_id": "13209d23-ded6-482d-be08-7da6062013c0",
+  "set_key": "daily_core_v1__4dca11eaed32",
+  "fingerprint12": "4dca11eaed32",
+  "lifecycle_status": "shadow",
+  "member_count": 13,
+  "activated": false,
+  "active_metric_set_version_id": "11111111-2222-3333-4444-555555555555",
+  "note": "Path B catalog seeded as shadow only. Do not CAS-activate until 60-trading-day backfill on this set. PostgREST seed CLI merge-duplicates needs UPDATE; 005 grants service_role INSERT-only, so production seed used SQL."
+}

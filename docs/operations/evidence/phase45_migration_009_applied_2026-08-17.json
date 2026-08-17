@@ -1,0 +1,24 @@
+{
+  "applied_at_utc": "2026-08-17T12:38:24Z",
+  "project_id": "wocvepixlzqupasoipbk",
+  "migration_file": "supabase/migrations/009_phase45_manifest_kinds_and_commit.sql",
+  "schema_migrations_version": "20260817123824",
+  "schema_migrations_name": "phase45_manifest_kinds_and_commit",
+  "method": "supabase_mcp_apply_migration",
+  "object_kind_includes": [
+    "snapshot",
+    "series",
+    "snapshot_manifest",
+    "series_manifest"
+  ],
+  "commit_guards": {
+    "expected_object_count_required": true,
+    "expected_object_set_digest_required": true,
+    "staging_cleared_per_generation": true
+  },
+  "functions": [
+    "set_pending_generation_object_set_digest",
+    "commit_derived_generation"
+  ],
+  "note": "Production object_kind check was ANY(ARRAY[...]) so 009 DO-loop was supplemented with DROP CONSTRAINT IF EXISTS derived_object_index_object_kind_check. Active pointer was not changed."
+}

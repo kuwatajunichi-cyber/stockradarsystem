@@ -1,0 +1,51 @@
+{
+  "leftover_deleted_keys": [
+    "stock-radar-system/derived-shadow/snapshots/phase45_ci_snapshot.json",
+    "stock-radar-system/derived-snapshots/metric-set=11111111-2222-3333-4444-555555555555/trade-date=2026-08-14/generation=56004f01-137a-414a-bd71-b8d1fae3168e/manifest-sha256=2b11e58b6394d7fd8732cd05bd1708634b294218643792d91f42cf195755856f.json"
+  ],
+  "leftover_deleted_count": 2,
+  "leftover_remaining": [
+    {
+      "prefix": "stock-radar-system/derived-shadow/",
+      "remaining": 0
+    },
+    {
+      "prefix": "stock-radar-system/derived-snapshots/metric-set=11111111-2222-3333-4444-555555555555/trade-date=2026-08-14/generation=56004f01-137a-414a-bd71-b8d1fae3168e/",
+      "remaining": 0
+    }
+  ],
+  "indicator_csv_found_count": 28,
+  "indicator_csv_found_dates": [
+    "2026-07-07",
+    "2026-07-08",
+    "2026-07-09",
+    "2026-07-10",
+    "2026-07-13",
+    "2026-07-14",
+    "2026-07-15",
+    "2026-07-16",
+    "2026-07-17",
+    "2026-07-21",
+    "2026-07-22",
+    "2026-07-23",
+    "2026-07-24",
+    "2026-07-27",
+    "2026-07-28",
+    "2026-07-29",
+    "2026-07-30",
+    "2026-07-31",
+    "2026-08-03",
+    "2026-08-04",
+    "2026-08-05",
+    "2026-08-06",
+    "2026-08-07",
+    "2026-08-10",
+    "2026-08-12",
+    "2026-08-13",
+    "2026-08-14",
+    "2026-08-17"
+  ],
+  "indicator_csv_missing_dates": [],
+  "unpurged_orphans_out_of_scope": 2282,
+  "note": "Physical keys live under bucket-name prefix. Logical leftover prefixes are empty."
+}
