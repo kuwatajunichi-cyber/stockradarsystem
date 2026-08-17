@@ -298,6 +298,20 @@ class SupabaseMetricGenerationAdapter:
         self._rpc("commit_derived_generation", body)
         return self._to_generation_record(self._fetch_generation_row(generation_id))
 
+    def set_expected_object_set_digest(
+        self,
+        *,
+        generation_id: str,
+        expected_object_set_digest: str,
+    ) -> None:
+        self._rpc(
+            "set_pending_generation_object_set_digest",
+            {
+                "p_generation_id": generation_id,
+                "p_expected_object_set_digest": expected_object_set_digest.strip().lower(),
+            },
+        )
+
     def fail_generation(self, *, generation_id: str, reason: str) -> GenerationRecord:
         self._rpc("mark_derived_generation_failed", {"p_generation_id": generation_id})
         return self._to_generation_record(self._fetch_generation_row(generation_id))

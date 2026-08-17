@@ -1,6 +1,7 @@
 name: Derived Backfill
 
 # Phase 4.5 backfill entrypoint (shadow-only until rollout > off).
+# AC-LIVE requires a non-active shadow set and the last 60 trading days (one dispatch per date).
 # Unit job: DERIVED_GENERATION_FAKE=1 (Secrets-free).
 # Prod job: SupabaseMetricGenerationAdapter + S3R2ObjectStore (requires migration 006).
 
@@ -11,7 +12,7 @@ on:
         description: "Trade date YYYY-MM-DD"
         required: true
       metric_set_version_id:
-        description: "Metric set version UUID"
+        description: "Non-active shadow metric set UUID (active set writes are forbidden)"
         required: true
       snapshot_r2_key:
         description: "R2 object key of snapshot JSON (required for prod when stage != off). CI fixture forbidden."

@@ -217,6 +217,13 @@ class MetricGenerationPort(Protocol):
         rows: list[dict[str, Any]],
     ) -> int: ...
 
+    def set_expected_object_set_digest(
+        self,
+        *,
+        generation_id: str,
+        expected_object_set_digest: str,
+    ) -> None: ...
+
 
 def normalize_artifact_profile(raw: str | ArtifactProfile) -> str:
     if isinstance(raw, ArtifactProfile):
@@ -259,6 +266,15 @@ def profile_allows_series(profile: str | ArtifactProfile) -> bool:
 
 def profile_allows_latest(profile: str | ArtifactProfile) -> bool:
     return normalize_artifact_profile(profile) == ArtifactProfile.SNAPSHOT_SERIES_LATEST.value
+
+
+def expected_derived_object_count(*, profile: str | ArtifactProfile, instrument_count: int) -> int:
+    """Snapshot parquet + snapshot manifest, plus series gzip + series manifest per instrument."""
+    normalized = normalize_artifact_profile(profile)
+    n = max(0, int(instrument_count))
+    if normalized == ArtifactProfile.SNAPSHOT_ONLY.value:
+        return 2
+    return 2 + (2 * n)
 
 
 def _utc_now(now_utc: datetime | None = None) -> datetime:
@@ -552,6 +568,20 @@ class FakeMetricGenerationStore:
       row["heartbeat_at"] = self._now()
       return self._to_generation_record(row)
 
+  def set_expected_object_set_digest(
+    self,
+    *,
+    generation_id: str,
+    expected_object_set_digest: str,
+  ) -> None:
+    with self._lock:
+      row = self._require_pending_generation(generation_id)
+      digest = expected_object_set_digest.strip().lower()
+      current = row.get("expected_object_set_digest")
+      if current is not None and str(current).strip().lower() != digest:
+        raise GenerationConflictError("expected_object_set_digest mismatch on declare")
+      row["expected_object_set_digest"] = digest
+
   def commit_generation(
     self,
     *,
@@ -649,6 +679,24 @@ class FakeMetricGenerationStore:
           int(row["series_year"]),
         )
         self.committed_series_object_key_by_coord[coord] = str(row["object_key"])
+    for prior in self.pending_objects.values():
+      if prior["generation_id"] == generation_id:
+        continue
+      if prior.get("metric_set_version_id") != set_id:
+        continue
+      if prior["object_kind"] in {"snapshot", "snapshot_manifest"} and prior.get("trade_date") == trade_date:
+        if prior.get("status") == "committed":
+          prior["status"] = "orphan"
+      if prior["object_kind"] in {"series", "series_manifest"} and has_series:
+        if prior.get("status") == "committed":
+          matching = any(
+            cur["object_kind"] == "series"
+            and cur.get("instrument_code") == prior.get("instrument_code")
+            and cur.get("series_year") == prior.get("series_year")
+            for cur in objects
+          )
+          if matching:
+            prior["status"] = "orphan"
     if has_snapshot:
       self.committed_snapshot_digest_by_set_date[(set_id, trade_date)] = digest
     for row in staging_rows:

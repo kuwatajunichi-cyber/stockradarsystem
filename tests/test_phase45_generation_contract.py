@@ -220,8 +220,11 @@ def test_run_derived_generation_registers_single_snapshot_index_row() -> None:
     assert result.generation_id is not None
     pending = generation_store.list_pending_objects(result.generation_id)
     snapshot_rows = [row for row in pending if row.object_kind == "snapshot"]
+    manifest_rows = [row for row in pending if row.object_kind == "snapshot_manifest"]
     assert len(snapshot_rows) == 1
     assert snapshot_rows[0].object_key.endswith(".parquet")
+    assert len(manifest_rows) == 1
+    assert manifest_rows[0].object_key.endswith(".json")
     assert any(key.endswith(".json") for key in result.object_keys)
 
 
@@ -274,6 +277,9 @@ def test_run_derived_generation_stages_latest_rows() -> None:
     committed = generation_store.committed_latest_observations[(SET_ID, "1301")]
     assert committed["trade_date"] == TRADE_DATE
     assert committed["logical_digest"] == DIGEST_A
+    assert committed["values_json"]["_flags"]["missing_metrics"] == []
+    assert committed["values_json"]["_flags"]["non_finite_metrics"] == []
+    assert committed["values_json"]["_flags"]["po_indeterminate"] is False
 
 
 @pytest.mark.unit
@@ -363,4 +369,4 @@ def test_run_derived_generation_4_5b_includes_series_object() -> None:
     assert result.exit_code == 0
     pending = generation_store.list_pending_objects(result.generation_id)
     kinds = {row.object_kind for row in pending}
-    assert kinds == {"snapshot", "series"}
+    assert kinds == {"snapshot", "snapshot_manifest", "series", "series_manifest"}

@@ -34,7 +34,10 @@ def test_merge_trade_date_into_series_appends_new_date() -> None:
     )
     assert dates == ["2026-01-15", "2026-01-16"]
     assert series["alpha_metric"] == [1.0, 2.0]
-    assert flags == [{}, {}]
+    assert flags == [
+        {"missing_metrics": [], "non_finite_metrics": [], "po_indeterminate": False},
+        {"missing_metrics": [], "non_finite_metrics": [], "po_indeterminate": False},
+    ]
 
 
 @pytest.mark.unit
@@ -49,7 +52,7 @@ def test_merge_trade_date_into_series_replaces_existing_date() -> None:
     )
     assert dates == ["2026-01-15"]
     assert series["alpha_metric"] == [9.0]
-    assert flags == [{}]
+    assert flags == [{"missing_metrics": [], "non_finite_metrics": [], "po_indeterminate": False}]
 
 
 @pytest.mark.unit

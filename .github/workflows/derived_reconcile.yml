@@ -17,6 +17,13 @@ on:
         description: "R2 object key of snapshot JSON (required for prod when stage is 4.5c). CI fixture forbidden."
         required: false
         default: ""
+      expected_old_digest:
+        description: "Current committed snapshot logical digest (artifact_repair CAS). Required for prod."
+        required: true
+      is_current_latest_trade_date:
+        description: "true for current-latest artifact_repair (AC-LIVE). false for historical snapshot_series."
+        required: false
+        default: "true"
       phase4_5_rollout_stage:
         description: "Override rollout stage (default from mapping; reconcile requires 4.5c)"
         required: false
@@ -94,6 +101,7 @@ jobs:
             --snapshot-json tests/fixtures/phase45_ci_snapshot.json \
             --layer1-input-fingerprint "$(python -c 'print("b"*64)')" \
             --workflow derived_reconcile.yml \
+            --is-current-latest-trade-date "${{ github.event.inputs.is_current_latest_trade_date }}" \
             --json-output /tmp/derived_reconcile_fake.json
 
   reconcile:
@@ -166,4 +174,6 @@ jobs:
             --snapshot-json /tmp/derived_reconcile_snapshot.json \
             --layer1-input-fingerprint "$LAYER1_FP" \
             --workflow derived_reconcile.yml \
+            --expected-old-digest "${{ github.event.inputs.expected_old_digest }}" \
+            --is-current-latest-trade-date "${{ github.event.inputs.is_current_latest_trade_date }}" \
             --json-output /tmp/derived_reconcile_prod.json

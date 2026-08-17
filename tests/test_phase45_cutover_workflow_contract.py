@@ -77,6 +77,8 @@ def test_reconcile_prod_path_forbids_ci_fixture() -> None:
     assert "snapshot_r2_key" in prod
     assert "CI fixture forbidden" in prod
     assert "derived_bus_cli.py get-object" in prod
+    assert "--expected-old-digest" in prod
+    assert "is-current-latest-trade-date" in prod
 
 
 def test_mapping_shadow_metric_set_id_contract() -> None:

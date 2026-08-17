@@ -5,7 +5,7 @@
 
 ## スコープ
 
-Phase 4.5 の cutover / live gate 運用。preflight blocker（4.5-0）は closed。実装 PR-45-1..4 と rollout 4.5c は main 済み。残ゲートは **live_gate_45c**（3営業日 soak）と **capacity_gate**。
+Phase 4.5 の cutover / live gate 運用。preflight blocker（4.5-0）は closed。実装 PR-45-1..4 と rollout 4.5c は main 済み。残ゲートは **live_gate_45c**（3営業日 soak、backfill/reconcile AC-LIVE 未達）。capacity_gate は Path B v2 safety 1.20 で closed。
 
 ## 前提
 
@@ -55,7 +55,7 @@ econcile_isolated_run_url | reconcile 専用 entrypoint で isolated 訂正 |
 - normal / replay / backfill / reconcile の live URL は gate_status に記録済み。soak は進行中（詳細は SSOT）
 - 4.5a/4.5b は mapping phase4_5_shadow_metric_set_version_id が必須（Fake store 禁止）
 - 本番 Supabase **004〜008** DDL apply 済み（007 CAS + 008 batch object RPCs）。証拠: [phase45_production_ddl_applied.json](evidence/phase45_production_ddl_applied.json)、[phase45_migration_008_applied_2026-08-14.json](evidence/phase45_migration_008_applied_2026-08-14.json)
-- capacity_gate は open（Path B interim; safety_factor 1.10 < AC-CAP 1.20）
+- capacity_gate は closed（Path B v2; safety_factor 1.20, within_free_tier）
 
 **履歴上の推奨実行順（完了済み）:** 4.5-1 pure metrics → 4.5-2 shadow → 4.5-3 registry shadow → 4.5-4 cutover → rollout 4.5c → live 証拠取得。
 

@@ -5,6 +5,7 @@ import hashlib
 import os
 from dataclasses import dataclass, field
 from typing import Any, Protocol
+from urllib.parse import urlparse
 
 
 class R2ObjectAlreadyExistsError(RuntimeError):
@@ -155,18 +156,35 @@ ENV_R2_BASE_PREFIX = "R2_BASE_PREFIX"
 ENV_R2_ENDPOINT_URL = "R2_ENDPOINT_URL"
 
 
-def _r2_endpoint_url() -> str:
-    url = os.environ.get(ENV_R2_ENDPOINT_URL, "").strip()
-    if url and "dash.cloudflare.com" in url:
-        account_id = os.environ.get(ENV_R2_ACCOUNT_ID, "").strip()
+def normalize_r2_s3_endpoint(url: str, *, account_id: str = "", bucket: str = "") -> str:
+    """Return account S3 endpoint with no bucket path (avoids physical key double prefix)."""
+    raw = (url or "").strip()
+    if raw and "dash.cloudflare.com" in raw:
         if account_id:
             return f"https://{account_id}.r2.cloudflarestorage.com"
-    if url:
-        return url
-    account_id = os.environ.get(ENV_R2_ACCOUNT_ID, "").strip()
-    if not account_id:
         return ""
-    return f"https://{account_id}.r2.cloudflarestorage.com"
+    if not raw:
+        if account_id:
+            return f"https://{account_id}.r2.cloudflarestorage.com"
+        return ""
+    parsed = urlparse(raw)
+    path = parsed.path.strip("/")
+    bucket_name = (bucket or "").strip().strip("/")
+    if bucket_name and path:
+        if path == bucket_name or path.startswith(f"{bucket_name}/"):
+            path = path[len(bucket_name) :].lstrip("/")
+    netloc = parsed.netloc
+    scheme = parsed.scheme or "https"
+    if path:
+        return f"{scheme}://{netloc}/{path}"
+    return f"{scheme}://{netloc}"
+
+
+def _r2_endpoint_url() -> str:
+    url = os.environ.get(ENV_R2_ENDPOINT_URL, "").strip()
+    account_id = os.environ.get(ENV_R2_ACCOUNT_ID, "").strip()
+    bucket = os.environ.get(ENV_R2_BUCKET, "").strip()
+    return normalize_r2_s3_endpoint(url, account_id=account_id, bucket=bucket)
 
 
 @dataclass

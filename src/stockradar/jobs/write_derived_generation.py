@@ -17,21 +17,28 @@ from stockradar.storage.derived_generation import (
     GenerationStatus,
     MetricGenerationPort,
     SourceRunIdentity,
+    compute_object_set_digest,
+    expected_derived_object_count,
     profile_allows_latest,
     profile_allows_series,
     resolve_artifact_profile,
 )
 from stockradar.storage.derived_snapshot import (
+    DERIVED_WRITER_VERSION,
     build_snapshot_manifest_bytes,
     build_snapshot_parquet_bytes,
     build_snapshot_rows,
     compute_object_sha256,
     compute_snapshot_logical_digest,
+    LATEST_FLAGS_KEY,
+    flags_for_values,
+    latest_values_json_with_flags,
     snapshot_content_type,
 )
 from stockradar.storage.derived_series import (
     SERIES_GZIP_CONTENT_TYPE,
     build_series_canonical_bytes,
+    build_series_manifest_bytes,
     gunzip_series_bytes,
     gzip_series_bytes,
     merge_trade_date_into_series,
@@ -79,6 +86,8 @@ class DerivedGenerationRequest:
     is_current_latest_trade_date: bool = False
     expected_old_digest: str | None = None
     writer_workflow: str = "derived_writer.yml"
+    set_fingerprint: str = ""
+    writer_version: str = DERIVED_WRITER_VERSION
 
 
 DERIVED_SERIES_CHUNK_SIZE = 500
@@ -156,6 +165,7 @@ def build_accumulating_series_builders(
                 trade_date=trade_date,
                 metric_keys_ordered=metric_keys_ordered,
                 values=values,
+                instrument_code=instrument_code,
                 prior_dates=prior_dates,
                 prior_series=prior_series,
                 prior_flags=prior_flags,
@@ -166,6 +176,7 @@ def build_accumulating_series_builders(
                 dates=dates,
                 series=series,
                 flags=flags,
+                metric_keys_ordered=metric_keys_ordered,
             )
             content = gzip_series_bytes(canonical)
             byte_sha = compute_object_sha256(content)
@@ -222,7 +233,15 @@ def build_default_series_builders(
                 year=year,
                 dates=[trade_date],
                 series=series,
-                flags=[{}],
+                flags=[
+                    flags_for_values(
+                        instrument_code=instrument_code,
+                        metric_keys_ordered=metric_keys_ordered,
+                        metric_types={key: "float" for key in metric_keys_ordered},
+                        values_by_key=values,
+                    )
+                ],
+                metric_keys_ordered=metric_keys_ordered,
             )
             content = gzip_series_bytes(canonical)
             byte_sha = compute_object_sha256(content)
@@ -427,6 +446,15 @@ def run_derived_generation(
         artifact_profile=profile,
         expected_logical_digest=request.expected_old_digest,
         new_logical_digest=logical_digest,
+        expected_object_count=expected_derived_object_count(
+            profile=profile,
+            instrument_count=len(snapshot_input.values_by_instrument),
+        ),
+        expected_latest_set_digest=(
+            compute_object_set_digest(list(snapshot_input.values_by_instrument))
+            if profile_allows_latest(profile.value)
+            else None
+        ),
     )
     try:
         generation = generation_store.begin_generation(begin_request)
@@ -487,9 +515,15 @@ def run_derived_generation(
         generation_id=generation_id,
         logical_digest=logical_digest,
         object_sha256=snapshot_sha,
-        size_bytes=len(snapshot_bytes),
+        object_size=len(snapshot_bytes),
         layer1_input_fingerprint=snapshot_input.layer1_input_fingerprint,
         writer_workflow=request.writer_workflow,
+        set_fingerprint=request.set_fingerprint,
+        source_github_run_id=request.github_run_id,
+        row_count=len(rows),
+        metric_keys_ordered=snapshot_input.metric_keys_ordered,
+        mode=request.mode,
+        writer_version=request.writer_version,
     )
     manifest_sha = compute_object_sha256(manifest_bytes)
     manifest_key = object_key_for(
@@ -501,13 +535,28 @@ def run_derived_generation(
         manifest=True,
     )
     try:
+        generation_store.register_pending_object(
+            generation_id=generation_id,
+            object_kind="snapshot_manifest",
+            object_key=manifest_key,
+            logical_digest=logical_digest,
+            byte_sha256=manifest_sha,
+            size_bytes=len(manifest_bytes),
+            trade_date=request.trade_date,
+        )
         r2_store.put_create_only(
             manifest_key,
             manifest_bytes,
             content_type="application/json",
         )
+        generation_store.mark_object_uploaded(
+            generation_id=generation_id,
+            object_key=manifest_key,
+            byte_sha256=manifest_sha,
+            size_bytes=len(manifest_bytes),
+        )
         object_keys.append(manifest_key)
-    except R2ObjectAlreadyExistsError as exc:
+    except (GenerationConflictError, GenerationNotFoundError, R2ObjectAlreadyExistsError) as exc:
         generation_store.fail_generation(generation_id=generation_id, reason=str(exc))
         return DerivedGenerationResult(
             status="error",
@@ -577,6 +626,8 @@ def run_derived_generation(
                             trade_date=request.trade_date,
                             metric_keys_ordered=metric_keys_ordered,
                             values=values,
+                            metric_types=snapshot_input.metric_types,
+                            instrument_code=instrument_code,
                             prior_dates=prior_dates,
                             prior_series=prior_series,
                             prior_flags=prior_flags,
@@ -587,6 +638,7 @@ def run_derived_generation(
                             dates=dates,
                             series=series,
                             flags=flags,
+                            metric_keys_ordered=metric_keys_ordered,
                         )
                         content = gzip_series_bytes(canonical)
                         byte_sha = compute_object_sha256(content)
@@ -629,16 +681,60 @@ def run_derived_generation(
             for builder in series_builders or []:
                 register_kwargs, content, content_type = builder()
                 byte_sha = compute_object_sha256(content)
+                series_item = dict(register_kwargs)
                 prepared.append(
                     (
-                        dict(register_kwargs),
+                        series_item,
                         content,
                         content_type,
                         byte_sha,
                         len(content),
                     )
                 )
-            series_count = len(prepared)
+                instrument_code = str(series_item["instrument_code"])
+                series_year = int(series_item["series_year"])
+                series_manifest = build_series_manifest_bytes(
+                    instrument_code=instrument_code,
+                    year=series_year,
+                    metric_set_version_id=resolved_id,
+                    generation_id=generation_id,
+                    logical_digest=str(series_item["logical_digest"]),
+                    object_sha256=byte_sha,
+                    object_size=len(content),
+                    writer_workflow=request.writer_workflow,
+                    set_fingerprint=request.set_fingerprint,
+                    source_github_run_id=request.github_run_id,
+                    row_count=1,
+                    metric_keys_ordered=snapshot_input.metric_keys_ordered,
+                    mode=request.mode,
+                    writer_version=request.writer_version,
+                )
+                manifest_sha = compute_object_sha256(series_manifest)
+                manifest_key = object_key_for(
+                    prefixes=prefixes,
+                    object_kind=DerivedArtifact.SERIES,
+                    instrument_code=instrument_code,
+                    year=series_year,
+                    generation_uuid=generation_id,
+                    object_sha256=manifest_sha,
+                    manifest=True,
+                )
+                prepared.append(
+                    (
+                        {
+                            "object_kind": "series_manifest",
+                            "object_key": manifest_key,
+                            "logical_digest": str(series_item["logical_digest"]),
+                            "instrument_code": instrument_code,
+                            "series_year": series_year,
+                        },
+                        series_manifest,
+                        "application/json",
+                        manifest_sha,
+                        len(series_manifest),
+                    )
+                )
+            series_count = sum(1 for item in prepared if item[0].get("object_kind") == "series")
 
             for chunk in _chunked_items(prepared, DERIVED_SERIES_CHUNK_SIZE):
                 register_payload = []
@@ -692,19 +788,37 @@ def run_derived_generation(
                 generation_store.heartbeat(generation_id=generation_id)
 
         if profile_allows_latest(profile.value) and latest_rows:
-            for chunk in _chunked_items(list(latest_rows), DERIVED_SERIES_CHUNK_SIZE):
+            enriched_latest: list[dict[str, Any]] = []
+            for row in latest_rows:
+                instrument_code = str(row["instrument_code"])
+                raw_values = dict(row["values_json"])
+                existing_flags = raw_values.pop(LATEST_FLAGS_KEY, None)
+                flags = (
+                    existing_flags
+                    if isinstance(existing_flags, dict)
+                    else flags_for_values(
+                        instrument_code=instrument_code,
+                        metric_keys_ordered=snapshot_input.metric_keys_ordered,
+                        metric_types=snapshot_input.metric_types,
+                        values_by_key=raw_values,
+                    )
+                )
+                enriched_latest.append(
+                    {
+                        "instrument_code": instrument_code,
+                        "trade_date": str(row["trade_date"]),
+                        "values_json": latest_values_json_with_flags(
+                            values=raw_values,
+                            flags=flags,
+                        ),
+                        "logical_digest": str(row["logical_digest"]),
+                    }
+                )
+            for chunk in _chunked_items(enriched_latest, DERIVED_SERIES_CHUNK_SIZE):
                 t_rpc = time.perf_counter()
                 generation_store.stage_latest_observations(
                     generation_id=generation_id,
-                    rows=[
-                        {
-                            "instrument_code": str(row["instrument_code"]),
-                            "trade_date": str(row["trade_date"]),
-                            "values_json": dict(row["values_json"]),
-                            "logical_digest": str(row["logical_digest"]),
-                        }
-                        for row in chunk
-                    ],
+                    rows=chunk,
                 )
                 rpc_elapsed_ms += int((time.perf_counter() - t_rpc) * 1000)
                 generation_store.heartbeat(generation_id=generation_id)
@@ -717,6 +831,10 @@ def run_derived_generation(
             return _error_result("latest_rows_required_for_current_trade_date")
 
         generation_store.heartbeat(generation_id=generation_id)
+        generation_store.set_expected_object_set_digest(
+            generation_id=generation_id,
+            expected_object_set_digest=compute_object_set_digest(object_keys),
+        )
         committed = generation_store.commit_generation(
             generation_id=generation_id,
             new_logical_digest=logical_digest,

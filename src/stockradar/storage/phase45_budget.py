@@ -42,7 +42,11 @@ DEFAULT_BUDGET_AS_OF_DATE = date(2026, 6, 30)
 DEFAULT_SUPERSEDED_FRACTION = 0.10
 DEFAULT_ORPHAN_FRACTION = 0.05
 DEFAULT_FAILED_FRACTION = 0.02
-DEFAULT_SAFETY_FACTOR = 1.10
+DEFAULT_SAFETY_FACTOR = 1.20
+MIN_SAFETY_FACTOR = 1.20
+DEFAULT_ROLLBACK_DAYS = 5
+DEFAULT_FAILED_DAYS = 3
+DEFAULT_RECONCILE_REPAIR_RATE = 0.05
 
 
 @dataclass(frozen=True)
@@ -54,10 +58,15 @@ class BudgetProjectionInputs:
     metric_set_versions: int = DEFAULT_PATH_B_METRIC_SET_VERSIONS
     snapshot_bytes_per_trade_date: int = 0
     series_bytes_per_symbol_year: int = 0
+    snapshot_manifest_bytes_per_trade_date: int = 0
+    series_manifest_bytes_per_symbol_year: int = 0
     superseded_fraction: float = DEFAULT_SUPERSEDED_FRACTION
     orphan_fraction: float = DEFAULT_ORPHAN_FRACTION
     failed_fraction: float = DEFAULT_FAILED_FRACTION
     safety_factor: float = DEFAULT_SAFETY_FACTOR
+    rollback_days: int = DEFAULT_ROLLBACK_DAYS
+    failed_days: int = DEFAULT_FAILED_DAYS
+    reconcile_repair_rate: float = DEFAULT_RECONCILE_REPAIR_RATE
     layer1_r2_bytes: int = 0
     catalog: str = DEFAULT_PATH_B_CATALOG
     path: str = "B"
@@ -214,31 +223,47 @@ def measure_series_bytes_per_symbol_year(
 
 def project_r2_budget_v2(inputs: BudgetProjectionInputs) -> BudgetProjectionBreakdown:
     """
-    Path B plan formula: active snapshots + series, plus superseded/orphan/failed
-    overhead, then safety_factor. Layer 1 warm cache is additive before safety.
+    Path B plan formula: active snapshots + series (body+manifest), plus
+    superseded/reconcile/failed overhead, then safety_factor >= 1.20.
+    Layer 1 warm cache is additive before safety.
     """
     if inputs.symbols <= 0 or inputs.metrics <= 0:
         raise ValueError("symbols and metrics must be positive")
     if inputs.snapshot_bytes_per_trade_date <= 0 or inputs.series_bytes_per_symbol_year <= 0:
         raise ValueError("byte rate inputs must be positive")
+    if inputs.safety_factor < MIN_SAFETY_FACTOR:
+        raise ValueError(
+            f"safety_factor {inputs.safety_factor} < AC-CAP minimum {MIN_SAFETY_FACTOR}"
+        )
 
+    snapshot_unit = (
+        inputs.snapshot_bytes_per_trade_date + inputs.snapshot_manifest_bytes_per_trade_date
+    )
+    series_unit = (
+        inputs.series_bytes_per_symbol_year + inputs.series_manifest_bytes_per_symbol_year
+    )
     snapshots = (
-        inputs.snapshot_bytes_per_trade_date
+        snapshot_unit
         * inputs.trading_days_per_year
         * inputs.retention_years
         * inputs.metric_set_versions
     )
     series = (
-        inputs.series_bytes_per_symbol_year
+        series_unit
         * inputs.symbols
         * inputs.retention_years
         * inputs.metric_set_versions
     )
-    active = snapshots + series
-    superseded = int(active * inputs.superseded_fraction)
-    orphan = int(active * inputs.orphan_fraction)
-    failed = int(active * inputs.failed_fraction)
-    subtotal = active + superseded + orphan + failed + inputs.layer1_r2_bytes
+    superseded = series_unit * inputs.symbols * inputs.rollback_days * inputs.metric_set_versions
+    full_generation = snapshot_unit + (series_unit * inputs.symbols)
+    orphan = int(
+        inputs.rollback_days
+        * inputs.reconcile_repair_rate
+        * inputs.metric_set_versions
+        * full_generation
+    )
+    failed = int(inputs.failed_days * inputs.failed_fraction * full_generation)
+    subtotal = snapshots + series + superseded + orphan + failed + inputs.layer1_r2_bytes
     r2_total = int(subtotal * inputs.safety_factor)
     return BudgetProjectionBreakdown(
         snapshots=snapshots,
@@ -295,6 +320,43 @@ def build_path_b_projection_inputs(
         seed=seed,
         as_of_date=as_of_date,
     )
+    from stockradar.storage.derived_series import build_series_manifest_bytes
+    from stockradar.storage.derived_snapshot import build_snapshot_manifest_bytes
+
+    snapshot_manifest_bytes = len(
+        build_snapshot_manifest_bytes(
+            trade_date=as_of_date.isoformat(),
+            metric_set_version_id="11111111-2222-3333-4444-555555555555",
+            generation_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            logical_digest="a" * 64,
+            object_sha256="b" * 64,
+            object_size=snapshot_bytes,
+            layer1_input_fingerprint="c" * 64,
+            writer_workflow="derived_writer.yml",
+            set_fingerprint="d" * 64,
+            source_github_run_id=1,
+            row_count=symbols,
+            metric_keys_ordered=[f"metric_{i:02d}" for i in range(metrics)],
+            mode="normal",
+        )
+    )
+    series_manifest_bytes = len(
+        build_series_manifest_bytes(
+            instrument_code="1301",
+            year=as_of_date.year,
+            metric_set_version_id="11111111-2222-3333-4444-555555555555",
+            generation_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            logical_digest="a" * 64,
+            object_sha256="b" * 64,
+            object_size=series_bytes,
+            writer_workflow="derived_writer.yml",
+            set_fingerprint="d" * 64,
+            source_github_run_id=1,
+            row_count=1,
+            metric_keys_ordered=[f"metric_{i:02d}" for i in range(metrics)],
+            mode="normal",
+        )
+    )
     layer1 = 0
     if include_layer1:
         layer1 = estimate_layer1_warm_cache_r2_bytes(
@@ -310,6 +372,12 @@ def build_path_b_projection_inputs(
         metric_set_versions=metric_set_versions,
         snapshot_bytes_per_trade_date=snapshot_bytes,
         series_bytes_per_symbol_year=series_bytes,
+        snapshot_manifest_bytes_per_trade_date=snapshot_manifest_bytes,
+        series_manifest_bytes_per_symbol_year=series_manifest_bytes,
+        safety_factor=DEFAULT_SAFETY_FACTOR,
+        rollback_days=DEFAULT_ROLLBACK_DAYS,
+        failed_days=DEFAULT_FAILED_DAYS,
+        reconcile_repair_rate=DEFAULT_RECONCILE_REPAIR_RATE,
         layer1_r2_bytes=layer1,
         catalog=catalog,
         path="B",

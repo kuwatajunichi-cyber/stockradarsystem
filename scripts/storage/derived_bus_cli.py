@@ -188,11 +188,22 @@ def cmd_put_generation(args: argparse.Namespace) -> int:
         return 2
 
     expected_old_digest = args.expected_old_digest
-    if args.mode == "reconcile" and not expected_old_digest:
-        expected_old_digest = _generation_store().get_committed_snapshot_digest(
-            metric_set_version_id=resolved_id,
-            trade_date=args.trade_date,
-        )
+    if args.mode == "reconcile":
+        if not expected_old_digest:
+            expected_old_digest = _generation_store().get_committed_snapshot_digest(
+                metric_set_version_id=resolved_id,
+                trade_date=args.trade_date,
+            )
+        if not expected_old_digest and not is_derived_generation_fake():
+            _emit(
+                {
+                    "status": "error",
+                    "exit_code": 2,
+                    "reason": "expected_old_digest_required_for_reconcile",
+                },
+                args.json_output,
+            )
+            return 2
 
     request = DerivedGenerationRequest(
         stage=stage,
@@ -209,6 +220,7 @@ def cmd_put_generation(args: argparse.Namespace) -> int:
         in ("true", "1", "yes"),
         expected_old_digest=expected_old_digest,
         writer_workflow=args.workflow,
+        set_fingerprint=metric_spec.set_fingerprint,
     )
     latest_rows: list[dict[str, object]] | None = None
     if request.is_current_latest_trade_date:
