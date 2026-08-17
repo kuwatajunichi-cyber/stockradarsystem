@@ -43,6 +43,7 @@ from stockradar.storage.derived_series import (
     gzip_series_bytes,
     merge_trade_date_into_series,
     parse_series_canonical_bytes,
+    series_date_count_from_gzip,
 )
 from stockradar.storage.phase4_5_rollout import (
     DerivedArtifact,
@@ -704,7 +705,7 @@ def run_derived_generation(
                     writer_workflow=request.writer_workflow,
                     set_fingerprint=request.set_fingerprint,
                     source_github_run_id=request.github_run_id,
-                    row_count=1,
+                    row_count=series_date_count_from_gzip(content),
                     metric_keys_ordered=snapshot_input.metric_keys_ordered,
                     mode=request.mode,
                     writer_version=request.writer_version,

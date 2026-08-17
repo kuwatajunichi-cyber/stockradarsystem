@@ -14,7 +14,12 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from stockradar.metrics.registry_spec import load_metric_set_spec  # noqa: E402
-from stockradar.metrics.seed_catalog import build_metric_set_seed_payload  # noqa: E402
+from stockradar.metrics.seed_catalog import (  # noqa: E402
+    SeedApplyResult,
+    build_metric_set_seed_payload,
+    plan_metric_set_seed,
+    seed_apply_result,
+)
 from stockradar.storage.derived_adapters import (  # noqa: E402
     is_derived_generation_fake,
     registry_store_from_env,
@@ -22,27 +27,73 @@ from stockradar.storage.derived_adapters import (  # noqa: E402
 from stockradar.storage.metric_registry import FakeMetricRegistryStore  # noqa: E402
 
 
-def apply_seed_payload_fake(
-    store: FakeMetricRegistryStore,
-    payload: dict[str, Any],
-    *,
-    lifecycle: str = "shadow",
-) -> str:
-    set_id = store.seed_set(lifecycle="draft")
-    row = store.metric_set_versions[set_id]
+def _find_fake_set_by_key(
+    store: FakeMetricRegistryStore, set_key: str
+) -> tuple[str, dict[str, Any]] | None:
+    for set_id, row in store.metric_set_versions.items():
+        if str(row.get("set_key") or "") == set_key:
+            return set_id, row
+    return None
+
+
+def _overlay_fake_set_row(row: dict[str, Any], payload: dict[str, Any]) -> None:
     row["set_key"] = payload["set_key"]
     row["set_fingerprint"] = payload["set_fingerprint"]
     row["writer_workflow"] = payload["writer_workflow"]
     row["definitions"] = list(payload["definitions"])
     row["versions"] = list(payload["versions"])
-    row["members"] = list(payload["members"])
-    if lifecycle == "draft":
-        return set_id
-    store.metric_set_versions[set_id]["lifecycle_status"] = lifecycle
-    return set_id
+    row.setdefault("members", [])
 
 
-def apply_seed_payload_supabase(payload: dict[str, Any], *, lifecycle: str = "shadow") -> str:
+def apply_seed_payload_fake(
+    store: FakeMetricRegistryStore,
+    payload: dict[str, Any],
+    *,
+    lifecycle: str = "shadow",
+) -> SeedApplyResult:
+    found = _find_fake_set_by_key(store, payload["set_key"])
+    existing_set = None
+    existing_ordinals: set[int] = set()
+    if found is not None:
+        set_id, row = found
+        existing_set = {"id": set_id, "lifecycle_status": str(row.get("lifecycle_status") or "")}
+        existing_ordinals = {int(member["ordinal"]) for member in (row.get("members") or [])}
+    plan = plan_metric_set_seed(
+        payload=payload,
+        existing_set=existing_set,
+        existing_member_ordinals=existing_ordinals,
+        target_lifecycle=lifecycle,
+    )
+    if plan.create_set:
+        set_id = store.seed_set(lifecycle="draft")
+        row = store.metric_set_versions[set_id]
+        _overlay_fake_set_row(row, payload)
+        row["members"] = []
+    else:
+        if existing_set is None:
+            raise RuntimeError("seed plan expected an existing metric set")
+        set_id = existing_set["id"]
+        row = store.metric_set_versions[set_id]
+        _overlay_fake_set_row(row, payload)
+    members = list(row.get("members") or [])
+    seen = {int(member["ordinal"]) for member in members}
+    for member in plan.members_to_insert:
+        ordinal = int(member["ordinal"])
+        if ordinal not in seen:
+            members.append(dict(member))
+            seen.add(ordinal)
+    row["members"] = members
+    if plan.transition is not None:
+        from_status, to_status = plan.transition
+        if str(row.get("lifecycle_status") or "") != from_status:
+            raise RuntimeError(
+                f"transition_metric_set refused: expected {from_status}, got {row.get('lifecycle_status')}"
+            )
+        row["lifecycle_status"] = to_status
+    return seed_apply_result(set_id, plan)
+
+
+def apply_seed_payload_supabase(payload: dict[str, Any], *, lifecycle: str = "shadow") -> SeedApplyResult:
     from stockradar.storage.supabase_client import SupabaseRestAdapter
 
     client = SupabaseRestAdapter.from_env()
@@ -97,9 +148,33 @@ def apply_seed_payload_supabase(payload: dict[str, Any], *, lifecycle: str = "sh
     )
     existing.raise_for_status()
     found_sets = existing.json()
+    existing_set: dict[str, Any] | None = None
+    existing_ordinals: set[int] = set()
     if isinstance(found_sets, list) and found_sets:
-        set_id = str(found_sets[0]["id"])
-    else:
+        existing_set = {
+            "id": str(found_sets[0]["id"]),
+            "lifecycle_status": str(found_sets[0]["lifecycle_status"]),
+        }
+        members_resp = client._request(
+            "GET",
+            "/rest/v1/metric_set_members",
+            params={
+                "metric_set_version_id": f"eq.{existing_set['id']}",
+                "select": "ordinal",
+            },
+        )
+        members_resp.raise_for_status()
+        member_rows = members_resp.json()
+        if isinstance(member_rows, list):
+            existing_ordinals = {int(row["ordinal"]) for row in member_rows}
+
+    plan = plan_metric_set_seed(
+        payload=payload,
+        existing_set=existing_set,
+        existing_member_ordinals=existing_ordinals,
+        target_lifecycle=lifecycle,
+    )
+    if plan.create_set:
         created = client._request(
             "POST",
             "/rest/v1/metric_set_versions",
@@ -113,32 +188,36 @@ def apply_seed_payload_supabase(payload: dict[str, Any], *, lifecycle: str = "sh
         )
         created.raise_for_status()
         set_id = str(created.json()[0]["id"])
-        for member in payload["members"]:
-            metric_version_id = version_ids[(member["metric_key"], member["definition_fingerprint"])]
-            member_resp = client._request(
-                "POST",
-                "/rest/v1/metric_set_members",
-                json_body={
-                    "metric_set_version_id": set_id,
-                    "metric_version_id": metric_version_id,
-                    "ordinal": member["ordinal"],
-                },
-                prefer="return=minimal",
-            )
-            member_resp.raise_for_status()
-    if lifecycle == "shadow":
+    else:
+        if existing_set is None:
+            raise RuntimeError("seed plan expected an existing metric set")
+        set_id = existing_set["id"]
+
+    for member in plan.members_to_insert:
+        metric_version_id = version_ids[(member["metric_key"], member["definition_fingerprint"])]
+        member_resp = client._request(
+            "POST",
+            "/rest/v1/metric_set_members",
+            json_body={
+                "metric_set_version_id": set_id,
+                "metric_version_id": metric_version_id,
+                "ordinal": member["ordinal"],
+            },
+            prefer="return=minimal",
+        )
+        member_resp.raise_for_status()
+    if plan.transition is not None:
+        from_status, to_status = plan.transition
         client._request(
             "POST",
             "/rest/v1/rpc/transition_metric_set",
             json_body={
                 "p_set_id": set_id,
-                "p_from_status": "draft",
-                "p_to_status": "shadow",
+                "p_from_status": from_status,
+                "p_to_status": to_status,
             },
         ).raise_for_status()
-    elif lifecycle not in {"draft", "shadow"}:
-        raise ValueError("seed CLI may only create draft or shadow; activation is ops CAS")
-    return set_id
+    return seed_apply_result(set_id, plan)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -153,15 +232,18 @@ def main(argv: list[str] | None = None) -> int:
         store = registry_store_from_env()
         if not isinstance(store, FakeMetricRegistryStore):
             store = FakeMetricRegistryStore()
-        set_id = apply_seed_payload_fake(store, payload, lifecycle=args.lifecycle)
+        applied = apply_seed_payload_fake(store, payload, lifecycle=args.lifecycle)
     else:
-        set_id = apply_seed_payload_supabase(payload, lifecycle=args.lifecycle)
+        applied = apply_seed_payload_supabase(payload, lifecycle=args.lifecycle)
     result = {
         "status": "ok",
-        "set_id": set_id,
+        "set_id": applied.set_id,
         "set_key": payload["set_key"],
         "set_fingerprint": payload["set_fingerprint"],
-        "lifecycle": args.lifecycle,
+        "lifecycle": applied.lifecycle,
+        "created_set": applied.created_set,
+        "members_inserted": applied.members_inserted,
+        "transitioned": applied.transition is not None,
         "definition_count": len(payload["definitions"]),
         "member_count": len(payload["members"]),
         "activated": False,

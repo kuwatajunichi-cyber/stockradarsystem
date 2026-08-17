@@ -1,6 +1,8 @@
 """Contract: Phase 4.5 series merge + year accumulation."""
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from stockradar.jobs.write_derived_generation import (
@@ -126,3 +128,8 @@ def test_run_derived_generation_accumulates_series_across_runs() -> None:
     )
     assert dates == ["2026-01-15", "2026-01-16"]
     assert series["alpha_metric"] == [1.0, 2.0]
+    pending = generation_store.list_pending_objects(result2.generation_id)
+    manifest_row = next(row for row in pending if row.object_kind == "series_manifest")
+    manifest = json.loads(r2_store.get_object(manifest_row.object_key).decode("utf-8"))
+    assert manifest["row_count"] == len(dates)
+    assert manifest["row_count"] == 2

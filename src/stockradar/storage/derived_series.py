@@ -156,6 +156,12 @@ def parse_series_canonical_bytes(
     return dates, series, flags
 
 
+def series_date_count_from_gzip(content: bytes) -> int:
+    """Count trade dates in a gzip series object (manifest row_count)."""
+    dates, _series, _flags = parse_series_canonical_bytes(gunzip_series_bytes(content))
+    return len(dates)
+
+
 def merge_trade_date_into_series(
     *,
     trade_date: str,

@@ -211,9 +211,7 @@ def build_snapshot_parquet_bytes(
             {
                 "trade_date": trade_date,
                 "instrument_code": row["instrument_code"],
-                LATEST_FLAGS_KEY: dump_canonical_json(coerce_row_flags(row.get("flags"))).decode(
-                    "utf-8"
-                ),
+                LATEST_FLAGS_KEY: coerce_row_flags(row.get("flags")),
                 **values,
             }
         )
