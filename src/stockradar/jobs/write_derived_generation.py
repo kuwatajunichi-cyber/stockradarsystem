@@ -43,7 +43,6 @@ from stockradar.storage.derived_series import (
     gzip_series_bytes,
     merge_trade_date_into_series,
     parse_series_canonical_bytes,
-    series_date_count_from_gzip,
 )
 from stockradar.storage.phase4_5_rollout import (
     DerivedArtifact,
@@ -197,6 +196,7 @@ def build_accumulating_series_builders(
                     "logical_digest": logical_digest,
                     "instrument_code": instrument_code,
                     "series_year": year,
+                    "row_count": len(dates),
                 },
                 content,
                 SERIES_GZIP_CONTENT_TYPE,
@@ -228,6 +228,7 @@ def build_default_series_builders(
         def _builder(
             instrument_code: str = instrument_code,
             series: dict[str, list[object]] = series,
+            values: dict[str, object] = values,
         ) -> tuple[dict[str, Any], bytes, str]:
             canonical = build_series_canonical_bytes(
                 instrument_code=instrument_code,
@@ -262,6 +263,7 @@ def build_default_series_builders(
                     "logical_digest": logical_digest,
                     "instrument_code": instrument_code,
                     "series_year": year,
+                    "row_count": 1,
                 },
                 content,
                 SERIES_GZIP_CONTENT_TYPE,
@@ -360,6 +362,7 @@ def run_derived_generation(
     Orchestrate Phase A→B→C and generation begin → reserve → put → commit.
 
     ``series_builders`` each return (register kwargs sans generation_id, content bytes, content_type).
+    Series register kwargs must include ``row_count`` (trade-date count in the gzip body).
     """
     preflight = preflight_derived_write(request.stage, request.mode)
     if preflight == PreflightResult.SKIP0:
@@ -659,6 +662,7 @@ def run_derived_generation(
                                 "logical_digest": logical,
                                 "instrument_code": instrument_code,
                                 "series_year": year,
+                                "row_count": len(dates),
                             },
                             content,
                             SERIES_GZIP_CONTENT_TYPE,
@@ -683,6 +687,9 @@ def run_derived_generation(
                 register_kwargs, content, content_type = builder()
                 byte_sha = compute_object_sha256(content)
                 series_item = dict(register_kwargs)
+                if "row_count" not in series_item:
+                    raise ValueError("series builder must include row_count")
+                row_count = int(series_item.pop("row_count"))
                 prepared.append(
                     (
                         series_item,
@@ -705,7 +712,7 @@ def run_derived_generation(
                     writer_workflow=request.writer_workflow,
                     set_fingerprint=request.set_fingerprint,
                     source_github_run_id=request.github_run_id,
-                    row_count=series_date_count_from_gzip(content),
+                    row_count=row_count,
                     metric_keys_ordered=snapshot_input.metric_keys_ordered,
                     mode=request.mode,
                     writer_version=request.writer_version,

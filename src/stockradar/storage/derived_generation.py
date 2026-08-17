@@ -646,13 +646,17 @@ class FakeMetricGenerationStore:
       raise GenerationConflictError("snapshot_series_latest requires snapshot object")
 
     expected_count = generation.get("expected_object_count")
-    if expected_count is not None and int(expected_count) != len(objects):
+    if expected_count is None:
+      raise GenerationConflictError("expected_object_count is required")
+    if int(expected_count) != len(objects):
       raise GenerationConflictError("expected_object_count mismatch")
 
     object_keys = [str(row["object_key"]) for row in objects]
     actual_object_set_digest = compute_object_set_digest(object_keys)
     expected_object_set = generation.get("expected_object_set_digest")
-    if expected_object_set is not None and actual_object_set_digest != str(expected_object_set).strip().lower():
+    if expected_object_set is None or not str(expected_object_set).strip():
+      raise GenerationConflictError("expected_object_set_digest is required")
+    if actual_object_set_digest != str(expected_object_set).strip().lower():
       raise GenerationConflictError("expected_object_set_digest mismatch")
 
     staging_rows = self._latest_rows(generation_id)
