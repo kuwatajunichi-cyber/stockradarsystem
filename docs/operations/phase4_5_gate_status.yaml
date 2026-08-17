@@ -1,11 +1,13 @@
 schema_version: 2
 phase: '4.5'
-last_updated_utc: '2026-08-14T21:30:00+09:00'
+last_updated_utc: '2026-08-17T22:00:00+09:00'
 overall_status: in_progress
 implementation_snapshot:
   local_worktree_has_unmerged_changes: false
-  note: 'Rollout 4.5c on main (incl. PR #150 writer perf). normal/replay live evidence + Supabase audit recorded. Soak 1/3 trading days.'
+  note: 'Canonical writer/capacity contract fixes. Soak 2/3 trading days. capacity_gate closed on Path B v2 safety 1.20. live_gate open: backfill/reconcile AC-LIVE still unmet.'
 correction_log:
+- at_utc: '2026-08-17T22:00:00+09:00'
+  reason: 'Canonical writer+capacity contract: flags/ordinal/manifests/expected digests/safety 1.20. Soak day 2 #32002940778 recorded. AC-LIVE backfill/reconcile still Fail (PoC). capacity_gate closed on Path B report 15d3188d.'
 - at_utc: '2026-08-14T21:30:00+09:00'
   reason: 'Live gate: normal daily #31789729418 success (4.5c committed gen). Replay #31784728984 replay_no_write (no shared mutation). Supabase audit: docs/operations/evidence/phase45_supabase_live_audit_2026-08-14.json'
 - at_utc: '2026-08-14T17:35:00+09:00'
@@ -112,10 +114,11 @@ live_gate_45c:
   soak_trading_days: 3
   soak_run_urls:
   - https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/31789729418
-  note: 'normal + replay + backfill/reconcile evidence collected. Soak 1/3 trading days (#31789729418). Pending soak days 2-3 + capacity_gate.'
+  - https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32002940778
+  note: 'Soak 2/3 (#31789729418, #32002940778). Recorded backfill/reconcile URLs are 1-day/historical PoC and do not satisfy AC-LIVE. capacity_gate closed separately.'
   supabase_live_audit_evidence_url: docs/operations/evidence/phase45_supabase_live_audit_2026-08-14.json
 roadmap:
-  phase45_status_phrase: 'PR-45-1..4 merged・rollout 4.5c・live_gate open（normal/replay/backfill/reconcile 証拠済・soak 1/3）・capacity_gate open'
+  phase45_status_phrase: 'PR-45-1..4 merged・rollout 4.5c・live_gate open（soak 2/3・AC-LIVE backfill/reconcile 未達）・capacity_gate closed'
 historical_pr_gates:
   pr-45-0-gate-ssot:
     description: gate SSOT + honesty + cutover runbook + rollout helpers
@@ -168,7 +171,7 @@ historical_pr_gates:
     note: production 004/005 applied via Supabase MCP (migrations 004_phase45_metric_registry,
       005_phase45_metric_registry_hardening)
 capacity_gate:
-  status: open
+  status: closed
   path: B
   catalog: config/metrics/metric_set_v1_free.yaml
   projection_inputs:
@@ -179,6 +182,12 @@ capacity_gate:
     metric_set_versions: 2
     snapshot_bytes_per_trade_date: 398361
     series_bytes_per_symbol_year: 30856
-  evidence_report_hash: af83677abe7c00606da125c6041e25d0591accb000283bf4233a9d23e21ec84c
+    snapshot_manifest_bytes_per_trade_date: 900
+    series_manifest_bytes_per_symbol_year: 843
+    safety_factor: 1.20
+    rollback_days: 5
+    failed_days: 3
+    reconcile_repair_rate: 0.05
+  evidence_report_hash: 15d3188d9eca585b1168bcf5da42bc5c7177fb66bc90cecda02a3c5d8f08169d
   evidence_url: docs/operations/evidence/phase45_budget_v2_path_b_report.json
-  note: Interim Path B v2 report only — NOT closed. safety_factor 1.10 < AC-CAP 1.20; projection_inputs lack rollback/failed/reconcile fields. pytest test_phase45_budget_v2_contract.py
+  note: Path B v2 AC-CAP met (safety_factor 1.20, rollback/failed/reconcile inputs present, within_free_tier). pytest test_phase45_budget_v2_contract.py

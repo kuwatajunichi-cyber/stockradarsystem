@@ -36,17 +36,12 @@ ENV_ENDPOINT_URL = "R2_ENDPOINT_URL"
 
 
 def _get_endpoint_url() -> str:
+    from stockradar.storage.r2_object_store import normalize_r2_s3_endpoint
+
     url = os.environ.get(ENV_ENDPOINT_URL, "").strip()
-    if url and "dash.cloudflare.com" in url:
-        account_id = os.environ.get(ENV_ACCOUNT_ID, "").strip()
-        if account_id:
-            return f"https://{account_id}.r2.cloudflarestorage.com"
-    if url:
-        return url
     account_id = os.environ.get(ENV_ACCOUNT_ID, "").strip()
-    if not account_id:
-        return ""
-    return f"https://{account_id}.r2.cloudflarestorage.com"
+    bucket = os.environ.get(ENV_BUCKET, "").strip()
+    return normalize_r2_s3_endpoint(url, account_id=account_id, bucket=bucket)
 
 
 class R2StorageAdapter:

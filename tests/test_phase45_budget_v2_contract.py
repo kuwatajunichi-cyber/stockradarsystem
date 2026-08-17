@@ -40,24 +40,34 @@ def test_project_r2_budget_v2_plan_formula() -> None:
         metric_set_versions=2,
         snapshot_bytes_per_trade_date=1000,
         series_bytes_per_symbol_year=500,
-        superseded_fraction=0.10,
-        orphan_fraction=0.05,
+        snapshot_manifest_bytes_per_trade_date=100,
+        series_manifest_bytes_per_symbol_year=50,
+        safety_factor=1.20,
+        rollback_days=5,
+        failed_days=3,
+        reconcile_repair_rate=0.05,
         failed_fraction=0.02,
-        safety_factor=1.10,
         layer1_r2_bytes=100_000,
     )
     breakdown = project_r2_budget_v2(inputs)
-    active_snapshots = 1000 * 250 * 3 * 2
-    active_series = 500 * 100 * 3 * 2
-    active = active_snapshots + active_series
-    assert breakdown.snapshots == active_snapshots
-    assert breakdown.series == active_series
-    assert breakdown.superseded == int(active * 0.10)
-    assert breakdown.orphan == int(active * 0.05)
-    assert breakdown.failed == int(active * 0.02)
-    subtotal = active + breakdown.superseded + breakdown.orphan + breakdown.failed + 100_000
+    snapshot_unit = 1100
+    series_unit = 550
+    assert breakdown.snapshots == snapshot_unit * 250 * 3 * 2
+    assert breakdown.series == series_unit * 100 * 3 * 2
+    assert breakdown.superseded == series_unit * 100 * 5 * 2
+    full_generation = snapshot_unit + series_unit * 100
+    assert breakdown.orphan == int(5 * 0.05 * 2 * full_generation)
+    assert breakdown.failed == int(3 * 0.02 * full_generation)
+    subtotal = (
+        breakdown.snapshots
+        + breakdown.series
+        + breakdown.superseded
+        + breakdown.orphan
+        + breakdown.failed
+        + 100_000
+    )
     assert breakdown.subtotal_before_safety == subtotal
-    assert breakdown.r2_total == int(subtotal * 1.10)
+    assert breakdown.r2_total == int(subtotal * 1.20)
 
 
 def test_canonical_report_hash_is_stable() -> None:
@@ -83,6 +93,10 @@ def test_evaluate_capacity_path_b_within_free_tier() -> None:
     assert inputs["retention_years"] == DEFAULT_PATH_B_RETENTION_YEARS
     assert inputs["metric_set_versions"] == DEFAULT_PATH_B_METRIC_SET_VERSIONS
     assert inputs["metrics"] == 13
+    assert inputs["safety_factor"] == 1.20
+    assert inputs["rollback_days"] == 5
+    assert inputs["failed_days"] == 3
+    assert "reconcile_repair_rate" in inputs
 
 
 def test_path_b_fixture_matches_cli_report_v2(tmp_path: Path) -> None:

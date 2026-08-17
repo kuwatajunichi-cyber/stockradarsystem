@@ -12,6 +12,7 @@ from stockradar.storage.derived_generation import (
     GenerationConflictError,
     GenerationStatus,
     SourceRunIdentity,
+    compute_object_set_digest,
     profile_allows_latest,
     profile_allows_series,
     resolve_artifact_profile,
@@ -44,12 +45,14 @@ def _begin(
     profile: ArtifactProfile,
     *,
     mode: str = "normal",
+    expected_object_count: int | None = None,
 ) -> str:
     record = store.begin_generation(
         BeginGenerationRequest(
             source=_source(mode=mode),
             artifact_profile=profile,
             new_logical_digest=DIGEST_A,
+            expected_object_count=expected_object_count,
         )
     )
     return record.generation_id
@@ -70,6 +73,14 @@ def _register_snapshot(store: FakeMetricGenerationStore, generation_id: str) -> 
         object_key=f"derived-snapshots/metric-set={SET_ID}/trade-date={TRADE_DATE}/generation={generation_id}/indicators-sha256={SHA}.parquet",
         byte_sha256=SHA,
         size_bytes=128,
+    )
+
+
+def _declare_object_set(store: FakeMetricGenerationStore, generation_id: str) -> None:
+    keys = [row.object_key for row in store.list_pending_objects(generation_id)]
+    store.set_expected_object_set_digest(
+        generation_id=generation_id,
+        expected_object_set_digest=compute_object_set_digest(keys),
     )
 
 
@@ -124,8 +135,9 @@ def test_begin_generation_retry_is_noop_for_pending() -> None:
 @pytest.mark.unit
 def test_begin_generation_committed_same_digest_is_idempotent() -> None:
     store = FakeMetricGenerationStore()
-    generation_id = _begin(store, ArtifactProfile.SNAPSHOT_ONLY)
+    generation_id = _begin(store, ArtifactProfile.SNAPSHOT_ONLY, expected_object_count=1)
     _register_snapshot(store, generation_id)
+    _declare_object_set(store, generation_id)
     store.commit_generation(generation_id=generation_id, new_logical_digest=DIGEST_A)
     replay = store.begin_generation(
         BeginGenerationRequest(
@@ -141,8 +153,9 @@ def test_begin_generation_committed_same_digest_is_idempotent() -> None:
 @pytest.mark.unit
 def test_begin_generation_committed_different_digest_conflicts() -> None:
     store = FakeMetricGenerationStore()
-    generation_id = _begin(store, ArtifactProfile.SNAPSHOT_ONLY)
+    generation_id = _begin(store, ArtifactProfile.SNAPSHOT_ONLY, expected_object_count=1)
     _register_snapshot(store, generation_id)
+    _declare_object_set(store, generation_id)
     store.commit_generation(generation_id=generation_id, new_logical_digest=DIGEST_A)
     with pytest.raises(GenerationConflictError):
         store.begin_generation(
@@ -220,8 +233,11 @@ def test_run_derived_generation_registers_single_snapshot_index_row() -> None:
     assert result.generation_id is not None
     pending = generation_store.list_pending_objects(result.generation_id)
     snapshot_rows = [row for row in pending if row.object_kind == "snapshot"]
+    manifest_rows = [row for row in pending if row.object_kind == "snapshot_manifest"]
     assert len(snapshot_rows) == 1
     assert snapshot_rows[0].object_key.endswith(".parquet")
+    assert len(manifest_rows) == 1
+    assert manifest_rows[0].object_key.endswith(".json")
     assert any(key.endswith(".json") for key in result.object_keys)
 
 
@@ -274,6 +290,9 @@ def test_run_derived_generation_stages_latest_rows() -> None:
     committed = generation_store.committed_latest_observations[(SET_ID, "1301")]
     assert committed["trade_date"] == TRADE_DATE
     assert committed["logical_digest"] == DIGEST_A
+    assert committed["values_json"]["_flags"]["missing_metrics"] == []
+    assert committed["values_json"]["_flags"]["non_finite_metrics"] == []
+    assert committed["values_json"]["_flags"]["po_indeterminate"] is False
 
 
 @pytest.mark.unit
@@ -363,4 +382,33 @@ def test_run_derived_generation_4_5b_includes_series_object() -> None:
     assert result.exit_code == 0
     pending = generation_store.list_pending_objects(result.generation_id)
     kinds = {row.object_kind for row in pending}
-    assert kinds == {"snapshot", "series"}
+    assert kinds == {"snapshot", "snapshot_manifest", "series", "series_manifest"}
+
+
+@pytest.mark.unit
+def test_commit_requires_expected_object_count() -> None:
+    store = FakeMetricGenerationStore()
+    generation_id = _begin(store, ArtifactProfile.SNAPSHOT_ONLY)
+    _register_snapshot(store, generation_id)
+    _declare_object_set(store, generation_id)
+    with pytest.raises(GenerationConflictError, match="expected_object_count is required"):
+        store.commit_generation(generation_id=generation_id, new_logical_digest=DIGEST_A)
+
+
+@pytest.mark.unit
+def test_commit_requires_expected_object_set_digest() -> None:
+    store = FakeMetricGenerationStore()
+    generation_id = _begin(store, ArtifactProfile.SNAPSHOT_ONLY, expected_object_count=1)
+    _register_snapshot(store, generation_id)
+    with pytest.raises(GenerationConflictError, match="expected_object_set_digest is required"):
+        store.commit_generation(generation_id=generation_id, new_logical_digest=DIGEST_A)
+
+
+@pytest.mark.unit
+def test_commit_rejects_expected_object_count_mismatch() -> None:
+    store = FakeMetricGenerationStore()
+    generation_id = _begin(store, ArtifactProfile.SNAPSHOT_ONLY, expected_object_count=2)
+    _register_snapshot(store, generation_id)
+    _declare_object_set(store, generation_id)
+    with pytest.raises(GenerationConflictError, match="expected_object_count mismatch"):
+        store.commit_generation(generation_id=generation_id, new_logical_digest=DIGEST_A)

@@ -2,7 +2,7 @@
   "schema_version": 2,
   "path": "B",
   "catalog": "config/metrics/metric_set_v1_free.yaml",
-  "generator_git_sha": "73f1bcafaf58c0c3f0f8b4f81c4c7a6dc85cdcc1",
+  "generator_git_sha": "0a32dfe37b435f8896ab7276c75b7a319078542e",
   "generator_seed": 42,
   "as_of_date": "2026-06-30",
   "projection_inputs": {
@@ -13,28 +13,33 @@
     "metric_set_versions": 2,
     "snapshot_bytes_per_trade_date": 398361,
     "series_bytes_per_symbol_year": 30856,
+    "snapshot_manifest_bytes_per_trade_date": 900,
+    "series_manifest_bytes_per_symbol_year": 843,
     "superseded_fraction": 0.1,
     "orphan_fraction": 0.05,
     "failed_fraction": 0.02,
-    "safety_factor": 1.1,
+    "safety_factor": 1.2,
+    "rollback_days": 5,
+    "failed_days": 3,
+    "reconcile_repair_rate": 0.05,
     "layer1_r2_bytes": 101173474,
     "catalog": "config/metrics/metric_set_v1_free.yaml",
     "path": "B"
   },
   "bytes": {
-    "snapshots": 597541500,
-    "series": 555408000,
-    "superseded": 115294950,
-    "orphan": 57647475,
-    "failed": 23058990,
+    "snapshots": 598891500,
+    "series": 570582000,
+    "superseded": 950970000,
+    "orphan": 47748130,
+    "failed": 5729775,
     "layer1_r2": 101173474,
-    "subtotal_before_safety": 1450124389,
-    "r2_total": 1595136827,
+    "subtotal_before_safety": 2275094879,
+    "r2_total": 2730113854,
     "latest_projection": 1536000
   },
   "verdict": {
     "within_free_tier": true,
     "notes": []
   },
-  "report_hash": "af83677abe7c00606da125c6041e25d0591accb000283bf4233a9d23e21ec84c"
+  "report_hash": "15d3188d9eca585b1168bcf5da42bc5c7177fb66bc90cecda02a3c5d8f08169d"
 }

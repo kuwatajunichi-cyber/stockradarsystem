@@ -1,11 +1,14 @@
 """Contract: Phase 4.5 series merge + year accumulation."""
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from stockradar.jobs.write_derived_generation import (
     DerivedGenerationRequest,
     SnapshotInput,
+    build_default_series_builders,
     run_derived_generation,
 )
 from stockradar.storage.derived_generation import FakeMetricGenerationStore
@@ -14,6 +17,7 @@ from stockradar.storage.derived_series import (
     merge_trade_date_into_series,
     parse_series_canonical_bytes,
 )
+from stockradar.storage.phase4_5_rollout import prefix_for
 from stockradar.storage.r2_object_store import FakeR2ObjectStore
 
 pytestmark = pytest.mark.unit
@@ -34,7 +38,10 @@ def test_merge_trade_date_into_series_appends_new_date() -> None:
     )
     assert dates == ["2026-01-15", "2026-01-16"]
     assert series["alpha_metric"] == [1.0, 2.0]
-    assert flags == [{}, {}]
+    assert flags == [
+        {"missing_metrics": [], "non_finite_metrics": [], "po_indeterminate": False},
+        {"missing_metrics": [], "non_finite_metrics": [], "po_indeterminate": False},
+    ]
 
 
 @pytest.mark.unit
@@ -49,7 +56,7 @@ def test_merge_trade_date_into_series_replaces_existing_date() -> None:
     )
     assert dates == ["2026-01-15"]
     assert series["alpha_metric"] == [9.0]
-    assert flags == [{}]
+    assert flags == [{"missing_metrics": [], "non_finite_metrics": [], "po_indeterminate": False}]
 
 
 @pytest.mark.unit
@@ -123,3 +130,31 @@ def test_run_derived_generation_accumulates_series_across_runs() -> None:
     )
     assert dates == ["2026-01-15", "2026-01-16"]
     assert series["alpha_metric"] == [1.0, 2.0]
+    pending = generation_store.list_pending_objects(result2.generation_id)
+    manifest_row = next(row for row in pending if row.object_kind == "series_manifest")
+    manifest = json.loads(r2_store.get_object(manifest_row.object_key).decode("utf-8"))
+    assert manifest["row_count"] == len(dates)
+    assert manifest["row_count"] == 2
+
+
+@pytest.mark.unit
+def test_default_series_builders_flags_and_row_count_are_per_instrument() -> None:
+    builders = build_default_series_builders(
+        trade_date="2026-01-15",
+        metric_keys_ordered=["alpha_metric"],
+        values_by_instrument={
+            "1301": {"alpha_metric": 1.0},
+            "7203": {"alpha_metric": None},
+        },
+        prefixes=prefix_for(SET_ID),
+        generation_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+    )
+    assert len(builders) == 2
+    by_code: dict[str, dict[str, object]] = {}
+    for builder in builders:
+        kwargs, content, _content_type = builder()
+        assert kwargs["row_count"] == 1
+        _dates, _series, flags = parse_series_canonical_bytes(gunzip_series_bytes(content))
+        by_code[str(kwargs["instrument_code"])] = flags[0]
+    assert by_code["1301"]["missing_metrics"] == []
+    assert by_code["7203"]["missing_metrics"] == ["alpha_metric"]

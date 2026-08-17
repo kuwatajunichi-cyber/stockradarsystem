@@ -73,7 +73,7 @@ class FakeMetricRegistryStore:
         sid = set_id or str(uuid4())
         self.metric_set_versions[sid] = {
             "id": sid,
-            "set_key": f"ms-{sid[:8]}",
+            "set_key": f"daily_core_v1__{sid.replace('-', '')[:12]}",
             "lifecycle_status": lifecycle,
         }
         return sid
