@@ -253,6 +253,50 @@ def test_supabase_stage_latest_chunks_500() -> None:
     assert total == 501
 
 
+def test_supabase_commit_generation_uses_long_timeout() -> None:
+    adapter = SupabaseMetricGenerationAdapter(
+        base_url="https://example.supabase.co",
+        secret_key="secret",
+    )
+    seen: dict[str, object] = {}
+    generation_row = {
+        "id": GEN_ID,
+        "metric_set_version_id": SET_ID,
+        "trade_date": "2026-01-15",
+        "mode": "backfill",
+        "artifact_profile": ArtifactProfile.SNAPSHOT_SERIES.value,
+        "repository": "org/repo",
+        "workflow": "derived_backfill.yml",
+        "github_run_id": 99,
+        "status": "committed",
+        "expected_old_digest": None,
+        "declared_new_digest": DIGEST,
+        "new_digest": DIGEST,
+        "heartbeat_at": "2026-01-15T00:00:00+00:00",
+        "created_at_utc": "2026-01-15T00:00:00+00:00",
+        "committed_at_utc": "2026-01-15T00:01:00+00:00",
+    }
+
+    def fake_rpc(name, body, timeout_s=None):
+        seen["name"] = name
+        seen["timeout_s"] = timeout_s
+        seen["body"] = body
+        return None
+
+    def fake_fetch(generation_id: str):
+        assert generation_id == GEN_ID
+        return generation_row
+
+    with patch.object(adapter, "_rpc", fake_rpc), patch.object(
+        adapter, "_fetch_generation_row", fake_fetch
+    ):
+        record = adapter.commit_generation(generation_id=GEN_ID, new_logical_digest=DIGEST)
+    assert seen["name"] == "commit_derived_generation"
+    assert seen["timeout_s"] == adapter.COMMIT_RPC_TIMEOUT_S
+    assert adapter.COMMIT_RPC_TIMEOUT_S >= 180.0
+    assert record.status == "committed"
+
+
 def test_supabase_batch_rpc_missing_fails_fast() -> None:
     from stockradar.storage.derived_generation import GenerationConflictError
 

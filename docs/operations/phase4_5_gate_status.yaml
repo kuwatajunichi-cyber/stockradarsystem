@@ -1,11 +1,15 @@
 schema_version: 2
 phase: '4.5'
-last_updated_utc: '2026-08-18T20:05:00+09:00'
+last_updated_utc: '2026-08-19T02:10:00+09:00'
 overall_status: in_progress
 implementation_snapshot:
   local_worktree_has_unmerged_changes: false
-  note: 'PR #152 merged. 009 applied. Path B catalog seeded as shadow (13209d23). Soak 3/3. live_gate open: 60-day AC-LIVE backfill/reconcile still unmet. Do not CAS-activate.'
+  note: 'Path B shadow backfill 60/60. Active-set current-latest reconcile CLI committed (gen c9c1b97d, digest unchanged). live_gate open: AC-LIVE GHA URLs unmet. Do not CAS-activate 13209d23. 010 statement_timeout 180s applied in prod.'
 correction_log:
+- at_utc: '2026-08-19T02:10:00+09:00'
+  reason: 'AC-LIVE current-latest reconcile (active 11111111, trade_date 2026-08-18, mode=reconcile, is_current_latest=true). New gen c9c1b97d; logical digest unchanged cb9032bf; old gen 30789523 objects orphaned. latest 8/18=2282, 8/14 leftover 1. Pointer unchanged. CLI not GHA so live_gate stays open. Do not CAS-activate. Evidence: phase45_aclive_reconcile_2026-08-18.json.'
+- at_utc: '2026-08-18T22:35:00+09:00'
+  reason: 'AC-LIVE shadow backfill 60/60 committed on 13209d23 (serial CLI put-generation; 7/31 needed commit statement_timeout 180s). Sample series 7203 has 60 dates. Active pointer still 11111111. latest_derived_observations unchanged (8/18=2282, 8/14 leftover 1). Reconcile unmet. Do not CAS-activate. Evidence: phase45_aclive_60d_shadow_backfill_2026-08-18.json, phase45_migration_010_applied_2026-08-18.json.'
 - at_utc: '2026-08-18T20:05:00+09:00'
   reason: 'Soak day 3 valid: daily #32108307197 success (4.5c committed gen 30789523, 4566 objects with 009 manifests). Path B shadow backfill 8/17+#32128864244 and 8/18+#32128189707 committed on 13209d23 after sequential repair of a same-set parallel series race. Still not 60-day AC-LIVE. Do not CAS-activate. Evidence: phase45_daily_audit_2026-08-18.json, phase45_backfill_dispatch_2026-08-18.json.'
 - at_utc: '2026-08-18T19:50:00+09:00'
@@ -122,10 +126,10 @@ live_gate_45c:
   - https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/31789729418
   - https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32002940778
   - https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32108307197
-  note: 'Soak 3/3 (#31789729418, #32002940778, #32108307197). Recorded backfill/reconcile URLs are 1-day/historical PoC and do not satisfy AC-LIVE. Path B shadow seed 13209d23 is not active. 8/14 canary #32033845358 is not 60-day AC-LIVE. capacity_gate closed separately.'
+  note: 'Soak 3/3. Path B shadow 60-day backfill 60/60 via serial CLI. Current-latest reconcile same-semantic republish landed via CLI (gen c9c1b97d, digest cb9032bf unchanged). Recorded GHA backfill/reconcile URLs remain 1-day PoC so AC-LIVE is not closed. 13209d23 is not active. Do not CAS-activate. capacity_gate closed separately.'
   supabase_live_audit_evidence_url: docs/operations/evidence/phase45_supabase_live_audit_2026-08-14.json
 roadmap:
-  phase45_status_phrase: 'PR-45-1..4 merged・rollout 4.5c・009+pathB shadow seeded・live_gate open（soak 3/3・AC-LIVE backfill/reconcile 未達）・capacity_gate closed'
+  phase45_status_phrase: 'PR-45-1..4 merged・rollout 4.5c・009+pathB shadow seeded・live_gate open（soak 3/3・AC-LIVE GHA URL 未達）・capacity_gate closed'
 historical_pr_gates:
   pr-45-0-gate-ssot:
     description: gate SSOT + honesty + cutover runbook + rollout helpers

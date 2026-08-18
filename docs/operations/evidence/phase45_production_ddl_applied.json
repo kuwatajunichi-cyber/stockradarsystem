@@ -52,6 +52,12 @@
       "name": "009_phase45_manifest_kinds_and_commit",
       "applied_at_utc": "2026-08-17T12:38:24Z",
       "evidence_url": "docs/operations/evidence/phase45_migration_009_applied_2026-08-17.json"
+    },
+    {
+      "version": "20260818131640",
+      "name": "010_phase45_commit_statement_timeout",
+      "applied_at_utc": "2026-08-18T13:16:40Z",
+      "evidence_url": "docs/operations/evidence/phase45_migration_010_applied_2026-08-18.json"
     }
   ],
   "repo_migration_files": [
@@ -60,7 +66,8 @@
     "supabase/migrations/006_phase45_generation_commit.sql",
     "supabase/migrations/007_phase45_commit_expected_old_digest.sql",
     "supabase/migrations/008_phase45_batch_object_rpcs.sql",
-    "supabase/migrations/009_phase45_manifest_kinds_and_commit.sql"
+    "supabase/migrations/009_phase45_manifest_kinds_and_commit.sql",
+    "supabase/migrations/010_phase45_commit_statement_timeout.sql"
   ],
   "tables_verified": [
     "metric_definitions",
@@ -94,7 +101,8 @@
     "RLS enabled on derived_generation_runs and latest_derived_observations_staging",
     "Prior production migrations: 002_phase4_control_plane, 003_p0_control_plane_hardening",
     "008 applied 2026-08-14 via Supabase MCP (batch register/mark/stage RPCs; see phase45_migration_008_applied_2026-08-14.json). Code merged PR #150.",
-    "009 applied 2026-08-17 via Supabase MCP (manifest object kinds + commit expected_object_count / object_set_digest + staging clear). Evidence: phase45_migration_009_applied_2026-08-17.json. Code merged PR #152."
+    "009 applied 2026-08-17 via Supabase MCP (manifest object kinds + commit expected_object_count / object_set_digest + staging clear). Evidence: phase45_migration_009_applied_2026-08-17.json. Code merged PR #152.",
+    "010 applied 2026-08-18 via Supabase MCP (commit_derived_generation statement_timeout 180s). Evidence: phase45_migration_010_applied_2026-08-18.json."
   ],
-  "last_updated_utc": "2026-08-17T22:15:00+09:00"
+  "last_updated_utc": "2026-08-18T22:35:00+09:00"
 }
