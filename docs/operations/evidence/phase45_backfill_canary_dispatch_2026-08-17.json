@@ -1,0 +1,27 @@
+{
+  "dispatched_at_utc": "2026-08-17T13:12:41Z",
+  "workflow": "derived_backfill.yml",
+  "ref": "main",
+  "run_url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32033845358",
+  "trade_date": "2026-08-14",
+  "metric_set_version_id": "13209d23-ded6-482d-be08-7da6062013c0",
+  "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-08-14/snapshot.json",
+  "instrument_count": 2283,
+  "ac_live_60_trading_days": false,
+  "path_b_compatible_indicator_dates": [
+    "2026-07-15",
+    "2026-08-14",
+    "2026-08-17"
+  ],
+  "note": "Canary only. 60 trading-day AC-LIVE remains unmet: only 3 Path B catalog-compatible indicator CSVs exist in R2. Do not treat this run as live_gate close evidence until 60 dates succeed on the non-active shadow set.",
+  "conclusion": "success",
+  "generation_id": "e7d0b27f-af5d-4f15-b943-c224c6fbeb2c",
+  "artifact_profile": "snapshot_series",
+  "committed_objects": {
+    "snapshot": 1,
+    "snapshot_manifest": 1,
+    "series": 2283,
+    "series_manifest": 2283
+  },
+  "active_pointer_unchanged": "11111111-2222-3333-4444-555555555555"
+}

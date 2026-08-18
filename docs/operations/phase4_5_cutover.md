@@ -54,7 +54,11 @@ econcile_isolated_run_url | reconcile 専用 entrypoint で isolated 訂正 |
 - mapping phase4_5_rollout_stage: "4.5c"。daily.yml derived writer は本番書込中
 - normal / replay / backfill / reconcile の live URL は gate_status に記録済み。soak は進行中（詳細は SSOT）
 - 4.5a/4.5b は mapping phase4_5_shadow_metric_set_version_id が必須（Fake store 禁止）
-- 本番 Supabase **004〜008** DDL apply 済み（007 CAS + 008 batch object RPCs）。証拠: [phase45_production_ddl_applied.json](evidence/phase45_production_ddl_applied.json)、[phase45_migration_008_applied_2026-08-14.json](evidence/phase45_migration_008_applied_2026-08-14.json)
+- 本番 Supabase **004〜009** DDL apply 済み（007 CAS + 008 batch RPCs + 009 manifest kinds / commit expected_*）。証拠: [phase45_production_ddl_applied.json](evidence/phase45_production_ddl_applied.json)、[phase45_migration_009_applied_2026-08-17.json](evidence/phase45_migration_009_applied_2026-08-17.json)
+- Path B catalog は shadow set 13209d23-ded6-482d-be08-7da6062013c0 に seed 済み。**CAS で activate しない**（60営業日 backfill が shadow-only のため、先に activate すると AC-LIVE が違法になる）
+- 本番 R2 物理キーは `stock-radar-system/<logical>`。GitHub secret `R2_BASE_PREFIX` はバケット名（**末尾スラッシュ禁止**）。`R2_ENDPOINT_URL` は bucket path なし。証拠: [phase45_r2_physical_prefix_2026-08-17.json](evidence/phase45_r2_physical_prefix_2026-08-17.json)
+- leftover `derived-shadow/` と failed gen `56004f01` は 2026-08-17 に削除済み。証拠: [phase45_leftover_sweep_2026-08-17.json](evidence/phase45_leftover_sweep_2026-08-17.json)
+- 60営業日 AC-LIVE は未達。Path B 互換の indicators CSV は 3 日分のみ。8/14 canary は [Derived Backfill #32033845358](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32033845358)（成功しても 60 日未達）
 - capacity_gate は closed（Path B v2; safety_factor 1.20, within_free_tier）
 
 **履歴上の推奨実行順（完了済み）:** 4.5-1 pure metrics → 4.5-2 shadow → 4.5-3 registry shadow → 4.5-4 cutover → rollout 4.5c → live 証拠取得。

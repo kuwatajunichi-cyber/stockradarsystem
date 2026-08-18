@@ -2,7 +2,7 @@
 
 GitHub Issue: [#93](https://github.com/kuwatajunichi-cyber/stockradarsystem/issues/93)
 
-**改訂日:** 2026-08-15
+**改訂日:** 2026-08-17
 **SSOT:** 詳細正本。Issue #93 本文は要約 + リンク。
 
 設計根拠: [ADR-003](../adr/adr-003-r2-supabase-control-blob-split.md)、[ADR-004](../adr/adr-004-derived-indicators-warm-cache.md)
@@ -14,7 +14,7 @@ GitHub Issue: [#93](https://github.com/kuwatajunichi-cyber/stockradarsystem/issu
 | 0-2c | 契約 / Cron / R2 artifact bus | 完了 |
 | 3c | warm cache + Supabase | **gate CLOSED** (2026-07-10) |
 | 4 | 月次 + publish + runs + Cron | **gate CLOSED** (2026-07-22) |
-| 4.5 | 派生指標時系列基盤 | **PR-45-1..4 merged・rollout 4.5c・live_gate open（soak 2/3・AC-LIVE backfill/reconcile 未達）・capacity_gate closed** |
+| 4.5 | 派生指標時系列基盤 | **PR-45-1..4 merged・rollout 4.5c・009+pathB shadow seeded・live_gate open（soak 2/3・AC-LIVE backfill/reconcile 未達）・capacity_gate closed** |
 | 5 | entitlements + observability | 計画 |
 
 Phase 3c gate CLOSED（runbook 記録済）。Issue #93 は Phase 4.5/5 が残るため **OPEN** 維持。残: delisting effective-day gate（任意）。
@@ -30,7 +30,7 @@ Phase 3c gate CLOSED（runbook 記録済）。Issue #93 は Phase 4.5/5 が残�
 | **P2** | Phase 4.5 と同時 | bus CLI Fake test、daily publish/finalize 契約、storage mypy、migration baseline |
 | **P3** | Phase 5 | Auth/entitlement に基づく細粒度 RLS、API、heartbeat、distribution |
 
-P0 は現在の匿名変更可能性を遮断する防御であり、Phase 5 の利用者別認可とは分離する。P0 gate CLOSED（2026-07-16）。P1 gate CLOSED（2026-07-17）。preflight 5/5 closed。rollout 4.5c で本番 writer 稼働中。残は live_gate soak（2/3）と AC-LIVE backfill 60営業日 / current-latest reconcile。capacity_gate は Path B v2 safety 1.20 で closed。
+P0 は現在の匿名変更可能性を遮断する防御であり、Phase 5 の利用者別認可とは分離する。P0 gate CLOSED（2026-07-16）。P1 gate CLOSED（2026-07-17）。preflight 5/5 closed。rollout 4.5c で本番 writer 稼働中。009 と Path B shadow seed（13209d23）は適用済みだが CAS 未実施。残は live_gate soak（2/3）と AC-LIVE backfill 60営業日 / current-latest reconcile。capacity_gate は Path B v2 safety 1.20 で closed。
 
 ## Phase 4（2026-07-08 決定: 単体フェーズ）
 

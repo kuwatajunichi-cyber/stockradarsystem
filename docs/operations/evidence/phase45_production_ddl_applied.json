@@ -46,6 +46,12 @@
       "name": "008_phase45_batch_object_rpcs",
       "applied_at_utc": "2026-08-14T14:01:00Z",
       "evidence_url": "docs/operations/evidence/phase45_migration_008_applied_2026-08-14.json"
+    },
+    {
+      "version": "20260817123824",
+      "name": "009_phase45_manifest_kinds_and_commit",
+      "applied_at_utc": "2026-08-17T12:38:24Z",
+      "evidence_url": "docs/operations/evidence/phase45_migration_009_applied_2026-08-17.json"
     }
   ],
   "repo_migration_files": [
@@ -53,7 +59,8 @@
     "supabase/migrations/005_phase45_metric_registry_hardening.sql",
     "supabase/migrations/006_phase45_generation_commit.sql",
     "supabase/migrations/007_phase45_commit_expected_old_digest.sql",
-    "supabase/migrations/008_phase45_batch_object_rpcs.sql"
+    "supabase/migrations/008_phase45_batch_object_rpcs.sql",
+    "supabase/migrations/009_phase45_manifest_kinds_and_commit.sql"
   ],
   "tables_verified": [
     "metric_definitions",
@@ -77,7 +84,8 @@
     "mark_orphan_object_purged",
     "register_pending_derived_objects",
     "mark_derived_objects_uploaded",
-    "stage_latest_derived_observations"
+    "stage_latest_derived_observations",
+    "set_pending_generation_object_set_digest"
   ],
   "notes": [
     "004/005 applied 2026-08-12 via Supabase MCP",
@@ -85,7 +93,8 @@
     "007 applied 2026-08-14 via Supabase MCP (commit_derived_generation expected_old_digest CAS)",
     "RLS enabled on derived_generation_runs and latest_derived_observations_staging",
     "Prior production migrations: 002_phase4_control_plane, 003_p0_control_plane_hardening",
-    "008 applied 2026-08-14 via Supabase MCP (batch register/mark/stage RPCs; see phase45_migration_008_applied_2026-08-14.json). Code merged PR #150."
+    "008 applied 2026-08-14 via Supabase MCP (batch register/mark/stage RPCs; see phase45_migration_008_applied_2026-08-14.json). Code merged PR #150.",
+    "009 applied 2026-08-17 via Supabase MCP (manifest object kinds + commit expected_object_count / object_set_digest + staging clear). Evidence: phase45_migration_009_applied_2026-08-17.json. Code merged PR #152."
   ],
-  "last_updated_utc": "2026-08-15T02:25:00+09:00"
+  "last_updated_utc": "2026-08-17T22:15:00+09:00"
 }

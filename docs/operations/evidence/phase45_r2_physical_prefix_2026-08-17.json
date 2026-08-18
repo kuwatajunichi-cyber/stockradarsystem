@@ -1,0 +1,13 @@
+{
+  "observed_at_utc": "2026-08-17T13:10:00Z",
+  "physical_key_prefix": "stock-radar-system/",
+  "logical_key_example": "derived-snapshots/metric-set=11111111-2222-3333-4444-555555555555/trade-date=2026-08-17/generation=7fb0d78a-6d34-4cdd-b05f-ad0fb75cdd6a/indicators-sha256=a59e4d53bb2428b538fd138a28c4a059e96f0fdfe65dd5de443f9ef7d8338041.parquet",
+  "head_unprefixed": "404",
+  "head_prefixed": "ok",
+  "cause": "Historical R2_ENDPOINT_URL included /stock-radar-system. After PR 152 normalize strips the bucket path, so empty R2_BASE_PREFIX would write a parallel unprefixed tree on 2026-08-18 daily.",
+  "mitigation": {
+    "github_secret_R2_BASE_PREFIX": "stock-radar-system (no trailing slash; trailing slash is stripped by from_env)",
+    "github_secret_R2_ENDPOINT_URL": "normalized account S3 endpoint with no bucket path",
+    "cas_activate": false
+  }
+}
