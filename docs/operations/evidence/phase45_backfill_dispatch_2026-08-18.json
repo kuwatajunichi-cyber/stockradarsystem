@@ -5,27 +5,68 @@
   "metric_set_version_id": "13209d23-ded6-482d-be08-7da6062013c0",
   "ac_live_60_trading_days": false,
   "cas_activate": false,
-  "active_pointer_must_remain": "11111111-2222-3333-4444-555555555555",
+  "active_pointer_unchanged": "11111111-2222-3333-4444-555555555555",
+  "latest_projection_unchanged": {
+    "2026-08-18": 2282,
+    "2026-08-14": 1
+  },
+  "parallel_race": {
+    "happened": true,
+    "cause": "Two backfills for the same shadow set ran concurrently and raced on committed series coordinates.",
+    "observed_7203_dates_after_parallel": [
+      "2026-08-14",
+      "2026-08-18"
+    ],
+    "fix": "Re-ran 2026-08-17 sequentially after 2026-08-18 commit so series merge restored 2026-08-17.",
+    "rule": "Do not parallelize derived_backfill.yml across trade_dates of the same metric_set_version_id."
+  },
   "runs": [
     {
       "trade_date": "2026-08-17",
       "run_id": 32128186976,
       "run_url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32128186976",
       "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-08-17/snapshot.json",
-      "status_at_dispatch": "in_progress"
+      "conclusion": "success",
+      "generation_id": "068d0577-60d2-416a-99de-7a4fcf9c4d84",
+      "note": "Series later superseded by parallel 8/18 then by sequential 8/17 rerun. Snapshot superseded by rerun."
     },
     {
       "trade_date": "2026-08-18",
       "run_id": 32128189707,
       "run_url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32128189707",
       "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-08-18/snapshot.json",
-      "status_at_dispatch": "in_progress"
+      "conclusion": "success",
+      "generation_id": "5641a4f0-7773-4c7c-8ef4-4f19869d9b76",
+      "snapshot_status": "committed",
+      "series_status_after_rerun": "orphan"
+    },
+    {
+      "trade_date": "2026-08-17",
+      "run_id": 32128864244,
+      "run_url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32128864244",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-08-17/snapshot.json",
+      "conclusion": "success",
+      "generation_id": "9d716231-939d-4d2d-8be2-ae531c38f196",
+      "expected_object_count": 4566,
+      "role": "sequential_repair",
+      "sample_series_7203_dates": [
+        "2026-08-14",
+        "2026-08-18",
+        "2026-08-17"
+      ]
     }
+  ],
+  "committed_snapshots_on_shadow_set": [
+    "2026-08-14",
+    "2026-08-17",
+    "2026-08-18"
   ],
   "prior_canary": {
     "trade_date": "2026-08-14",
     "run_url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32033845358",
-    "conclusion": "success"
+    "generation_id": "e7d0b27f-af5d-4f15-b943-c224c6fbeb2c",
+    "conclusion": "success",
+    "leftover_committed_series": "9913 (no later trade; expected, out of scope)"
   },
-  "note": "Shadow-only backfill on Path B set 13209d23. Not AC-LIVE. Do not CAS-activate. Conclusions recorded after runs finish."
+  "note": "Shadow-only. 3 trade dates on 13209d23 is not 60-day AC-LIVE. Do not CAS-activate."
 }
