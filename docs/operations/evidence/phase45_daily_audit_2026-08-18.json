@@ -1,0 +1,129 @@
+{
+  "schema_version": 1,
+  "audit_at_utc": "2026-08-18T10:50:00Z",
+  "audit_at_jst": "2026-08-18T19:50:00+09:00",
+  "project_ref": "wocvepixlzqupasoipbk",
+  "method": [
+    "github_actions",
+    "supabase_mcp_execute_sql",
+    "s3r2_head_object"
+  ],
+  "purpose": "Soak day 3 audit of 2026-08-18 normal daily after migration 009 and R2 prefix correction",
+  "verdict": "healthy_soak_day_3_valid",
+  "live_gate_45c": "open",
+  "ac_live_60_trading_days": false,
+  "gha": {
+    "workflow": "daily.yml",
+    "run_url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32108307197",
+    "run_id": 32108307197,
+    "event": "workflow_dispatch",
+    "conclusion": "success",
+    "head_sha": "f3809334cdb283027953b1af93326e1682a1bf0a",
+    "head_sha_note": "PR #152 merge commit; docs PR #153 merged later the same day and did not affect this writer",
+    "started_at_utc": "2026-08-18T06:45:36Z",
+    "updated_at_utc": "2026-08-18T07:17:29Z",
+    "jobs_all_success": true,
+    "job_count": 11
+  },
+  "supabase_runs": [
+    {
+      "workflow": "daily.yml",
+      "status": "success",
+      "degraded_reason": null,
+      "run_date": "2026-08-18",
+      "github_run_id": 32108307197
+    },
+    {
+      "workflow": "daily_event_cause_enrichment.yml",
+      "status": "success",
+      "degraded_reason": null,
+      "run_date": "2026-08-18",
+      "github_run_id": 32108307197
+    },
+    {
+      "workflow": "daily_universe_patch.yml",
+      "status": "success",
+      "degraded_reason": null,
+      "run_date": "2026-08-18",
+      "github_run_id": 32093896075
+    }
+  ],
+  "derived_generation": {
+    "id": "30789523-ada6-47a8-bf21-251a91dac855",
+    "trade_date": "2026-08-18",
+    "mode": "normal",
+    "status": "committed",
+    "artifact_profile": "snapshot_series_latest",
+    "metric_set_version_id": "11111111-2222-3333-4444-555555555555",
+    "github_run_id": 32108307197,
+    "expected_object_count": 4566,
+    "expected_object_set_digest": "47fb85c6e8386dfa83cd4a318ee638531b0b00238537eca2fce89df1c9d51267",
+    "new_digest": "cb9032bf1e94c38d0d6503bfbc521af205b56582806861858400ade862a177a8",
+    "committed_at_utc": "2026-08-18T07:16:53.469121+00:00",
+    "workflow": "daily.yml",
+    "committed_objects": {
+      "snapshot": 1,
+      "snapshot_manifest": 1,
+      "series": 2282,
+      "series_manifest": 2282
+    },
+    "snapshot_object_key": "derived-snapshots/metric-set=11111111-2222-3333-4444-555555555555/trade-date=2026-08-18/generation=30789523-ada6-47a8-bf21-251a91dac855/indicators-sha256=a2c4dfd3d8bb6a3d364fef99cc12100d3382ecb386c3e8adad6d8f4dd5d28f31.parquet",
+    "snapshot_size_bytes": 276848,
+    "snapshot_manifest_size_bytes": 951,
+    "first_4_5c_daily_with_009_manifests": true
+  },
+  "writer_json": {
+    "status": "ok",
+    "series_count": 2282,
+    "r2_concurrency": 32,
+    "elapsed_ms": {
+      "prefetch": 40839,
+      "put": 134830,
+      "rpc": 33641
+    },
+    "wall_clock_note": "write_derived_generation job 07:12:30Z-07:16:57Z (~4.5 min, under 10 min soak SLO)"
+  },
+  "r2_physical_prefix": {
+    "R2_BASE_PREFIX": "stock-radar-system",
+    "logical_head_via_store": "ok",
+    "unprefixed_direct_head": "404",
+    "prefixed_direct_head": "ok"
+  },
+  "active_metric_set": {
+    "pointer_key": "default",
+    "metric_set_version_id": "11111111-2222-3333-4444-555555555555",
+    "updated_at_utc": "2026-08-14T08:08:30.680231+00:00",
+    "unchanged": true
+  },
+  "latest_derived_observations": {
+    "2026-08-18": 2282,
+    "2026-08-14": 1,
+    "instrument_still_on_2026-08-14": "9913",
+    "note": "9913 has no trade on 8/17 or 8/18; expected and out of scope"
+  },
+  "control_plane_hygiene": {
+    "generation_runs_committed": 10,
+    "generation_runs_failed": 1,
+    "pending_objects": 0
+  },
+  "path_b_shadow_set": {
+    "id": "13209d23-ded6-482d-be08-7da6062013c0",
+    "lifecycle_status": "shadow",
+    "cas_activate": false,
+    "committed_trade_dates": [
+      "2026-08-14"
+    ]
+  },
+  "soak_run_urls_after_this_audit": [
+    "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/31789729418",
+    "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32002940778",
+    "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32108307197"
+  ],
+  "findings": [
+    "All 11 daily.yml jobs succeeded; supabase runs.status success with degraded_reason null.",
+    "Generation 30789523 committed 4566 objects matching expected_object_count; first 4.5c daily with 009 snapshot_manifest and series_manifest.",
+    "Active pointer remains placeholder 11111111; Path B set 13209d23 stays shadow.",
+    "Soak 3/3 is valid. live_gate_45c stays open: 60-trading-day AC-LIVE backfill and current-latest reconcile remain unmet.",
+    "Do not CAS-activate 13209d23 until 60-day shadow backfill exists."
+  ]
+}

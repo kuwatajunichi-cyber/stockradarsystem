@@ -1,0 +1,42 @@
+{
+  "uploaded_at_utc": "2026-08-18T10:55:00Z",
+  "metric_set_version_id": "13209d23-ded6-482d-be08-7da6062013c0",
+  "method": "S3R2ObjectStore.put_create_only",
+  "physical_prefix": "stock-radar-system/",
+  "path_b_compatible_dates": [
+    "2026-07-15",
+    "2026-08-14",
+    "2026-08-17",
+    "2026-08-18"
+  ],
+  "already_present": [
+    {
+      "trade_date": "2026-08-14",
+      "snapshot_logical_key": "derived-inputs/snapshots/trade-date=2026-08-14/snapshot.json",
+      "snapshot_bytes": 1070219
+    }
+  ],
+  "uploads": [
+    {
+      "trade_date": "2026-08-17",
+      "csv_logical_key": "runs/daily/32002940778/artifacts/daily-indicators/indicators_20260817.csv",
+      "csv_bytes": 1666837,
+      "snapshot_logical_key": "derived-inputs/snapshots/trade-date=2026-08-17/snapshot.json",
+      "instrument_count": 2282,
+      "snapshot_bytes": 1070063,
+      "put_noop": false
+    },
+    {
+      "trade_date": "2026-08-18",
+      "csv_logical_key": "runs/daily/32108307197/artifacts/daily-indicators/indicators_20260818.csv",
+      "csv_bytes": 1663177,
+      "snapshot_logical_key": "derived-inputs/snapshots/trade-date=2026-08-18/snapshot.json",
+      "instrument_count": 2282,
+      "snapshot_bytes": 1069528,
+      "put_noop": false
+    }
+  ],
+  "ac_live_60_trading_days": false,
+  "cas_activate": false,
+  "note": "Input snapshots for Path B shadow backfill on 13209d23. 8/14 canary already committed. These dates are still not 60-day AC-LIVE."
+}
