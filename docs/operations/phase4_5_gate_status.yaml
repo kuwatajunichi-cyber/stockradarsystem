@@ -1,11 +1,13 @@
 schema_version: 2
 phase: '4.5'
-last_updated_utc: '2026-08-17T22:15:00+09:00'
+last_updated_utc: '2026-08-18T19:50:00+09:00'
 overall_status: in_progress
 implementation_snapshot:
   local_worktree_has_unmerged_changes: false
-  note: 'PR #152 merged. 009 applied. Path B catalog seeded as shadow (13209d23). Soak 2/3. live_gate open: 60-day AC-LIVE backfill/reconcile still unmet. Do not CAS-activate.'
+  note: 'PR #152 merged. 009 applied. Path B catalog seeded as shadow (13209d23). Soak 3/3. live_gate open: 60-day AC-LIVE backfill/reconcile still unmet. Do not CAS-activate.'
 correction_log:
+- at_utc: '2026-08-18T19:50:00+09:00'
+  reason: 'Soak day 3 valid: daily #32108307197 success (4.5c committed gen 30789523, 4566 objects with 009 manifests). Evidence: phase45_daily_audit_2026-08-18.json. live_gate stays open; AC-LIVE 60-day backfill/reconcile unmet. Do not CAS-activate 13209d23.'
 - at_utc: '2026-08-17T22:15:00+09:00'
   reason: 'Ops after PR #152: production 009 applied (20260817123824); Path B set 13209d23 seeded shadow (not activated); leftover derived-shadow + failed-gen 56004f01 purged; R2_BASE_PREFIX aligned to existing physical prefix; 8/14 shadow backfill canary succeeded #32033845358 (2283 series+manifests; not 60-day AC-LIVE). Soak still 2/3. AC-LIVE 60-day unmet (only 3 Path B-compatible indicator CSVs).'
 - at_utc: '2026-08-17T22:00:00+09:00'
@@ -117,10 +119,11 @@ live_gate_45c:
   soak_run_urls:
   - https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/31789729418
   - https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32002940778
-  note: 'Soak 2/3 (#31789729418, #32002940778). Recorded backfill/reconcile URLs are 1-day/historical PoC and do not satisfy AC-LIVE. Path B shadow seed 13209d23 is not active. 8/14 canary #32033845358 is not 60-day AC-LIVE. capacity_gate closed separately.'
+  - https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32108307197
+  note: 'Soak 3/3 (#31789729418, #32002940778, #32108307197). Recorded backfill/reconcile URLs are 1-day/historical PoC and do not satisfy AC-LIVE. Path B shadow seed 13209d23 is not active. 8/14 canary #32033845358 is not 60-day AC-LIVE. capacity_gate closed separately.'
   supabase_live_audit_evidence_url: docs/operations/evidence/phase45_supabase_live_audit_2026-08-14.json
 roadmap:
-  phase45_status_phrase: 'PR-45-1..4 merged・rollout 4.5c・009+pathB shadow seeded・live_gate open（soak 2/3・AC-LIVE backfill/reconcile 未達）・capacity_gate closed'
+  phase45_status_phrase: 'PR-45-1..4 merged・rollout 4.5c・009+pathB shadow seeded・live_gate open（soak 3/3・AC-LIVE backfill/reconcile 未達）・capacity_gate closed'
 historical_pr_gates:
   pr-45-0-gate-ssot:
     description: gate SSOT + honesty + cutover runbook + rollout helpers

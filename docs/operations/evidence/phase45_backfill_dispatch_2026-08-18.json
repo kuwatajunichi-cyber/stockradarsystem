@@ -1,0 +1,31 @@
+{
+  "dispatched_at_utc": "2026-08-18T10:43:47Z",
+  "workflow": "derived_backfill.yml",
+  "ref": "main",
+  "metric_set_version_id": "13209d23-ded6-482d-be08-7da6062013c0",
+  "ac_live_60_trading_days": false,
+  "cas_activate": false,
+  "active_pointer_must_remain": "11111111-2222-3333-4444-555555555555",
+  "runs": [
+    {
+      "trade_date": "2026-08-17",
+      "run_id": 32128186976,
+      "run_url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32128186976",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-08-17/snapshot.json",
+      "status_at_dispatch": "in_progress"
+    },
+    {
+      "trade_date": "2026-08-18",
+      "run_id": 32128189707,
+      "run_url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32128189707",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-08-18/snapshot.json",
+      "status_at_dispatch": "in_progress"
+    }
+  ],
+  "prior_canary": {
+    "trade_date": "2026-08-14",
+    "run_url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32033845358",
+    "conclusion": "success"
+  },
+  "note": "Shadow-only backfill on Path B set 13209d23. Not AC-LIVE. Do not CAS-activate. Conclusions recorded after runs finish."
+}
