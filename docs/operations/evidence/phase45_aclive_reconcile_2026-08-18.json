@@ -1,0 +1,50 @@
+{
+  "recorded_at_utc": "2026-08-18T17:04:44Z",
+  "mode": "reconcile",
+  "workflow_identity": "derived_reconcile.yml",
+  "writer": "local derived_bus_cli.py put-generation --mode reconcile (not GHA dispatch)",
+  "stage": "4.5c",
+  "metric_set_version_id": "11111111-2222-3333-4444-555555555555",
+  "set_key": "metric_set_v1_free_shadow_dryrun",
+  "lifecycle_status": "active",
+  "trade_date": "2026-08-18",
+  "is_current_latest_trade_date": true,
+  "github_run_id": 89120260818,
+  "expected_old_digest": "cb9032bf1e94c38d0d6503bfbc521af205b56582806861858400ade862a177a8",
+  "new_logical_digest": "cb9032bf1e94c38d0d6503bfbc521af205b56582806861858400ade862a177a8",
+  "digest_unchanged": true,
+  "previous_generation_id": "30789523-ada6-47a8-bf21-251a91dac855",
+  "previous_generation_objects": "orphaned (snapshot/series/manifests 4566)",
+  "new_generation_id": "c9c1b97d-18f0-405d-8b19-6ea4e1fc72b7",
+  "expected_object_count": 4566,
+  "committed_objects": {
+    "snapshot": 1,
+    "snapshot_manifest": 1,
+    "series": 2282,
+    "series_manifest": 2282
+  },
+  "cas_activate": false,
+  "path_b_set": {
+    "id": "13209d23-ded6-482d-be08-7da6062013c0",
+    "lifecycle_status": "shadow"
+  },
+  "active_pointer_unchanged": "11111111-2222-3333-4444-555555555555",
+  "latest_derived_observations": {
+    "2026-08-18": 2282,
+    "2026-08-14": 1
+  },
+  "sample": {
+    "7203": {
+      "generation_id": "c9c1b97d-18f0-405d-8b19-6ea4e1fc72b7",
+      "trade_date": "2026-08-18"
+    },
+    "9913": {
+      "generation_id": "66987a8c-12ee-4603-b2bb-9e5ac7191b80",
+      "trade_date": "2026-08-14",
+      "note": "leftover out of scope"
+    }
+  },
+  "live_gate_45c": "open",
+  "ac_live_reconcile_gha_url": false,
+  "note": "Same-semantic artifact_repair on current-latest active set. logical digest unchanged, generation id changed, snapshot+series+latest atomic. Do not CAS-activate 13209d23. Do not close live_gate: AC-LIVE still requires GHA run URLs for backfill/reconcile."
+}

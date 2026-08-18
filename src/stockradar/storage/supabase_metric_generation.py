@@ -295,7 +295,11 @@ class SupabaseMetricGenerationAdapter:
         }
         if expected_old_digest is not None:
             body["p_expected_old_digest"] = expected_old_digest.strip().lower()
-        self._rpc("commit_derived_generation", body)
+        self._rpc(
+            "commit_derived_generation",
+            body,
+            timeout_s=self.COMMIT_RPC_TIMEOUT_S,
+        )
         return self._to_generation_record(self._fetch_generation_row(generation_id))
 
     def set_expected_object_set_digest(
@@ -468,6 +472,7 @@ class SupabaseMetricGenerationAdapter:
         return str(row["object_key"])
     BATCH_OBJECT_CHUNK_SIZE = 500
     BATCH_RPC_TIMEOUT_S = 60.0
+    COMMIT_RPC_TIMEOUT_S = 180.0
 
     def _request(
         self,

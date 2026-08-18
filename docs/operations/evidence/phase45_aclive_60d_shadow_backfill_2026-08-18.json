@@ -1,0 +1,169 @@
+{
+  "recorded_at_utc": "2026-08-18T13:29:36Z",
+  "metric_set_version_id": "13209d23-ded6-482d-be08-7da6062013c0",
+  "lifecycle_status": "shadow",
+  "mode": "backfill",
+  "writer": "local derived_bus_cli.py put-generation --mode backfill (serial; not 60 GHA dispatches)",
+  "workflow_identity": "derived_backfill.yml / kuwatajunichi-cyber/stockradarsystem",
+  "ac_live_60_trading_days_snapshots": true,
+  "ac_live_reconcile": false,
+  "cas_activate": false,
+  "live_gate_45c": "open",
+  "calendar_first": "2026-05-25",
+  "calendar_last": "2026-08-18",
+  "calendar_n": 60,
+  "committed_snapshots": 60,
+  "distinct_committed_snapshot_dates": 60,
+  "series_committed": 2283,
+  "skipped_existing_daily_canary_dates": [
+    "2026-08-14",
+    "2026-08-17",
+    "2026-08-18"
+  ],
+  "commit_timeout_blocker": {
+    "observed": "PostgREST 500 on commit_derived_generation for 2026-07-31; postgres_logs: canceling statement due to statement timeout",
+    "fix_applied": "ALTER FUNCTION public.commit_derived_generation(uuid, text, text) SET statement_timeout = '180s'",
+    "schema_migrations_version": "20260818131640",
+    "schema_migrations_name": "phase45_commit_statement_timeout",
+    "client_COMMIT_RPC_TIMEOUT_S": 180.0,
+    "retry_github_run_id_prefix": 890
+  },
+  "resume_puts_after_timeout_fix": [
+    {
+      "trade_date": "2026-07-31",
+      "generation_id": "3bcf7eb2-d734-4f67-a1b3-e99d7171103c",
+      "github_run_id": 89020260731,
+      "expected_object_count": 4568
+    },
+    {
+      "trade_date": "2026-08-03",
+      "generation_id": "052c52ab-3b33-4547-89c4-2c874f22d0bc",
+      "github_run_id": 89020260803,
+      "expected_object_count": 4568
+    },
+    {
+      "trade_date": "2026-08-04",
+      "generation_id": "04466b9c-7b5c-4c2f-af30-f8578305c183",
+      "github_run_id": 89020260804,
+      "expected_object_count": 4568
+    },
+    {
+      "trade_date": "2026-08-05",
+      "generation_id": "b73d7bf1-08af-4ee4-bd5b-43778f9a6569",
+      "github_run_id": 89020260805,
+      "expected_object_count": 4568
+    },
+    {
+      "trade_date": "2026-08-06",
+      "generation_id": "43b10bf9-a25a-4af7-8c89-342ec4804d3d",
+      "github_run_id": 89020260806,
+      "expected_object_count": 4568
+    },
+    {
+      "trade_date": "2026-08-07",
+      "generation_id": "0aa0e67d-fee7-499b-b0c4-0c860151fbf1",
+      "github_run_id": 89020260807,
+      "expected_object_count": 4568
+    },
+    {
+      "trade_date": "2026-08-10",
+      "generation_id": "5f27371f-23dc-4b7b-a8f9-9aea69e6784d",
+      "github_run_id": 89020260810,
+      "expected_object_count": 4568
+    },
+    {
+      "trade_date": "2026-08-12",
+      "generation_id": "b1709121-00e6-48dc-9546-f00906d96fa7",
+      "github_run_id": 89020260812,
+      "expected_object_count": 4568
+    },
+    {
+      "trade_date": "2026-08-13",
+      "generation_id": "85ad85f8-d925-416d-ba2b-22dd063f1b24",
+      "github_run_id": 89020260813,
+      "expected_object_count": 4568
+    }
+  ],
+  "sample_series_7203": {
+    "generation_id": "85ad85f8-d925-416d-ba2b-22dd063f1b24",
+    "n_dates": 60,
+    "dates": [
+      "2026-08-14",
+      "2026-08-18",
+      "2026-08-17",
+      "2026-05-25",
+      "2026-05-26",
+      "2026-05-27",
+      "2026-05-28",
+      "2026-05-29",
+      "2026-06-01",
+      "2026-06-02",
+      "2026-06-03",
+      "2026-06-04",
+      "2026-06-05",
+      "2026-06-08",
+      "2026-06-09",
+      "2026-06-10",
+      "2026-06-11",
+      "2026-06-12",
+      "2026-06-15",
+      "2026-06-16",
+      "2026-06-17",
+      "2026-06-18",
+      "2026-06-19",
+      "2026-06-22",
+      "2026-06-23",
+      "2026-06-24",
+      "2026-06-25",
+      "2026-06-26",
+      "2026-06-29",
+      "2026-06-30",
+      "2026-07-01",
+      "2026-07-02",
+      "2026-07-03",
+      "2026-07-06",
+      "2026-07-07",
+      "2026-07-08",
+      "2026-07-09",
+      "2026-07-10",
+      "2026-07-13",
+      "2026-07-14",
+      "2026-07-15",
+      "2026-07-16",
+      "2026-07-17",
+      "2026-07-21",
+      "2026-07-22",
+      "2026-07-23",
+      "2026-07-24",
+      "2026-07-27",
+      "2026-07-28",
+      "2026-07-29",
+      "2026-07-30",
+      "2026-07-31",
+      "2026-08-03",
+      "2026-08-04",
+      "2026-08-05",
+      "2026-08-06",
+      "2026-08-07",
+      "2026-08-10",
+      "2026-08-12",
+      "2026-08-13"
+    ]
+  },
+  "invariants": {
+    "active_pointer": "11111111-2222-3333-4444-555555555555",
+    "path_b_lifecycle": "shadow",
+    "latest_derived_observations": {
+      "2026-08-18": 2282,
+      "2026-08-14": 1
+    },
+    "leftover_9913_on_2026-08-14": "out of scope"
+  },
+  "not_done": [
+    "current-latest reconcile (AC-LIVE remaining)",
+    "CAS activate of 13209d23",
+    "live_gate_45c close",
+    "60 GHA derived_backfill.yml run URLs (CLI serial writer used)"
+  ],
+  "note": "Shadow-only 60-day snapshot backfill landed. Reconcile unmet. Do not CAS-activate. Do not close live_gate."
+}

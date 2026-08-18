@@ -1,0 +1,11 @@
+{
+  "applied_at_utc": "2026-08-18T13:16:40Z",
+  "project_id": "wocvepixlzqupasoipbk",
+  "migration_file": "supabase/migrations/010_phase45_commit_statement_timeout.sql",
+  "schema_migrations_version": "20260818131640",
+  "schema_migrations_name": "phase45_commit_statement_timeout",
+  "method": "supabase_mcp_apply_migration",
+  "alter": "ALTER FUNCTION public.commit_derived_generation(uuid, text, text) SET statement_timeout = '180s'",
+  "reason": "AC-LIVE 60-day backfill: commit_derived_generation hit statement timeout (HTTP 500) at 2026-07-31 as derived_object_index grew.",
+  "active_pointer_unchanged": "11111111-2222-3333-4444-555555555555"
+}
