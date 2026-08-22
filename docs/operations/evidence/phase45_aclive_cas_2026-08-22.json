@@ -1,0 +1,19 @@
+{
+  "recorded_at_utc": "2026-08-22T10:29:46Z",
+  "operation": "activate_metric_set_cas",
+  "expected_set_id": "11111111-2222-3333-4444-555555555555",
+  "new_set_id": "13209d23-ded6-482d-be08-7da6062013c0",
+  "writer_workflow": "daily.yml",
+  "source_github_run_id": 32567085609,
+  "source_github_run_url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32567085609",
+  "active_before": "11111111-2222-3333-4444-555555555555",
+  "active_after": "13209d23-ded6-482d-be08-7da6062013c0",
+  "new_set_lifecycle_after": "active",
+  "old_set_lifecycle_after": "retired",
+  "catchup_backfill_gha": {
+    "2026-08-19": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32566486142",
+    "2026-08-20": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32566787616",
+    "2026-08-21": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32567085609"
+  },
+  "note": "Weekend ops CAS after Path B catchup 8/19-8/21. Mapping already 4.5c. Immediate current-latest reconcile populated latest. Do not treat source_github_run_id as a dedicated activate workflow; it is the 8/21 catchup backfill run used as audit identity."
+}

@@ -1,0 +1,23 @@
+{
+  "recorded_at_utc": "2026-08-22T10:29:46Z",
+  "mode": "reconcile",
+  "workflow_identity": "derived_reconcile.yml",
+  "writer": "GitHub Actions derived_reconcile.yml workflow_dispatch after Path B CAS",
+  "stage": "4.5c",
+  "metric_set_version_id": "13209d23-ded6-482d-be08-7da6062013c0",
+  "set_key": "daily_core_v1__4dca11eaed32",
+  "lifecycle_status": "active",
+  "trade_date": "2026-08-21",
+  "is_current_latest_trade_date": true,
+  "github_run_id": 32567430829,
+  "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32567430829",
+  "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-08-21/snapshot.json",
+  "expected_old_digest": "b935234feb445e3585e3f83bf6cccdedbb259e527ba1327bada481ddd963b0a9",
+  "new_logical_digest": "b935234feb445e3585e3f83bf6cccdedbb259e527ba1327bada481ddd963b0a9",
+  "digest_unchanged": true,
+  "new_generation_id": "b6e771b5-c1d3-4c47-a38c-47d873cf26a7",
+  "latest_derived_observations": {
+    "2026-08-21": 2283
+  },
+  "note": "Post-CAS current-latest same-semantic republish to populate Path B latest (backfill does not write latest)."
+}

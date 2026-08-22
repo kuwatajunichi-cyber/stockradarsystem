@@ -5,7 +5,7 @@
 
 ## スコープ
 
-Phase 4.5 の cutover / live gate 運用。preflight blocker（4.5-0）は closed。実装 PR-45-1..4 と rollout 4.5c は main 済み。残ゲートは **live_gate_45c**（soak 3/3、shadow backfill 60/60、current-latest reconcile CLI 済み、AC-LIVE GHA URL 未達）。capacity_gate は Path B v2 safety 1.20 で closed。
+Phase 4.5 の cutover / live gate 運用。preflight blocker（4.5-0）は closed。実装 PR-45-1..4 と rollout 4.5c は main 済み。**live_gate_45c は closed**（2026-08-22; Path B 13209d23 active）。capacity_gate は Path B v2 safety 1.20 で closed。
 
 ## 前提
 
@@ -49,16 +49,16 @@ eplay_no_shared_mutation_run_url | replay が derived shared 状態を更新し�
 | 
 econcile_isolated_run_url | reconcile 専用 entrypoint で isolated 訂正 |
 
-**現状（live gate は open 維持）:**
+**現状（live_gate_45c closed / Path B active）:**
 
 - mapping phase4_5_rollout_stage: "4.5c"。daily.yml derived writer は本番書込中
-- normal / replay / backfill / reconcile の live URL は gate_status に記録済み。soak 3/3 は記録済み（#31789729418, #32002940778, #32108307197）。live_gate は open 維持
+- normal / replay / backfill / reconcile の live URL は gate_status に記録済み。soak 3/3 は記録済み（#31789729418, #32002940778, #32108307197）。live_gate_45c は closed
 - 4.5a/4.5b は mapping phase4_5_shadow_metric_set_version_id が必須（Fake store 禁止）
 - 本番 Supabase **004〜010** DDL apply 済み（007 CAS + 008 batch RPCs + 009 manifest kinds / commit expected_* + 010 commit statement_timeout 180s）。証拠: [phase45_production_ddl_applied.json](evidence/phase45_production_ddl_applied.json)、[phase45_migration_009_applied_2026-08-17.json](evidence/phase45_migration_009_applied_2026-08-17.json)、[phase45_migration_010_applied_2026-08-18.json](evidence/phase45_migration_010_applied_2026-08-18.json)
-- Path B catalog は shadow set 13209d23-ded6-482d-be08-7da6062013c0 に seed 済み。**CAS で activate しない**（placeholder active 11111111 のまま。Path B 切替は cutover freeze 対象）
+- Path B catalog は 2026-08-22 に CAS で activate 済み（13209d23-ded6-482d-be08-7da6062013c0）。placeholder 11111111 は retired。証拠: [phase45_aclive_cas_2026-08-22.json](evidence/phase45_aclive_cas_2026-08-22.json)
 - 本番 R2 物理キーは `stock-radar-system/<logical>`。GitHub secret `R2_BASE_PREFIX` はバケット名（**末尾スラッシュ禁止**）。`R2_ENDPOINT_URL` は bucket path なし。証拠: [phase45_r2_physical_prefix_2026-08-17.json](evidence/phase45_r2_physical_prefix_2026-08-17.json)
 - leftover `derived-shadow/` と failed gen `56004f01` は 2026-08-17 に削除済み。証拠: [phase45_leftover_sweep_2026-08-17.json](evidence/phase45_leftover_sweep_2026-08-17.json)
-- Path B shadow set 13209d23 の committed snapshot は直近 60営業日（2026-05-25 … 2026-08-18）で 60/60。書込は serial CLI（同一 set の日付並列禁止）。current-latest reconcile は active set 11111111 の 2026-08-18 で same-semantic CLI 済み（gen `c9c1b97d`、logical digest 不変）。AC-LIVE の GHA URL は未差替えのため live_gate は open。証拠: [phase45_aclive_60d_shadow_backfill_2026-08-18.json](evidence/phase45_aclive_60d_shadow_backfill_2026-08-18.json)、[phase45_aclive_reconcile_2026-08-18.json](evidence/phase45_aclive_reconcile_2026-08-18.json)。8/18 soak 監査: [Daily Indicators #32108307197](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32108307197)、証拠 [phase45_daily_audit_2026-08-18.json](evidence/phase45_daily_audit_2026-08-18.json)
+- Path B set 13209d23 の committed snapshot は直近 60営業日（2026-05-25 … 2026-08-18）+ catchup 8/19–8/21。書込は serial GHA `derived_backfill.yml`（同一 set の日付並列禁止。60日代表 [Backfill #32562373843](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32562373843)）。CAS 後の current-latest reconcile は 2026-08-21（[Reconcile #32567430829](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32567430829)、gen `b6e771b5`、logical digest 不変、latest 8/21=2283）。証拠: [phase45_aclive_60d_shadow_backfill_gha_2026-08-22.json](evidence/phase45_aclive_60d_shadow_backfill_gha_2026-08-22.json)、[phase45_aclive_pathb_latest_reconcile_gha_2026-08-21.json](evidence/phase45_aclive_pathb_latest_reconcile_gha_2026-08-21.json)。8/18 soak 監査: [Daily Indicators #32108307197](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32108307197)
 - capacity_gate は closed（Path B v2; safety_factor 1.20, within_free_tier）
 
 **履歴上の推奨実行順（完了済み）:** 4.5-1 pure metrics → 4.5-2 shadow → 4.5-3 registry shadow → 4.5-4 cutover → rollout 4.5c → live 証拠取得。

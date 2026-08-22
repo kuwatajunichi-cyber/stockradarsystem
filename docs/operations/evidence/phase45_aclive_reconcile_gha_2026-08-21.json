@@ -1,0 +1,31 @@
+{
+  "recorded_at_utc": "2026-08-22T02:07:31Z",
+  "mode": "reconcile",
+  "workflow_identity": "derived_reconcile.yml",
+  "writer": "GitHub Actions derived_reconcile.yml workflow_dispatch",
+  "stage": "4.5c",
+  "metric_set_version_id": "11111111-2222-3333-4444-555555555555",
+  "set_key": "metric_set_v1_free_shadow_dryrun",
+  "lifecycle_status": "active",
+  "trade_date": "2026-08-21",
+  "is_current_latest_trade_date": true,
+  "github_run_id": 32545012069,
+  "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32545012069",
+  "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-08-21/reconcile-source.json",
+  "expected_old_digest": "7f0615e170073a1ab3bf8dc549e6dc7912f4a76a722bae635327579bb4d53d14",
+  "new_logical_digest": "7f0615e170073a1ab3bf8dc549e6dc7912f4a76a722bae635327579bb4d53d14",
+  "digest_unchanged": true,
+  "new_generation_id": "47f2e6c2-00b7-4427-b308-3273bde733c0",
+  "cas_activate": false,
+  "path_b_set": {
+    "id": "13209d23-ded6-482d-be08-7da6062013c0",
+    "lifecycle_status": "shadow"
+  },
+  "active_pointer_unchanged": "11111111-2222-3333-4444-555555555555",
+  "latest_derived_observations": {
+    "2026-08-21": 2283
+  },
+  "live_gate_45c": "open",
+  "ac_live_reconcile_gha_url": true,
+  "note": "Current-latest same-semantic republish on active set via GHA. 8/18 CLI reconcile was stale after daily 8/19-8/21. Do not CAS-activate 13209d23. live_gate stays open until explicitly closed."
+}
