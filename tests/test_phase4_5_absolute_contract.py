@@ -44,9 +44,9 @@ def test_gate_schema_v2_minimum_on_real_yaml() -> None:
 
 
 @pytest.mark.unit
-def test_closed_gate_yaml_has_required_evidence() -> None:
+def test_in_progress_gate_yaml_forbids_false_closed_claims() -> None:
     data = _load_gate_status()
-    assert data.get("overall_status") == "closed"
+    assert data.get("overall_status") == "in_progress"
     violations = validate_forbidden_completion_without_evidence(data)
     assert violations == [], "\n".join(violations)
 

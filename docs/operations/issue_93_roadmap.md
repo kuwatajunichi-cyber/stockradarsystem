@@ -14,10 +14,10 @@ GitHub Issue: [#93](https://github.com/kuwatajunichi-cyber/stockradarsystem/issu
 | 0-2c | 契約 / Cron / R2 artifact bus | 完了 |
 | 3c | warm cache + Supabase | **gate CLOSED** (2026-07-10) |
 | 4 | 月次 + publish + runs + Cron | **gate CLOSED** (2026-07-22) |
-| 4.5 | 派生指標時系列基盤 | **gate CLOSED** (2026-08-22; Path B 13209d23 active) |
+| 4.5 | 派生指標時系列基盤 | **PR-45-1..4 merged・rollout 4.5c・Path B active・live_gate open（Path B soak 未達）・capacity_gate closed** |
 | 5 | entitlements + observability | 計画 |
 
-Phase 3c gate CLOSED（runbook 記録済）。Issue #93 は Phase 5 が残るため **OPEN** 維持。残: delisting effective-day gate（任意）。
+Phase 3c gate CLOSED（runbook 記録済）。Issue #93 は Phase 4.5/5 が残るため **OPEN** 維持。残: Path B soak（live_gate_45c）と delisting effective-day gate（任意）。
 
 ## Phase 4 後監査と是正順序（2026-07-15）
 
@@ -30,7 +30,7 @@ Phase 3c gate CLOSED（runbook 記録済）。Issue #93 は Phase 5 が残るた
 | **P2** | Phase 4.5 と同時 | bus CLI Fake test、daily publish/finalize 契約、storage mypy、migration baseline |
 | **P3** | Phase 5 | Auth/entitlement に基づく細粒度 RLS、API、heartbeat、distribution |
 
-P0 は現在の匿名変更可能性を遮断する防御であり、Phase 5 の利用者別認可とは分離する。P0 gate CLOSED（2026-07-16）。P1 gate CLOSED（2026-07-17）。preflight 5/5 closed。rollout 4.5c。Path B 13209d23 は 2026-08-22 に CAS で active。placeholder 11111111 は retired。live_gate_45c closed。capacity_gate は Path B v2 safety 1.20 で closed。
+P0 は現在の匿名変更可能性を遮断する防御であり、Phase 5 の利用者別認可とは分離する。P0 gate CLOSED（2026-07-16）。P1 gate CLOSED（2026-07-17）。preflight 5/5 closed。rollout 4.5c。Path B 13209d23 は 2026-08-22 に CAS で active。placeholder 11111111 は retired。live_gate_45c は Path B の post-CAS soak 未達のため open。capacity_gate は Path B v2 safety 1.20 で closed。
 
 ## Phase 4（2026-07-08 決定: 単体フェーズ）
 
@@ -62,7 +62,7 @@ Out: 派生 cache(4.5), auth(5), published/統一(5), cleanup Cron(5+)。
 4. ~~Supabase / R2 budget fixture~~ → closed（CI + Postgres 実測；full-scale R2 extrapolation は warn 超過 → 有料移行 gate 要検討）
 5. ~~Phase 4.5 gate SSOT~~ → closed
 
-**次ゲート:** Phase 5（entitlements / observability）。Phase 4.5 live_gate_45c は closed（2026-08-22）。詳細: [phase4_5_cutover.md](phase4_5_cutover.md)。
+**次ゲート:** live_gate_45c（Path B 13209d23 の post-CAS 3営業日 soak）。詳細: [phase4_5_cutover.md](phase4_5_cutover.md)。
 
 推奨 rollout:
 
@@ -72,7 +72,7 @@ Out: 派生 cache(4.5), auth(5), published/統一(5), cleanup Cron(5+)。
 4. **4.5-3 registry / series shadow:** DDL、RLS、service-role-only RPC、active CAS、series / latest projection。
 5. **4.5-4 required / cutover:** backfill 比較、active CAS、budget monitoring、normal / replay / reconcile live 証拠、3営業日 soak。
 
-このため Phase 4.5 は **gate CLOSED**（2026-08-22）。残作業は Phase 5。
+このため Phase 4.5 を completed / CLOSED と報告しない。Path B は active だが live_gate は soak 未達。
 
 ## Phase 5（entitlements / Web API / observability）
 

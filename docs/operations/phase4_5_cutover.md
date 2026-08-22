@@ -5,7 +5,7 @@
 
 ## スコープ
 
-Phase 4.5 の cutover / live gate 運用。preflight blocker（4.5-0）は closed。実装 PR-45-1..4 と rollout 4.5c は main 済み。**live_gate_45c は closed**（2026-08-22; Path B 13209d23 active）。capacity_gate は Path B v2 safety 1.20 で closed。
+Phase 4.5 の cutover / live gate 運用。preflight blocker（4.5-0）は closed。実装 PR-45-1..4 と rollout 4.5c は main 済み。残ゲートは **live_gate_45c**（Path B 13209d23 は active、post-CAS 3営業日 soak 未達のため open）。capacity_gate は Path B v2 safety 1.20 で closed。
 
 ## 前提
 
@@ -49,10 +49,10 @@ eplay_no_shared_mutation_run_url | replay が derived shared 状態を更新し�
 | 
 econcile_isolated_run_url | reconcile 専用 entrypoint で isolated 訂正 |
 
-**現状（live_gate_45c closed / Path B active）:**
+**現状（live_gate_45c open / Path B active）:**
 
 - mapping phase4_5_rollout_stage: "4.5c"。daily.yml derived writer は本番書込中
-- normal / replay / backfill / reconcile の live URL は gate_status に記録済み。soak 3/3 は記録済み（#31789729418, #32002940778, #32108307197）。live_gate_45c は closed
+- normal / replay / backfill / reconcile の live URL は gate_status に記録済み。soak_run_urls の 3 URL は **CAS 前の placeholder active set** の daily であり、Path B soak には使えない。live_gate は open 維持
 - 4.5a/4.5b は mapping phase4_5_shadow_metric_set_version_id が必須（Fake store 禁止）
 - 本番 Supabase **004〜010** DDL apply 済み（007 CAS + 008 batch RPCs + 009 manifest kinds / commit expected_* + 010 commit statement_timeout 180s）。証拠: [phase45_production_ddl_applied.json](evidence/phase45_production_ddl_applied.json)、[phase45_migration_009_applied_2026-08-17.json](evidence/phase45_migration_009_applied_2026-08-17.json)、[phase45_migration_010_applied_2026-08-18.json](evidence/phase45_migration_010_applied_2026-08-18.json)
 - Path B catalog は 2026-08-22 に CAS で activate 済み（13209d23-ded6-482d-be08-7da6062013c0）。placeholder 11111111 は retired。証拠: [phase45_aclive_cas_2026-08-22.json](evidence/phase45_aclive_cas_2026-08-22.json)

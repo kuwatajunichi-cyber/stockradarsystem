@@ -1,11 +1,13 @@
 schema_version: 2
 phase: '4.5'
-last_updated_utc: '2026-08-22T19:35:00+09:00'
-overall_status: closed
+last_updated_utc: '2026-08-22T23:45:00+09:00'
+overall_status: in_progress
 implementation_snapshot:
   local_worktree_has_unmerged_changes: false
-  note: 'Phase 4.5 live_gate closed. Path B 13209d23 is active. Placeholder 11111111 retired. latest 8/21=2283 via post-CAS reconcile #32567430829.'
+  note: 'Path B 13209d23 is active. live_gate open: placeholder soak does not count as Path B soak. Post-CAS normal daily on 13209d23 is unmet.'
 correction_log:
+- at_utc: '2026-08-22T23:45:00+09:00'
+  reason: 'Honesty reopen: Codex P1. live_gate_45c / overall_status reverted to open/in_progress because soak_run_urls and normal_daily_success_run_url are placeholder-set 11111111 dailies; Path B 13209d23 has no post-CAS normal daily soak. Pointer stays 13209d23. CAS provenance corrected to writer_workflow=ops-activate-metric-set-cas source_github_run_id=0 (not borrowed backfill #32567085609). Evidence JSON updated. Do not close until Path B completes 3 trading-day soak.'
 - at_utc: '2026-08-22T19:35:00+09:00'
   reason: 'AC-CLOSE: Path B catchup GHA 8/19-8/21 then ops CAS 11111111→13209d23 (source_github_run_id 32567085609). Post-CAS current-latest reconcile #32567430829 populated latest 8/21=2283 (digest b935234f unchanged, gen b6e771b5). live_gate_45c closed. Evidence: phase45_aclive_cas_2026-08-22.json, phase45_aclive_pathb_latest_reconcile_gha_2026-08-21.json, phase45_aclive_60d_shadow_backfill_gha_2026-08-22.json, phase45_aclive_reconcile_gha_2026-08-21.json.'
 - at_utc: '2026-08-22T17:40:00+09:00'
@@ -119,8 +121,8 @@ pr_gates:
     local_pytest_pass: true
     note: merged to main via PR #147 (stack PR #146); cutover writer secrets wired
 live_gate_45c:
-  status: closed
-  closed_at_utc: '2026-08-22T19:35:00+09:00'
+  status: open
+  closed_at_utc: null
   normal_daily_success_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/31789729418
   replay_no_shared_mutation_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/31784728984
   backfill_shadow_only_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32562373843
@@ -130,10 +132,10 @@ live_gate_45c:
   - https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/31789729418
   - https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32002940778
   - https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32108307197
-  note: 'Soak 3/3 on 4.5c daily (then-active placeholder). Path B 13209d23 is now active after ops CAS 2026-08-22. 60-day GHA backfill + 8/19-21 catchup. Current-latest reconcile on Path B #32567430829 (gen b6e771b5, digest b935234f unchanged, latest 8/21=2283). Placeholder 11111111 retired. capacity_gate closed separately.'
+  note: 'Path B 13209d23 is active (placeholder 11111111 retired). 60-day GHA backfill + 8/19-21 catchup. Current-latest reconcile on Path B #32567430829. soak_run_urls / normal_daily_success_run_url remain the pre-CAS placeholder 4.5c dailies and do not satisfy Path B soak. live_gate stays open until 3 post-CAS trading-day normal dailies on 13209d23. capacity_gate closed separately.'
   supabase_live_audit_evidence_url: docs/operations/evidence/phase45_supabase_live_audit_2026-08-14.json
 roadmap:
-  phase45_status_phrase: 'gate CLOSED (2026-08-22; Path B 13209d23 active)'
+  phase45_status_phrase: 'PR-45-1..4 merged・rollout 4.5c・Path B active・live_gate open（Path B soak 未達）・capacity_gate closed'
 historical_pr_gates:
   pr-45-0-gate-ssot:
     description: gate SSOT + honesty + cutover runbook + rollout helpers
