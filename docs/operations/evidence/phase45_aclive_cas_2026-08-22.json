@@ -1,0 +1,29 @@
+{
+  "recorded_at_utc": "2026-08-22T10:29:46Z",
+  "operation": "activate_metric_set_cas",
+  "expected_set_id": "11111111-2222-3333-4444-555555555555",
+  "new_set_id": "13209d23-ded6-482d-be08-7da6062013c0",
+  "writer_workflow": "ops-activate-metric-set-cas",
+  "source_github_run_id": 0,
+  "source_github_run_url": null,
+  "active_before": "11111111-2222-3333-4444-555555555555",
+  "active_after": "13209d23-ded6-482d-be08-7da6062013c0",
+  "new_set_lifecycle_after": "active",
+  "old_set_lifecycle_after": "retired",
+  "catchup_backfill_gha": {
+    "2026-08-19": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32566486142",
+    "2026-08-20": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32566787616",
+    "2026-08-21": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32567085609"
+  },
+  "note": "Weekend ops CAS after Path B catchup 8/19-8/21 via local SupabaseMetricRegistryAdapter. Initial row incorrectly borrowed catchup backfill 32567085609; provenance later corrected to ops-activate-metric-set-cas / 0. Mapping already 4.5c. Immediate current-latest reconcile populated latest.",
+  "initial_writer_workflow": "daily.yml",
+  "initial_source_github_run_id": 32567085609,
+  "provenance_fix": {
+    "at_utc": "2026-08-22T14:44:27Z",
+    "operation": "activate_metric_set_cas_already_active",
+    "writer_workflow": "ops-activate-metric-set-cas",
+    "source_github_run_id": 0,
+    "pointer_unchanged": "13209d23-ded6-482d-be08-7da6062013c0",
+    "note": "Replaced borrowed daily.yml / 32567085609 identity. 0 means local ops adapter, not a GitHub Actions run."
+  }
+}

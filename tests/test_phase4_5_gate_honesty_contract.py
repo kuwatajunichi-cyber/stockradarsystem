@@ -51,6 +51,8 @@ def test_phase4_gate_status_unchanged_still_closed() -> None:
 def test_in_progress_rejects_closed_roadmap_phrase() -> None:
     data = _load_gate_status()
     bad = copy.deepcopy(data)
+    bad["overall_status"] = "in_progress"
+    bad["live_gate_45c"]["status"] = "open"
     bad["roadmap"]["phase45_status_phrase"] = "gate CLOSED"
     roadmap = "| 4.5 | Phase 4.5 | **gate CLOSED** |"
     violations = validate_roadmap_against_gate_status(roadmap, bad)

@@ -1,0 +1,475 @@
+{
+  "recorded_at_utc": "2026-08-22T08:38:58Z",
+  "metric_set_version_id": "13209d23-ded6-482d-be08-7da6062013c0",
+  "lifecycle_status": "shadow",
+  "mode": "backfill",
+  "writer": "GitHub Actions derived_backfill.yml (serial workflow_dispatch; one date at a time)",
+  "workflow_identity": "derived_backfill.yml / kuwatajunichi-cyber/stockradarsystem",
+  "ac_live_60_trading_days_snapshots": true,
+  "ac_live_reconcile": true,
+  "cas_activate": false,
+  "live_gate_45c": "open",
+  "calendar_first": "2026-05-25",
+  "calendar_last": "2026-08-18",
+  "calendar_n": 60,
+  "gha_success_dates": 60,
+  "credited_existing_gha_dates": [
+    "2026-08-14",
+    "2026-08-17",
+    "2026-08-18"
+  ],
+  "new_gha_success_dates": 57,
+  "failed_then_retried": [
+    {
+      "trade_date": "2026-05-25",
+      "failed_run_id": 32545042616,
+      "failed_url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32545042616",
+      "reason": "put-generation Read timeout overlapping concurrent reconcile R2 put; generation c2027542 failed; new github_run_id required",
+      "retry_run_id": 32545429998,
+      "retry_url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32545429998",
+      "retry_generation_id": "e6f13e89-e4d1-4bd1-a3a8-4d65bd7c0056"
+    }
+  ],
+  "representative_run_url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32562373843",
+  "representative_trade_date": "2026-08-13",
+  "prod_audit": {
+    "distinct_committed_snapshot_dates": 60,
+    "latest_generation_per_date_real_gha": 60,
+    "synthetic_github_run_id_remaining": 0
+  },
+  "invariants": {
+    "active_pointer": "11111111-2222-3333-4444-555555555555",
+    "path_b_lifecycle": "shadow",
+    "latest_derived_observations": {
+      "2026-08-21": 2283
+    },
+    "same_set_date_parallel_forbidden": true
+  },
+  "runs": [
+    {
+      "trade_date": "2026-05-25",
+      "status": "gha_ok",
+      "run_id": 32545429998,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32545429998",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-05-25/snapshot.json"
+    },
+    {
+      "trade_date": "2026-05-26",
+      "status": "gha_ok",
+      "run_id": 32545833883,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32545833883",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-05-26/snapshot.json"
+    },
+    {
+      "trade_date": "2026-05-27",
+      "status": "gha_ok",
+      "run_id": 32546213357,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32546213357",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-05-27/snapshot.json"
+    },
+    {
+      "trade_date": "2026-05-28",
+      "status": "gha_ok",
+      "run_id": 32546557437,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32546557437",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-05-28/snapshot.json"
+    },
+    {
+      "trade_date": "2026-05-29",
+      "status": "gha_ok",
+      "run_id": 32546937925,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32546937925",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-05-29/snapshot.json"
+    },
+    {
+      "trade_date": "2026-06-01",
+      "status": "gha_ok",
+      "run_id": 32547316722,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32547316722",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-06-01/snapshot.json"
+    },
+    {
+      "trade_date": "2026-06-02",
+      "status": "gha_ok",
+      "run_id": 32547595597,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32547595597",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-06-02/snapshot.json"
+    },
+    {
+      "trade_date": "2026-06-03",
+      "status": "gha_ok",
+      "run_id": 32547889349,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32547889349",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-06-03/snapshot.json"
+    },
+    {
+      "trade_date": "2026-06-04",
+      "status": "gha_ok",
+      "run_id": 32548166454,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32548166454",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-06-04/snapshot.json"
+    },
+    {
+      "trade_date": "2026-06-05",
+      "status": "gha_ok",
+      "run_id": 32548441279,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32548441279",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-06-05/snapshot.json"
+    },
+    {
+      "trade_date": "2026-06-08",
+      "status": "gha_ok",
+      "run_id": 32548757544,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32548757544",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-06-08/snapshot.json"
+    },
+    {
+      "trade_date": "2026-06-09",
+      "status": "gha_ok",
+      "run_id": 32549081277,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32549081277",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-06-09/snapshot.json"
+    },
+    {
+      "trade_date": "2026-06-10",
+      "status": "gha_ok",
+      "run_id": 32549367252,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32549367252",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-06-10/snapshot.json"
+    },
+    {
+      "trade_date": "2026-06-11",
+      "status": "gha_ok",
+      "run_id": 32549762827,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32549762827",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-06-11/snapshot.json"
+    },
+    {
+      "trade_date": "2026-06-12",
+      "status": "gha_ok",
+      "run_id": 32550085852,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32550085852",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-06-12/snapshot.json"
+    },
+    {
+      "trade_date": "2026-06-15",
+      "status": "gha_ok",
+      "run_id": 32550356302,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32550356302",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-06-15/snapshot.json"
+    },
+    {
+      "trade_date": "2026-06-16",
+      "status": "gha_ok",
+      "run_id": 32550700723,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32550700723",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-06-16/snapshot.json"
+    },
+    {
+      "trade_date": "2026-06-17",
+      "status": "gha_ok",
+      "run_id": 32551020863,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32551020863",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-06-17/snapshot.json"
+    },
+    {
+      "trade_date": "2026-06-18",
+      "status": "gha_ok",
+      "run_id": 32551309585,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32551309585",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-06-18/snapshot.json"
+    },
+    {
+      "trade_date": "2026-06-19",
+      "status": "gha_ok",
+      "run_id": 32551562966,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32551562966",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-06-19/snapshot.json"
+    },
+    {
+      "trade_date": "2026-06-22",
+      "status": "gha_ok",
+      "run_id": 32551887109,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32551887109",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-06-22/snapshot.json"
+    },
+    {
+      "trade_date": "2026-06-23",
+      "status": "gha_ok",
+      "run_id": 32552181873,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32552181873",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-06-23/snapshot.json"
+    },
+    {
+      "trade_date": "2026-06-24",
+      "status": "gha_ok",
+      "run_id": 32552490489,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32552490489",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-06-24/snapshot.json"
+    },
+    {
+      "trade_date": "2026-06-25",
+      "status": "gha_ok",
+      "run_id": 32552759482,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32552759482",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-06-25/snapshot.json"
+    },
+    {
+      "trade_date": "2026-06-26",
+      "status": "gha_ok",
+      "run_id": 32553028758,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32553028758",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-06-26/snapshot.json"
+    },
+    {
+      "trade_date": "2026-06-29",
+      "status": "gha_ok",
+      "run_id": 32553378289,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32553378289",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-06-29/snapshot.json"
+    },
+    {
+      "trade_date": "2026-06-30",
+      "status": "gha_ok",
+      "run_id": 32553655968,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32553655968",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-06-30/snapshot.json"
+    },
+    {
+      "trade_date": "2026-07-01",
+      "status": "gha_ok",
+      "run_id": 32553967918,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32553967918",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-07-01/snapshot.json"
+    },
+    {
+      "trade_date": "2026-07-02",
+      "status": "gha_ok",
+      "run_id": 32554270945,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32554270945",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-07-02/snapshot.json"
+    },
+    {
+      "trade_date": "2026-07-03",
+      "status": "gha_ok",
+      "run_id": 32554567826,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32554567826",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-07-03/snapshot.json"
+    },
+    {
+      "trade_date": "2026-07-06",
+      "status": "gha_ok",
+      "run_id": 32554855802,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32554855802",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-07-06/snapshot.json"
+    },
+    {
+      "trade_date": "2026-07-07",
+      "status": "gha_ok",
+      "run_id": 32555116692,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32555116692",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-07-07/snapshot.json"
+    },
+    {
+      "trade_date": "2026-07-08",
+      "status": "gha_ok",
+      "run_id": 32555422604,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32555422604",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-07-08/snapshot.json"
+    },
+    {
+      "trade_date": "2026-07-09",
+      "status": "gha_ok",
+      "run_id": 32555681955,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32555681955",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-07-09/snapshot.json"
+    },
+    {
+      "trade_date": "2026-07-10",
+      "status": "gha_ok",
+      "run_id": 32555969252,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32555969252",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-07-10/snapshot.json"
+    },
+    {
+      "trade_date": "2026-07-13",
+      "status": "gha_ok",
+      "run_id": 32556246401,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32556246401",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-07-13/snapshot.json"
+    },
+    {
+      "trade_date": "2026-07-14",
+      "status": "gha_ok",
+      "run_id": 32556567938,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32556567938",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-07-14/snapshot.json"
+    },
+    {
+      "trade_date": "2026-07-15",
+      "status": "gha_ok",
+      "run_id": 32556859781,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32556859781",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-07-15/snapshot.json"
+    },
+    {
+      "trade_date": "2026-07-16",
+      "status": "gha_ok",
+      "run_id": 32557121086,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32557121086",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-07-16/snapshot.json"
+    },
+    {
+      "trade_date": "2026-07-17",
+      "status": "gha_ok",
+      "run_id": 32557400872,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32557400872",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-07-17/snapshot.json"
+    },
+    {
+      "trade_date": "2026-07-21",
+      "status": "gha_ok",
+      "run_id": 32557680196,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32557680196",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-07-21/snapshot.json"
+    },
+    {
+      "trade_date": "2026-07-22",
+      "status": "gha_ok",
+      "run_id": 32557970205,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32557970205",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-07-22/snapshot.json"
+    },
+    {
+      "trade_date": "2026-07-23",
+      "status": "gha_ok",
+      "run_id": 32558245776,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32558245776",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-07-23/snapshot.json"
+    },
+    {
+      "trade_date": "2026-07-24",
+      "status": "gha_ok",
+      "run_id": 32558583772,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32558583772",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-07-24/snapshot.json"
+    },
+    {
+      "trade_date": "2026-07-27",
+      "status": "gha_ok",
+      "run_id": 32558850856,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32558850856",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-07-27/snapshot.json"
+    },
+    {
+      "trade_date": "2026-07-28",
+      "status": "gha_ok",
+      "run_id": 32559117499,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32559117499",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-07-28/snapshot.json"
+    },
+    {
+      "trade_date": "2026-07-29",
+      "status": "gha_ok",
+      "run_id": 32559398803,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32559398803",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-07-29/snapshot.json"
+    },
+    {
+      "trade_date": "2026-07-30",
+      "status": "gha_ok",
+      "run_id": 32559685720,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32559685720",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-07-30/snapshot.json"
+    },
+    {
+      "trade_date": "2026-07-31",
+      "status": "gha_ok",
+      "run_id": 32559991425,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32559991425",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-07-31/snapshot.json"
+    },
+    {
+      "trade_date": "2026-08-03",
+      "status": "gha_ok",
+      "run_id": 32560282122,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32560282122",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-08-03/snapshot.json"
+    },
+    {
+      "trade_date": "2026-08-04",
+      "status": "gha_ok",
+      "run_id": 32560571147,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32560571147",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-08-04/snapshot.json"
+    },
+    {
+      "trade_date": "2026-08-05",
+      "status": "gha_ok",
+      "run_id": 32560860137,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32560860137",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-08-05/snapshot.json"
+    },
+    {
+      "trade_date": "2026-08-06",
+      "status": "gha_ok",
+      "run_id": 32561176806,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32561176806",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-08-06/snapshot.json"
+    },
+    {
+      "trade_date": "2026-08-07",
+      "status": "gha_ok",
+      "run_id": 32561494130,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32561494130",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-08-07/snapshot.json"
+    },
+    {
+      "trade_date": "2026-08-10",
+      "status": "gha_ok",
+      "run_id": 32561763705,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32561763705",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-08-10/snapshot.json"
+    },
+    {
+      "trade_date": "2026-08-12",
+      "status": "gha_ok",
+      "run_id": 32562078795,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32562078795",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-08-12/snapshot.json"
+    },
+    {
+      "trade_date": "2026-08-13",
+      "status": "gha_ok",
+      "run_id": 32562373843,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32562373843",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-08-13/snapshot.json"
+    },
+    {
+      "trade_date": "2026-08-14",
+      "status": "credited_existing_gha",
+      "run_id": 32033845358,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32033845358",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-08-14/snapshot.json"
+    },
+    {
+      "trade_date": "2026-08-17",
+      "status": "credited_existing_gha",
+      "run_id": 32128864244,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32128864244",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-08-17/snapshot.json"
+    },
+    {
+      "trade_date": "2026-08-18",
+      "status": "credited_existing_gha",
+      "run_id": 32128189707,
+      "url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32128189707",
+      "snapshot_r2_key": "derived-inputs/snapshots/trade-date=2026-08-18/snapshot.json"
+    }
+  ],
+  "not_done": [
+    "CAS activate of 13209d23",
+    "live_gate_45c close"
+  ],
+  "note": "Path B shadow 60/60 replaced onto real GHA run identities. Reconcile GHA is separate evidence. Do not CAS-activate. live_gate stays open until explicitly closed."
+}
