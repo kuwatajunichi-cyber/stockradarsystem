@@ -124,7 +124,7 @@ live_gate_45c:
   normal_daily_success_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/31789729418
   replay_no_shared_mutation_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/31784728984
   backfill_shadow_only_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32562373843
-  reconcile_isolated_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32545012069
+  reconcile_isolated_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32567430829
   soak_trading_days: 3
   soak_run_urls:
   - https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/31789729418
