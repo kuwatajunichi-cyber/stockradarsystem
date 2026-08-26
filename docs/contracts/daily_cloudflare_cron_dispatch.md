@@ -9,7 +9,7 @@ to Cloudflare Cron Trigger -> Worker -> GitHub workflow_dispatch.
 |------|----------------------|-------|
 | Scheduled (daily) | Cloudflare Cron 45 6 * * * (UTC) -> Worker -> workflow_dispatch | JST 15:45 every day |
 | Manual replay / debug | GitHub UI / gh workflow run workflow_dispatch | unchanged |
-| GitHub schedule | disabled (removed) | prevents double launch |
+| GitHub schedule | disabled on daily/patch/monthly (removed) | prevents double launch. Miss detection is `cron_dispatch_watchdog.yml` |
 
 ## daily.yml retained contract
 

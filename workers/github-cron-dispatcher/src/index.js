@@ -106,18 +106,26 @@ export async function handleScheduledCron(controller, env, fetchImpl = fetch) {
 }
 
 export default {
-  async scheduled(controller, env, ctx) {
-    ctx.waitUntil(
-      handleScheduledCron(controller, env).catch((err) => {
-        logEvent({
-          level: "error",
-          event: "scheduled_failed",
-          cron: controller.cron,
-          message: err instanceof Error ? err.message : String(err),
-        });
-        throw err;
-      }),
-    );
+  async scheduled(controller, env, _ctx) {
+    logEvent({
+      level: "info",
+      event: "scheduled_start",
+      cron: controller.cron,
+      scheduledTime: controller.scheduledTime ?? null,
+    });
+    try {
+      // Await the dispatch. waitUntil-only returns success before GitHub POST
+      // settles and hides dispatch_failed from Cron Events.
+      return await handleScheduledCron(controller, env);
+    } catch (err) {
+      logEvent({
+        level: "error",
+        event: "scheduled_failed",
+        cron: controller.cron,
+        message: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
+    }
   },
 
   async fetch(_request, _env, _ctx) {

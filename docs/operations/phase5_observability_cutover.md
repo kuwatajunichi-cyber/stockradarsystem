@@ -103,3 +103,5 @@ URL 全体を Secret に格納（uuid 単体より rotate 容易）。
 - Supabase KPI ダッシュボード（5.5b / Phase 4 後）
 - Worker 専用 heartbeat（Daily/Patch ping で足りる前提）
 - Slack / Discord
+
+**2026-08-26 追記:** Cloudflare Cron の silent miss は Worker 内 ping では観測できない。当日検知は GitHub schedule watchdog（[cron_dispatch_watchdog.md](../contracts/cron_dispatch_watchdog.md)）。Healthchecks の Period 1d + Grace 26h は翌日以降の通知であり、当日 catch-up の代替ではない。

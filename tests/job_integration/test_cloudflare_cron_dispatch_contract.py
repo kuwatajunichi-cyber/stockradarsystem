@@ -35,6 +35,28 @@ def test_daily_cron_constant_in_worker_sources() -> None:
 
     wrangler = tomllib.loads((WORKER_ROOT / "wrangler.toml").read_text(encoding="utf-8"))
     assert wrangler["triggers"]["crons"] == [DAILY_CRON, UNIVERSE_PATCH_CRON, MONTHLY_CRON]
+    assert wrangler["observability"]["enabled"] is True
+    assert wrangler["observability"]["logs"]["invocation_logs"] is True
+
+
+def test_worker_scheduled_handler_awaits_dispatch() -> None:
+    source = (WORKER_ROOT / "src" / "index.js").read_text(encoding="utf-8")
+    assert "await handleScheduledCron(controller, env)" in source
+    assert "ctx.waitUntil" not in source
+
+
+def test_cron_dispatch_watchdog_workflow_matches_python_table() -> None:
+    from stockradar.jobs.cron_dispatch_watchdog import WATCHDOG_CRON_TO_TARGET
+
+    text = (_repo_root() / ".github/workflows/cron_dispatch_watchdog.yml").read_text(encoding="utf-8")
+    for cron in WATCHDOG_CRON_TO_TARGET:
+        assert f'cron: "{cron}"' in text
+    assert "daily.yml" in text
+    assert "daily_universe_patch.yml" in text
+    assert "monthly.yml" in text
+    on_block = yaml.safe_load(text).get("on") or yaml.safe_load(text).get(True) or {}
+    schedule = on_block.get("schedule") or []
+    assert len(schedule) == 3
 
 
 def test_worker_routes_daily_patch_and_monthly_workflows() -> None:

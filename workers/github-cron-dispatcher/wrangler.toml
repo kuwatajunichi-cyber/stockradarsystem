@@ -7,6 +7,15 @@ main = "src/index.js"
 compatibility_date = "2024-06-01"
 workers_dev = false
 
+# Persist invocation + console logs so silent Cron misses are distinguishable
+# from dispatch failures (8/26 incident: observability was null).
+[observability]
+enabled = true
+
+[observability.logs]
+invocation_logs = true
+head_sampling_rate = 1
+
 [triggers]
 crons = ["45 6 * * *", "0 3 * * *", "0 2 1 * *"]
 

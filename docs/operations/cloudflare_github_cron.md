@@ -42,6 +42,18 @@ Optional: DISPATCH_SKIP_PUBLISH, DISPATCH_FORCE_INDEX, DRY_RUN
 | `45 6 * * *` | daily.yml | none (no run_date) |
 | `0 3 * * *` | daily_universe_patch.yml | none |
 
+## Missed Cron detection (required)
+
+Cloudflare Cron does not retry missed ticks. Independent GitHub schedule:
+
+- Workflow: `.github/workflows/cron_dispatch_watchdog.yml`
+- Contract: [cron_dispatch_watchdog.md](../contracts/cron_dispatch_watchdog.md)
+- Incident: [cloudflare_cron_miss_2026-08-26.md](incidents/cloudflare_cron_miss_2026-08-26.md)
+
+Do **not** restore GitHub `schedule` on `daily.yml` / `daily_universe_patch.yml` / `monthly.yml`.
+
+Catch-up on miss uses empty `workflow_dispatch` inputs (same Tokyo day = `is_replay=false`). Requires Actions secret `GH_DISPATCH_TOKEN` (same PAT as the Worker). Detection still fails the watchdog job if that secret is absent.
+
 ## Logging
 
 JSON one-line logs (source: github-cron-dispatcher). Never log token values.
