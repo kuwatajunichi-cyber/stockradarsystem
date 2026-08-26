@@ -4,6 +4,10 @@ on:
   workflow_dispatch:  # 手動実行
   # Phase 4c: Cloudflare Worker Cron is canonical (GH schedule removed post-U-3)
 
+concurrency:
+  group: monthly-universe-build
+  cancel-in-progress: false
+
 jobs:
   preflight:
     uses: ./.github/workflows/reusable_quality_gate.yml

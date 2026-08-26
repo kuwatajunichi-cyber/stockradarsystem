@@ -58,6 +58,13 @@ def test_cron_dispatch_watchdog_workflow_matches_python_table() -> None:
     schedule = on_block.get("schedule") or []
     assert len(schedule) == 3
 
+    assert "--report-only" in text
+    assert "steps.fetch.outputs.workflow_file" in text
+    loaded = yaml.safe_load(text)
+    steps = loaded["jobs"]["check"]["steps"]
+    verdict = next(step for step in steps if step.get("id") == "verdict")
+    assert verdict.get("continue-on-error") is not True
+
 
 def test_worker_routes_daily_patch_and_monthly_workflows() -> None:
     constants = (WORKER_ROOT / "src" / "constants.js").read_text(encoding="utf-8")

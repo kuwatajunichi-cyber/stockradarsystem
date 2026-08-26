@@ -17,7 +17,7 @@ from zoneinfo import ZoneInfo
 
 TOKYO = ZoneInfo("Asia/Tokyo")
 
-Outcome = Literal["ok", "skip_closed", "too_early", "miss"]
+Outcome = Literal["ok", "skip_closed", "skip_not_first", "too_early", "miss"]
 
 
 @dataclass(frozen=True)
@@ -153,6 +153,28 @@ def _truthy(raw: str | bool | None) -> bool:
     return str(raw or "").strip().lower() in {"1", "true", "yes"}
 
 
+# GitHub workflow-runs API does not expose dispatch inputs, so skip_publish /
+# replay after expected fire still cover. Pre-fire runs do not.
+COVERING_EVENTS = frozenset({"workflow_dispatch"})
+COVERING_SKEW = timedelta(minutes=2)
+
+
+def covering_runs(
+    *,
+    spec: TargetSpec,
+    tokyo_date: date,
+    runs: list[WorkflowRun],
+) -> list[WorkflowRun]:
+    fire_at = expected_fire_utc(tokyo_date, spec)
+    window_start, window_end = tokyo_day_utc_window(tokyo_date)
+    earliest = max(window_start, fire_at - COVERING_SKEW)
+    return [
+        run
+        for run in runs
+        if earliest <= run.created_at < window_end and run.event in COVERING_EVENTS
+    ]
+
+
 def evaluate(
     *,
     spec: TargetSpec,
@@ -165,6 +187,14 @@ def evaluate(
         now_utc = now_utc.replace(tzinfo=timezone.utc)
     else:
         now_utc = now_utc.astimezone(timezone.utc)
+
+    if spec.name == "monthly" and tokyo_date.day != 1:
+        return WatchdogVerdict(
+            outcome="skip_not_first",
+            reason="tokyo_date_not_first_of_month",
+            target=spec.name,
+            workflow_file=spec.workflow_file,
+        )
 
     if spec.requires_trading_day and not is_open:
         return WatchdogVerdict(
@@ -184,13 +214,7 @@ def evaluate(
             workflow_file=spec.workflow_file,
         )
 
-    window_start, window_end = tokyo_day_utc_window(tokyo_date)
-    covering = [
-        run
-        for run in runs
-        if window_start <= run.created_at < window_end
-        and run.event in {"workflow_dispatch", "schedule", ""}
-    ]
+    covering = covering_runs(spec=spec, tokyo_date=tokyo_date, runs=runs)
     if covering:
         covering.sort(key=lambda r: r.created_at)
         chosen = covering[-1]
@@ -203,7 +227,7 @@ def evaluate(
         )
     return WatchdogVerdict(
         outcome="miss",
-        reason="no_dispatch_in_tokyo_day_window",
+        reason="no_dispatch_in_covering_window",
         target=spec.name,
         workflow_file=spec.workflow_file,
     )
@@ -252,6 +276,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--tokyo-date", default="", help="YYYY-MM-DD Asia/Tokyo")
     parser.add_argument("--is-open", default="", help="True/False from resolve_trading_day")
     parser.add_argument("--now-utc", default="", help="ISO-8601 UTC override")
+    parser.add_argument(
+        "--report-only",
+        action="store_true",
+        help="Always exit 0 after writing outputs (GitHub Actions evaluator step)",
+    )
     args = parser.parse_args(argv)
 
     if args.map_schedule:
@@ -301,7 +330,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     _print_verdict(verdict)
     _append_github_output(verdict_to_outputs(verdict))
-    if verdict.miss:
+    if verdict.miss and not args.report_only:
         return 2
     return 0
 

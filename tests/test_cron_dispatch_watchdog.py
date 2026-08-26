@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
+from pathlib import Path
 
 import pytest
 
@@ -151,3 +152,126 @@ def test_parse_github_runs_payload() -> None:
 
 def test_watchdog_cron_table_covers_all_targets() -> None:
     assert set(WATCHDOG_CRON_TO_TARGET.values()) == set(TARGETS)
+
+def test_pre_fire_same_day_dispatch_does_not_cover_daily() -> None:
+    verdict = evaluate(
+        spec=TARGETS["daily"],
+        now_utc=_dt("2026-08-26T07:20:00Z"),
+        tokyo_date=date(2026, 8, 26),
+        is_open=True,
+        runs=[
+            WorkflowRun(
+                created_at=_dt("2026-08-26T03:00:10Z"),
+                event="workflow_dispatch",
+                status="completed",
+                html_url="https://example.test/skip-publish",
+            )
+        ],
+    )
+    assert verdict.outcome == "miss"
+
+
+def test_schedule_event_does_not_cover() -> None:
+    verdict = evaluate(
+        spec=TARGETS["daily"],
+        now_utc=_dt("2026-08-26T07:20:00Z"),
+        tokyo_date=date(2026, 8, 26),
+        is_open=True,
+        runs=[
+            WorkflowRun(
+                created_at=_dt("2026-08-26T06:45:49Z"),
+                event="schedule",
+                status="completed",
+                html_url="https://example.test/schedule",
+            )
+        ],
+    )
+    assert verdict.outcome == "miss"
+
+
+def test_dispatch_two_minutes_before_fire_covers() -> None:
+    verdict = evaluate(
+        spec=TARGETS["daily"],
+        now_utc=_dt("2026-08-26T07:20:00Z"),
+        tokyo_date=date(2026, 8, 26),
+        is_open=True,
+        runs=[
+            WorkflowRun(
+                created_at=_dt("2026-08-26T06:43:00Z"),
+                event="workflow_dispatch",
+                status="completed",
+                html_url="https://example.test/skew",
+            )
+        ],
+    )
+    assert verdict.outcome == "ok"
+
+
+def test_dispatch_three_minutes_before_fire_does_not_cover() -> None:
+    verdict = evaluate(
+        spec=TARGETS["daily"],
+        now_utc=_dt("2026-08-26T07:20:00Z"),
+        tokyo_date=date(2026, 8, 26),
+        is_open=True,
+        runs=[
+            WorkflowRun(
+                created_at=_dt("2026-08-26T06:42:00Z"),
+                event="workflow_dispatch",
+                status="completed",
+                html_url="https://example.test/too-early-dispatch",
+            )
+        ],
+    )
+    assert verdict.outcome == "miss"
+
+
+def test_post_fire_replay_still_covers_without_inputs() -> None:
+    verdict = evaluate(
+        spec=TARGETS["daily"],
+        now_utc=_dt("2026-08-26T07:20:00Z"),
+        tokyo_date=date(2026, 8, 26),
+        is_open=True,
+        runs=[
+            WorkflowRun(
+                created_at=_dt("2026-08-26T06:50:00Z"),
+                event="workflow_dispatch",
+                status="completed",
+                html_url="https://example.test/replay",
+            )
+        ],
+    )
+    assert verdict.outcome == "ok"
+
+
+def test_monthly_skips_when_not_first_of_month() -> None:
+    verdict = evaluate(
+        spec=TARGETS["monthly"],
+        now_utc=_dt("2026-08-27T02:15:00Z"),
+        tokyo_date=date(2026, 8, 27),
+        is_open=True,
+        runs=[],
+    )
+    assert verdict.outcome == "skip_not_first"
+    assert verdict.miss is False
+
+
+def test_main_report_only_exits_zero_on_miss(tmp_path: Path) -> None:
+    from stockradar.jobs.cron_dispatch_watchdog import main
+
+    runs = tmp_path / "runs.json"
+    runs.write_text('{"workflow_runs": []}', encoding="utf-8")
+    argv = [
+        "--target",
+        "daily",
+        "--runs-json",
+        str(runs),
+        "--tokyo-date",
+        "2026-08-26",
+        "--is-open",
+        "true",
+        "--now-utc",
+        "2026-08-26T07:20:00Z",
+    ]
+    assert main([*argv, "--report-only"]) == 0
+    assert main(argv) == 2
+

@@ -93,7 +93,6 @@ jobs:
 
       - name: Evaluate coverage
         id: verdict
-        continue-on-error: true
         env:
           PYTHONPATH: src
           TARGET: ${{ steps.target.outputs.target }}
@@ -103,13 +102,14 @@ jobs:
             --target "$TARGET" \
             --runs-json /tmp/watchdog_runs.json \
             --tokyo-date "${{ steps.resolve.outputs.run_date }}" \
-            --is-open "${{ steps.resolve.outputs.is_open }}"
+            --is-open "${{ steps.resolve.outputs.is_open }}" \
+            --report-only
 
       - name: Same-day catch-up workflow_dispatch
         if: steps.verdict.outputs.miss == 'true'
         env:
           GH_DISPATCH_TOKEN: ${{ secrets.GH_DISPATCH_TOKEN }}
-          WORKFLOW_FILE: ${{ steps.verdict.outputs.workflow_file }}
+          WORKFLOW_FILE: ${{ steps.fetch.outputs.workflow_file }}
         run: |
           set -euo pipefail
           if [ -z "${GH_DISPATCH_TOKEN}" ]; then
@@ -130,8 +130,3 @@ jobs:
           echo "target=${{ steps.verdict.outputs.target }} workflow=${{ steps.verdict.outputs.workflow_file }}" >&2
           exit 2
 
-      - name: Fail on evaluator error
-        if: steps.verdict.outputs.miss != 'true' && steps.verdict.outcome == 'failure'
-        run: |
-          echo "watchdog evaluator failed without a miss verdict" >&2
-          exit 1

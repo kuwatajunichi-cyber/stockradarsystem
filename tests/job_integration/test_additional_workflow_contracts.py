@@ -423,3 +423,9 @@ def test_phase3_runbook_documents_live_gate_closed() -> None:
     assert "29065886668" in text
     assert "29074674287" in text
     assert "supabase_orphan_sweep.yml" in text
+
+def test_monthly_yml_has_concurrency_without_cancel() -> None:
+    workflow = _load_workflow("monthly.yml")
+    assert workflow["concurrency"]["group"] == "monthly-universe-build"
+    assert workflow["concurrency"]["cancel-in-progress"] is False
+
