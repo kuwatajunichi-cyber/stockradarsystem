@@ -101,6 +101,7 @@ CI・ワークフロー・ジョブの変更に関わる「原則」「運用基
 - [docs/contracts/determinism_and_idempotency.md](contracts/determinism_and_idempotency.md)
 - [docs/contracts/workflow_preflight_contract.md](contracts/workflow_preflight_contract.md)
 - [docs/contracts/daily_replay_and_monthly_universe.md](contracts/daily_replay_and_monthly_universe.md) — 日次 replay / patched cache / `daily.yml` の artifact・cache 契約
+- [docs/contracts/cron_dispatch_watchdog.md](contracts/cron_dispatch_watchdog.md) — Cloudflare Cron 欠走の GitHub 側検知 / 当日 catch-up
 
 ### 補助（スコープ・テスト配置）
 
@@ -115,6 +116,7 @@ CI・ワークフロー・ジョブの変更に関わる「原則」「運用基
 - Phase 4.5 gate SSOT: [phase4_5_gate_status.yaml](operations/phase4_5_gate_status.yaml)
 - Phase 5 observability 調査: [phase5_observability_options.md](operations/phase5_observability_options.md)
 - Phase 5 observability runbook: [phase5_observability_cutover.md](operations/phase5_observability_cutover.md)
+- Cloudflare Cron 欠走 (2026-08-26): [incidents/cloudflare_cron_miss_2026-08-26.md](operations/incidents/cloudflare_cron_miss_2026-08-26.md)
 - GitHub Issue: [#93](https://github.com/kuwatajunichi-cyber/stockradarsystem/issues/93)
 
 ---

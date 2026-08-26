@@ -31,6 +31,15 @@ describe("resolveTargetsForCron", () => {
   });
 });
 
+describe("scheduled handler source contract", () => {
+  it("awaits handleScheduledCron instead of waitUntil-only", async () => {
+    const { readFile } = await import("node:fs/promises");
+    const source = await readFile(new URL("../src/index.js", import.meta.url), "utf8");
+    assert.match(source, /await handleScheduledCron\(controller, env\)/);
+    assert.doesNotMatch(source, /ctx\.waitUntil/);
+  });
+});
+
 describe("isMonthlyDispatchEnabled", () => {
   it("defaults to false for monthly workflow", () => {
     assert.equal(isMonthlyDispatchEnabled({}, MONTHLY_WORKFLOW_FILE), false);

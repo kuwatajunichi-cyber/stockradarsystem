@@ -19,6 +19,10 @@
 - `python scripts/run_monthly.py`
   - `1`: 3CSV欠落、検証ゲート不合格、入力契約違反
   - `2`: ジョブ実行失敗、manifest生成失敗、予期しない例外
+- `python -m stockradar.jobs.cron_dispatch_watchdog`
+  - `1`: `--target` / `--runs-json` / `--tokyo-date` 不正、未知の watchdog cron
+  - `2`: Cloudflare Cron 欠走（expected fire − 2min 以降の東京日内 covering `workflow_dispatch` なし）。`--report-only` 時は欠走でも `0`（GHA evaluator step 用）
+  - `0`: `ok` / `skip_closed` / `skip_not_first` / `too_early`
 - `python -m stockradar.jobs.validate_daily_dispatch_run_date`
   - `1`: `INPUT_RUN_DATE` / `--input-run-date` が不正（未来日、replay 許容の 3 カレンダー月より古い等）
   - `0`: 検証成功（`is_replay=true|false` を stdout / `GITHUB_OUTPUT` に出力）

@@ -9,6 +9,12 @@
 3. Search for `dispatch failed`, non-2xx GitHub API responses, or missing `workflow_dispatch` success.
 4. Record: timestamp (UTC), cron route (`daily` / `monthly` / `patch`), HTTP status, error body snippet.
 
+## 1b. Silent Cron miss (no Worker invocation)
+
+Workers Logs cannot show a fire that never happened. Use GraphQL `workersInvocationsAdaptive` and GitHub Actions runs for the expected UTC minute. Same-day detector: `.github/workflows/cron_dispatch_watchdog.yml`.
+
+If both patch and daily are missing the same calendar day, treat as Cloudflare Cron skip (see [cloudflare_cron_miss_2026-08-26.md](incidents/cloudflare_cron_miss_2026-08-26.md)), not a GitHub outage.
+
 ## 2. Dispatch failure — alternative evidence
 
 When Worker logs are empty or delayed:
@@ -24,6 +30,7 @@ When Worker logs are empty or delayed:
 
 | Symptom | Action |
 |---------|--------|
+| Cron silent, **no** Worker invocation | Watchdog red check; same-day empty `workflow_dispatch` catch-up; inspect GraphQL invocations |
 | Cron silent, Worker 5xx | Check Cloudflare status; re-deploy worker; manual dispatch |
 | GitHub 401/403 on dispatch | Rotate `GH_DISPATCH_TOKEN` via `wrangler secret put GH_DISPATCH_TOKEN`; verify `GITHUB_OWNER` / `GITHUB_REPO` / `GITHUB_REF` |
 | Supabase upsert-run fails | Check P0 RLS/privilege; run service-role smoke |

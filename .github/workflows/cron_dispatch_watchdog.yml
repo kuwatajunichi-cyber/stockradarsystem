@@ -1,0 +1,132 @@
+name: Cron Dispatch Watchdog
+
+# Independent of Cloudflare Cron. Detects missed Worker -> workflow_dispatch
+# after a grace window and optionally catch-up dispatches (same-day empty
+# run_date = schedule-equivalent / is_replay=false).
+# Contract: docs/contracts/cron_dispatch_watchdog.md
+
+on:
+  schedule:
+    - cron: "35 3 * * *"
+    - cron: "20 7 * * *"
+    - cron: "15 2 1 * *"
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Which Cloudflare-launched workflow to audit"
+        type: choice
+        options:
+          - daily
+          - patch
+          - monthly
+        default: daily
+
+concurrency:
+  group: cron-dispatch-watchdog-${{ github.event.schedule || github.event.inputs.target }}
+  cancel-in-progress: false
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Resolve target
+        id: target
+        env:
+          PYTHONPATH: src
+          EVENT_NAME: ${{ github.event_name }}
+          SCHEDULE_CRON: ${{ github.event.schedule }}
+          INPUT_TARGET: ${{ github.event.inputs.target }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "schedule" ]; then
+            TARGET=$(python -m stockradar.jobs.cron_dispatch_watchdog --map-schedule "$SCHEDULE_CRON")
+          else
+            TARGET="$INPUT_TARGET"
+          fi
+          echo "target=$TARGET" >> "$GITHUB_OUTPUT"
+          echo "Resolved watchdog target=$TARGET"
+
+      - name: Resolve Tokyo trading day
+        id: resolve
+        env:
+          PYTHONPATH: src
+        run: |
+          set -euo pipefail
+          OUTPUT=$(python -m stockradar.jobs.resolve_trading_day)
+          RUN_DATE=$(echo "$OUTPUT" | grep "^run_date=" | cut -d= -f2)
+          IS_OPEN=$(echo "$OUTPUT" | grep "^is_open=" | cut -d= -f2)
+          echo "run_date=$RUN_DATE" >> "$GITHUB_OUTPUT"
+          echo "is_open=$IS_OPEN" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch recent workflow runs
+        id: fetch
+        env:
+          TARGET: ${{ steps.target.outputs.target }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          case "$TARGET" in
+            daily) WORKFLOW="daily.yml" ;;
+            patch) WORKFLOW="daily_universe_patch.yml" ;;
+            monthly) WORKFLOW="monthly.yml" ;;
+            *) echo "unknown target $TARGET" >&2; exit 1 ;;
+          esac
+          echo "workflow_file=$WORKFLOW" >> "$GITHUB_OUTPUT"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/${WORKFLOW}/runs?per_page=30" > /tmp/watchdog_runs.json
+
+      - name: Evaluate coverage
+        id: verdict
+        env:
+          PYTHONPATH: src
+          TARGET: ${{ steps.target.outputs.target }}
+        run: |
+          set -euo pipefail
+          python -m stockradar.jobs.cron_dispatch_watchdog \
+            --target "$TARGET" \
+            --runs-json /tmp/watchdog_runs.json \
+            --tokyo-date "${{ steps.resolve.outputs.run_date }}" \
+            --is-open "${{ steps.resolve.outputs.is_open }}" \
+            --report-only
+
+      - name: Same-day catch-up workflow_dispatch
+        if: steps.verdict.outputs.miss == 'true'
+        env:
+          GH_DISPATCH_TOKEN: ${{ secrets.GH_DISPATCH_TOKEN }}
+          WORKFLOW_FILE: ${{ steps.fetch.outputs.workflow_file }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_DISPATCH_TOKEN}" ]; then
+            echo "GH_DISPATCH_TOKEN is not set; catch-up skipped. Add the same PAT used by the Worker as Actions secret GH_DISPATCH_TOKEN."
+            exit 0
+          fi
+          if [ -z "${WORKFLOW_FILE}" ]; then
+            echo "workflow_file output missing" >&2
+            exit 1
+          fi
+          GH_TOKEN="${GH_DISPATCH_TOKEN}" gh workflow run "${WORKFLOW_FILE}" --ref main
+          echo "catch-up dispatched: ${WORKFLOW_FILE}"
+
+      - name: Fail on miss
+        if: steps.verdict.outputs.miss == 'true'
+        run: |
+          echo "Cloudflare Cron dispatch miss: ${{ steps.verdict.outputs.reason }}" >&2
+          echo "target=${{ steps.verdict.outputs.target }} workflow=${{ steps.verdict.outputs.workflow_file }}" >&2
+          exit 2
+
