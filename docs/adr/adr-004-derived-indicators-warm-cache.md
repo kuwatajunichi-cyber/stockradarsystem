@@ -2,7 +2,9 @@
 
 ## 状態
 
-採用・設計改訂済み（2026-07-22）。**実装は未着手**。
+採用・設計改訂済み（2026-07-22）。Phase 4.5 実装は **rollout 4.5c・Path B active・`live_gate_45c` open**（soak 未達）。「実装は未着手」ではない。
+
+[ADR-005](adr-005-monthly-new-core-backfill.md)（Monthly new-Core backfill）は **Proposed amendment。未採択。未実装。** 本 ADR の 4.5c 稼働と混同しない。
 
 Issue #93 Phase 4.5 として Phase 4 live gate 後、Phase 5 の Web API 本格実装前に進める。初版の「単一派生 zip を固定 key へ上書きする」案は、本改訂で置き換える。
 
@@ -43,13 +45,13 @@ RS、出来高 zscore、移動平均比等は `compute_indicators_for_core` が�
 | 責務 | 正本 |
 |------|------|
 | 計算の原典 | Layer 1 原材料 + immutable な指標 version |
-| 監査・再構築 | R2 immutable daily snapshot + manifest |
+| 監査・再構築 | R2 immutable daily snapshot + manifest（当時ユニバース断面の正本）。snapshot に含まれない code×date は [ADR-005](adr-005-monthly-new-core-backfill.md) の committed `series_seed_delta` / `series_repair_delta` を supplementary rebuild source とする |
 | Web 時系列配信 | R2 銘柄×年 projection |
 | 指標定義・active set・object metadata | Supabase |
 | 当日横断スクリーニング・配布 | 既存 `indicators_YYYYMMDD.csv` |
 | 無料段階の DB 検索 projection | Supabase の最新断面のみ |
 
-派生系列を単独で「正系」とは呼ばない。派生値は原材料と計算仕様から生成される versioned data product であり、R2 snapshot は監査・再構築の正本、Supabase latest projection は再生成可能な検索用投影とする。
+派生系列を単独で「正系」とは呼ばない。派生値は原材料と計算仕様から生成される versioned data product である。R2 daily snapshot は **当時のユニバース断面**の監査・再構築正本、Supabase latest projection は再生成可能な検索用投影とする。補完後の active series **全体**は、snapshot 投影だけでは再現できず、「daily snapshot 投影 + committed seed/repair delta」（ADR-005）である。
 
 ### 2. R2 物理配置
 
@@ -114,12 +116,16 @@ active set の in-place 変更は禁止する。CAS 失敗時は再取得して�
 
 ### 6. 更新モード
 
-| モード | active pointer / latest projection | 用途 |
-|--------|------------------------------------|------|
-| normal | 更新する | 当営業日の通常生成 |
-| replay | 更新しない | 同一入力の再現確認、run scope handoff |
-| backfill | draft/shadow のみ更新 | 新指標・新 version の期間生成 |
-| reconcile | 明示承認した対象のみ訂正 | 入力訂正、欠損解消、誤 commit 是正 |
+| モード | active pointer | immutable snapshot | series | latest | 用途 |
+|--------|----------------|--------------------|--------|--------|------|
+| `normal` | 更新 | 新規日を作成 | 当日 merge | 更新 | Daily |
+| `replay` | 不変 | 不変 | 不変 | 不変 | 再現 |
+| `backfill` | 不変 | shadow のみ | shadow のみ | 不変 | 新 metric set |
+| `reconcile` | 不変 | CAS 訂正 | merge | 条件付き | フル断面の明示訂正 |
+| `series_seed` | 不変 | 不変 | 欠落日のみ（ADR-005） | 不変 | 新規 Core 履歴。未実装 |
+| `series_repair` | 不変 | 不変 | 承認済み coordinate のみ（ADR-005） | 不変 | `value_conflict` 修復。未実装 |
+
+`series_seed` / `series_repair` の write_allowed・CAS・delta 物理契約は ADR-005 を正とする。本表の追加は採択同期であり、active writer を有効化しない。
 
 「不足日のみ計算」だけでは過去入力訂正を検出できない。各 snapshot に Layer 1 input fingerprint、metric set fingerprint、source run を保存し、不一致を通常 run で検出した場合は fail-fast して reconcile へ分離する。
 
@@ -235,3 +241,4 @@ required_history = max_graph_window + max_metric_lookback + buffer
 - [Phase 4 post-audit](../operations/issue_93_post_phase4_audit.md)
 - [daily replay 契約](../contracts/daily_replay_and_monthly_universe.md)
 - [R2 / Supabase mapping](../../config/github_state_to_r2_supabase_mapping.yaml)
+- [ADR-005](adr-005-monthly-new-core-backfill.md)（Proposed。series_seed / series_repair）

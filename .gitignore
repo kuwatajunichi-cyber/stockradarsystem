@@ -34,8 +34,14 @@ Thumbs.db
 # Agent / local scratch at repo root (see docs/archive/repo_scratch/README.md)
 /.tmp_*
 /_*
+/.pr-body*
+/.enc_check.txt
+/.split-pr*
 /.phase4_final/
 docs/archive/repo_scratch/20*/
+data/derived_backfill_*.json
+docs/operations/evidence/_*.sql
+scripts/storage/_ops_*.py
 
 # Cloudflare Wrangler dev/build cache
 workers/**/.wrangler/

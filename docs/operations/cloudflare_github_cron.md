@@ -144,3 +144,7 @@ Postmortem for the 2026-06-18/19 missed-dispatch incident, lessons learned, and 
 
 - [phase1_cron_dispatch_cutover_2026-06.md](incidents/phase1_cron_dispatch_cutover_2026-06.md)
 - Issue #93 comment: https://github.com/kuwatajunichi-cyber/stockradarsystem/issues/93#issuecomment-4756986589
+
+## Planned (ADR-005, not live)
+
+Fourth Worker cron `*/15 * * * *` → `monthly_new_core_backfill_dispatch.yml` is **not** in `wrangler.toml`. Skeleton: [monthly_new_core_backfill_cloudflare_cron_dispatch.md](../contracts/monthly_new_core_backfill_cloudflare_cron_dispatch.md). Live Worker stays at 3 crons (daily / patch / monthly).

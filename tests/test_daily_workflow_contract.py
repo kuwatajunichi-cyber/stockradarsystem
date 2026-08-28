@@ -549,6 +549,8 @@ ENCODING_CONTRACT_FILES = (
     ".github/workflows/derived_backfill.yml",
     ".github/workflows/derived_reconcile.yml",
     "docs/contracts/github_state_to_r2_supabase_mapping.md",
+    "docs/contracts/monthly_new_core_backfill_cloudflare_cron_dispatch.md",
+    "docs/contracts/monthly_new_core_backfill.md",
     "docs/contracts/run_artifact_manifest_schema.md",
     "docs/operations/cloudflare_github_cron.md",
     "supabase/migrations/006_phase45_generation_commit.sql",

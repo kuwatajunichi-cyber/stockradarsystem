@@ -10,6 +10,10 @@ Japanese summary: README and workflow comments describe operator-facing behavior
 
 ## Monthly selection
 
+Daily replay / patch が選ぶ tag は `pick_monthly_release(run_date, tags)`（`snapshot_date <= run_date` の最大、同日は max `run_id`。該当なしは `fallback_latest`）。
+
+ADR-005 の canonical release は **別関数** `canonical_release_for_month(release_month, committed_rows)` である。`release_month` 単位、`fallback_latest` なし、所属月は `monthly_snapshots.snapshot_date` の `YYYY-MM`。全順序は `snapshot_date` 降順、同日は `github_run_id` 降順（last-wins）。Daily の `MONTHLY_TAG` 選定にこの関数を使ってはならない。loser tag の `history_quality.tier` は `noncanonical_release` であり、winner request の `full` を継承しない。
+
 - Tags: `monthly-YYYYMMDD-<github.run_id>`. Max snapshot D with D <= run_date; tie-break max run_id.
 - If none: first parsable `monthly-*` from gh release list order; `universe_resolution=fallback_latest`.
 - **Both** `daily.yml` (`resolve_core_csv select`) and `daily_universe_patch.yml` use
@@ -53,6 +57,8 @@ When patched cache is used:
 - `core_source=patched_cache`
 - `delisted_patch_applied=true`
 - `quality_tier=full`
+
+`history_quality.json`（ADR-005）は隣接する別成果物であり、`core_selection.json` を暗黙拡張しない。replay は当該 `MONTHLY_TAG` の backfill request 品質を読む。未実装の間は生成しない。
 - `selected_cache_key` set to the restored cache key
 - `MONTHLY_TAG`, `run_date`, `universe_resolution`, `resolution_reason` (same schema as fallback)
 
@@ -67,14 +73,15 @@ When patched cache is used:
 - **`compute_indicators`**: consumes R2 handoff artifacts (plus optional stale exclusions). No warm cache write in this job.
 - **Replay**: `is_replay=true` skips warm cache **pointer update** (`put-fixed` / `put-patched` idempotent skip). R2 run staging handoff unchanged.
 
-### Phase 4.5 planned derived-series behavior
+### Phase 4.5 derived-series behavior
 
-- Normal run: committed daily derived snapshot から R2 Web series projection と Supabase latest projection を更新する。
+- Normal run: committed daily derived snapshot から R2 Web series projection と Supabase latest projection を更新する（rollout 4.5c、active Path B。`live_gate_45c` は soak 未達のため open）。
 - Replay: run scope の派生計算・比較は許可するが、shared `derived-snapshots/`、`derived-series/`、Supabase latest projection、active metric set を更新しない。
 - Backfill: `draft` / `shadow` metric set のみ更新し、active set と latest projection を更新しない。
 - Reconcile: replay / backfill と別 entrypoint とし、expected old logical digest と変更理由を必須にする。
+- ADR-005 `series_seed` / `series_repair`: Proposed。未実装。replay は選択した `MONTHLY_TAG` に対応する `history_quality` を読む（artifact `history_quality.json`。正本は Supabase request 行。`core_selection.json` の `quality_tier` とは別軸）。
 
-詳細は `docs/adr/adr-004-derived-indicators-warm-cache.md` を参照する。Phase 4.5 は設計済み・未実装であり、この節は現行 workflow が既に派生系列を更新することを意味しない。
+詳細は `docs/adr/adr-004-derived-indicators-warm-cache.md` および `docs/adr/adr-005-monthly-new-core-backfill.md` を参照する。
 
 ### Warm cache writes (Phase 3c)
 

@@ -61,6 +61,8 @@ Migration staging (this contract):
 - `runs/` — per-run artifact bodies and manifests
 - `cache/` — warm cache zip bodies (Phase 3)
 - `monthly/` — monthly universe snapshots (Phase 4)
+- `derived-snapshots/` / `derived-series/` — Phase 4.5 derived objects
+- `derived-inputs/` — ADR-005 planned request manifests and seed/repair deltas（live writer なし）
 
 **Contract:** resolve object keys from deterministic resolver (`run_id` + `run_date`) or workflow manifest outputs. Do not rely on R2 `ListObjects` in the normal consumer path.
 
@@ -134,19 +136,17 @@ Machine-readable stage: phase3_rollout_stage in mapping YAML (3a | 3b | 3c).
 
 | Entry id | R2 | Supabase |
 |----------|-----|----------|
-| cache-index-store-zip-v1 | cache/index-store-zip-v1/{sha256}.zip | cache_index + cache_pointers via RPC |
-| cache-ohlc-store-zip-v2 | cache/ohlc-store-zip-v2/{sha256}.zip | same |
+| cache-index-store-zip-v1 | live: `cache/index-store-zip-v1/index_store.zip`. planned: `cache/index-store-zip-v1/objects/sha256={object_sha256}.zip` | cache_index + cache_pointers via RPC |
+| cache-ohlc-store-zip-v2 | live: `cache/ohlc-store-zip-v2/ohlc_store.zip`. planned: `cache/ohlc-store-zip-v2/objects/sha256={object_sha256}.zip` | same |
 | cache-universe-patched | csv + manifest under cache/universe-patched/{monthly_tag}/{run_date}/ | cache_index patched row (no pointer) |
 
 ### patched ref filter (Option A)
 
-
-esolve_core_csv select lists Supabase patched rows filtered by source_ref in {github.ref, refs/heads/default_branch} (GH cache equivalent).
+`resolve_core_csv` select lists Supabase patched rows filtered by source_ref in {github.ref, refs/heads/default_branch} (GH cache equivalent).
 
 ### runs ordering
 
-control_plane_cli upsert-run at end of 
-esolve_trading_day (before parallel producers).
+`control_plane_cli` upsert-run at end of `resolve_trading_day` (before parallel producers).
 
 Runbook: docs/operations/phase3_warm_cache_supabase_cutover.md.
 
@@ -155,6 +155,20 @@ Runbook: docs/operations/phase3_warm_cache_supabase_cutover.md.
 See docs/operations/issue_93_roadmap.md and docs/operations/phase4_cutover.md.
 
 - Phase 4: monthly_snapshots, publish_status, runs lifecycle, monthly Cron, cache-jpx-url R2 migration.
-- Phase 4.5: derived indicators warm cache (ADR-004).
+- Phase 4.5: derived indicators warm cache (ADR-004; rollout 4.5c, live_gate open).
+- ADR-005 (Proposed): Monthly new-Core backfill. mapping YAML `adr005` block and `planned_*` fields. Live `target_r2_key_pattern` for OHLC/index cache stays fixed-key until `pr-005-daily-cas`.
 - Phase 5: entitlements, observability, distribution cutover.
+
+## ADR-005 mapping (schema_version 6)
+
+Top-level key `adr005`:
+
+- `status`: `proposed` until live writer exists
+- `feature_start_release_month`: YAML mirror (`null` until enable). SSOT is Supabase `adr005_runtime_config` (ADR-005 §4)
+- `planned_objects`: content-addressed cache objects, seed delta, request manifest, `history_quality.json`
+- `planned_writer_workflows` / `planned_scan_workflows`: do **not** copy into `scan_workflows` until the workflow files exist
+
+Cache entries `cache-index-store-zip-v1` / `cache-ohlc-store-zip-v2` keep live `writer_workflow: daily.yml` and live fixed `target_r2_key_pattern`. `writer_workflows` lists current writers. `planned_writer_workflows` / `planned_target_r2_key_pattern` / `planned_retention_policy` are the Daily CAS cutover contract.
+
+Related: `docs/adr/adr-005-monthly-new-core-backfill.md`, `docs/contracts/monthly_new_core_backfill_cloudflare_cron_dispatch.md`, `docs/contracts/monthly_new_core_backfill.md`.
 
