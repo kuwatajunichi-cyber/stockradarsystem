@@ -78,10 +78,14 @@ Write path: pending insert -> R2 put -> RPC with `p_history_id` (never NULL on c
 ## mapping invariants (Phase 4)
 
 ```yaml
-schema_version: 5
+schema_version: 6
 phase3_rollout_stage: "3c"   # must not regress to 3a
 phase4_rollout_stage: "4a"|"4b"|"4c"
 phase4_5_rollout_stage: "off"|"4.5a"|"4.5b"|"4.5c"
+# ADR-005 planned block (live cache keys stay fixed-key until pr-005-daily-cas)
+adr005:
+  status: proposed
+  feature_start_release_month: null
 ```
 
 ## Related
@@ -90,3 +94,4 @@ phase4_5_rollout_stage: "off"|"4.5a"|"4.5b"|"4.5c"
 - config/github_state_to_r2_supabase_mapping.yaml
 - docs/contracts/daily_publish_manifest_schema.md
 - docs/adr/adr-004-derived-indicators-warm-cache.md
+- docs/adr/adr-005-monthly-new-core-backfill.md

@@ -1,0 +1,43 @@
+schema_version: 1
+adr: "005"
+last_updated_utc: "2026-08-28T21:30:00+09:00"
+overall_status: proposed
+owner: repo-maintainers
+repair_approver_team: repo-maintainers
+implementation_snapshot:
+  code_unstarted: true
+  workflows_unstarted: true
+  note: >
+    Adoption docs only. Do not report Phase 4.5 CLOSED, live_gate_45c closed,
+    or ADR-005 implemented. overall_status must stay proposed or in_progress
+    until live evidence exists.
+pr_gates:
+  pr-005-docs-adoption:
+    description: ADR-005 adoption docs sync (ADR-003/004, contracts, mapping v6, gate YAML)
+    status: local_only
+    merge_commit: null
+    merge_ci_run_url: null
+  pr-005-daily-cas:
+    description: Daily Layer 1 / series writer fenced lease + pointer CAS
+    status: pending
+    merge_commit: null
+  pr-005-monthly-rpc:
+    description: commit_monthly_snapshot_with_backfill_request + request/outbox
+    status: pending
+    merge_commit: null
+  pr-005-series-seed:
+    description: series_seed / series_only active write flag
+    status: pending
+    merge_commit: null
+live_gate_005:
+  status: open
+  note: closed only after feature_start bootstrap, poller evidence, and capacity remeasure.
+correction_log:
+  - at_utc: "2026-08-28T09:40:00+09:00"
+    reason: "Schema created as proposed. All implementation gates pending. Owner slug repo-maintainers until a GitHub team is named."
+  - at_utc: "2026-08-28T18:50:00+09:00"
+    reason: "Adoption docs 2-8 synced locally. overall_status remains proposed. pr-005-docs-adoption stays local_only."
+  - at_utc: "2026-08-28T21:00:00+09:00"
+    reason: "Third-round MUST items written into ADR-005. overall_status remains proposed. Fourth re-review pending."
+  - at_utc: "2026-08-28T21:30:00+09:00"
+    reason: "Fifth Grok-only review approved leftover loser-row copies. overall_status remains proposed. Not Adopted. pr-005-docs-adoption stays local_only."

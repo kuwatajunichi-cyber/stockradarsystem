@@ -5,7 +5,7 @@ GitHub Issue: [#93](https://github.com/kuwatajunichi-cyber/stockradarsystem/issu
 **改訂日:** 2026-08-22
 **SSOT:** 詳細正本。Issue #93 本文は要約 + リンク。
 
-設計根拠: [ADR-003](../adr/adr-003-r2-supabase-control-blob-split.md)、[ADR-004](../adr/adr-004-derived-indicators-warm-cache.md)
+設計根拠: [ADR-003](../adr/adr-003-r2-supabase-control-blob-split.md)、[ADR-004](../adr/adr-004-derived-indicators-warm-cache.md)。隣接 Proposed（Phase 4.5 完了ではない）: [ADR-005](../adr/adr-005-monthly-new-core-backfill.md)
 
 ## フェーズ状態
 
@@ -74,6 +74,10 @@ Out: 派生 cache(4.5), auth(5), published/統一(5), cleanup Cron(5+)。
 
 このため Phase 4.5 を completed / CLOSED と報告しない。Path B は active だが live_gate は soak 未達。
 
+## ADR-005（Monthly new-Core backfill、Proposed）
+
+[ADR-005](../adr/adr-005-monthly-new-core-backfill.md) は、月次で Core に昇格した銘柄の OHLCV と active Web series を非同期補完する設計契約である。**未採択・未実装。** 上表の Phase 4.5 行および `live_gate_45c` は変えない。採択 docs の SSOT は [adr005_gate_status.yaml](adr005_gate_status.yaml)（`overall_status: proposed`）。
+
 ## Phase 5（entitlements / Web API / observability）
 
 | 項目 | 内容 |
@@ -100,6 +104,7 @@ Worker deploy gate, migration 記録, artifact_index.created_at_utc, contract st
 2026-07-15 Phase 4 gate CLOSED および post-gate 監査・是正順序を追記。
 2026-07-22 Phase 4 gate 監査是正（PR-4-2 merge CI 失敗記録・corrective evidence 追加）および P1 closed 反映。
 2026-07-22 Phase 4.5 を Free-first R2 / Supabase split に改訂。条件付き GO、実装未着手、preflight blocker を明記。
+2026-08-28 ADR-005 を隣接 Proposed として追記。Phase 4.5 テーブル行は不変。
 
 ## 決定事項（2026-07-08 追記）
 

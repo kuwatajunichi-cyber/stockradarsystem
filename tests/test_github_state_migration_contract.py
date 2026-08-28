@@ -283,7 +283,7 @@ def test_enrichment_is_daily_indicators_consumer_via_r2() -> None:
 
 def test_mapping_phase3_rollout_stage() -> None:
     mapping = _load_mapping()
-    assert mapping.get("schema_version") == 5
+    assert mapping.get("schema_version") == 6
     assert mapping.get("phase3_rollout_stage") == "3c"
     assert phase3_rollout_stage() == "3c"
     assert phase4_rollout_stage() == "4c"
@@ -311,3 +311,43 @@ def test_phase3_cache_entries_have_supabase_tables() -> None:
     patched = next(e for e in mapping["entries"] if e["id"] == "cache-universe-patched")
     assert patched.get("target_r2_object_keys", {}).get("csv")
     assert patched.get("target_r2_object_keys", {}).get("manifest")
+
+
+def test_mapping_adr005_planned_block_does_not_cut_over_live_cache() -> None:
+    mapping = _load_mapping()
+    adr005 = mapping.get("adr005")
+    assert isinstance(adr005, dict)
+    assert adr005.get("status") == "proposed"
+    assert adr005.get("feature_start_release_month") is None
+    assert adr005.get("live_cache_protocol") == "fixed_key_rotate_delete"
+    assert adr005.get("planned_cache_protocol") == "immutable_pointer_cas"
+    planned_objects = adr005.get("planned_objects")
+    assert isinstance(planned_objects, dict)
+    for key in (
+        "cache_index_immutable",
+        "cache_ohlc_immutable",
+        "seed_delta",
+        "request_manifest",
+        "history_quality_artifact",
+    ):
+        assert planned_objects.get(key), f"adr005.planned_objects missing {key}"
+    assert "derived-inputs/" in str(planned_objects["seed_delta"])
+
+    scan = mapping.get("scan_workflows")
+    assert isinstance(scan, list)
+    planned_scan = adr005.get("planned_scan_workflows")
+    assert isinstance(planned_scan, list) and planned_scan
+    overlap = set(planned_scan) & set(scan)
+    assert not overlap, f"planned_scan_workflows must not be in live scan_workflows yet: {overlap}"
+
+    index_entry = next(e for e in mapping["entries"] if e["id"] == "cache-index-store-zip-v1")
+    ohlc_entry = next(e for e in mapping["entries"] if e["id"] == "cache-ohlc-store-zip-v2")
+    assert index_entry["writer_workflow"] == "daily.yml"
+    assert ohlc_entry["writer_workflow"] == "daily.yml"
+    assert index_entry["target_r2_key_pattern"] == "cache/index-store-zip-v1/index_store.zip"
+    assert ohlc_entry["target_r2_key_pattern"] == "cache/ohlc-store-zip-v2/ohlc_store.zip"
+    assert "objects/sha256=" in index_entry["planned_target_r2_key_pattern"]
+    assert "objects/sha256=" in ohlc_entry["planned_target_r2_key_pattern"]
+    assert index_entry["retention_policy"] != index_entry["planned_retention_policy"]
+    assert "monthly_new_core_backfill.yml" in index_entry["planned_writer_workflows"]
+    assert "monthly_new_core_backfill.yml" not in (index_entry.get("writer_workflows") or [])

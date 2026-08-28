@@ -33,6 +33,7 @@ After a paid web app launch, primary cost risk shifts from GitHub Actions minute
 - Warm cache zips (`cache/...`)
 - Derived immutable daily snapshots (`derived-snapshots/...`)
 - Derived Web series projections (`derived-series/...`)
+- Derived inputs and supplementary rebuild deltas (`derived-inputs/...`, ADR-005 Planned)
 - Monthly universe CSVs (`monthly/...`)
 - Daily published CSV/XLSX and publish manifests (`published/...`)
 - Existing distribution prefixes `0011_work` / `0012_paid` during migration
@@ -82,7 +83,8 @@ Normal path: resolve `object_key` from workflow outputs or Supabase metadata. Se
 - Phase 1+: upload adapters, Supabase migrations
 - Phase 2+: publish manifest writes, orphan sweeper, observability
 - Phase 5: users / subscriptions / payments tables
-- Phase 4.5: metric registry / active set / latest projection metadata（実装前）
+- Phase 4.5: metric registry / active set / latest projection metadata（rollout 4.5c、live_gate open）
+- ADR-005: `derived-inputs/` の Monthly new-Core backfill 成果物（Proposed、未実装）
 
 Phase 0 is docs + contract tests only. **Production workflow behavior is unchanged.**
 
@@ -93,3 +95,4 @@ Phase 0 is docs + contract tests only. **Production workflow behavior is unchang
 - `docs/contracts/supabase_control_plane_schema.md`
 - `docs/contracts/daily_publish_manifest_schema.md`
 - `docs/adr/adr-004-derived-indicators-warm-cache.md`
+- `docs/adr/adr-005-monthly-new-core-backfill.md`

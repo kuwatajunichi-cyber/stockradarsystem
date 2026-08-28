@@ -4,12 +4,34 @@
 # Phase 2: artifact bus entries include structured optional; workflows use R2 runs/ staging.
 # Phase 2c: source_kind=artifact and source_name_pattern are legacy logical tokens only
 # (historical GitHub artifact names). Phase 2 daily bus handoff is R2-only; no GH upload/download.
-schema_version: 5
+schema_version: 6
 phase3_rollout_stage: "3c"
 phase4_rollout_stage: "4c"
 phase4_5_rollout_stage: "4.5c"
 # Required when stage is 4.5a or 4.5b (shadow set UUID). Empty at 4.5c.
 phase4_5_shadow_metric_set_version_id: ""
+
+# ADR-005 planned mapping. Live cache keys in entries[] stay fixed-key until pr-005-daily-cas.
+# adr005.feature_start_release_month is a YAML mirror; SSOT is Supabase adr005_runtime_config.
+# Do not add monthly_new_core_backfill.yml to scan_workflows until that workflow exists.
+adr005:
+  status: proposed
+  feature_start_release_month: null
+  live_cache_protocol: fixed_key_rotate_delete
+  planned_cache_protocol: immutable_pointer_cas
+  planned_retention_policy: warm_cache_immutable_pointer_cas
+  planned_writer_workflows:
+    - daily.yml
+    - monthly_new_core_backfill.yml
+  planned_scan_workflows:
+    - monthly_new_core_backfill.yml
+    - monthly_new_core_backfill_dispatch.yml
+  planned_objects:
+    cache_index_immutable: cache/index-store-zip-v1/objects/sha256={object_sha256}.zip
+    cache_ohlc_immutable: cache/ohlc-store-zip-v2/objects/sha256={object_sha256}.zip
+    seed_delta: derived-inputs/monthly-new-core/{request_id}/delta/kind={kind}/trade-date={YYYY-MM-DD}/generation={generation_id}/delta-sha256={object_sha256}.json.gz
+    request_manifest: derived-inputs/monthly-new-core/{request_id}/manifest-version={version}.json
+    history_quality_artifact: runs/daily/{run_id}/artifacts/daily-history-quality/history_quality.json
 
 scan_workflows:
   - daily.yml
@@ -30,6 +52,9 @@ required_fields:
 #   runs/...       per-run staging blobs (artifacts)
 #   cache/...      warm cache zip bodies
 #   monthly/...    monthly snapshot blobs
+#   derived-snapshots/  Phase 4.5 daily snapshots
+#   derived-series/     Phase 4.5 Web series
+#   derived-inputs/     ADR-005 planned (request manifest + seed/repair delta)
 entries:
   - id: artifact-daily-core-csv
     source_kind: artifact
@@ -139,28 +164,42 @@ entries:
     source_kind: cache
     source_name_pattern: index-store-zip-v1
     writer_workflow: daily.yml
+    writer_workflows:
+      - daily.yml
+    planned_writer_workflows:
+      - daily.yml
+      - monthly_new_core_backfill.yml
     writer_job: ensure_index_cache
     target_r2_key_pattern: cache/index-store-zip-v1/index_store.zip
+    planned_target_r2_key_pattern: cache/index-store-zip-v1/objects/sha256={object_sha256}.zip
     supabase_table: cache_index
     supabase_tables:
       - cache_index
       - cache_pointers
     supabase_active_table: cache_pointers
     retention_policy: warm_cache_rotate_delete_before_save; replay_no_save
+    planned_retention_policy: warm_cache_immutable_pointer_cas
     optional: false
 
   - id: cache-ohlc-store-zip-v2
     source_kind: cache
     source_name_pattern: ohlc-store-zip-v2
     writer_workflow: daily.yml
+    writer_workflows:
+      - daily.yml
+    planned_writer_workflows:
+      - daily.yml
+      - monthly_new_core_backfill.yml
     writer_job: ensure_core_cache
     target_r2_key_pattern: cache/ohlc-store-zip-v2/ohlc_store.zip
+    planned_target_r2_key_pattern: cache/ohlc-store-zip-v2/objects/sha256={object_sha256}.zip
     supabase_table: cache_index
     supabase_tables:
       - cache_index
       - cache_pointers
     supabase_active_table: cache_pointers
     retention_policy: warm_cache_rotate_delete_before_save; replay_no_save
+    planned_retention_policy: warm_cache_immutable_pointer_cas
     optional: false
 
   - id: cache-universe-patched
