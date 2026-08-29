@@ -136,8 +136,8 @@ Machine-readable stage: phase3_rollout_stage in mapping YAML (3a | 3b | 3c).
 
 | Entry id | R2 | Supabase |
 |----------|-----|----------|
-| cache-index-store-zip-v1 | live: `cache/index-store-zip-v1/index_store.zip`. planned: `cache/index-store-zip-v1/objects/sha256={object_sha256}.zip` | cache_index + cache_pointers via RPC |
-| cache-ohlc-store-zip-v2 | live: `cache/ohlc-store-zip-v2/ohlc_store.zip`. planned: `cache/ohlc-store-zip-v2/objects/sha256={object_sha256}.zip` | same |
+| cache-index-store-zip-v1 | live: `cache/index-store-zip-v1/objects/sha256={object_sha256}.zip` (immutable_pointer_cas). legacy fixed `index_store.zip` only until pointer advances | cache_index + cache_pointers via CAS RPC |
+| cache-ohlc-store-zip-v2 | live: `cache/ohlc-store-zip-v2/objects/sha256={object_sha256}.zip`. planned (legacy note): `cache/ohlc-store-zip-v2/objects/sha256={object_sha256}.zip` | same |
 | cache-universe-patched | csv + manifest under cache/universe-patched/{monthly_tag}/{run_date}/ | cache_index patched row (no pointer) |
 
 ### patched ref filter (Option A)
@@ -155,20 +155,21 @@ Runbook: docs/operations/phase3_warm_cache_supabase_cutover.md.
 See docs/operations/issue_93_roadmap.md and docs/operations/phase4_cutover.md.
 
 - Phase 4: monthly_snapshots, publish_status, runs lifecycle, monthly Cron, cache-jpx-url R2 migration.
-- Phase 4.5: derived indicators warm cache (ADR-004; rollout 4.5c, live_gate open).
-- ADR-005 (Proposed): Monthly new-Core backfill. mapping YAML `adr005` block and `planned_*` fields. Live `target_r2_key_pattern` for OHLC/index cache stays fixed-key until `pr-005-daily-cas`.
+- Phase 4.5: derived indicators warm cache (ADR-004; rollout 4.5c, live_gate closed via waiver 2026-08-29).
+- ADR-005 (Adopted docs; gate in_progress): Monthly new-Core backfill. Live OHLC/index cache uses `immutable_pointer_cas` (`pr-005-daily-cas` in local batch). `planned_scan_workflows` empty after P4 promotion.
 - Phase 5: entitlements, observability, distribution cutover.
 
 ## ADR-005 mapping (schema_version 6)
 
 Top-level key `adr005`:
 
-- `status`: `proposed` until live writer exists
+- `status`: `proposed` means **feature_start unset** (MNC not enabled / cutover前). It does **not** mean ADR unadopted or that live Layer 1 writers are absent
 - `feature_start_release_month`: YAML mirror (`null` until enable). SSOT is Supabase `adr005_runtime_config` (ADR-005 §4)
+- `live_cache_protocol` / `planned_cache_protocol`: `immutable_pointer_cas`
 - `planned_objects`: content-addressed cache objects, seed delta, request manifest, `history_quality.json`
-- `planned_writer_workflows` / `planned_scan_workflows`: do **not** copy into `scan_workflows` until the workflow files exist
+- `planned_writer_workflows` / `planned_scan_workflows`: do **not** copy into `scan_workflows` until the workflow files exist (P4 already promotes live `scan_workflows` when files exist)
 
-Cache entries `cache-index-store-zip-v1` / `cache-ohlc-store-zip-v2` keep live `writer_workflow: daily.yml` and live fixed `target_r2_key_pattern`. `writer_workflows` lists current writers. `planned_writer_workflows` / `planned_target_r2_key_pattern` / `planned_retention_policy` are the Daily CAS cutover contract.
+Cache entries `cache-index-store-zip-v1` / `cache-ohlc-store-zip-v2` use live `writer_workflow: daily.yml` and live `target_r2_key_pattern: cache/{kind}/objects/sha256={object_sha256}.zip` with `retention_policy: warm_cache_immutable_pointer_cas` (`pr-005-daily-cas`, local_only until merge). `writer_workflows` lists current writers. `planned_writer_workflows` adds `monthly_new_core_backfill.yml`; `planned_target_r2_key_pattern` / `planned_retention_policy` match live.
 
 Related: `docs/adr/adr-005-monthly-new-core-backfill.md`, `docs/contracts/monthly_new_core_backfill_cloudflare_cron_dispatch.md`, `docs/contracts/monthly_new_core_backfill.md`.
 

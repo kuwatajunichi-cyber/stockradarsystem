@@ -13,6 +13,7 @@ if str(_REPO_ROOT / "src") not in sys.path:
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from stockradar.storage.daily_seed_lease import wait_and_collect_seed_lease_skips
 from stockradar.jobs.write_derived_generation import (  # noqa: E402
     DerivedGenerationRequest,
     SnapshotInput,
@@ -245,6 +246,55 @@ def cmd_put_generation(args: argparse.Namespace) -> int:
             }
             for instrument_code in sorted(values_by_instrument)
         ]
+    lease_codes: list[str] = []
+    lease_waited = 0.0
+    try:
+        from datetime import datetime, timezone
+
+        from stockradar.storage.supabase_client import SupabaseRestAdapter, control_adapter_from_env
+
+        adapter = control_adapter_from_env()
+        membership = list(snapshot_input.values_by_instrument.keys())
+
+        def _fetch_rows():
+            if adapter is None or not hasattr(adapter, "_request"):
+                return []
+            if not isinstance(adapter, SupabaseRestAdapter):
+                return []
+            # Avoid huge in.(membership) URLs (414). Fetch active seed/repair leases and
+            # filter to membership in list_active_seed_lease_codes_from_rows.
+            now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            resp = adapter._request(
+                "GET",
+                "/rest/v1/series_write_leases",
+                params={
+                    "owner_kind": "in.(series_seed,series_repair)",
+                    "expires_at": f"gt.{now_iso}",
+                    "select": "instrument_code,owner_kind,expires_at",
+                },
+            )
+            if resp.status_code == 404:
+                # Table not applied yet: Daily must still run.
+                return []
+            if resp.status_code >= 400:
+                raise RuntimeError(
+                    f"series_write_leases query failed: HTTP {resp.status_code}"
+                )
+            data = resp.json()
+            return data if isinstance(data, list) else []
+
+        decision = wait_and_collect_seed_lease_skips(
+            membership_codes=membership,
+            fetch_active_rows=_fetch_rows,
+            max_wait_seconds=120.0,
+            poll_seconds=5.0,
+        )
+        lease_codes = list(decision.skipped_codes)
+        lease_waited = float(decision.waited_seconds)
+    except Exception as exc:
+        print(f"error: seed lease poll failed: {exc}", file=sys.stderr)
+        return 2
+
     result = run_derived_generation(
         request,
         snapshot_input=snapshot_input,
@@ -252,6 +302,8 @@ def cmd_put_generation(args: argparse.Namespace) -> int:
         r2_store=_r2_store(),
         latest_rows=latest_rows,
         series_builders=None,
+        active_seed_lease_codes=lease_codes or None,
+        seed_lease_waited_seconds=lease_waited,
     )
     _emit(
         {
@@ -262,6 +314,8 @@ def cmd_put_generation(args: argparse.Namespace) -> int:
             "object_keys": list(result.object_keys),
             "reason": result.reason,
             "series_count": result.series_count,
+            "flags": list(getattr(result, "flags", ()) or ()),
+            "lease_skipped_codes": list(getattr(result, "lease_skipped_codes", ()) or ()),
             "r2_concurrency": result.r2_concurrency,
             "elapsed_ms": {
                 "prefetch": result.prefetch_elapsed_ms,

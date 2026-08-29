@@ -25,6 +25,11 @@ class MetricMemberSpec:
     definition_canonical: dict[str, Any]
     definition_fingerprint: str
     ordinal: int
+    seed_capability: str | None = None
+    required_benchmarks: tuple[str, ...] = ()
+    lookback_trading_days: int | None = None
+    warmup_trading_days: int | None = None
+    listing_source_policy: str | None = None
 
 
 @dataclass(frozen=True)
@@ -107,6 +112,29 @@ def load_metric_set_spec(path: Path | str | None = None) -> MetricSetSpec:
                 definition_canonical=dict(item["definition_canonical"]),
                 definition_fingerprint=str(item["definition_fingerprint"]),
                 ordinal=int(item.get("ordinal", idx)),
+                seed_capability=(
+                    str(item["seed_capability"]).strip()
+                    if item.get("seed_capability") is not None
+                    else None
+                ),
+                required_benchmarks=tuple(
+                    str(x) for x in (item.get("required_benchmarks") or [])
+                ),
+                lookback_trading_days=(
+                    int(item["lookback_trading_days"])
+                    if item.get("lookback_trading_days") is not None
+                    else None
+                ),
+                warmup_trading_days=(
+                    int(item["warmup_trading_days"])
+                    if item.get("warmup_trading_days") is not None
+                    else None
+                ),
+                listing_source_policy=(
+                    str(item["listing_source_policy"]).strip()
+                    if item.get("listing_source_policy") is not None
+                    else None
+                ),
             )
         )
     members_sorted = tuple(sorted(members, key=lambda m: m.ordinal))
@@ -142,3 +170,29 @@ def validate_version_parameters(
         raise ValueError(
             f"z_lookback_days mismatch: got {z_lookback_days}, catalog expects {expected_z}"
         )
+
+
+_SEED_CAPABILITIES = frozenset(
+    {"instrument_local", "benchmark_relative", "not_series_seedable"}
+)
+
+
+def require_seed_metric_input_contract(spec: MetricSetSpec) -> None:
+    """Fail closed when ADR-005 §3.1 seed fields are missing (not fingerprint)."""
+    for m in spec.members:
+        if not m.seed_capability or m.seed_capability not in _SEED_CAPABILITIES:
+            raise ValueError(f"metric_input_contract_missing: seed_capability for {m.metric_key}")
+        if m.listing_source_policy not in (None, "first_valid_bar"):
+            raise ValueError(
+                f"metric_input_contract_missing: listing_source_policy for {m.metric_key}"
+            )
+        if m.lookback_trading_days is None:
+            raise ValueError(f"metric_input_contract_missing: lookback_trading_days for {m.metric_key}")
+        if m.seed_capability == "benchmark_relative" and not m.required_benchmarks:
+            raise ValueError(
+                f"metric_input_contract_missing: required_benchmarks for {m.metric_key}"
+            )
+
+
+def metric_set_is_series_seedable(spec: MetricSetSpec) -> bool:
+    return all(m.seed_capability != "not_series_seedable" for m in spec.members)

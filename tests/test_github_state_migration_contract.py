@@ -28,6 +28,8 @@ SCAN_WORKFLOWS = (
     "daily_universe_patch.yml",
     "daily_event_cause_enrichment.yml",
     "monthly.yml",
+    "monthly_new_core_backfill.yml",
+    "monthly_new_core_backfill_dispatch.yml",
 )
 REQUIRED_FIELDS = (
     "source_kind",
@@ -319,7 +321,7 @@ def test_mapping_adr005_planned_block_does_not_cut_over_live_cache() -> None:
     assert isinstance(adr005, dict)
     assert adr005.get("status") == "proposed"
     assert adr005.get("feature_start_release_month") is None
-    assert adr005.get("live_cache_protocol") == "fixed_key_rotate_delete"
+    assert adr005.get("live_cache_protocol") == "immutable_pointer_cas"
     assert adr005.get("planned_cache_protocol") == "immutable_pointer_cas"
     planned_objects = adr005.get("planned_objects")
     assert isinstance(planned_objects, dict)
@@ -335,19 +337,25 @@ def test_mapping_adr005_planned_block_does_not_cut_over_live_cache() -> None:
 
     scan = mapping.get("scan_workflows")
     assert isinstance(scan, list)
+    assert "monthly_new_core_backfill.yml" in scan
+    assert "monthly_new_core_backfill_dispatch.yml" in scan
     planned_scan = adr005.get("planned_scan_workflows")
-    assert isinstance(planned_scan, list) and planned_scan
+    assert isinstance(planned_scan, list)
     overlap = set(planned_scan) & set(scan)
-    assert not overlap, f"planned_scan_workflows must not be in live scan_workflows yet: {overlap}"
+    assert not overlap, f"planned_scan_workflows must not overlap live scan_workflows: {overlap}"
 
     index_entry = next(e for e in mapping["entries"] if e["id"] == "cache-index-store-zip-v1")
     ohlc_entry = next(e for e in mapping["entries"] if e["id"] == "cache-ohlc-store-zip-v2")
     assert index_entry["writer_workflow"] == "daily.yml"
     assert ohlc_entry["writer_workflow"] == "daily.yml"
-    assert index_entry["target_r2_key_pattern"] == "cache/index-store-zip-v1/index_store.zip"
-    assert ohlc_entry["target_r2_key_pattern"] == "cache/ohlc-store-zip-v2/ohlc_store.zip"
+    assert index_entry["target_r2_key_pattern"] == "cache/index-store-zip-v1/objects/sha256={object_sha256}.zip"
+    assert ohlc_entry["target_r2_key_pattern"] == "cache/ohlc-store-zip-v2/objects/sha256={object_sha256}.zip"
+    assert index_entry["retention_policy"] == "warm_cache_immutable_pointer_cas"
+    assert ohlc_entry["retention_policy"] == "warm_cache_immutable_pointer_cas"
+    assert "monthly_new_core_backfill.yml" not in (index_entry.get("writer_workflows") or [])
+    assert index_entry.get("writer_workflow") == "daily.yml"
     assert "objects/sha256=" in index_entry["planned_target_r2_key_pattern"]
     assert "objects/sha256=" in ohlc_entry["planned_target_r2_key_pattern"]
-    assert index_entry["retention_policy"] != index_entry["planned_retention_policy"]
+    assert index_entry["planned_retention_policy"] == "warm_cache_immutable_pointer_cas"
     assert "monthly_new_core_backfill.yml" in index_entry["planned_writer_workflows"]
     assert "monthly_new_core_backfill.yml" not in (index_entry.get("writer_workflows") or [])

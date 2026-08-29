@@ -1,6 +1,8 @@
 """Pure control-plane helpers for Phase 3 Supabase + R2."""
 from __future__ import annotations
 
+import re
+
 from typing import Any, Final
 
 PATCHED_OBJECT_KEYS_SCHEMA_VERSION: Final[int] = 1
@@ -84,7 +86,34 @@ def resolve_patched_r2_keys(
     )
 
 
-def resolve_fixed_object_key(entry_id: str, pattern: str) -> str:
+_SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
+
+
+def resolve_immutable_object_key(*, pattern: str, object_sha256: str) -> str:
+    """Resolve create-only Layer 1 object key from mapping pattern + content sha256."""
+    sha = object_sha256.strip().lower()
+    if not _SHA256_RE.match(sha):
+        raise ValueError(f"object_sha256 must be 64 hex chars, got {object_sha256!r}")
+    templ = str(pattern or "").strip()
+    if "{object_sha256}" in templ:
+        return templ.replace("{object_sha256}", sha)
+    if templ.endswith(".zip") and "/objects/" not in templ:
+        prefix = templ.rsplit("/", 1)[0]
+        return f"{prefix}/objects/sha256={sha}.zip"
+    raise ValueError(
+        "immutable object key pattern missing {object_sha256}: " + repr(pattern)
+    )
+
+
+def resolve_fixed_object_key(
+    entry_id: str,
+    pattern: str,
+    *,
+    object_sha256: str | None = None,
+) -> str:
+    """Prefer resolve_immutable_object_key for CAS puts."""
+    if object_sha256 is not None:
+        return resolve_immutable_object_key(pattern=pattern, object_sha256=object_sha256)
     mapping = {
         "cache-index-store-zip-v1": "cache/index-store-zip-v1/index_store.zip",
         "cache-ohlc-store-zip-v2": "cache/ohlc-store-zip-v2/ohlc_store.zip",

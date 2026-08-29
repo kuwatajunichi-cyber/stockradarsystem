@@ -24,7 +24,9 @@
     "reconcile_repair_rate": 0.05,
     "layer1_r2_bytes": 101173474,
     "catalog": "config/metrics/metric_set_v1_free.yaml",
-    "path": "B"
+    "path": "B",
+    "layer1_immutable_generations_retained": 3,
+    "derived_series_superseded_days": 3
   },
   "bytes": {
     "snapshots": 598891500,
@@ -41,5 +43,5 @@
     "within_free_tier": true,
     "notes": []
   },
-  "report_hash": "15d3188d9eca585b1168bcf5da42bc5c7177fb66bc90cecda02a3c5d8f08169d"
+  "report_hash": "24aff330597875b4ecb4b6c716ffec6bd8bd192cc5577e12d988048787e1d156"
 }

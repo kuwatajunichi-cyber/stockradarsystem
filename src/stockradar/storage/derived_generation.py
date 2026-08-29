@@ -16,6 +16,7 @@ class ArtifactProfile(str, Enum):
     SNAPSHOT_ONLY = "snapshot_only"
     SNAPSHOT_SERIES = "snapshot_series"
     SNAPSHOT_SERIES_LATEST = "snapshot_series_latest"
+    SERIES_ONLY = "series_only"
 
 
 VALID_ARTIFACT_PROFILES: frozenset[str] = frozenset(p.value for p in ArtifactProfile)
@@ -60,6 +61,19 @@ class SourceRunIdentity:
 
 
 @dataclass(frozen=True)
+class SeriesCoordinateCAS:
+    """Expected state for one active series coordinate."""
+
+    instrument_code: str
+    series_year: int
+    expected_prior_logical_digest: str | None
+    prior_absent: bool
+
+    def key(self) -> tuple[str, int]:
+        return (self.instrument_code.strip(), int(self.series_year))
+
+
+@dataclass(frozen=True)
 class BeginGenerationRequest:
     source: SourceRunIdentity
     artifact_profile: ArtifactProfile | str
@@ -69,6 +83,8 @@ class BeginGenerationRequest:
     expected_object_set_digest: str | None = None
     expected_latest_row_count: int | None = None
     expected_latest_set_digest: str | None = None
+    series_coordinates: tuple[SeriesCoordinateCAS, ...] = ()
+    request_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -243,6 +259,8 @@ def resolve_artifact_profile(
     """Map rollout stage/mode to generation artifact profile (plan SSOT)."""
     normalized_mode = normalize_run_mode(mode)
     normalized_stage = stage.strip().lower()
+    if normalized_mode in {"series_seed", "series_repair"}:
+        return ArtifactProfile.SERIES_ONLY
     if normalized_mode == "reconcile":
         if is_current_latest_trade_date:
             return ArtifactProfile.SNAPSHOT_SERIES_LATEST
@@ -261,6 +279,7 @@ def profile_allows_series(profile: str | ArtifactProfile) -> bool:
     return normalized in {
         ArtifactProfile.SNAPSHOT_SERIES.value,
         ArtifactProfile.SNAPSHOT_SERIES_LATEST.value,
+        ArtifactProfile.SERIES_ONLY.value,
     }
 
 
@@ -274,6 +293,8 @@ def expected_derived_object_count(*, profile: str | ArtifactProfile, instrument_
     n = max(0, int(instrument_count))
     if normalized == ArtifactProfile.SNAPSHOT_ONLY.value:
         return 2
+    if normalized == ArtifactProfile.SERIES_ONLY.value:
+        return (2 * n) + 1
     return 2 + (2 * n)
 
 
@@ -298,11 +319,56 @@ def _generation_payload_mismatch(
         ("expected_latest_set_digest", request.expected_latest_set_digest),
         ("new_logical_digest", request.new_logical_digest),
         ("expected_logical_digest", request.expected_logical_digest),
+        ("request_id", request.request_id),
     )
     for key, expected in pairs:
         if expected is not None and row.get(key) != expected:
             return True
-    return False
+    return row.get("series_coordinates", ()) != _normalize_series_coordinates(
+        request.series_coordinates
+    )
+
+
+def _normalize_series_coordinates(
+    coordinates: tuple[SeriesCoordinateCAS, ...],
+) -> tuple[SeriesCoordinateCAS, ...]:
+    normalized: list[SeriesCoordinateCAS] = []
+    seen: set[tuple[str, int]] = set()
+    for item in coordinates:
+        code = item.instrument_code.strip()
+        year = int(item.series_year)
+        expected = (
+            item.expected_prior_logical_digest.strip().lower()
+            if item.expected_prior_logical_digest is not None
+            else None
+        )
+        absent = bool(item.prior_absent)
+        if not code or year < 1900 or year > 2100:
+            raise ValueError(f"invalid series coordinate: {item!r}")
+        if absent and expected is not None:
+            raise ValueError("prior_absent=true requires a null prior logical digest")
+        if not absent and (
+            expected is None
+            or len(expected) != 64
+            or any(char not in "0123456789abcdef" for char in expected)
+        ):
+            raise ValueError(
+                "prior_absent=false requires a 64-hex prior logical digest"
+            )
+        key = (code, year)
+        if key in seen:
+            raise ValueError(f"duplicate series coordinate: {key!r}")
+        seen.add(key)
+        normalized.append(
+            SeriesCoordinateCAS(
+                instrument_code=code,
+                series_year=year,
+                expected_prior_logical_digest=expected,
+                prior_absent=absent,
+            )
+        )
+    normalized.sort(key=lambda item: item.key())
+    return tuple(normalized)
 
 
 def _object_coordinate_key(
@@ -329,6 +395,7 @@ class FakeMetricGenerationStore:
   latest_staging: dict[tuple[str, str], dict[str, Any]] = field(default_factory=dict)
   committed_snapshot_digest_by_set_date: dict[tuple[str, str], str] = field(default_factory=dict)
   committed_series_object_key_by_coord: dict[tuple[str, str, int], str] = field(default_factory=dict)
+  committed_series_digest_by_coord: dict[tuple[str, str, int], str] = field(default_factory=dict)
   committed_latest_observations: dict[tuple[str, str], dict[str, Any]] = field(default_factory=dict)
   identity_index: dict[tuple[str, ...], str] = field(default_factory=dict)
   _clock: datetime | None = None
@@ -345,6 +412,21 @@ class FakeMetricGenerationStore:
     source = request.source
     identity_key = source.key()
     profile = normalize_artifact_profile(request.artifact_profile)
+    mode = normalize_run_mode(source.mode)
+    series_coordinates = _normalize_series_coordinates(request.series_coordinates)
+    if profile == ArtifactProfile.SERIES_ONLY.value:
+      if mode not in {"series_seed", "series_repair"}:
+        raise GenerationConflictError(
+          "series_only profile requires series_seed or series_repair mode"
+        )
+      if not series_coordinates:
+        raise GenerationConflictError(
+          "series_only profile requires at least one series CAS coordinate"
+        )
+    elif series_coordinates:
+      raise GenerationConflictError(
+        "series CAS coordinates are only valid for series_only profile"
+      )
     now = self._now()
 
     existing_id = self.identity_index.get(identity_key)
@@ -371,7 +453,7 @@ class FakeMetricGenerationStore:
       "generation_id": generation_id,
       "metric_set_version_id": source.metric_set_version_id.strip().lower(),
       "trade_date": source.trade_date.strip(),
-      "mode": normalize_run_mode(source.mode),
+      "mode": mode,
       "artifact_profile": profile,
       "repository": source.repository.strip(),
       "workflow": source.workflow.strip(),
@@ -383,6 +465,8 @@ class FakeMetricGenerationStore:
       "expected_object_set_digest": request.expected_object_set_digest,
       "expected_latest_row_count": request.expected_latest_row_count,
       "expected_latest_set_digest": request.expected_latest_set_digest,
+      "series_coordinates": series_coordinates,
+      "request_id": request.request_id.strip() if request.request_id else None,
       "heartbeat_at": now,
       "created_at_utc": now,
       "committed_at_utc": None,
@@ -434,8 +518,42 @@ class FakeMetricGenerationStore:
     layer1_input_fingerprint: str | None = None,
   ) -> PendingObjectRecord:
     generation = self._require_pending_generation(generation_id)
+    kind = object_kind.strip().lower()
+    allowed_kinds = {
+      "snapshot",
+      "snapshot_manifest",
+      "series",
+      "series_manifest",
+      "series_seed_delta",
+      "series_repair_delta",
+    }
+    if kind not in allowed_kinds:
+      raise GenerationConflictError(f"unsupported derived object kind: {kind!r}")
+    if kind in {"snapshot", "snapshot_manifest"}:
+      valid_shape = trade_date is not None and instrument_code is None and series_year is None
+    elif kind in {"series", "series_manifest"}:
+      valid_shape = trade_date is None and instrument_code is not None and series_year is not None
+    else:
+      valid_shape = trade_date is not None and instrument_code is None and series_year is None
+    if not valid_shape:
+      raise GenerationConflictError(f"invalid object coordinate shape for {kind!r}")
+    profile = str(generation["artifact_profile"])
+    if profile == ArtifactProfile.SERIES_ONLY.value:
+      expected_delta = (
+        "series_seed_delta"
+        if generation["mode"] == "series_seed"
+        else "series_repair_delta"
+      )
+      if kind not in {"series", "series_manifest", expected_delta}:
+        raise GenerationConflictError(
+          f"series_only profile rejects object kind {kind!r}"
+        )
+    elif kind in {"series_seed_delta", "series_repair_delta"}:
+      raise GenerationConflictError(
+        f"profile {profile!r} rejects series delta object kind {kind!r}"
+      )
     coord = _object_coordinate_key(
-      object_kind=object_kind,
+      object_kind=kind,
       trade_date=trade_date,
       instrument_code=instrument_code,
       series_year=series_year,
@@ -461,7 +579,7 @@ class FakeMetricGenerationStore:
     row = {
       "object_id": object_id,
       "generation_id": generation_id,
-      "object_kind": object_kind.strip().lower(),
+      "object_kind": kind,
       "object_key": object_key.strip(),
       "logical_digest": logical_digest.strip().lower(),
       "byte_sha256": byte_sha256.strip().lower(),
@@ -473,6 +591,7 @@ class FakeMetricGenerationStore:
       "upload_verified_at": None,
       "status": "pending",
       "metric_set_version_id": generation["metric_set_version_id"],
+      "request_id": generation.get("request_id"),
     }
     self.pending_objects[object_id] = row
     return self._to_pending_object_record(row)
@@ -603,12 +722,25 @@ class FakeMetricGenerationStore:
     new_logical_digest: str,
     expected_old_digest: str | None = None,
   ) -> GenerationRecord:
-    generation = self._require_pending_generation(generation_id)
+    generation = self._require_generation(generation_id)
+    if generation["status"] == GenerationStatus.COMMITTED.value:
+      return self._to_generation_record(generation)
+    if generation["status"] != GenerationStatus.PENDING.value:
+      raise GenerationConflictError(
+        f"generation {generation_id!r} is not pending (status={generation['status']!r})"
+      )
     profile = str(generation["artifact_profile"])
     digest = new_logical_digest.strip().lower()
     set_id = str(generation["metric_set_version_id"])
     trade_date = str(generation["trade_date"])
 
+    declared_digest = generation.get("new_logical_digest")
+    if declared_digest is not None and str(declared_digest).strip().lower() != digest:
+      raise GenerationConflictError("new_logical_digest mismatch")
+    if profile == ArtifactProfile.SERIES_ONLY.value and expected_old_digest is not None:
+      raise GenerationConflictError(
+        "series_only profile rejects snapshot expected_old_digest"
+      )
     if expected_old_digest is not None:
       current = self.committed_snapshot_digest_by_set_date.get((set_id, trade_date))
       expected = expected_old_digest.strip().lower()
@@ -636,10 +768,54 @@ class FakeMetricGenerationStore:
 
     has_series = any(row["object_kind"] == "series" for row in objects)
     has_snapshot = any(row["object_kind"] == "snapshot" for row in objects)
+    object_kinds = {str(row["object_kind"]) for row in objects}
     if profile == ArtifactProfile.SNAPSHOT_ONLY.value and has_series:
       raise GenerationConflictError("snapshot_only profile rejects series objects")
     if profile in {ArtifactProfile.SNAPSHOT_SERIES.value, ArtifactProfile.SNAPSHOT_SERIES_LATEST.value} and not has_series:
       raise GenerationConflictError("series profile requires series objects")
+    if profile == ArtifactProfile.SERIES_ONLY.value:
+      if has_snapshot:
+        raise GenerationConflictError("series_only profile rejects snapshot objects")
+      if not has_series:
+        raise GenerationConflictError("series_only profile requires series objects")
+      expected_delta = (
+        "series_seed_delta"
+        if generation["mode"] == "series_seed"
+        else "series_repair_delta"
+      )
+      if object_kinds - {"series", "series_manifest", expected_delta}:
+        raise GenerationConflictError("series_only profile contains an invalid object kind")
+      delta_rows = [row for row in objects if row["object_kind"] == expected_delta]
+      if len(delta_rows) != 1:
+        raise GenerationConflictError("series_only profile requires exactly one delta object")
+      cas_coordinates = tuple(generation.get("series_coordinates") or ())
+      current_coordinates = {
+        (str(row["instrument_code"]), int(row["series_year"]))
+        for row in objects
+        if row["object_kind"] == "series"
+      }
+      manifest_coordinates = {
+        (str(row["instrument_code"]), int(row["series_year"]))
+        for row in objects
+        if row["object_kind"] == "series_manifest"
+      }
+      expected_coordinates = {item.key() for item in cas_coordinates}
+      if current_coordinates != expected_coordinates or manifest_coordinates != expected_coordinates:
+        raise GenerationConflictError(
+          "series_only objects do not match registered CAS coordinates"
+        )
+      for item in cas_coordinates:
+        coord = (set_id, item.instrument_code, item.series_year)
+        current_digest = self.committed_series_digest_by_coord.get(coord)
+        if item.prior_absent:
+          if current_digest is not None:
+            raise GenerationConflictError(
+              f"series CAS expected absent but coordinate exists: {item.key()!r}"
+            )
+        elif current_digest != item.expected_prior_logical_digest:
+          raise GenerationConflictError(
+            f"series CAS digest mismatch for coordinate {item.key()!r}"
+          )
     if profile != ArtifactProfile.SNAPSHOT_SERIES_LATEST.value and self._latest_rows(generation_id):
       raise GenerationConflictError("latest staging not allowed for profile")
     if profile == ArtifactProfile.SNAPSHOT_SERIES_LATEST.value and not has_snapshot:
@@ -669,6 +845,77 @@ class FakeMetricGenerationStore:
       if expected_latest is not None and actual_latest_digest != str(expected_latest).strip().lower():
         raise GenerationConflictError("expected_latest_set_digest mismatch")
 
+    for row in objects:
+      if row["object_kind"] not in {"series_seed_delta", "series_repair_delta"}:
+        continue
+      for prior in self.pending_objects.values():
+        if prior["generation_id"] == generation_id or prior.get("status") != "committed":
+          continue
+        if (
+          prior.get("request_id") == row.get("request_id")
+          and prior.get("trade_date") == row.get("trade_date")
+          and prior.get("object_kind") == row.get("object_kind")
+        ):
+          raise GenerationConflictError(
+            "committed delta already exists for request, trade_date, and kind"
+          )
+
+    if profile == ArtifactProfile.SERIES_ONLY.value:
+      for item in tuple(generation.get("series_coordinates") or ()):
+        if item.prior_absent:
+          continue
+        for prior in self.pending_objects.values():
+          if prior["generation_id"] == generation_id:
+            continue
+          if prior.get("metric_set_version_id") != set_id:
+            continue
+          if prior.get("status") != "committed":
+            continue
+          if prior.get("object_kind") not in {"series", "series_manifest"}:
+            continue
+          if (
+            prior.get("instrument_code") == item.instrument_code
+            and prior.get("series_year") == item.series_year
+          ):
+            prior["status"] = "superseded"
+    else:
+      for prior in self.pending_objects.values():
+        if prior["generation_id"] == generation_id:
+          continue
+        if prior.get("metric_set_version_id") != set_id:
+          continue
+        if prior["object_kind"] in {"snapshot", "snapshot_manifest"} and prior.get("trade_date") == trade_date:
+          if prior.get("status") == "committed":
+            prior["status"] = "orphan"
+        if prior["object_kind"] in {"series", "series_manifest"} and profile in {
+          ArtifactProfile.SNAPSHOT_SERIES.value,
+          ArtifactProfile.SNAPSHOT_SERIES_LATEST.value,
+        }:
+          if prior.get("status") == "committed":
+            matching = any(
+              cur["object_kind"] == "series"
+              and cur.get("instrument_code") == prior.get("instrument_code")
+              and cur.get("series_year") == prior.get("series_year")
+              for cur in objects
+            )
+            if matching:
+              prior["status"] = "orphan"
+
+    for row in objects:
+      if row["object_kind"] != "series":
+        continue
+      duplicate = any(
+        prior["generation_id"] != generation_id
+        and prior.get("status") == "committed"
+        and prior.get("object_kind") == "series"
+        and prior.get("metric_set_version_id") == set_id
+        and prior.get("instrument_code") == row.get("instrument_code")
+        and prior.get("series_year") == row.get("series_year")
+        for prior in self.pending_objects.values()
+      )
+      if duplicate:
+        raise GenerationConflictError("committed series coordinate already exists")
+
     now = self._now()
     generation["status"] = GenerationStatus.COMMITTED.value
     generation["new_logical_digest"] = digest
@@ -683,24 +930,7 @@ class FakeMetricGenerationStore:
           int(row["series_year"]),
         )
         self.committed_series_object_key_by_coord[coord] = str(row["object_key"])
-    for prior in self.pending_objects.values():
-      if prior["generation_id"] == generation_id:
-        continue
-      if prior.get("metric_set_version_id") != set_id:
-        continue
-      if prior["object_kind"] in {"snapshot", "snapshot_manifest"} and prior.get("trade_date") == trade_date:
-        if prior.get("status") == "committed":
-          prior["status"] = "orphan"
-      if prior["object_kind"] in {"series", "series_manifest"} and has_series:
-        if prior.get("status") == "committed":
-          matching = any(
-            cur["object_kind"] == "series"
-            and cur.get("instrument_code") == prior.get("instrument_code")
-            and cur.get("series_year") == prior.get("series_year")
-            for cur in objects
-          )
-          if matching:
-            prior["status"] = "orphan"
+        self.committed_series_digest_by_coord[coord] = str(row["logical_digest"])
     if has_snapshot:
       self.committed_snapshot_digest_by_set_date[(set_id, trade_date)] = digest
     for row in staging_rows:

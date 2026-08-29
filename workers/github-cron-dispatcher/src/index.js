@@ -1,4 +1,4 @@
-import { DAILY_WORKFLOW_FILE, MONTHLY_WORKFLOW_FILE, ROUTING_TABLE } from "./constants.js";
+import { DAILY_WORKFLOW_FILE, MNC_DISPATCH_WORKFLOW_FILE, MONTHLY_WORKFLOW_FILE, ROUTING_TABLE } from "./constants.js";
 import {
   dispatchWorkflow,
   logEvent,
@@ -24,6 +24,23 @@ export function isMonthlyDispatchEnabled(env, workflowId) {
     return true;
   }
   const raw = env.MONTHLY_DISPATCH_ENABLED;
+  if (raw === undefined || raw === "") {
+    return false;
+  }
+  return String(raw).trim().toLowerCase() === "true";
+}
+
+/**
+ * ADR-005 poller gate. Default false (unlike daily). Not isMonthlyDispatchEnabled.
+ * @param {Record<string, string | undefined>} env
+ * @param {string} workflowId
+ * @returns {boolean}
+ */
+export function isMncDispatchEnabled(env, workflowId) {
+  if (workflowId !== MNC_DISPATCH_WORKFLOW_FILE) {
+    return true;
+  }
+  const raw = env.MNC_DISPATCH_ENABLED;
   if (raw === undefined || raw === "") {
     return false;
   }
@@ -60,6 +77,18 @@ export async function handleScheduledCron(controller, env, fetchImpl = fetch) {
         cron,
         workflowId: target.workflowId,
         reason: "MONTHLY_DISPATCH_ENABLED_not_true",
+      });
+      results.push({ workflowId: target.workflowId, ok: true, skipped: true });
+      continue;
+    }
+
+    if (!isMncDispatchEnabled(env, target.workflowId)) {
+      logEvent({
+        level: "info",
+        event: "mnc_dispatch_skipped",
+        cron,
+        workflowId: target.workflowId,
+        reason: "MNC_DISPATCH_ENABLED_not_true",
       });
       results.push({ workflowId: target.workflowId, ok: true, skipped: true });
       continue;

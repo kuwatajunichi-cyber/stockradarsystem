@@ -453,7 +453,7 @@ jobs:
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
           set -euo pipefail
-          python scripts/storage/cache_bus_cli.py put-fixed \
+          python scripts/storage/cache_bus_cli.py put-immutable \
             --entry-id cache-index-store-zip-v1 \
             --local-path data/cache/index_store_archive/index_store.zip \
             --github-run-id "$GITHUB_RUN_ID" \
@@ -703,7 +703,7 @@ jobs:
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
           set -euo pipefail
-          python scripts/storage/cache_bus_cli.py put-fixed \
+          python scripts/storage/cache_bus_cli.py put-immutable \
             --entry-id cache-ohlc-store-zip-v2 \
             --local-path data/cache/ohlc_store_archive/ohlc_store.zip \
             --github-run-id "$GITHUB_RUN_ID" \

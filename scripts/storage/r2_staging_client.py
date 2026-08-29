@@ -100,6 +100,39 @@ class R2StagingAdapter:
         )
         return logical_key
 
+
+    def put_object_create_only(
+        self,
+        logical_key: str,
+        content: bytes,
+        *,
+        content_type: str = "application/octet-stream",
+    ) -> str:
+        """Create-only put (If-None-Match: *). Same bytes already present is a no-op success."""
+        key = self._physical_key(logical_key)
+        try:
+            self._get_client().put_object(
+                Bucket=self._bucket,
+                Key=key,
+                Body=content,
+                ContentType=content_type,
+                IfNoneMatch="*",
+            )
+        except Exception as exc:
+            code = ""
+            response = getattr(exc, "response", None)
+            if isinstance(response, dict):
+                code = str(response.get("Error", {}).get("Code", "") or "")
+            # botocore ClientError: PreconditionFailed / 412 when object exists
+            if code not in {"PreconditionFailed", "412"} and "PreconditionFailed" not in str(exc):
+                raise
+            existing = self.get_object(logical_key)
+            if existing != content:
+                raise RuntimeError(
+                    f"object already exists with different bytes: {logical_key!r}"
+                ) from exc
+        return logical_key
+
     def get_object(self, logical_key: str) -> bytes:
         key = self._physical_key(logical_key)
         resp = self._get_client().get_object(Bucket=self._bucket, Key=key)

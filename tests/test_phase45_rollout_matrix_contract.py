@@ -7,11 +7,13 @@ from stockradar.storage.phase4_5_rollout import (
     DerivedArtifact,
     PreflightResult,
     ResolveResult,
+    ResolvedMetricSet,
     SetResolutionContext,
     derived_active_cas_required,
     preflight_derived_write,
     prefix_for,
     resolve_metric_set_version_id,
+    validate_resolved_set_for_mode,
     write_allowed,
 )
 
@@ -154,3 +156,47 @@ def test_prefix_for_has_no_shadow_or_prod_tokens() -> None:
 @pytest.mark.parametrize("stage", STAGES)
 def test_derived_active_cas_required_always_false(stage: str) -> None:
     assert derived_active_cas_required(stage) is False
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("mode", ("series_seed", "series_repair"))
+def test_series_only_modes_write_active_series_only(mode: str) -> None:
+    active = ResolvedMetricSet(
+        metric_set_version_id=ACTIVE_SET,
+        lifecycle_status="active",
+        is_active=True,
+    )
+    ctx = SetResolutionContext(active_metric_set_id=ACTIVE_SET)
+    assert validate_resolved_set_for_mode(
+        stage="4.5c",
+        mode=mode,
+        resolved=active,
+        ctx=ctx,
+    )
+    assert write_allowed(
+        stage="4.5c",
+        mode=mode,
+        set_is_active=True,
+        set_lifecycle="active",
+        artifact=DerivedArtifact.SERIES,
+    )
+    assert write_allowed(
+        stage="4.5c",
+        mode=mode,
+        set_is_active=True,
+        set_lifecycle="active",
+        artifact=DerivedArtifact.GENERATION_INDEX,
+    )
+    for denied in (DerivedArtifact.SNAPSHOT, DerivedArtifact.LATEST):
+        assert not write_allowed(
+            stage="4.5c",
+            mode=mode,
+            set_is_active=True,
+            set_lifecycle="active",
+            artifact=denied,
+        )
+
+
+def test_daily_matrix_modes_do_not_include_series_only_workers() -> None:
+    assert "series_seed" not in MODES
+    assert "series_repair" not in MODES

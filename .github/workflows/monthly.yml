@@ -130,6 +130,7 @@ jobs:
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+          ADR005_METRIC_SET_VERSION_ID: ${{ secrets.ADR005_METRIC_SET_VERSION_ID }}
         run: |
           set -euo pipefail
           STAGING="data/output/staging/${{ steps.get_run_id.outputs.run_id }}"

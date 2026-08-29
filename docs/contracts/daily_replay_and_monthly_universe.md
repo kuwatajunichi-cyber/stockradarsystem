@@ -68,24 +68,24 @@ When patched cache is used:
 - **Run artifacts** (R2 `runs/daily/{run_id}/...`, Phase 2c+):
   - core CSV, core quality JSON, OHLC zip, index zip, indicators CSV, enriched CSV (optional)
 - **Warm caches** (Phase 3c: R2 `cache/` + Supabase `cache_pointers`; no `actions/cache`):
-  - OHLC: `cache-ohlc-store-zip-v2` — `ensure_core_cache` (`get-fixed` / `put-fixed`)
-  - Index: `cache-index-store-zip-v1` — `ensure_index_cache` (`get-fixed` / `put-fixed`)
+  - OHLC: `cache-ohlc-store-zip-v2` — `ensure_core_cache` (`get-fixed` / `put-immutable`)
+  - Index: `cache-index-store-zip-v1` — `ensure_index_cache` (`get-fixed` / `put-immutable`)
 - **`compute_indicators`**: consumes R2 handoff artifacts (plus optional stale exclusions). No warm cache write in this job.
-- **Replay**: `is_replay=true` skips warm cache **pointer update** (`put-fixed` / `put-patched` idempotent skip). R2 run staging handoff unchanged.
+- **Replay**: `is_replay=true` skips warm cache **pointer update** (`put-immutable` / `put-patched` idempotent skip). R2 run staging handoff unchanged.
 
 ### Phase 4.5 derived-series behavior
 
-- Normal run: committed daily derived snapshot から R2 Web series projection と Supabase latest projection を更新する（rollout 4.5c、active Path B。`live_gate_45c` は soak 未達のため open）。
+- Normal run: committed daily derived snapshot から R2 Web series projection と Supabase latest projection を更新する（rollout 4.5c、active Path B。`live_gate_45c` closed by user-authorized waiver 2026-08-29; continuous soak not claimed）。
 - Replay: run scope の派生計算・比較は許可するが、shared `derived-snapshots/`、`derived-series/`、Supabase latest projection、active metric set を更新しない。
 - Backfill: `draft` / `shadow` metric set のみ更新し、active set と latest projection を更新しない。
 - Reconcile: replay / backfill と別 entrypoint とし、expected old logical digest と変更理由を必須にする。
-- ADR-005 `series_seed` / `series_repair`: Proposed。未実装。replay は選択した `MONTHLY_TAG` に対応する `history_quality` を読む（artifact `history_quality.json`。正本は Supabase request 行。`core_selection.json` の `quality_tier` とは別軸）。
+- ADR-005 `series_seed` / `series_repair`: Adopted（docs）。実装は `adr005_gate_status.yaml` の `pr_gates`（local_only / in_progress）。replay は選択した `MONTHLY_TAG` に対応する `history_quality` を読む（artifact `history_quality.json`。正本は Supabase request 行。`core_selection.json` の `quality_tier` とは別軸）。feature_start 未設定の間は quality fail-closed しない。
 
 詳細は `docs/adr/adr-004-derived-indicators-warm-cache.md` および `docs/adr/adr-005-monthly-new-core-backfill.md` を参照する。
 
 ### Warm cache writes (Phase 3c)
 
-On a normal successful run, index + OHLC warm cache commits occur via `cache_bus_cli put-fixed` when incremental ensure jobs produce new zip bodies.  
+On a normal successful run, index + OHLC warm cache commits occur via `cache_bus_cli put-immutable` (pointer CAS) when incremental ensure jobs produce new zip bodies.  
 (`daily_universe_patch.yml` patched-cache write is a **separate** workflow.)
 
 ## Short-lived artifact cleanup

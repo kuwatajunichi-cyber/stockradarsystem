@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { DAILY_CRON, DAILY_WORKFLOW_FILE, MONTHLY_CRON, MONTHLY_WORKFLOW_FILE, UNIVERSE_PATCH_CRON, UNIVERSE_PATCH_WORKFLOW_FILE, ROUTING_TABLE } from "../src/constants.js";
+import { DAILY_CRON, DAILY_WORKFLOW_FILE, MONTHLY_CRON, MONTHLY_WORKFLOW_FILE, MNC_DISPATCH_CRON, MNC_DISPATCH_WORKFLOW_FILE, UNIVERSE_PATCH_CRON, UNIVERSE_PATCH_WORKFLOW_FILE, ROUTING_TABLE } from "../src/constants.js";
 import {
   buildDispatchBody,
   buildDispatchUrl,
@@ -22,17 +22,20 @@ describe("constants and wrangler cron alignment", () => {
     const wrangler = readFileSync(join(workerRoot, "wrangler.toml"), "utf8");
     assert.match(
       wrangler,
-      /crons\s*=\s*\["45 6 \* \* \*", "0 3 \* \* \*", "0 2 1 \* \*"\]/,
+      /crons\s*=\s*\["45 6 \* \* \*", "0 3 \* \* \*", "0 2 1 \* \*", "\*\/15 \* \* \* \*"\]/,
     );
   });
 
-  it("routing table registers daily, patch, and monthly workflows", () => {
+  it("routing table registers daily, patch, monthly, and mnc poller workflows", () => {
     assert.deepEqual(ROUTING_TABLE[DAILY_CRON], [{ workflowId: DAILY_WORKFLOW_FILE, inputs: {} }]);
     assert.deepEqual(ROUTING_TABLE[UNIVERSE_PATCH_CRON], [
       { workflowId: UNIVERSE_PATCH_WORKFLOW_FILE, inputs: {} },
     ]);
     assert.deepEqual(ROUTING_TABLE[MONTHLY_CRON], [{ workflowId: MONTHLY_WORKFLOW_FILE, inputs: {} }]);
-    assert.equal(Object.keys(ROUTING_TABLE).length, 3);
+    assert.deepEqual(ROUTING_TABLE[MNC_DISPATCH_CRON], [
+      { workflowId: MNC_DISPATCH_WORKFLOW_FILE, inputs: {} },
+    ]);
+    assert.equal(Object.keys(ROUTING_TABLE).length, 4);
   });
 });
 

@@ -2,10 +2,10 @@
 
 GitHub Issue: [#93](https://github.com/kuwatajunichi-cyber/stockradarsystem/issues/93)
 
-**改訂日:** 2026-08-22
+**改訂日:** 2026-08-29
 **SSOT:** 詳細正本。Issue #93 本文は要約 + リンク。
 
-設計根拠: [ADR-003](../adr/adr-003-r2-supabase-control-blob-split.md)、[ADR-004](../adr/adr-004-derived-indicators-warm-cache.md)。隣接 Proposed（Phase 4.5 完了ではない）: [ADR-005](../adr/adr-005-monthly-new-core-backfill.md)
+設計根拠: [ADR-003](../adr/adr-003-r2-supabase-control-blob-split.md)、[ADR-004](../adr/adr-004-derived-indicators-warm-cache.md)。隣接 Adopted（実装 in_progress）: [ADR-005](../adr/adr-005-monthly-new-core-backfill.md)
 
 ## フェーズ状態
 
@@ -14,10 +14,10 @@ GitHub Issue: [#93](https://github.com/kuwatajunichi-cyber/stockradarsystem/issu
 | 0-2c | 契約 / Cron / R2 artifact bus | 完了 |
 | 3c | warm cache + Supabase | **gate CLOSED** (2026-07-10) |
 | 4 | 月次 + publish + runs + Cron | **gate CLOSED** (2026-07-22) |
-| 4.5 | 派生指標時系列基盤 | **PR-45-1..4 merged・rollout 4.5c・Path B active・live_gate open（Path B soak 未達）・capacity_gate closed** |
+| 4.5 | 派生指標時系列基盤 | **PR-45-1..4 merged・rollout 4.5c・Path B active・live_gate closed (user-authorized waiver 2026-08-29)・capacity_gate closed** |
 | 5 | entitlements + observability | 計画 |
 
-Phase 3c gate CLOSED（runbook 記録済）。Issue #93 は Phase 4.5/5 が残るため **OPEN** 維持。残: Path B soak（live_gate_45c）と delisting effective-day gate（任意）。
+Phase 3c gate CLOSED（runbook 記録済）。Issue #93 は Phase 5 / ADR-005 実装が残るため **OPEN** 維持。Phase 4.5 gate は CLOSED（soak は waiver。連続 3 営業日達成とは書かない）。
 
 ## Phase 4 後監査と是正順序（2026-07-15）
 
@@ -30,7 +30,7 @@ Phase 3c gate CLOSED（runbook 記録済）。Issue #93 は Phase 4.5/5 が残�
 | **P2** | Phase 4.5 と同時 | bus CLI Fake test、daily publish/finalize 契約、storage mypy、migration baseline |
 | **P3** | Phase 5 | Auth/entitlement に基づく細粒度 RLS、API、heartbeat、distribution |
 
-P0 は現在の匿名変更可能性を遮断する防御であり、Phase 5 の利用者別認可とは分離する。P0 gate CLOSED（2026-07-16）。P1 gate CLOSED（2026-07-17）。preflight 5/5 closed。rollout 4.5c。Path B 13209d23 は 2026-08-22 に CAS で active。placeholder 11111111 は retired。live_gate_45c は Path B の post-CAS soak 未達のため open。capacity_gate は Path B v2 safety 1.20 で closed。
+P0 は現在の匿名変更可能性を遮断する防御であり、Phase 5 の利用者別認可とは分離する。P0 gate CLOSED（2026-07-16）。P1 gate CLOSED（2026-07-17）。preflight 5/5 closed。rollout 4.5c。Path B 13209d23 は 2026-08-22 に CAS で active。placeholder 11111111 は retired。live_gate_45c は 2026-08-29 の user-authorized waiver で closed（連続 soak 達成とは書かない。8/26 Cron miss）。capacity_gate は Path B v2 safety 1.20 で closed。Phase 4.5 gate CLOSED。
 
 ## Phase 4（2026-07-08 決定: 単体フェーズ）
 
@@ -62,7 +62,7 @@ Out: 派生 cache(4.5), auth(5), published/統一(5), cleanup Cron(5+)。
 4. ~~Supabase / R2 budget fixture~~ → closed（CI + Postgres 実測；full-scale R2 extrapolation は warn 超過 → 有料移行 gate 要検討）
 5. ~~Phase 4.5 gate SSOT~~ → closed
 
-**次ゲート:** live_gate_45c（Path B 13209d23 の post-CAS 3営業日 soak）。詳細: [phase4_5_cutover.md](phase4_5_cutover.md)。
+**次ゲート:** ADR-005 実装（Daily CAS → Monthly RPC → series_seed → poller）。Phase 4.5 live_gate_45c は waiver closed。詳細: [phase4_5_cutover.md](phase4_5_cutover.md)、[adr005_gate_status.yaml](adr005_gate_status.yaml)。
 
 推奨 rollout:
 
@@ -72,11 +72,11 @@ Out: 派生 cache(4.5), auth(5), published/統一(5), cleanup Cron(5+)。
 4. **4.5-3 registry / series shadow:** DDL、RLS、service-role-only RPC、active CAS、series / latest projection。
 5. **4.5-4 required / cutover:** backfill 比較、active CAS、budget monitoring、normal / replay / reconcile live 証拠、3営業日 soak。
 
-このため Phase 4.5 を completed / CLOSED と報告しない。Path B は active だが live_gate は soak 未達。
+Phase 4.5 gate は CLOSED（user-authorized waiver 2026-08-29）。連続 3 営業日 Path B soak 達成とは書かない（8/26 Cron miss）。Path B は active。
 
-## ADR-005（Monthly new-Core backfill、Proposed）
+## ADR-005（Monthly new-Core backfill、Adopted / 実装 in_progress）
 
-[ADR-005](../adr/adr-005-monthly-new-core-backfill.md) は、月次で Core に昇格した銘柄の OHLCV と active Web series を非同期補完する設計契約である。**未採択・未実装。** 上表の Phase 4.5 行および `live_gate_45c` は変えない。採択 docs の SSOT は [adr005_gate_status.yaml](adr005_gate_status.yaml)（`overall_status: proposed`）。
+[ADR-005](../adr/adr-005-monthly-new-core-backfill.md) は、月次で Core に昇格した銘柄の OHLCV と active Web series を非同期補完する設計契約である。**Adopted（2026-08-29）。** Phase 4.5 gate は closed。実装ゲート SSOT は [adr005_gate_status.yaml](adr005_gate_status.yaml)（`overall_status: in_progress`、`live_gate_005` は open）。
 
 ## Phase 5（entitlements / Web API / observability）
 
@@ -105,6 +105,7 @@ Worker deploy gate, migration 記録, artifact_index.created_at_utc, contract st
 2026-07-22 Phase 4 gate 監査是正（PR-4-2 merge CI 失敗記録・corrective evidence 追加）および P1 closed 反映。
 2026-07-22 Phase 4.5 を Free-first R2 / Supabase split に改訂。条件付き GO、実装未着手、preflight blocker を明記。
 2026-08-28 ADR-005 を隣接 Proposed として追記。Phase 4.5 テーブル行は不変。
+2026-08-29 Phase 4.5 live_gate_45c user-authorized waiver close。ADR-005 Adopted。Issue #93 は Phase 5 / ADR-005 実装のため OPEN。
 
 ## 決定事項（2026-07-08 追記）
 

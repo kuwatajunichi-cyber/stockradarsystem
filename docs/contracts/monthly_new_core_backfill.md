@@ -2,7 +2,7 @@
 
 ## Status
 
-Skeleton only. Implementation is unstarted. This is not a live operator runbook.
+ADR-005 **Adopted** (docs). Implementation is **local_only / unmerged** (`docs/operations/adr005_gate_status.yaml`). Not yet a production-enabled operator runbook (`feature_start` unset; `MNC_DISPATCH_ENABLED=false`).
 
 ## Split request (blocked added_codes or work_units)
 
@@ -17,8 +17,8 @@ Skeleton only. Implementation is unstarted. This is not a live operator runbook.
 
 - Owner: `docs/operations/adr005_gate_status.yaml` field `owner`
 - Do not add `actions: write` to `monthly.yml`
-- Live Layer 1 cache keys stay fixed-key until `pr-005-daily-cas`
-- Repair approver team may stay `repo-maintainers` until `pr-005-series-seed`
+- Live Layer 1 cache protocol is `immutable_pointer_cas` (`put-immutable` + pointer CAS) under `pr-005-daily-cas` (local_only until merge)
+- Repair approver team may stay `repo-maintainers` until `pr-005-series-seed` merges
 
 ## Related
 

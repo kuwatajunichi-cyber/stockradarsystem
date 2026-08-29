@@ -31,9 +31,14 @@ SERIES_MANIFEST_FIELD_ORDER: tuple[str, ...] = (
     "row_count",
     "metric_keys_ordered",
     "mode",
+    "provenance",
     "writer_workflow",
     "writer_version",
     "serialization",
+)
+
+VALID_SERIES_PROVENANCE: frozenset[str] = frozenset(
+    {"daily_normal", "series_seed", "series_repair"}
 )
 
 SERIES_SERIALIZATION: dict[str, Any] = {
@@ -112,11 +117,15 @@ def build_series_manifest_bytes(
     row_count: int,
     metric_keys_ordered: list[str],
     mode: str,
+    provenance: str,
     writer_version: str = DERIVED_WRITER_VERSION,
     serialization: dict[str, Any] | None = None,
 ) -> bytes:
+    prov = str(provenance or "").strip().lower()
+    if prov not in VALID_SERIES_PROVENANCE:
+        raise ValueError(f"series manifest provenance required; got {provenance!r}")
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "generation_id": generation_id.strip().lower(),
         "metric_set_version_id": metric_set_version_id.strip().lower(),
         "set_fingerprint": set_fingerprint.strip().lower(),
@@ -129,6 +138,7 @@ def build_series_manifest_bytes(
         "row_count": int(row_count),
         "metric_keys_ordered": list(metric_keys_ordered),
         "mode": str(mode).strip().lower(),
+        "provenance": prov,
         "writer_workflow": writer_workflow,
         "writer_version": writer_version,
         "serialization": dict(serialization or SERIES_SERIALIZATION),
@@ -203,3 +213,41 @@ def merge_trade_date_into_series(
         series[key] = prior_vals + [values.get(key)]
     flags = flags + [new_flags]
     return dates, series, flags
+
+
+def merge_missing_dates_only(
+    *,
+    trade_date: str,
+    metric_keys_ordered: list[str],
+    values: dict[str, Any],
+    metric_types: dict[str, str] | None = None,
+    instrument_code: str = "0000",
+    prior_dates: list[str] | None = None,
+    prior_series: dict[str, list[Any]] | None = None,
+    prior_flags: list[dict[str, Any]] | None = None,
+) -> tuple[list[str], dict[str, list[Any]], list[dict[str, Any]], bool]:
+    """Append trade_date only when absent. Never overwrite existing dates (seed).
+
+    Returns (dates, series, flags, wrote).
+    """
+    if prior_dates and trade_date in prior_dates:
+        dates = list(prior_dates)
+        series = {
+            key: list((prior_series or {}).get(key, [])) for key in metric_keys_ordered
+        }
+        flags = [
+            coerce_row_flags(item)
+            for item in (prior_flags or [empty_row_flags() for _ in prior_dates])
+        ]
+        return dates, series, flags, False
+    dates, series, flags = merge_trade_date_into_series(
+        trade_date=trade_date,
+        metric_keys_ordered=metric_keys_ordered,
+        values=values,
+        metric_types=metric_types,
+        instrument_code=instrument_code,
+        prior_dates=prior_dates,
+        prior_series=prior_series,
+        prior_flags=prior_flags,
+    )
+    return dates, series, flags, True

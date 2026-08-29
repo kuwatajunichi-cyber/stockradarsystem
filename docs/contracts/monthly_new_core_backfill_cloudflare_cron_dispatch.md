@@ -4,7 +4,7 @@
 
 Start the ADR-005 outbox poller on the same Cloudflare Worker Cron path as Daily / Monthly / patch. The Monthly workflow does not chain-dispatch the worker.
 
-**Status:** skeleton only. Worker / workflow files are unimplemented. Live `wrangler.toml` stays at 3 crons. Keep `MNC_DISPATCH_ENABLED=false` until ADR-005 section 10 step 6.
+**Status:** P4 implemented in-repo. Worker / workflow files exist. Live `wrangler.toml` has 4 crons. Keep `MNC_DISPATCH_ENABLED=false` until ADR-005 section 10 step 6 (9/1 morning enable + redeploy).
 
 ## Cron (Cloudflare Worker)
 

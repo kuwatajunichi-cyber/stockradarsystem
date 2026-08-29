@@ -20,6 +20,16 @@ from stockradar.storage.monthly_snapshot_manifest import (  # noqa: E402
     build_monthly_snapshot_manifest,
     serialize_monthly_snapshot_manifest,
 )
+from stockradar.storage.monthly_new_core import (  # noqa: E402
+    CommittedMonthlySnapshotRow,
+    build_request_id_v1,
+    canonical_json_sha256_v1,
+    codes_from_core_csv_bytes,
+    current_core_logical_digest,
+    decide_monthly_backfill_outcome,
+    previous_core_row_for_release_month,
+    expected_trade_dates_from_committed_snapshots,
+)
 from stockradar.storage.phase4_rollout import (  # noqa: E402
     monthly_dual_write_enabled,
     monthly_read_allows_github_fallback,
@@ -184,13 +194,109 @@ def cmd_commit_snapshot(args: argparse.Namespace) -> int:
         return 1 if fatal else 0
 
     try:
-        committed = supabase.commit_monthly_snapshot(snapshot_id=snapshot_id)
+        feature_start = supabase.get_adr005_feature_start_release_month()
+        release_month = str(snapshot_date).strip()[:7]
+        if not feature_start:
+            committed = supabase.commit_monthly_snapshot(snapshot_id=snapshot_id)
+            _emit(
+                {
+                    "status": "ok",
+                    "supabase_commit_ok": True,
+                    "monthly_snapshot_id": committed["id"],
+                    "monthly_tag": monthly_tag,
+                    "mnc_outcome": "deferred_feature_start_unset",
+                },
+                args.json_output,
+            )
+            return 0
+
+        metric_set_version_id = (
+            os.environ.get("ADR005_METRIC_SET_VERSION_ID", "").strip()
+            or os.environ.get("PHASE4_5_ACTIVE_METRIC_SET_VERSION_ID", "").strip()
+        )
+        if not metric_set_version_id:
+            raise RuntimeError("ADR005_METRIC_SET_VERSION_ID required when feature_start is set")
+
+        core_path = csv_specs["equity_domestic_core_with_name.csv"][0]
+        current_codes = codes_from_core_csv_bytes(core_path.read_bytes())
+        committed_rows_raw = supabase.list_committed_monthly_snapshot_rows()
+        committed_rows = [
+            CommittedMonthlySnapshotRow(
+                monthly_tag=str(r["monthly_tag"]),
+                snapshot_date=str(r["snapshot_date"]),
+                github_run_id=int(r["github_run_id"]),
+                object_keys=r.get("object_keys") or {},
+            )
+            for r in committed_rows_raw
+        ]
+        prev_row = previous_core_row_for_release_month(release_month, committed_rows)
+        previous_codes: list[str] | None = None
+        if prev_row is not None:
+            from stockradar.storage.monthly_new_core import core_object_key_from_row
+
+            prev_key = core_object_key_from_row(prev_row)
+            if not prev_key:
+                raise RuntimeError("previous core object_key missing")
+            previous_codes = codes_from_core_csv_bytes(_r2().get_object(prev_key))
+
+        expected_trade_dates: list[str] = []
+        expected_raw = os.environ.get("ADR005_EXPECTED_TRADE_DATES_JSON", "").strip()
+        if expected_raw:
+            expected_trade_dates = list(json.loads(expected_raw))
+        else:
+            expected_trade_dates = expected_trade_dates_from_committed_snapshots(
+                supabase.list_committed_derived_snapshot_trade_dates(
+                    metric_set_version_id=metric_set_version_id
+                )
+            )
+
+        decision = decide_monthly_backfill_outcome(
+            release_month=release_month,
+            feature_start_release_month=feature_start,
+            previous_row=prev_row,
+            current_codes=current_codes,
+            previous_codes=previous_codes,
+            expected_trade_dates=expected_trade_dates,
+        )
+        core_digest = current_core_logical_digest(current_codes)
+        added_list = list(decision.added_codes)
+        added_digest = canonical_json_sha256_v1(sorted(added_list))
+        dates_digest = canonical_json_sha256_v1(list(expected_trade_dates))
+        prev_tag = decision.previous_monthly_tag or ""
+        request_id = build_request_id_v1(
+            release_month=release_month,
+            previous_monthly_tag=prev_tag,
+            current_core_logical_digest_hex=core_digest,
+            metric_set_version_id=metric_set_version_id,
+            added_codes=added_list,
+        )
+        result = supabase.commit_monthly_snapshot_with_backfill_request(
+            snapshot_id=snapshot_id,
+            release_month=release_month,
+            request_id=request_id,
+            metric_set_version_id=metric_set_version_id,
+            previous_monthly_tag=decision.previous_monthly_tag,
+            current_core_logical_digest=core_digest,
+            added_codes=added_list,
+            added_codes_digest=added_digest,
+            partition_codes_digest=added_digest,
+            expected_trade_dates=expected_trade_dates,
+            expected_trade_dates_digest=dates_digest,
+            calendar_version=os.environ.get("ADR005_CALENDAR_VERSION", "jpx_calendar_v1").strip()
+            or "jpx_calendar_v1",
+            outcome=decision.outcome,
+            reason_code=decision.reason_code,
+        )
         _emit(
             {
                 "status": "ok",
                 "supabase_commit_ok": True,
-                "monthly_snapshot_id": committed["id"],
+                "monthly_snapshot_id": result.get("snapshot_id") or snapshot_id,
                 "monthly_tag": monthly_tag,
+                "mnc_outcome": decision.outcome,
+                "mnc_reason_code": decision.reason_code,
+                "mnc_request_id": result.get("request_id"),
+                "added_codes_count": len(added_list),
             },
             args.json_output,
         )
