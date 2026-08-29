@@ -1,0 +1,87 @@
+{
+  "recorded_at_utc": "2026-08-29T11:19:54.489759+00:00",
+  "r2_bucket": "stock-radar-system",
+  "r2_base_prefix": "stock-radar-system",
+  "r2_endpoint_host": "9bc0de3743f8ddac0056746233b77513.r2.cloudflarestorage.com",
+  "objects": {
+    "monthly/monthly-20260801-30679139304/equity_domestic_core_with_name.csv": {
+      "r2_key": "stock-radar-system/monthly/monthly-20260801-30679139304/equity_domestic_core_with_name.csv",
+      "exists": true,
+      "content_length": 588076,
+      "etag": "2347143899df0c1d850fd33099ac97d4",
+      "last_modified": "2026-08-01T02:15:56+00:00"
+    },
+    "cache/index-store-zip-v1/index_store.zip": {
+      "r2_key": "stock-radar-system/cache/index-store-zip-v1/index_store.zip",
+      "exists": true,
+      "content_length": 31161,
+      "etag": "621e1a4e2c7e7efede523fa1a1c21209",
+      "last_modified": "2026-08-28T06:49:00+00:00"
+    },
+    "cache/ohlc-store-zip-v2/ohlc_store.zip": {
+      "r2_key": "stock-radar-system/cache/ohlc-store-zip-v2/ohlc_store.zip",
+      "exists": true,
+      "content_length": 33547021,
+      "etag": "cf7baba84d44fdd76a692d3d6187743c",
+      "last_modified": "2026-08-28T06:58:47+00:00"
+    },
+    "cache/jpx-url/jpx_latest_url.txt": {
+      "r2_key": "stock-radar-system/cache/jpx-url/jpx_latest_url.txt",
+      "exists": true,
+      "content_length": 86,
+      "etag": "6b6e7aeecfbe92f675ccaa891fcc8a00",
+      "last_modified": "2026-07-14T15:05:47+00:00"
+    }
+  },
+  "prefix_samples": {
+    "monthly/": [
+      "stock-radar-system/monthly/monthly-20260714-29321881966/equity_domestic_core_with_name.csv",
+      "stock-radar-system/monthly/monthly-20260714-29321881966/equity_domestic_illiquid_with_name.csv",
+      "stock-radar-system/monthly/monthly-20260714-29321881966/equity_domestic_ipo_with_name.csv",
+      "stock-radar-system/monthly/monthly-20260714-29321881966/manifest.json",
+      "stock-radar-system/monthly/monthly-20260715-29341370858/equity_domestic_core_with_name.csv"
+    ],
+    "cache/": [
+      "stock-radar-system/cache/index-store-zip-v1/index_store.zip",
+      "stock-radar-system/cache/jpx-url/jpx_latest_url.txt",
+      "stock-radar-system/cache/ohlc-store-zip-v2/ohlc_store.zip",
+      "stock-radar-system/cache/universe-patched/monthly-20260701-28498165785/2026-07-07/equity_domestic_core_with_name.csv",
+      "stock-radar-system/cache/universe-patched/monthly-20260701-28498165785/2026-07-07/manifest.json"
+    ]
+  },
+  "supabase": {
+    "august_core": {
+      "monthly_tag": "monthly-20260801-30679139304",
+      "snapshot_date": "2026-08-01",
+      "status": "committed",
+      "core_object_key": "monthly/monthly-20260801-30679139304/equity_domestic_core_with_name.csv"
+    },
+    "cache_pointers_pre_cas": true,
+    "adr005_runtime_config": {
+      "feature_start_release_month": null,
+      "bootstrap_complete": false
+    },
+    "migrations_applied": [
+      "20260829120000_adr005_monthly_new_core",
+      "20260829120100_adr005_monthly_commit_rpc",
+      "20260829120200_adr005_series_seed_progress"
+    ]
+  },
+  "worker_deploy": {
+    "name": "github-cron-dispatcher",
+    "version_id": "cc9a7e8c-10f6-44e5-82f0-21a286598aa3",
+    "mnc_dispatch_enabled": false,
+    "crons": [
+      "45 6 * * *",
+      "0 3 * * *",
+      "0 2 1 * *",
+      "*/15 * * * *"
+    ],
+    "note": "Deployed from local tree; origin/main also has 4 crons (no hourly watchdog in wrangler.toml on main)."
+  },
+  "notes": [
+    "August Core exists in R2 under R2_BASE_PREFIX",
+    "cache_pointers still fixed-key (pre put-immutable CAS canary)",
+    "feature_start remains null; MNC_DISPATCH_ENABLED=false"
+  ]
+}
