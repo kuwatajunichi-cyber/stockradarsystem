@@ -8,7 +8,7 @@ from typing import Any, Final, Mapping
 
 VALID_PHASE4_5_STAGES: Final[frozenset[str]] = frozenset({"off", "4.5a", "4.5b", "4.5c"})
 
-RunMode = str  # normal | replay | backfill | reconcile
+RunMode = str  # normal | replay | backfill | reconcile | series_seed | series_repair
 
 
 class DerivedArtifact(str, Enum):
@@ -61,7 +61,14 @@ def normalize_phase4_5_rollout_stage(raw: str | None) -> str:
 
 def normalize_run_mode(raw: str | None) -> RunMode:
     mode = (raw or "normal").strip().lower()
-    if mode not in {"normal", "replay", "backfill", "reconcile"}:
+    if mode not in {
+        "normal",
+        "replay",
+        "backfill",
+        "reconcile",
+        "series_seed",
+        "series_repair",
+    }:
         raise ValueError(f"invalid run mode: {raw!r}")
     return mode
 
@@ -74,6 +81,12 @@ def preflight_derived_write(stage: str, mode: RunMode) -> PreflightResult:
         return PreflightResult.SKIP0
     if normalized_mode == "replay":
         return PreflightResult.SKIP0
+    if normalized_mode in {"series_seed", "series_repair"}:
+        return (
+            PreflightResult.CONTINUE
+            if normalized_stage == "4.5c"
+            else PreflightResult.EXIT2
+        )
     if normalized_mode == "reconcile" and normalized_stage in {"4.5a", "4.5b"}:
         return PreflightResult.EXIT2
     return PreflightResult.CONTINUE
@@ -116,6 +129,13 @@ def resolve_metric_set_version_id(
         if not active:
             return ResolveResult.EXIT2, None
         return ResolveResult.RESOLVE_ACTIVE, active
+    if normalized_mode in {"series_seed", "series_repair"}:
+        if normalized_stage != "4.5c":
+            return ResolveResult.EXIT2, None
+        active = context.active_metric_set_id
+        if not active:
+            return ResolveResult.EXIT2, None
+        return ResolveResult.RESOLVE_ACTIVE, active
     # rule 5
     if normalized_mode == "reconcile":
         if normalized_stage != "4.5c":
@@ -138,6 +158,12 @@ def validate_resolved_set_for_mode(
     lifecycle = resolved.lifecycle_status
     active_id = context.active_metric_set_id
 
+    if normalized_mode in {"series_seed", "series_repair"}:
+        if normalized_stage != "4.5c":
+            return False
+        if active_id and resolved.metric_set_version_id != active_id:
+            return False
+        return lifecycle == "active" and resolved.is_active
     if normalized_mode == "reconcile":
         if normalized_stage != "4.5c":
             return False
@@ -172,6 +198,14 @@ def write_allowed(
 
     shadow_ok = lifecycle == "shadow" and not set_is_active
     active_ok = lifecycle == "active" and set_is_active
+
+    if normalized_mode in {"series_seed", "series_repair"}:
+        if normalized_stage != "4.5c" or not active_ok:
+            return False
+        return art in {
+            DerivedArtifact.SERIES,
+            DerivedArtifact.GENERATION_INDEX,
+        }
 
     if normalized_mode == "backfill":
         if not shadow_ok:

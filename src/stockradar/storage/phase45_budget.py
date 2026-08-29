@@ -70,6 +70,8 @@ class BudgetProjectionInputs:
     layer1_r2_bytes: int = 0
     catalog: str = DEFAULT_PATH_B_CATALOG
     path: str = "B"
+    layer1_immutable_generations_retained: int = 3
+    derived_series_superseded_days: int = 3
 
 
 @dataclass(frozen=True)
@@ -355,6 +357,7 @@ def build_path_b_projection_inputs(
             row_count=1,
             metric_keys_ordered=[f"metric_{i:02d}" for i in range(metrics)],
             mode="normal",
+            provenance="daily_normal",
         )
     )
     layer1 = 0

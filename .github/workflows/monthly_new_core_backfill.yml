@@ -1,0 +1,61 @@
+name: Monthly New-Core Backfill Worker
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: MNC request id
+        required: true
+        type: string
+      outbox_id:
+        description: Outbox row id
+        required: false
+        type: string
+      fencing_token:
+        description: Outbox fencing token
+        required: false
+        type: string
+
+concurrency:
+  group: mnc-${{ inputs.request_id }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  series_seed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run series_seed request
+        env:
+          PYTHONPATH: src:.
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          ADR005_METRIC_SET_VERSION_ID: ${{ secrets.ADR005_METRIC_SET_VERSION_ID }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        run: |
+          set -euo pipefail
+          python scripts/storage/mnc_worker_cli.py run-request \
+            --request-id "${{ inputs.request_id }}" \
+            --outbox-id "${{ inputs.outbox_id }}" \
+            --fencing-token "${{ inputs.fencing_token }}" \
+            --github-run-id "${{ github.run_id }}" \
+            --github-actor "${{ github.actor }}"

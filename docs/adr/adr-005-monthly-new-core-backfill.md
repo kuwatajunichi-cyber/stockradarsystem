@@ -2,11 +2,11 @@
 
 ## 状態
 
-**保留（Proposed amendment, 2026-08-28）。第 5 次 Grok 単体は承認（残 MUST なし）。人間レビューと docs PR マージまで Adopted にしない。実装は未着手。**
+**Adopted（2026-08-29）。** 人間レビュー承認と同一 docs PR（`pr-005-docs-adoption`）で採択条件 1–8 を満たす。Phase 4.5 `live_gate_45c` はユーザー承認の waiver で closed（連続 3 営業日 soak 達成とは書かない）。実装ゲートは [adr005_gate_status.yaml](../operations/adr005_gate_status.yaml)（`overall_status: in_progress`）。
 
 本 ADR は Issue #93 の運用ギャップ（月次で Core に昇格した銘柄の履歴が Daily / Phase 4.5 series に自動で載らない）を解消する設計契約である。2026-08-24 採択版、2026-08-25 改定、2026-08-27 第 1 次・第 2 次再レビュー、同日第 3 次再レビュー（canonical 全順序、partition identity、§6 `planned_*`、outbox 原子性、catalog fingerprint、Daily skip と `expected_object_count`、`feature_start` SSOT）を反映する。
 
-コード・workflow・`phase4_5_gate_status.yaml` の更新は実装 PR で行う。本文書の採択またはローカル実装を Phase 4.5 / Issue #93 の完了とみなさない。
+コード・workflow の更新は実装 PR（`pr-005-daily-cas` 以降を含む本バッチ）で行う。docs 採択単体を Phase 4.5 / Issue #93 の完了とみなさない（Phase 4.5 gate の close は別途の live-gate waiver）。Issue #93 は Phase 5 が残るため OPEN。
 
 ### 採択条件（同一 docs PR。ここが唯一の一覧）
 
@@ -15,26 +15,24 @@
 3. ADR-003 の R2 holds に `derived-inputs/` を追加。
 4. `docs/contracts/exit_codes.md`（下記 entrypoint）。
 5. `docs/contracts/daily_replay_and_monthly_universe.md`（選択 `MONTHLY_TAG` の `history_quality`、Phase 4.5「未実装」記述の是正、`canonical_release_for_month` と `pick_monthly_release` の混同禁止）。
-6. mapping YAML の `schema_version` bump、トップレベル `adr005`、cache エントリの `planned_writer_workflows` / `planned_target_r2_key_pattern` / `planned_retention_policy`、および mapping 契約。**live の `writer_workflow` / `target_r2_key_pattern` / `retention_policy` は本 docs PR では変えない**（content-addressed 切替は独立 PR `pr-005-daily-cas`）。YAML の `feature_start_release_month` は mirror。正本は DB（§4）。
-7. `docs/operations/adr005_gate_status.yaml` の schema 固定（全 gate open、owner team slug を空にしない。未決定なら `status: proposed` と `owner: repo-maintainers`）。
+6. mapping YAML の `schema_version` bump、トップレベル `adr005`、cache エントリの `planned_*`、および mapping 契約。**live Layer 1 は `immutable_pointer_cas`（`target_r2_key_pattern` = sha256 objects）** — `pr-005-daily-cas` は同一実装バッチの local_only（未マージ）で docs 採択と同梱してよい。`adr005.status: proposed` は feature_start unset（未 enable）であり fixed-key を意味しない。YAML の `feature_start_release_month` は mirror。正本は DB（§4）。
+7. `docs/operations/adr005_gate_status.yaml` の schema 固定（owner team slug を空にしない。採択後は `status: in_progress` と `owner: repo-maintainers`）。
 8. 新規 cron 契約 `docs/contracts/monthly_new_core_backfill_cloudflare_cron_dispatch.md` の骨格（実装 PR で Worker 差分を埋める）。
 
-### 採択条件の進捗（未採択のまま）
-
-人間レビュー通過と docs PR マージまでは **Adopted にしない**。実装・workflow・`phase4_5_gate_status.yaml` の close は対象外。
+### 採択条件の進捗（Adopted）
 
 | # | 進捗 |
 |---|------|
-| 1 | **Grok 単体承認**（2026-08-28、残 MUST なし）。人間レビュー未了のため Adopted にしない |
-| 2 | ローカル同期済み（ADR-004）。未マージ |
-| 3 | ローカル同期済み（ADR-003 `derived-inputs/`）。未マージ |
-| 4 | ローカル同期済み（`exit_codes.md`）。未マージ |
-| 5 | ローカル同期済み（`daily_replay_and_monthly_universe.md`）。未マージ |
-| 6 | ローカル同期済み（mapping YAML `schema_version: 6`、`adr005` ブロック、`planned_*`、mapping 契約）。**live の `target_r2_key_pattern` は fixed-key のまま**（content-addressed 切替は独立 PR `pr-005-daily-cas`） |
-| 7 | ローカル作成済み（`docs/operations/adr005_gate_status.yaml`。`overall_status: proposed`、`owner: repo-maintainers`）。未マージ |
-| 8 | ローカル作成済み（cron 骨格 + 分割 runbook 骨格）。Worker / `wrangler.toml` は未変更 |
+| 1 | **Adopted**（2026-08-29。Grok 単体承認 + 人間レビュー / docs PR） |
+| 2 | 同期済み（ADR-004） |
+| 3 | 同期済み（ADR-003 `derived-inputs/`） |
+| 4 | 同期済み（`exit_codes.md`） |
+| 5 | 同期済み（`daily_replay_and_monthly_universe.md`） |
+| 6 | 同期済み（mapping YAML `schema_version: 6`、`adr005` ブロック、`planned_*`、mapping 契約）。**live の Layer 1 は既に `immutable_pointer_cas`（sha256 objects）** — `pr-005-daily-cas` は本バッチ local_only（未マージ）。`adr005.status: proposed` は feature_start unset（未 enable）であり fixed-key を意味しない |
+| 7 | 同期済み（`docs/operations/adr005_gate_status.yaml`。`overall_status: in_progress`、`owner: repo-maintainers`） |
+| 8 | 同期済み（cron 骨格 + 分割 runbook 骨格）。Worker / `wrangler.toml` は実装 PR |
 
-`pr-005-docs-adoption` は `local_only`。本表を採択または Phase 4.5 CLOSED の証拠にしない。
+`pr-005-docs-adoption` は `local_only` から merge 後に `merged_and_verified` へ更新する。
 
 ## 改定履歴
 
@@ -47,6 +45,7 @@
 | 2026-08-28 | 採択条件 2–8 の docs 同期（未採択・未マージ） |
 | 2026-08-28 | 第 4 次 Grok MUST（loser 行形の一意化、cron 契約の欠走検知と UTF-8） |
 | 2026-08-28 | 第 5 次: フロー / §2 / runbook / 降格 / §11 を §1.2 に揃える。続けて §1.1 分岐・winner 限定 fail-fast・§11 降格テスト。Grok 単体承認。未採択 |
+| 2026-08-29 | Adopted。live_gate_45c user-authorized waiver close と同梱。実装は in_progress |
 
 ## 用語
 
@@ -502,19 +501,19 @@ stateful 再開: その code の前日 committed series。無ければ `coverage
 
 ### 6. Layer 1 補完契約
 
-固定 key 上書き後の pointer CAS は禁止。Daily と worker を同時に新 protocol へ（片側禁止）。Daily CAS 切替は **独立 PR gate**（`pr-005-daily-cas`）。本機能の Monthly RPC より先。45c soak 中に Daily writer を置き換えない。
+固定 key 上書き後の pointer CAS は禁止。Daily と MNC worker は同一 `immutable_pointer_cas` protocol を共有する（片側だけ旧 fixed-key に戻さない）。Daily CAS 切替は PR gate `pr-005-daily-cas`（本バッチ local_only / 未マージ）。本機能の Monthly RPC より先にマージする前提。
 
 1. pointer から key / sha / logical digest / version を読む。`cache_pointers` に version 列が無ければ migration で足す。
 2. cache-key lease。失敗は `failed_retryable`。
 3. `added_codes` と benchmarks を `required_input_schedule` まで確保。
 4. span が 400 暦日超または 252 営業日超なら long-history 必須。PoC モジュールを本番へ上げ、bounded `[start, end]` を足す。`period_for_required_days` の `2y` と `min(400,…)` をこの worker で使わない。不足は `benchmark_or_warmup_insufficient`。
-5. `cache/{kind}/objects/sha256={object_sha256}.zip` へ create-only（**`pr-005-daily-cas` 以降**。それまで live は固定 key）。
+5. `cache/{kind}/objects/sha256={object_sha256}.zip` へ create-only（live mapping 正本。`pr-005-daily-cas`）。
 6. pointer CAS。失敗時 pointer 不変。未参照 object は orphan として 7 日保持。
 7. `_manifest.jsonl` のみ更新。universe manifest と混ぜない。
 
-mapping **live**（本 docs PR / 採択 docs では維持）: `writer_workflow: daily.yml`、`target_r2_key_pattern: cache/{kind}/..._store.zip`、`retention_policy: warm_cache_rotate_delete_before_save; replay_no_save`。
+mapping **live**（`pr-005-daily-cas` local_only 同梱。YAML 正本）: `writer_workflow: daily.yml`、`target_r2_key_pattern: cache/{kind}/objects/sha256={object_sha256}.zip`、`retention_policy: warm_cache_immutable_pointer_cas`。
 
-mapping **planned**（`pr-005-daily-cas` で live に昇格）: `planned_writer_workflows: [daily.yml, monthly_new_core_backfill.yml]`、`planned_target_r2_key_pattern: cache/{kind}/objects/sha256={object_sha256}.zip`、`planned_retention_policy: warm_cache_immutable_pointer_cas`。`scan_workflows` へ未作成 workflow を足さない。テストは YAML から生成し、タプルの二重定義をやめる。
+mapping **planned**（worker 昇格用。live と同型）: `planned_writer_workflows: [daily.yml, monthly_new_core_backfill.yml]`、`planned_target_r2_key_pattern` / `planned_retention_policy` は live と同値。`scan_workflows` へ未作成 workflow を足さない。テストは YAML から生成し、タプルの二重定義をやめる。
 
 #### 6.1 retention（単一指標）
 

@@ -5,7 +5,7 @@
 
 ## スコープ
 
-Phase 4.5 の cutover / live gate 運用。preflight blocker（4.5-0）は closed。実装 PR-45-1..4 と rollout 4.5c は main 済み。残ゲートは **live_gate_45c**（Path B 13209d23 は active、post-CAS 3営業日 soak 未達のため open）。capacity_gate は Path B v2 safety 1.20 で closed。
+Phase 4.5 の cutover / live gate 運用。preflight blocker（4.5-0）は closed。実装 PR-45-1..4 と rollout 4.5c は main 済み。**live_gate_45c は user-authorized waiver（2026-08-29）で closed**（Path B 13209d23 active。continuous 3営業日 soak は達成と書かない。8/26 Cron miss）。capacity_gate は Path B v2 safety 1.20 で closed。正本は `phase4_5_gate_status.yaml`。
 
 ## 前提
 
@@ -36,7 +36,7 @@ Phase 4 gate SSOT（phase4_gate_status.yaml）は変更しない。
 
 ## Live gate 4.5c
 
-live_gate_45c を close するには、以下の live run 証拠 URL と **3 営業日 soak**（soak_run_urls）が必要。進捗正本は gate_status。
+live_gate_45c は waiver で closed 済み。以下は close 時に要求された証拠の説明（履歴）。進捗正本は gate_status。
 
 | 証拠キー | 意味 |
 |----------|------|
@@ -45,14 +45,14 @@ ormal_daily_success_run_url | rollout 4.5c + mode
 ormal で daily 成功 |
 | 
 eplay_no_shared_mutation_run_url | replay が derived shared 状態を更新しない |
-| ackfill_shadow_only_run_url | backfill が shadow のみ更新 |
+| ackfill_shadow_only_run_url | backfill が shadow のみ更新 |
 | 
 econcile_isolated_run_url | reconcile 専用 entrypoint で isolated 訂正 |
 
-**現状（live_gate_45c open / Path B active）:**
+**現状（live_gate_45c closed via waiver / Path B active）:**
 
 - mapping phase4_5_rollout_stage: "4.5c"。daily.yml derived writer は本番書込中
-- normal / replay / backfill / reconcile の live URL は gate_status に記録済み。soak_run_urls の 3 URL は **CAS 前の placeholder active set** の daily であり、Path B soak には使えない。live_gate は open 維持
+- normal / replay / backfill / reconcile の live URL は gate_status に記録済み。soak_run_urls の 3 URL は **CAS 前の placeholder active set** の daily であり、Path B soak には使えない。live_gate はその後 waiver で closed（本節は履歴）
 - 4.5a/4.5b は mapping phase4_5_shadow_metric_set_version_id が必須（Fake store 禁止）
 - 本番 Supabase **004〜010** DDL apply 済み（007 CAS + 008 batch RPCs + 009 manifest kinds / commit expected_* + 010 commit statement_timeout 180s）。証拠: [phase45_production_ddl_applied.json](evidence/phase45_production_ddl_applied.json)、[phase45_migration_009_applied_2026-08-17.json](evidence/phase45_migration_009_applied_2026-08-17.json)、[phase45_migration_010_applied_2026-08-18.json](evidence/phase45_migration_010_applied_2026-08-18.json)
 - Path B catalog は 2026-08-22 に CAS で activate 済み（13209d23-ded6-482d-be08-7da6062013c0）。placeholder 11111111 は retired。証拠: [phase45_aclive_cas_2026-08-22.json](evidence/phase45_aclive_cas_2026-08-22.json)
@@ -72,7 +72,7 @@ econcile_isolated_run_url | reconcile 専用 entrypoint で isolated 訂正 |
 
 ### 失敗後の再実行（重要）
 
-チャンク途中失敗時は ail_generation する（部分 commit なし）。egin_derived_generation は同一 github_run_id の failed を REJECT する。
+チャンク途中失敗時は ail_generation する（部分 commit なし）。egin_derived_generation は同一 github_run_id の failed を REJECT する。
 
 - **GitHub Actions の Re-run（同一 run id）では回復できない。**
 - 失敗後は **新規 workflow run**（workflow_dispatch または翌営業日の schedule）が必要。

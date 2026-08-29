@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { handleScheduledCron, isMonthlyDispatchEnabled, resolveTargetsForCron } from "../src/index.js";
+import { handleScheduledCron, isMonthlyDispatchEnabled, isMncDispatchEnabled, resolveTargetsForCron } from "../src/index.js";
 import {
   DAILY_CRON,
   DAILY_WORKFLOW_FILE,
   MONTHLY_CRON,
   MONTHLY_WORKFLOW_FILE,
+  MNC_DISPATCH_CRON,
+  MNC_DISPATCH_WORKFLOW_FILE,
   UNIVERSE_PATCH_CRON,
   UNIVERSE_PATCH_WORKFLOW_FILE,
 } from "../src/constants.js";
@@ -28,6 +30,11 @@ describe("resolveTargetsForCron", () => {
   it("returns monthly.yml for MONTHLY_CRON", () => {
     const targets = resolveTargetsForCron(MONTHLY_CRON);
     assert.deepEqual(targets, [{ workflowId: MONTHLY_WORKFLOW_FILE, inputs: {} }]);
+  });
+
+  it("returns monthly_new_core_backfill_dispatch.yml for MNC_DISPATCH_CRON", () => {
+    const targets = resolveTargetsForCron(MNC_DISPATCH_CRON);
+    assert.deepEqual(targets, [{ workflowId: MNC_DISPATCH_WORKFLOW_FILE, inputs: {} }]);
   });
 });
 
@@ -54,6 +61,23 @@ describe("isMonthlyDispatchEnabled", () => {
 
   it("is always true for daily workflow", () => {
     assert.equal(isMonthlyDispatchEnabled({}, DAILY_WORKFLOW_FILE), true);
+  });
+});
+
+describe("isMncDispatchEnabled", () => {
+  it("defaults to false for poller workflow", () => {
+    assert.equal(isMncDispatchEnabled({}, MNC_DISPATCH_WORKFLOW_FILE), false);
+  });
+
+  it("is true when MNC_DISPATCH_ENABLED=true", () => {
+    assert.equal(
+      isMncDispatchEnabled({ MNC_DISPATCH_ENABLED: "true" }, MNC_DISPATCH_WORKFLOW_FILE),
+      true,
+    );
+  });
+
+  it("is always true for daily workflow", () => {
+    assert.equal(isMncDispatchEnabled({}, DAILY_WORKFLOW_FILE), true);
   });
 });
 
@@ -145,5 +169,29 @@ describe("handleScheduledCron", () => {
     );
     assert.equal(result.ok, true);
     assert.match(capturedUrl, /monthly\.yml/);
+  });
+
+  it("skips mnc poller dispatch when MNC_DISPATCH_ENABLED is false", async () => {
+    let called = false;
+    const result = await handleScheduledCron({ cron: MNC_DISPATCH_CRON }, env, async () => {
+      called = true;
+      return { status: 204, ok: true, text: async () => "" };
+    });
+    assert.equal(result.ok, true);
+    assert.equal(called, false);
+  });
+
+  it("dispatches mnc poller when MNC_DISPATCH_ENABLED=true", async () => {
+    let capturedUrl = "";
+    const result = await handleScheduledCron(
+      { cron: MNC_DISPATCH_CRON },
+      { ...env, MNC_DISPATCH_ENABLED: "true" },
+      async (url) => {
+        capturedUrl = String(url);
+        return { status: 204, ok: true, text: async () => "" };
+      },
+    );
+    assert.equal(result.ok, true);
+    assert.match(capturedUrl, /monthly_new_core_backfill_dispatch\.yml/);
   });
 });

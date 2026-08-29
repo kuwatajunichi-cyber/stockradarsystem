@@ -46,9 +46,15 @@ def test_gate_schema_v2_minimum_on_real_yaml() -> None:
 @pytest.mark.unit
 def test_in_progress_gate_yaml_forbids_false_closed_claims() -> None:
     data = _load_gate_status()
-    assert data.get("overall_status") == "in_progress"
+    # Real SSOT may be closed with evidence; either way forbidden-completion must be empty.
+    assert data.get("overall_status") in {"in_progress", "closed"}
     violations = validate_forbidden_completion_without_evidence(data)
     assert violations == [], "\n".join(violations)
+    if data.get("overall_status") == "closed":
+        live = data.get("live_gate_45c") or {}
+        assert live.get("status") == "closed"
+        soak = live.get("soak_run_urls") or []
+        assert isinstance(soak, list) and len(soak) >= 3
 
 
 @pytest.mark.unit
@@ -79,3 +85,15 @@ def test_closed_overall_requires_live_and_capacity_evidence() -> None:
     closed2["capacity_gate"] = capacity
     violations2 = validate_forbidden_completion_without_evidence(closed2)
     assert any("capacity_gate closed" in v for v in violations2)
+
+
+@pytest.mark.unit
+def test_live_open_mutation_still_rejects_false_closed_overall() -> None:
+    data = _load_gate_status()
+    mutated = dict(data)
+    mutated["overall_status"] = "closed"
+    live = dict(mutated.get("live_gate_45c") or {})
+    live["status"] = "open"
+    mutated["live_gate_45c"] = live
+    violations = validate_forbidden_completion_without_evidence(mutated)
+    assert any("live_gate_45c closed" in v for v in violations)

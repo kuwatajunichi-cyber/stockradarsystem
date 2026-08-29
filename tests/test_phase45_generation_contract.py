@@ -11,8 +11,10 @@ from stockradar.storage.derived_generation import (
     FakeMetricGenerationStore,
     GenerationConflictError,
     GenerationStatus,
+    SeriesCoordinateCAS,
     SourceRunIdentity,
     compute_object_set_digest,
+    expected_derived_object_count,
     profile_allows_latest,
     profile_allows_series,
     resolve_artifact_profile,
@@ -29,11 +31,11 @@ DIGEST_B = "b" * 64
 SHA = "c" * 64
 
 
-def _source(*, mode: str = "normal") -> SourceRunIdentity:
+def _source(*, mode: str = "normal", run_id: int = RUN_ID) -> SourceRunIdentity:
     return SourceRunIdentity(
         repository="org/repo",
         workflow="derived_writer",
-        github_run_id=RUN_ID,
+        github_run_id=run_id,
         metric_set_version_id=SET_ID,
         trade_date=TRADE_DATE,
         mode=mode,
@@ -109,6 +111,15 @@ def test_resolve_artifact_profile_three_profiles(
     assert profile == expected
     assert profile_allows_series(profile) == (expected != ArtifactProfile.SNAPSHOT_ONLY)
     assert profile_allows_latest(profile) == (expected == ArtifactProfile.SNAPSHOT_SERIES_LATEST)
+
+
+@pytest.mark.parametrize("mode", ("series_seed", "series_repair"))
+def test_series_worker_modes_resolve_series_only(mode: str) -> None:
+    profile = resolve_artifact_profile(stage="4.5c", mode=mode)
+    assert profile == ArtifactProfile.SERIES_ONLY
+    assert profile_allows_series(profile)
+    assert not profile_allows_latest(profile)
+    assert expected_derived_object_count(profile=profile, instrument_count=3) == 7
 
 
 @pytest.mark.unit
@@ -289,10 +300,68 @@ def test_run_derived_generation_stages_latest_rows() -> None:
     assert result.exit_code == 0
     committed = generation_store.committed_latest_observations[(SET_ID, "1301")]
     assert committed["trade_date"] == TRADE_DATE
-    assert committed["logical_digest"] == DIGEST_A
+    assert committed["logical_digest"] == result.logical_digest
     assert committed["values_json"]["_flags"]["missing_metrics"] == []
     assert committed["values_json"]["_flags"]["non_finite_metrics"] == []
     assert committed["values_json"]["_flags"]["po_indeterminate"] is False
+
+
+@pytest.mark.unit
+def test_run_derived_generation_lease_skip_trims_latest_rows() -> None:
+    from stockradar.jobs.write_derived_generation import (
+        DerivedGenerationRequest,
+        SnapshotInput,
+        run_derived_generation,
+    )
+
+    generation_store = FakeMetricGenerationStore()
+    r2_store = FakeR2ObjectStore()
+    values = {"1301": {"alpha_metric": 1.0}, "6758": {"alpha_metric": 2.0}}
+    snapshot_input = SnapshotInput(
+        metric_keys_ordered=["alpha_metric"],
+        metric_types={"alpha_metric": "float"},
+        values_by_instrument=values,
+        layer1_input_fingerprint=SHA,
+    )
+    request = DerivedGenerationRequest(
+        stage="4.5c",
+        mode="normal",
+        trade_date=TRADE_DATE,
+        repository="org/repo",
+        workflow="derived_writer",
+        github_run_id=RUN_ID,
+        metric_set_version_id=SET_ID,
+        active_metric_set_id=SET_ID,
+        lifecycle_status="active",
+        is_active=True,
+        is_current_latest_trade_date=True,
+    )
+    latest_rows = [
+        {
+            "instrument_code": code,
+            "trade_date": TRADE_DATE,
+            "values_json": values[code],
+            "logical_digest": DIGEST_A,
+        }
+        for code in ("1301", "6758")
+    ]
+    result = run_derived_generation(
+        request,
+        snapshot_input=snapshot_input,
+        generation_store=generation_store,
+        r2_store=r2_store,
+        latest_rows=latest_rows,
+        active_seed_lease_codes=["6758"],
+        seed_lease_waited_seconds=120.0,
+        seed_lease_max_wait_seconds=120.0,
+    )
+    assert result.exit_code == 0
+    assert result.flags == ("daily_seed_lease_skip",)
+    assert result.lease_skipped_codes == ("6758",)
+    assert set(generation_store.committed_latest_observations) == {(SET_ID, "1301")}
+    assert generation_store.committed_latest_observations[(SET_ID, "1301")][
+        "logical_digest"
+    ] == result.logical_digest
 
 
 @pytest.mark.unit
@@ -412,3 +481,177 @@ def test_commit_rejects_expected_object_count_mismatch() -> None:
     _declare_object_set(store, generation_id)
     with pytest.raises(GenerationConflictError, match="expected_object_count mismatch"):
         store.commit_generation(generation_id=generation_id, new_logical_digest=DIGEST_A)
+
+
+def _register_series_only_objects(
+    store: FakeMetricGenerationStore,
+    generation_id: str,
+    *,
+    mode: str,
+    logical_digest: str,
+) -> None:
+    year = int(TRADE_DATE[:4])
+    objects = (
+        ("series", f"derived-series/{generation_id}/series.json.gz", None, "1301", year),
+        ("series_manifest", f"derived-series/{generation_id}/manifest.json", None, "1301", year),
+        (
+            f"{mode}_delta",
+            f"derived-inputs/{generation_id}/delta.json.gz",
+            TRADE_DATE,
+            None,
+            None,
+        ),
+    )
+    for kind, key, trade_date, instrument_code, series_year in objects:
+        store.register_pending_object(
+            generation_id=generation_id,
+            object_kind=kind,
+            object_key=key,
+            logical_digest=logical_digest,
+            byte_sha256=SHA,
+            size_bytes=100,
+            trade_date=trade_date,
+            instrument_code=instrument_code,
+            series_year=series_year,
+        )
+        store.mark_object_uploaded(
+            generation_id=generation_id,
+            object_key=key,
+            byte_sha256=SHA,
+            size_bytes=100,
+        )
+    _declare_object_set(store, generation_id)
+
+
+def test_fake_series_seed_commits_without_snapshot() -> None:
+    store = FakeMetricGenerationStore()
+    coordinate = SeriesCoordinateCAS(
+        instrument_code="1301",
+        series_year=2026,
+        expected_prior_logical_digest=None,
+        prior_absent=True,
+    )
+    generation = store.begin_generation(
+        BeginGenerationRequest(
+            source=_source(mode="series_seed"),
+            artifact_profile=ArtifactProfile.SERIES_ONLY,
+            new_logical_digest=DIGEST_A,
+            expected_object_count=3,
+            series_coordinates=(coordinate,),
+            request_id="mnc-v1-" + ("1" * 64),
+        )
+    )
+    _register_series_only_objects(
+        store,
+        generation.generation_id,
+        mode="series_seed",
+        logical_digest=DIGEST_A,
+    )
+
+    committed = store.commit_generation(
+        generation_id=generation.generation_id,
+        new_logical_digest=DIGEST_A,
+    )
+
+    assert committed.status == GenerationStatus.COMMITTED.value
+    assert store.committed_snapshot_digest_by_set_date == {}
+    statuses = {
+        row["object_kind"]: row["status"]
+        for row in store.pending_objects.values()
+        if row["generation_id"] == generation.generation_id
+    }
+    assert statuses == {
+        "series": "committed",
+        "series_manifest": "committed",
+        "series_seed_delta": "committed",
+    }
+
+
+def test_fake_series_repair_supersedes_prior_series_but_not_delta() -> None:
+    store = FakeMetricGenerationStore()
+    request_id = "mnc-v1-" + ("2" * 64)
+    seed_coordinate = SeriesCoordinateCAS("1301", 2026, None, True)
+    seed = store.begin_generation(
+        BeginGenerationRequest(
+            source=_source(mode="series_seed"),
+            artifact_profile=ArtifactProfile.SERIES_ONLY,
+            new_logical_digest=DIGEST_A,
+            expected_object_count=3,
+            series_coordinates=(seed_coordinate,),
+            request_id=request_id,
+        )
+    )
+    _register_series_only_objects(
+        store,
+        seed.generation_id,
+        mode="series_seed",
+        logical_digest=DIGEST_A,
+    )
+    store.commit_generation(
+        generation_id=seed.generation_id,
+        new_logical_digest=DIGEST_A,
+    )
+
+    repair_coordinate = SeriesCoordinateCAS("1301", 2026, DIGEST_A, False)
+    repair = store.begin_generation(
+        BeginGenerationRequest(
+            source=_source(mode="series_repair", run_id=RUN_ID + 1),
+            artifact_profile=ArtifactProfile.SERIES_ONLY,
+            new_logical_digest=DIGEST_B,
+            expected_object_count=3,
+            series_coordinates=(repair_coordinate,),
+            request_id=request_id,
+        )
+    )
+    _register_series_only_objects(
+        store,
+        repair.generation_id,
+        mode="series_repair",
+        logical_digest=DIGEST_B,
+    )
+    store.commit_generation(
+        generation_id=repair.generation_id,
+        new_logical_digest=DIGEST_B,
+    )
+
+    old_rows = [
+        row
+        for row in store.pending_objects.values()
+        if row["generation_id"] == seed.generation_id
+    ]
+    assert {row["status"] for row in old_rows if "delta" not in row["object_kind"]} == {
+        "superseded"
+    }
+    assert {row["status"] for row in old_rows if "delta" in row["object_kind"]} == {
+        "committed"
+    }
+    assert all(
+        row["generation_id"] == seed.generation_id
+        for row in old_rows
+    )
+
+
+def test_fake_series_only_rejects_snapshot_expected_old_digest() -> None:
+    store = FakeMetricGenerationStore()
+    generation = store.begin_generation(
+        BeginGenerationRequest(
+            source=_source(mode="series_seed"),
+            artifact_profile=ArtifactProfile.SERIES_ONLY,
+            new_logical_digest=DIGEST_A,
+            expected_object_count=3,
+            series_coordinates=(SeriesCoordinateCAS("1301", 2026, None, True),),
+            request_id="mnc-v1-" + ("3" * 64),
+        )
+    )
+    _register_series_only_objects(
+        store,
+        generation.generation_id,
+        mode="series_seed",
+        logical_digest=DIGEST_A,
+    )
+    with pytest.raises(GenerationConflictError, match="snapshot expected_old_digest"):
+        store.commit_generation(
+            generation_id=generation.generation_id,
+            new_logical_digest=DIGEST_A,
+            expected_old_digest=DIGEST_A,
+        )

@@ -33,12 +33,12 @@
 - `python -m stockradar.jobs.resolve_monthly_release_for_run_date`
   - `1`: `--run-date` 不正、`--tags-file` 欠落、タグ一覧が空、月次タグの選定不能
   - `0`: 成功（`monthly_tag` / `universe_resolution` / `resolution_reason` を stdout と任意で `GITHUB_OUTPUT` に出力）
-- ADR-005 poller（未実装。モジュール名は実装 PR で固定し、本行を更新する）
+- ADR-005 poller（`scripts/storage/mnc_dispatch_cli.py` / `monthly_new_core_backfill_dispatch.yml`。local_only until merge）
   - `0`: tick 成功（claim 0 件も 0）
   - `1`: 契約違反
   - `2`: outbox を `failed` に永続化済みの運用失敗
   - `3`: 使わない
-- ADR-005 worker（未実装。同上）
+- ADR-005 worker（`scripts/storage/mnc_worker_cli.py` / `monthly_new_core_backfill.yml`。local_only until merge）
   - `0`: 当該 invocation の progress と、chunk 終端なら outbox done / 次 pending。request `completed` を意味しない
   - `1`: schema / fingerprint 契約違反。副作用なし
   - `2`: `failed_retryable` 永続化済み

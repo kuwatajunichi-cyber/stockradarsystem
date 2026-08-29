@@ -11,21 +11,19 @@ phase4_5_rollout_stage: "4.5c"
 # Required when stage is 4.5a or 4.5b (shadow set UUID). Empty at 4.5c.
 phase4_5_shadow_metric_set_version_id: ""
 
-# ADR-005 planned mapping. Live cache keys in entries[] stay fixed-key until pr-005-daily-cas.
+# ADR-005: live OHLC/index cache keys use immutable_pointer_cas (sha256 objects) via pr-005-daily-cas (local/unmerged batch).
 # adr005.feature_start_release_month is a YAML mirror; SSOT is Supabase adr005_runtime_config.
-# Do not add monthly_new_core_backfill.yml to scan_workflows until that workflow exists.
+# P4: monthly_new_core_backfill.yml (+ dispatch) promoted into live scan_workflows.
 adr005:
   status: proposed
   feature_start_release_month: null
-  live_cache_protocol: fixed_key_rotate_delete
+  live_cache_protocol: immutable_pointer_cas
   planned_cache_protocol: immutable_pointer_cas
   planned_retention_policy: warm_cache_immutable_pointer_cas
   planned_writer_workflows:
     - daily.yml
     - monthly_new_core_backfill.yml
-  planned_scan_workflows:
-    - monthly_new_core_backfill.yml
-    - monthly_new_core_backfill_dispatch.yml
+  planned_scan_workflows: []
   planned_objects:
     cache_index_immutable: cache/index-store-zip-v1/objects/sha256={object_sha256}.zip
     cache_ohlc_immutable: cache/ohlc-store-zip-v2/objects/sha256={object_sha256}.zip
@@ -38,6 +36,8 @@ scan_workflows:
   - daily_universe_patch.yml
   - daily_event_cause_enrichment.yml
   - monthly.yml
+  - monthly_new_core_backfill.yml
+  - monthly_new_core_backfill_dispatch.yml
 
 required_fields:
   - source_kind
@@ -170,14 +170,14 @@ entries:
       - daily.yml
       - monthly_new_core_backfill.yml
     writer_job: ensure_index_cache
-    target_r2_key_pattern: cache/index-store-zip-v1/index_store.zip
+    target_r2_key_pattern: cache/index-store-zip-v1/objects/sha256={object_sha256}.zip
     planned_target_r2_key_pattern: cache/index-store-zip-v1/objects/sha256={object_sha256}.zip
     supabase_table: cache_index
     supabase_tables:
       - cache_index
       - cache_pointers
     supabase_active_table: cache_pointers
-    retention_policy: warm_cache_rotate_delete_before_save; replay_no_save
+    retention_policy: warm_cache_immutable_pointer_cas
     planned_retention_policy: warm_cache_immutable_pointer_cas
     optional: false
 
@@ -191,14 +191,14 @@ entries:
       - daily.yml
       - monthly_new_core_backfill.yml
     writer_job: ensure_core_cache
-    target_r2_key_pattern: cache/ohlc-store-zip-v2/ohlc_store.zip
+    target_r2_key_pattern: cache/ohlc-store-zip-v2/objects/sha256={object_sha256}.zip
     planned_target_r2_key_pattern: cache/ohlc-store-zip-v2/objects/sha256={object_sha256}.zip
     supabase_table: cache_index
     supabase_tables:
       - cache_index
       - cache_pointers
     supabase_active_table: cache_pointers
-    retention_policy: warm_cache_rotate_delete_before_save; replay_no_save
+    retention_policy: warm_cache_immutable_pointer_cas
     planned_retention_policy: warm_cache_immutable_pointer_cas
     optional: false
 

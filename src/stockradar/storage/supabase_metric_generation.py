@@ -147,6 +147,26 @@ class SupabaseMetricGenerationAdapter:
             "p_expected_object_set_digest": request.expected_object_set_digest,
             "p_expected_latest_set_digest": request.expected_latest_set_digest,
         }
+        if request.series_coordinates:
+            coordinates = tuple(request.series_coordinates)
+            body["p_series_coordinates"] = [
+                {
+                    "instrument_code": item.instrument_code.strip(),
+                    "series_year": int(item.series_year),
+                }
+                for item in coordinates
+            ]
+            body["p_expected_prior_logical_digest"] = [
+                (
+                    item.expected_prior_logical_digest.strip().lower()
+                    if item.expected_prior_logical_digest is not None
+                    else None
+                )
+                for item in coordinates
+            ]
+            body["p_prior_absent"] = [bool(item.prior_absent) for item in coordinates]
+        if request.request_id is not None:
+            body["p_request_id"] = request.request_id.strip()
         generation_id = str(self._rpc("begin_derived_generation", body))
         self._metric_set_by_generation[generation_id] = source.metric_set_version_id.strip()
         return self._to_generation_record(self._fetch_generation_row(generation_id))

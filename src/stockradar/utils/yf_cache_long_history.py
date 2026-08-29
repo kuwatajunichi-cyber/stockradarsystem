@@ -85,3 +85,30 @@ def classify_history_eligibility(
     if n_bars >= required_trading_days:
         return "eligible"
     return "insufficient"
+
+
+def fetch_long_history_bounded(
+    *,
+    required_input_start: datetime,
+    coverage_end: datetime,
+    fetch_chunk: FetchChunkFn,
+    chunk_calendar_days: int = DEFAULT_CHUNK_CALENDAR_DAYS,
+    warmup_calendar_days: int = 7,
+) -> pd.DataFrame:
+    """Fetch OHLC for [required_input_start - warmup, coverage_end] (ADR-005 section 3.2).
+
+    Worker-only path; Daily continues to use fetch_long_history unchanged.
+    """
+    if coverage_end < required_input_start:
+        raise ValueError("coverage_end must be >= required_input_start")
+    start = required_input_start - timedelta(days=int(warmup_calendar_days))
+    total_cal = max(1, int((coverage_end - start).days))
+    frames = [
+        fetch_chunk(chunk_start, chunk_end)
+        for chunk_start, chunk_end in iter_start_end_chunks(
+            end=coverage_end,
+            total_calendar_days=total_cal,
+            chunk_calendar_days=chunk_calendar_days,
+        )
+    ]
+    return merge_ohlc_frames(frames)

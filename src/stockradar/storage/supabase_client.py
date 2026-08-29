@@ -65,6 +65,18 @@ class SupabaseControlPort(Protocol):
         history_id: str | None,
     ) -> str: ...
 
+    def commit_cache_pointer_cas_rpc(
+        self,
+        *,
+        cache_key: str,
+        expected_version: int,
+        object_key: str,
+        sha256: str,
+        size_bytes: int,
+        writer_workflow: str,
+        source_github_run_id: int,
+    ) -> int: ...
+
     def mark_cache_index_orphan(self, *, cache_index_id: str) -> None: ...
 
     def upsert_cache_index_pending_patched(
@@ -142,9 +154,38 @@ class SupabaseControlPort(Protocol):
 
     def commit_monthly_snapshot(self, *, snapshot_id: str) -> dict[str, Any]: ...
 
+    def list_committed_monthly_snapshot_rows(self) -> list[dict[str, Any]]: ...
+
+    def get_adr005_feature_start_release_month(self) -> str | None: ...
+
+    def commit_monthly_snapshot_with_backfill_request(
+        self,
+        *,
+        snapshot_id: str,
+        release_month: str,
+        request_id: str,
+        metric_set_version_id: str,
+        previous_monthly_tag: str | None,
+        current_core_logical_digest: str,
+        added_codes: list[str],
+        added_codes_digest: str,
+        partition_codes_digest: str,
+        expected_trade_dates: list[str],
+        expected_trade_dates_digest: str,
+        calendar_version: str,
+        outcome: str,
+        reason_code: str | None = None,
+        partition_index: int = 0,
+        partition_count: int = 1,
+    ) -> dict[str, Any]: ...
+
     def mark_monthly_snapshot_orphan(self, *, snapshot_id: str) -> None: ...
 
     def list_committed_monthly_tags(self) -> list[str]: ...
+
+    def list_committed_derived_snapshot_trade_dates(
+        self, *, metric_set_version_id: str
+    ) -> list[str]: ...
 
     def insert_publish_status_pending(
         self,
@@ -450,6 +491,34 @@ class SupabaseRestAdapter:
         result = resp.json()
         return str(result)
 
+    def commit_cache_pointer_cas_rpc(
+        self,
+        *,
+        cache_key: str,
+        expected_version: int,
+        object_key: str,
+        sha256: str,
+        size_bytes: int,
+        writer_workflow: str,
+        source_github_run_id: int,
+    ) -> int:
+        body = {
+            "p_cache_key": cache_key,
+            "p_expected_version": int(expected_version),
+            "p_object_key": object_key,
+            "p_sha256": sha256,
+            "p_size_bytes": int(size_bytes),
+            "p_writer_workflow": writer_workflow,
+            "p_source_github_run_id": int(source_github_run_id),
+        }
+        resp = self._request(
+            "POST",
+            "/rest/v1/rpc/commit_cache_pointer_cas",
+            json_body=body,
+        )
+        resp.raise_for_status()
+        return int(resp.json())
+
     def mark_cache_index_orphan(self, *, cache_index_id: str) -> None:
         resp = self._request(
             "PATCH",
@@ -709,6 +778,73 @@ class SupabaseRestAdapter:
         resp.raise_for_status()
         return resp.json()[0]
 
+    def list_committed_monthly_snapshot_rows(self) -> list[dict[str, Any]]:
+        resp = self._request("POST", "/rest/v1/rpc/list_committed_monthly_snapshot_rows", json_body={})
+        resp.raise_for_status()
+        rows = resp.json()
+        return list(rows) if isinstance(rows, list) else []
+
+    def get_adr005_feature_start_release_month(self) -> str | None:
+        resp = self._request(
+            "POST",
+            "/rest/v1/rpc/get_adr005_feature_start_release_month",
+            json_body={},
+        )
+        resp.raise_for_status()
+        value = resp.json()
+        if value is None or value == "":
+            return None
+        return str(value)
+
+    def commit_monthly_snapshot_with_backfill_request(
+        self,
+        *,
+        snapshot_id: str,
+        release_month: str,
+        request_id: str,
+        metric_set_version_id: str,
+        previous_monthly_tag: str | None,
+        current_core_logical_digest: str,
+        added_codes: list[str],
+        added_codes_digest: str,
+        partition_codes_digest: str,
+        expected_trade_dates: list[str],
+        expected_trade_dates_digest: str,
+        calendar_version: str,
+        outcome: str,
+        reason_code: str | None = None,
+        partition_index: int = 0,
+        partition_count: int = 1,
+    ) -> dict[str, Any]:
+        body = {
+            "p_snapshot_id": snapshot_id,
+            "p_release_month": release_month,
+            "p_request_id": request_id,
+            "p_metric_set_version_id": metric_set_version_id,
+            "p_previous_monthly_tag": previous_monthly_tag,
+            "p_current_core_logical_digest": current_core_logical_digest,
+            "p_added_codes": added_codes,
+            "p_added_codes_digest": added_codes_digest,
+            "p_partition_codes_digest": partition_codes_digest,
+            "p_expected_trade_dates": expected_trade_dates,
+            "p_expected_trade_dates_digest": expected_trade_dates_digest,
+            "p_calendar_version": calendar_version,
+            "p_outcome": outcome,
+            "p_reason_code": reason_code,
+            "p_partition_index": partition_index,
+            "p_partition_count": partition_count,
+        }
+        resp = self._request(
+            "POST",
+            "/rest/v1/rpc/commit_monthly_snapshot_with_backfill_request",
+            json_body=body,
+        )
+        resp.raise_for_status()
+        result = resp.json()
+        if not isinstance(result, dict):
+            raise RuntimeError("commit_monthly_snapshot_with_backfill_request returned non-object")
+        return result
+
     def mark_monthly_snapshot_orphan(self, *, snapshot_id: str) -> None:
         resp = self._request(
             "PATCH",
@@ -731,6 +867,32 @@ class SupabaseRestAdapter:
         resp.raise_for_status()
         rows = resp.json()
         return [str(r["monthly_tag"]) for r in rows if r.get("monthly_tag")]
+
+    def list_committed_derived_snapshot_trade_dates(
+        self, *, metric_set_version_id: str
+    ) -> list[str]:
+        resp = self._request(
+            "GET",
+            "/rest/v1/derived_object_index",
+            params={
+                "status": "eq.committed",
+                "object_kind": "eq.snapshot",
+                "metric_set_version_id": f"eq.{metric_set_version_id.strip().lower()}",
+                "select": "trade_date",
+                "order": "trade_date.asc",
+            },
+        )
+        resp.raise_for_status()
+        rows = resp.json() if isinstance(resp.json(), list) else []
+        # de-dupe preserving order
+        seen: set[str] = set()
+        out: list[str] = []
+        for r in rows:
+            d = str(r.get("trade_date") or "").strip()
+            if d and d not in seen:
+                seen.add(d)
+                out.append(d)
+        return out
 
     def insert_publish_status_pending(
         self,
@@ -876,6 +1038,12 @@ class FakeSupabaseControlAdapter:
     cache_pointers: dict[str, dict[str, Any]] = field(default_factory=dict)
     monthly_snapshots: dict[str, dict[str, Any]] = field(default_factory=dict)
     publish_status: dict[str, dict[str, Any]] = field(default_factory=dict)
+    mnc_requests: dict[str, dict[str, Any]] = field(default_factory=dict)
+    mnc_outbox: list[dict[str, Any]] = field(default_factory=list)
+    mnc_release_links: list[dict[str, Any]] = field(default_factory=list)
+    adr005_feature_start_release_month: str | None = None
+    # Mirrors derived_object_index rows for list_committed_derived_snapshot_trade_dates parity.
+    derived_object_index: list[dict[str, Any]] = field(default_factory=list)
 
     def upsert_run(
         self,
@@ -1048,6 +1216,8 @@ class FakeSupabaseControlAdapter:
                 "sha256": sha256,
                 "status": "committed",
             }
+        current_pointer = self.cache_pointers.get(cache_key)
+        version = int(current_pointer.get("version", 1)) if current_pointer else 1
         self.cache_pointers[cache_key] = {
             "cache_key": cache_key,
             "object_key": object_key,
@@ -1055,8 +1225,40 @@ class FakeSupabaseControlAdapter:
             "size_bytes": size_bytes,
             "writer_workflow": writer_workflow,
             "source_github_run_id": source_github_run_id,
+            "version": version,
         }
         return hid
+
+    def commit_cache_pointer_cas_rpc(
+        self,
+        *,
+        cache_key: str,
+        expected_version: int,
+        object_key: str,
+        sha256: str,
+        size_bytes: int,
+        writer_workflow: str,
+        source_github_run_id: int,
+    ) -> int:
+        """Commit an immutable-cache pointer only at the expected version."""
+        current = self.cache_pointers.get(cache_key)
+        current_version = int(current.get("version", 1)) if current else 0
+        if current_version != int(expected_version):
+            raise RuntimeError(
+                "cache_pointer_cas_conflict: "
+                f"expected {expected_version} current {current_version}"
+            )
+        new_version = current_version + 1
+        self.cache_pointers[cache_key] = {
+            "cache_key": cache_key,
+            "object_key": object_key,
+            "sha256": sha256,
+            "size_bytes": int(size_bytes),
+            "writer_workflow": writer_workflow,
+            "source_github_run_id": int(source_github_run_id),
+            "version": new_version,
+        }
+        return new_version
 
     def mark_cache_index_orphan(self, *, cache_index_id: str) -> None:
         self.cache_index[cache_index_id]["status"] = "orphan"
@@ -1232,6 +1434,185 @@ class FakeSupabaseControlAdapter:
         row["committed_at_utc"] = "fake-ts"
         return dict(row)
 
+    def list_committed_monthly_snapshot_rows(self) -> list[dict[str, Any]]:
+        rows = [
+            dict(r) for r in self.monthly_snapshots.values() if r.get("status") == "committed"
+        ]
+        rows.sort(
+            key=lambda r: (str(r.get("snapshot_date") or ""), int(r.get("github_run_id") or 0)),
+            reverse=True,
+        )
+        return rows
+
+    def get_adr005_feature_start_release_month(self) -> str | None:
+        return self.adr005_feature_start_release_month
+
+    def commit_monthly_snapshot_with_backfill_request(
+        self,
+        *,
+        snapshot_id: str,
+        release_month: str,
+        request_id: str,
+        metric_set_version_id: str,
+        previous_monthly_tag: str | None,
+        current_core_logical_digest: str,
+        added_codes: list[str],
+        added_codes_digest: str,
+        partition_codes_digest: str,
+        expected_trade_dates: list[str],
+        expected_trade_dates_digest: str,
+        calendar_version: str,
+        outcome: str,
+        reason_code: str | None = None,
+        partition_index: int = 0,
+        partition_count: int = 1,
+    ) -> dict[str, Any]:
+        if partition_index != 0 or partition_count != 1:
+            raise RuntimeError("only identity (0,1) in P3")
+        if outcome not in ("runnable", "noop", "blocked", "grandfather"):
+            raise RuntimeError(f"invalid outcome {outcome}")
+        row = self.monthly_snapshots[snapshot_id]
+        if row.get("status") == "committed":
+            return {
+                "snapshot_id": snapshot_id,
+                "monthly_tag": row["monthly_tag"],
+                "noop": True,
+                "request_id": None,
+                "outcome": outcome,
+                "link_role": None,
+            }
+        if row.get("status") != "pending":
+            raise RuntimeError(f"snapshot {snapshot_id} not pending")
+        snap_month = str(row.get("snapshot_date") or "")[:7]
+        if snap_month != str(release_month).strip():
+            raise RuntimeError("snapshot_date month mismatch")
+        row["status"] = "committed"
+        row["committed_at_utc"] = "fake-ts"
+
+        # canonical last-wins inside month
+        month_rows = [
+            r
+            for r in self.monthly_snapshots.values()
+            if r.get("status") == "committed" and str(r.get("snapshot_date") or "")[:7] == release_month
+        ]
+        winner = max(
+            month_rows,
+            key=lambda r: (str(r.get("snapshot_date") or ""), int(r.get("github_run_id") or 0)),
+        )
+        is_winner = winner.get("id") == snapshot_id
+        if not is_winner:
+            winner_req = None
+            for link in self.mnc_release_links:
+                if link.get("monthly_snapshot_id") == winner.get("id") and link.get("link_role") == "canonical_winner":
+                    winner_req = link.get("request_id")
+                    break
+            if winner_req:
+                loser_link = {
+                    "monthly_snapshot_id": snapshot_id,
+                    "request_id": winner_req,
+                    "link_role": "noncanonical_loser",
+                }
+                if loser_link not in self.mnc_release_links:
+                    self.mnc_release_links.append(loser_link)
+            return {
+                "snapshot_id": snapshot_id,
+                "monthly_tag": row["monthly_tag"],
+                "request_id": None,
+                "outcome": outcome,
+                "link_role": "noncanonical_loser",
+                "winner_snapshot_id": winner.get("id"),
+                "winner_request_id": winner_req,
+            }
+
+        # demote prior winners + supersede their requests / outbox
+        demoted_reqs: list[str] = []
+        kept_links = []
+        for link in self.mnc_release_links:
+            if link.get("link_role") == "canonical_winner" and any(
+                r.get("id") == link.get("monthly_snapshot_id")
+                and str(r.get("snapshot_date") or "")[:7] == release_month
+                and r.get("id") != snapshot_id
+                for r in self.monthly_snapshots.values()
+            ):
+                demoted_reqs.append(str(link.get("request_id") or ""))
+                continue
+            kept_links.append(link)
+        self.mnc_release_links = kept_links
+        for rid in demoted_reqs:
+            if not rid:
+                continue
+            req = self.mnc_requests.get(rid)
+            if req and req.get("status") not in {
+                "completed", "noop", "blocked", "grandfather", "superseded"
+            }:
+                req["status"] = "superseded"
+                req["successor_request_id"] = request_id
+            self.mnc_outbox = [
+                (
+                    {**o, "status": "done", "last_error": "superseded_by_new_canonical_winner"}
+                    if o.get("request_id") == rid
+                    and o.get("status") in {"pending", "claimed", "dispatched", "failed"}
+                    else o
+                )
+                for o in self.mnc_outbox
+            ]
+
+        status = "dispatch_pending" if outcome == "runnable" else outcome
+        if request_id not in self.mnc_requests:
+            self.mnc_requests[request_id] = {
+                "id": request_id,
+                "monthly_snapshot_id": snapshot_id,
+                "release_month": release_month,
+                "previous_monthly_tag": previous_monthly_tag,
+                "current_core_logical_digest": current_core_logical_digest,
+                "metric_set_version_id": metric_set_version_id,
+                "added_codes": list(added_codes),
+                "added_codes_digest": added_codes_digest,
+                "partition_index": partition_index,
+                "partition_count": partition_count,
+                "partition_codes_digest": partition_codes_digest,
+                "expected_trade_dates": list(expected_trade_dates),
+                "expected_trade_dates_digest": expected_trade_dates_digest,
+                "calendar_version": calendar_version,
+                "status": status,
+                "reason_code": reason_code,
+            }
+        for other in month_rows:
+            oid = other.get("id")
+            if oid == snapshot_id:
+                continue
+            loser_link = {
+                "monthly_snapshot_id": oid,
+                "request_id": request_id,
+                "link_role": "noncanonical_loser",
+            }
+            if loser_link not in self.mnc_release_links:
+                self.mnc_release_links.append(loser_link)
+        link = {
+            "monthly_snapshot_id": snapshot_id,
+            "request_id": request_id,
+            "link_role": "canonical_winner",
+        }
+        if link not in self.mnc_release_links:
+            self.mnc_release_links.append(link)
+        if outcome == "runnable":
+            exists = any(
+                o.get("request_id") == request_id and int(o.get("chunk_seq") or 0) == 0
+                for o in self.mnc_outbox
+            )
+            if not exists:
+                self.mnc_outbox.append(
+                    {"request_id": request_id, "chunk_seq": 0, "status": "pending"}
+                )
+        return {
+            "snapshot_id": snapshot_id,
+            "monthly_tag": row["monthly_tag"],
+            "request_id": request_id,
+            "outcome": outcome,
+            "reason_code": reason_code,
+            "link_role": "canonical_winner",
+        }
+
     def mark_monthly_snapshot_orphan(self, *, snapshot_id: str) -> None:
         self.monthly_snapshots[snapshot_id]["status"] = "orphan"
 
@@ -1241,6 +1622,25 @@ class FakeSupabaseControlAdapter:
         ]
         rows.sort(key=lambda r: (r.get("snapshot_date", ""), r.get("github_run_id", 0)), reverse=True)
         return [str(r["monthly_tag"]) for r in rows]
+
+    def list_committed_derived_snapshot_trade_dates(
+        self, *, metric_set_version_id: str
+    ) -> list[str]:
+        mid = str(metric_set_version_id).strip().lower()
+        seen: set[str] = set()
+        out: list[str] = []
+        for row in self.derived_object_index:
+            if str(row.get("metric_set_version_id") or "").strip().lower() != mid:
+                continue
+            if str(row.get("status") or "") != "committed":
+                continue
+            if str(row.get("object_kind") or "") != "snapshot":
+                continue
+            d = str(row.get("trade_date") or "").strip()
+            if d and d not in seen:
+                seen.add(d)
+                out.append(d)
+        return sorted(out)
 
     def insert_publish_status_pending(
         self,

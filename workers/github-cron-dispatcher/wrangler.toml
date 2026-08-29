@@ -17,7 +17,7 @@ invocation_logs = true
 head_sampling_rate = 1
 
 [triggers]
-crons = ["45 6 * * *", "0 3 * * *", "0 2 1 * *"]
+crons = ["45 6 * * *", "0 3 * * *", "0 2 1 * *", "*/15 * * * *"]
 
 # Non-secret config (override per environment via wrangler deploy / dashboard)
 [vars]
@@ -25,6 +25,7 @@ GITHUB_OWNER = "kuwatajunichi-cyber"
 GITHUB_REPO = "stockradarsystem"
 GITHUB_REF = "main"
 MONTHLY_DISPATCH_ENABLED = "true"
+MNC_DISPATCH_ENABLED = "false"
 
 # Secret (set via: wrangler secret put GH_DISPATCH_TOKEN)
 # GH_DISPATCH_TOKEN = fine-grained PAT or GitHub App token with workflow dispatch permission

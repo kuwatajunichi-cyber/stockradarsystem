@@ -20,6 +20,7 @@ from stockradar.storage.control_plane import (  # noqa: E402
     PATCHED_UNIVERSE_CSV_FILENAME,
     PATCHED_UNIVERSE_MANIFEST_FILENAME,
     resolve_fixed_object_key,
+    resolve_immutable_object_key,
     resolve_patched_r2_keys,
     supabase_commit_is_fatal,
 )
@@ -192,6 +193,143 @@ def cmd_put_fixed(args: argparse.Namespace) -> int:
             args.json_output,
         )
         print(f"error: commit_fixed_cache RPC failed: {exc}", file=sys.stderr)
+        return 1 if fatal else 0
+
+
+
+def cmd_put_immutable(args: argparse.Namespace) -> int:
+    """Create-only Layer 1 object + pointer CAS (ADR-005 Daily CAS)."""
+    stage = _rollout_stage(args)
+    fatal = supabase_commit_is_fatal(stage)
+    is_replay = str(args.is_replay).strip().lower() in ("true", "1", "yes")
+
+    if not should_rotate_cache(is_replay=is_replay, job_success=True):
+        _emit(
+            {
+                "status": "skipped",
+                "replay_save_skipped": is_replay,
+                "supabase_commit_ok": False,
+                "cache_source": "none",
+            },
+            args.json_output,
+        )
+        return 0
+
+    local_path = Path(args.local_path)
+    if not local_path.is_file():
+        print(f"error: missing local file: {local_path}", file=sys.stderr)
+        return 1
+
+    entry = get_entry(args.entry_id)
+    cache_key = _cache_key_for_entry(args.entry_id)
+    content = local_path.read_bytes()
+    sha256 = compute_sha256(str(local_path))
+    size_bytes = len(content)
+    pattern = str(
+        entry.get("target_r2_key_pattern")
+        or entry.get("planned_target_r2_key_pattern")
+        or ""
+    )
+    object_key = resolve_immutable_object_key(pattern=pattern, object_sha256=sha256)
+    writer = str(entry.get("writer_workflow") or "daily.yml")
+    run_id = int(args.github_run_id)
+
+    supabase = _adapter_supabase()
+    expected_version = 0
+    if supabase is not None:
+        existing = supabase.get_cache_pointer(cache_key=cache_key)
+        if existing and str(existing.get("sha256") or "") == sha256:
+            _emit(
+                {
+                    "status": "ok",
+                    "supabase_commit_ok": True,
+                    "object_key": str(existing.get("object_key") or object_key),
+                    "noop": True,
+                    "version": int(existing.get("version") or 1),
+                },
+                args.json_output,
+            )
+            return 0
+        expected_version = int(existing.get("version") or 0) if existing else 0
+
+    pending_id: str | None = None
+    if supabase is not None:
+        try:
+            pending = supabase.insert_cache_index_pending_fixed(
+                cache_key=cache_key,
+                object_key=object_key,
+                sha256=sha256,
+                size_bytes=size_bytes,
+                writer_workflow=writer,
+                source_github_run_id=run_id,
+            )
+            pending_id = str(pending["id"])
+        except Exception as exc:
+            print(f"error: cache_index pending failed: {exc}", file=sys.stderr)
+            return 1 if fatal else 0
+
+    try:
+        r2 = _r2()
+        if hasattr(r2, "put_object_create_only"):
+            r2.put_object_create_only(object_key, content, content_type="application/zip")
+        else:
+            r2.put_object(object_key, content, content_type="application/zip")
+    except Exception as exc:
+        if pending_id and supabase is not None:
+            try:
+                supabase.mark_cache_index_orphan(cache_index_id=pending_id)
+            except Exception:
+                pass
+        print(f"error: R2 create-only put failed: {exc}", file=sys.stderr)
+        return 1
+
+    if supabase is None:
+        _emit(
+            {
+                "status": "ok",
+                "cache_source": "r2",
+                "supabase_commit_ok": False,
+                "supabase_commit_failed": "supabase_not_configured",
+                "object_key": object_key,
+            },
+            args.json_output,
+        )
+        return 1 if fatal else 0
+
+    try:
+        new_version = supabase.commit_cache_pointer_cas_rpc(
+            cache_key=cache_key,
+            expected_version=expected_version,
+            object_key=object_key,
+            sha256=sha256,
+            size_bytes=size_bytes,
+            writer_workflow=writer,
+            source_github_run_id=run_id,
+        )
+        if pending_id:
+            try:
+                supabase.cache_index[pending_id]["status"] = "committed"  # type: ignore[attr-defined]
+            except Exception:
+                pass
+        _emit(
+            {
+                "status": "ok",
+                "cache_source": "r2",
+                "supabase_commit_ok": True,
+                "warm_cache_key": cache_key,
+                "object_key": object_key,
+                "version": int(new_version),
+            },
+            args.json_output,
+        )
+        return 0
+    except Exception as exc:
+        if pending_id:
+            try:
+                supabase.mark_cache_index_orphan(cache_index_id=pending_id)
+            except Exception:
+                pass
+        print(f"error: pointer CAS failed: {exc}", file=sys.stderr)
         return 1 if fatal else 0
 
 
@@ -501,6 +639,13 @@ def main(argv: list[str] | None = None) -> None:
     common.add_argument("--json-output", default=None)
 
     p_pf = sub.add_parser("put-fixed", parents=[common])
+    p_pi = sub.add_parser("put-immutable", parents=[common])
+    p_pi.add_argument("--entry-id", required=True)
+    p_pi.add_argument("--local-path", required=True)
+    p_pi.add_argument("--github-run-id", required=True)
+    p_pi.add_argument("--is-replay", required=True)
+
+    # put-fixed kept for legacy/non-CAS callers
     p_pf.add_argument("--entry-id", required=True)
     p_pf.add_argument("--local-path", required=True)
     p_pf.add_argument("--github-run-id", required=True)
@@ -536,6 +681,8 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
     if args.cmd == "put-fixed":
         sys.exit(cmd_put_fixed(args))
+    if args.cmd == "put-immutable":
+        sys.exit(cmd_put_immutable(args))
     if args.cmd == "get-fixed":
         sys.exit(cmd_get_fixed(args))
     if args.cmd == "get-patched":

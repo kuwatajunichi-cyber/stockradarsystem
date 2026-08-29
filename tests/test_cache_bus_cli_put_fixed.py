@@ -102,3 +102,53 @@ def test_put_fixed_commits_correct_cache_key(tmp_path: Path, monkeypatch: pytest
         assert rc == 0
     assert OHLC_CACHE_KEY in fake.cache_pointers
     assert fake.cache_pointers[OHLC_CACHE_KEY]["sha256"] == compute_sha256(str(zip_path))
+
+
+def test_fake_cache_pointer_default_and_version_cas() -> None:
+    fake = FakeSupabaseControlAdapter()
+    fake.commit_fixed_cache_rpc(
+        cache_key=OHLC_CACHE_KEY,
+        object_key="cache/ohlc_store.zip",
+        sha256="a" * 64,
+        size_bytes=10,
+        writer_workflow="daily.yml",
+        source_github_run_id=1,
+        history_id=None,
+    )
+    assert fake.cache_pointers[OHLC_CACHE_KEY]["version"] == 1
+
+    version = fake.commit_cache_pointer_cas_rpc(
+        cache_key=OHLC_CACHE_KEY,
+        expected_version=1,
+        object_key="cache/ohlcv/objects/sha256=" + ("b" * 64) + ".zip",
+        sha256="b" * 64,
+        size_bytes=11,
+        writer_workflow="daily.yml",
+        source_github_run_id=2,
+    )
+    assert version == 2
+    assert fake.cache_pointers[OHLC_CACHE_KEY]["version"] == 2
+
+    with pytest.raises(RuntimeError, match="cache_pointer_cas_conflict"):
+        fake.commit_cache_pointer_cas_rpc(
+            cache_key=OHLC_CACHE_KEY,
+            expected_version=1,
+            object_key="cache/ohlcv/objects/stale.zip",
+            sha256="c" * 64,
+            size_bytes=12,
+            writer_workflow="monthly_new_core_backfill.yml",
+            source_github_run_id=3,
+        )
+
+
+def test_fake_jpx_commit_remains_legacy_compatible() -> None:
+    fake = FakeSupabaseControlAdapter()
+    fake.commit_jpx_url_cache_rpc(
+        object_key="cache/jpx-url/jpx_latest_url.txt",
+        sha256="d" * 64,
+        size_bytes=20,
+        writer_workflow="monthly.yml",
+        source_github_run_id=4,
+        history_id=None,
+    )
+    assert fake.cache_pointers[JPX_CACHE_KEY]["version"] == 1

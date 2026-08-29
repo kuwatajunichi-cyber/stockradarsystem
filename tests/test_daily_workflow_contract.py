@@ -82,7 +82,8 @@ def test_daily_yml_no_actions_cache_phase3c() -> None:
     assert text.count("actions/cache/restore@v4") == 0
     assert "cache_ops rotate-delete" not in text
     assert "cache_bus_cli.py get-fixed" in text
-    assert "cache_bus_cli.py put-fixed" in text
+    assert "cache_bus_cli.py put-immutable" in text
+    assert "cache_bus_cli.py put-fixed" not in text
     assert "control_plane_cli.py upsert-run" in text
     assert 'PHASE3_ROLLOUT_STAGE: "3c"' in text
 

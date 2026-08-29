@@ -15,6 +15,7 @@ pytestmark = pytest.mark.job_integration
 DAILY_CRON = "45 6 * * *"
 UNIVERSE_PATCH_CRON = "0 3 * * *"
 MONTHLY_CRON = "0 2 1 * *"
+MNC_DISPATCH_CRON = "*/15 * * * *"
 WORKER_ROOT = Path(__file__).resolve().parents[2] / "workers" / "github-cron-dispatcher"
 
 
@@ -32,11 +33,18 @@ def test_daily_cron_constant_in_worker_sources() -> None:
     assert f'export const DAILY_CRON = "{DAILY_CRON}";' in constants
     assert f'export const UNIVERSE_PATCH_CRON = "{UNIVERSE_PATCH_CRON}";' in constants
     assert f'export const MONTHLY_CRON = "{MONTHLY_CRON}";' in constants
+    assert f'export const MNC_DISPATCH_CRON = "{MNC_DISPATCH_CRON}";' in constants
 
     wrangler = tomllib.loads((WORKER_ROOT / "wrangler.toml").read_text(encoding="utf-8"))
-    assert wrangler["triggers"]["crons"] == [DAILY_CRON, UNIVERSE_PATCH_CRON, MONTHLY_CRON]
+    assert wrangler["triggers"]["crons"] == [
+        DAILY_CRON,
+        UNIVERSE_PATCH_CRON,
+        MONTHLY_CRON,
+        MNC_DISPATCH_CRON,
+    ]
     assert wrangler["observability"]["enabled"] is True
     assert wrangler["observability"]["logs"]["invocation_logs"] is True
+    assert wrangler["vars"].get("MNC_DISPATCH_ENABLED") == "false"
 
 
 def test_worker_scheduled_handler_awaits_dispatch() -> None:
@@ -71,8 +79,10 @@ def test_worker_routes_daily_patch_and_monthly_workflows() -> None:
     assert "daily.yml" in constants
     assert "daily_universe_patch.yml" in constants
     assert "monthly.yml" in constants
+    assert "monthly_new_core_backfill_dispatch.yml" in constants
     assert "MONTHLY_DISPATCH_ENABLED" in (WORKER_ROOT / "wrangler.toml").read_text(encoding="utf-8")
     assert 'MONTHLY_DISPATCH_ENABLED = "true"' in (WORKER_ROOT / "wrangler.toml").read_text(encoding="utf-8")
+    assert 'MNC_DISPATCH_ENABLED = "false"' in (WORKER_ROOT / "wrangler.toml").read_text(encoding="utf-8")
 
 
 def test_worker_dispatch_module_uses_github_dispatch_endpoint() -> None:

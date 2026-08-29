@@ -44,6 +44,7 @@ from stockradar.storage.derived_series import (
     merge_trade_date_into_series,
     parse_series_canonical_bytes,
 )
+from stockradar.storage.daily_seed_lease import filter_membership_after_seed_lease_wait
 from stockradar.storage.phase4_5_rollout import (
     DerivedArtifact,
     PreflightResult,
@@ -117,6 +118,8 @@ class DerivedGenerationResult:
     prefetch_elapsed_ms: int = 0
     put_elapsed_ms: int = 0
     rpc_elapsed_ms: int = 0
+    flags: tuple[str, ...] = ()
+    lease_skipped_codes: tuple[str, ...] = ()
 
 
 
@@ -357,6 +360,9 @@ def run_derived_generation(
     r2_store: R2ObjectStorePort,
     series_builders: list[Callable[[], tuple[dict[str, Any], bytes, str]]] | None = None,
     latest_rows: list[dict[str, Any]] | None = None,
+    active_seed_lease_codes: list[str] | tuple[str, ...] | None = None,
+    seed_lease_waited_seconds: float = 120.0,
+    seed_lease_max_wait_seconds: float = 120.0,
 ) -> DerivedGenerationResult:
     """
     Orchestrate Phase A→B→C and generation begin → reserve → put → commit.
@@ -421,6 +427,31 @@ def run_derived_generation(
     ):
         return DerivedGenerationResult(status="error", exit_code=2, reason="write_not_allowed_series")
 
+    # ADR-005: trim membership BEFORE begin_derived_generation when seed leases remain.
+    lease_flags: tuple[str, ...] = ()
+    lease_skipped: tuple[str, ...] = ()
+    values_by_instrument = dict(snapshot_input.values_by_instrument)
+    if active_seed_lease_codes:
+        decision = filter_membership_after_seed_lease_wait(
+            membership_codes=list(values_by_instrument.keys()),
+            active_seed_lease_codes=active_seed_lease_codes,
+            waited_seconds=float(seed_lease_waited_seconds),
+            max_wait_seconds=float(seed_lease_max_wait_seconds),
+        )
+        lease_flags = decision.flags
+        lease_skipped = decision.skipped_codes
+        values_by_instrument = {
+            code: values_by_instrument[code]
+            for code in decision.remaining_codes
+            if code in values_by_instrument
+        }
+        snapshot_input = SnapshotInput(
+            metric_keys_ordered=snapshot_input.metric_keys_ordered,
+            metric_types=snapshot_input.metric_types,
+            values_by_instrument=values_by_instrument,
+            layer1_input_fingerprint=snapshot_input.layer1_input_fingerprint,
+        )
+
     rows = build_snapshot_rows(
         trade_date=request.trade_date,
         metric_set_version_id=resolved_id,
@@ -433,6 +464,18 @@ def run_derived_generation(
         metric_set_version_id=resolved_id,
         rows=rows,
     )
+    # latest_rows must match trimmed membership + new snapshot digest (lease skip).
+    if latest_rows is not None:
+        remaining = set(snapshot_input.values_by_instrument)
+        latest_rows = [
+            {
+                **dict(row),
+                "instrument_code": str(row["instrument_code"]),
+                "logical_digest": logical_digest,
+            }
+            for row in latest_rows
+            if str(row.get("instrument_code") or "") in remaining
+        ]
     snapshot_bytes = build_snapshot_parquet_bytes(trade_date=request.trade_date, rows=rows)
     snapshot_sha = compute_object_sha256(snapshot_bytes)
     prefixes = prefix_for(resolved_id)
@@ -463,7 +506,13 @@ def run_derived_generation(
     try:
         generation = generation_store.begin_generation(begin_request)
     except GenerationConflictError as exc:
-        return DerivedGenerationResult(status="error", exit_code=2, reason=str(exc))
+        return DerivedGenerationResult(
+            status="error",
+            exit_code=2,
+            reason=str(exc),
+            flags=lease_flags,
+            lease_skipped_codes=lease_skipped,
+        )
 
     if generation.status == GenerationStatus.COMMITTED.value:
         return DerivedGenerationResult(
@@ -473,6 +522,8 @@ def run_derived_generation(
             generation_id=generation.generation_id,
             logical_digest=logical_digest,
             reason="generation_already_committed",
+            flags=lease_flags,
+            lease_skipped_codes=lease_skipped,
         )
 
     generation_id = generation.generation_id
@@ -484,7 +535,7 @@ def run_derived_generation(
         trade_date=request.trade_date,
         generation_uuid=generation_id,
         object_sha256=snapshot_sha,
-        manifest=False,
+        manifest=False
     )
     try:
         generation_store.register_pending_object(
@@ -511,7 +562,14 @@ def run_derived_generation(
         object_keys.append(snapshot_key)
     except (GenerationConflictError, GenerationNotFoundError, R2ObjectAlreadyExistsError) as exc:
         generation_store.fail_generation(generation_id=generation_id, reason=str(exc))
-        return DerivedGenerationResult(status="error", exit_code=2, reason=str(exc), generation_id=generation_id)
+        return DerivedGenerationResult(
+            status="error",
+            exit_code=2,
+            reason=str(exc),
+            generation_id=generation_id,
+            flags=lease_flags,
+            lease_skipped_codes=lease_skipped,
+        )
 
     manifest_bytes = build_snapshot_manifest_bytes(
         trade_date=request.trade_date,
@@ -527,7 +585,7 @@ def run_derived_generation(
         row_count=len(rows),
         metric_keys_ordered=snapshot_input.metric_keys_ordered,
         mode=request.mode,
-        writer_version=request.writer_version,
+        writer_version=request.writer_version
     )
     manifest_sha = compute_object_sha256(manifest_bytes)
     manifest_key = object_key_for(
@@ -567,6 +625,8 @@ def run_derived_generation(
             exit_code=2,
             reason=str(exc),
             generation_id=generation_id,
+            flags=lease_flags,
+            lease_skipped_codes=lease_skipped,
         )
 
     r2_concurrency = resolve_r2_concurrency()
@@ -586,6 +646,8 @@ def run_derived_generation(
             prefetch_elapsed_ms=prefetch_elapsed_ms,
             put_elapsed_ms=put_elapsed_ms,
             rpc_elapsed_ms=rpc_elapsed_ms,
+            flags=lease_flags,
+            lease_skipped_codes=lease_skipped,
         )
 
     try:
@@ -715,6 +777,7 @@ def run_derived_generation(
                     row_count=row_count,
                     metric_keys_ordered=snapshot_input.metric_keys_ordered,
                     mode=request.mode,
+                    provenance=("daily_normal" if str(request.mode) == "normal" else str(request.mode)),
                     writer_version=request.writer_version,
                 )
                 manifest_sha = compute_object_sha256(series_manifest)
@@ -864,6 +927,8 @@ def run_derived_generation(
             prefetch_elapsed_ms=prefetch_elapsed_ms,
             put_elapsed_ms=put_elapsed_ms,
             rpc_elapsed_ms=rpc_elapsed_ms,
+            flags=lease_flags,
+            lease_skipped_codes=lease_skipped,
         )
 
     return DerivedGenerationResult(
@@ -878,6 +943,8 @@ def run_derived_generation(
         prefetch_elapsed_ms=prefetch_elapsed_ms,
         put_elapsed_ms=put_elapsed_ms,
         rpc_elapsed_ms=rpc_elapsed_ms,
+        flags=lease_flags,
+        lease_skipped_codes=lease_skipped,
     )
 
 

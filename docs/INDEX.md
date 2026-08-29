@@ -61,7 +61,7 @@
   [docs/adr/adr-003-r2-supabase-control-blob-split.md](adr/adr-003-r2-supabase-control-blob-split.md)
 - ADR-004 派生指標の時系列基盤（Phase 4.5、Free-first R2 / Supabase split）:
   [docs/adr/adr-004-derived-indicators-warm-cache.md](adr/adr-004-derived-indicators-warm-cache.md)
-- ADR-005 月次新規 Core の OHLCV / series 非同期補完（**Proposed。未採択。未実装**）:
+- ADR-005 月次新規 Core の OHLCV / series 非同期補完（**Adopted。実装 in_progress**）:
   [docs/adr/adr-005-monthly-new-core-backfill.md](adr/adr-005-monthly-new-core-backfill.md)
 
 ### Decision Candidates (Pre-ADR)
@@ -105,8 +105,8 @@ CI・ワークフロー・ジョブの変更に関わる「原則」「運用基
 - [docs/contracts/daily_replay_and_monthly_universe.md](contracts/daily_replay_and_monthly_universe.md) — 日次 replay / patched cache / `daily.yml` の artifact・cache 契約
 - [docs/contracts/cron_dispatch_watchdog.md](contracts/cron_dispatch_watchdog.md) — Cloudflare Cron 欠走の GitHub 側検知 / 当日 catch-up
 - [docs/contracts/github_state_to_r2_supabase_mapping.md](contracts/github_state_to_r2_supabase_mapping.md) — GHA state → R2 / Supabase mapping（`schema_version` 6、ADR-005 は `planned_*`）
-- [docs/contracts/monthly_new_core_backfill_cloudflare_cron_dispatch.md](contracts/monthly_new_core_backfill_cloudflare_cron_dispatch.md) — ADR-005 poller Cron 骨格（Worker 未実装）
-- [docs/contracts/monthly_new_core_backfill.md](contracts/monthly_new_core_backfill.md) — ADR-005 分割 request runbook 骨格（未実装）
+- [docs/contracts/monthly_new_core_backfill_cloudflare_cron_dispatch.md](contracts/monthly_new_core_backfill_cloudflare_cron_dispatch.md) — ADR-005 poller Cron 契約（Worker 実装は `pr-005-series-seed` / poller PR）
+- [docs/contracts/monthly_new_core_backfill.md](contracts/monthly_new_core_backfill.md) — ADR-005 分割 request runbook
 
 ### 補助（スコープ・テスト配置）
 
@@ -119,7 +119,7 @@ CI・ワークフロー・ジョブの変更に関わる「原則」「運用基
 - Phase 4 後監査・是正計画: [issue_93_post_phase4_audit.md](operations/issue_93_post_phase4_audit.md)
 - Phase runbooks: [phase2c](operations/phase2c_r2_only_cutover.md), [phase3](operations/phase3_warm_cache_supabase_cutover.md), [phase4](operations/phase4_cutover.md), [phase4.5](operations/phase4_5_cutover.md)
 - Phase 4.5 gate SSOT: [phase4_5_gate_status.yaml](operations/phase4_5_gate_status.yaml)
-- ADR-005 gate SSOT（Proposed）: [adr005_gate_status.yaml](operations/adr005_gate_status.yaml)
+- ADR-005 gate SSOT（Adopted / in_progress）: [adr005_gate_status.yaml](operations/adr005_gate_status.yaml)
 - Phase 5 observability 調査: [phase5_observability_options.md](operations/phase5_observability_options.md)
 - Phase 5 observability runbook: [phase5_observability_cutover.md](operations/phase5_observability_cutover.md)
 - Cloudflare Cron 欠走 (2026-08-26): [incidents/cloudflare_cron_miss_2026-08-26.md](operations/incidents/cloudflare_cron_miss_2026-08-26.md)

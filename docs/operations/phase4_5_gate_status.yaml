@@ -1,11 +1,13 @@
 schema_version: 2
 phase: '4.5'
-last_updated_utc: '2026-08-22T23:45:00+09:00'
-overall_status: in_progress
+last_updated_utc: '2026-08-29T00:00:00Z'
+overall_status: closed
 implementation_snapshot:
-  local_worktree_has_unmerged_changes: false
-  note: 'Path B 13209d23 is active. live_gate open: placeholder soak does not count as Path B soak. Post-CAS normal daily on 13209d23 is unmet.'
+  local_worktree_has_unmerged_changes: true
+  note: 'Path B 13209d23 is active. live_gate_45c closed by user-authorized waiver 2026-08-29 (continuous 3 trading-day Path B soak not claimed). capacity_gate closed. Phase 4.5 gate CLOSED; Issue #93 remains OPEN for Phase 5 / ADR-005 implementation. local_worktree_has_unmerged_changes true while ADR-005 implementation batch is unmerged.'
 correction_log:
+- at_utc: '2026-08-29T00:00:00Z'
+  reason: 'User-authorized waiver close of live_gate_45c (2026-08-29). Continuous 3 trading-day Path B soak was broken by 2026-08-26 Cloudflare Cron miss; do not claim soak achievement. soak_run_urls record Path B-era normal dailies 8/25 #32818400674, 8/27 #33047052364, 8/28 #33149036340 (non-contiguous). normal_daily_success_run_url set to 8/28. overall_status closed with PR/preflight/capacity complete. ADR-005 docs adoption proceeds separately; Issue #93 stays OPEN for Phase 5.'
 - at_utc: '2026-08-22T23:45:00+09:00'
   reason: 'Honesty reopen: Codex P1. live_gate_45c / overall_status reverted to open/in_progress because soak_run_urls and normal_daily_success_run_url are placeholder-set 11111111 dailies; Path B 13209d23 has no post-CAS normal daily soak. Pointer stays 13209d23. CAS provenance corrected to writer_workflow=ops-activate-metric-set-cas source_github_run_id=0 (not borrowed backfill #32567085609). Evidence JSON updated. Do not close until Path B completes 3 trading-day soak.'
 - at_utc: '2026-08-22T19:35:00+09:00'
@@ -121,21 +123,21 @@ pr_gates:
     local_pytest_pass: true
     note: merged to main via PR #147 (stack PR #146); cutover writer secrets wired
 live_gate_45c:
-  status: open
-  closed_at_utc: null
-  normal_daily_success_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/31789729418
+  status: closed
+  closed_at_utc: '2026-08-29T00:00:00Z'
+  normal_daily_success_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33149036340
   replay_no_shared_mutation_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/31784728984
   backfill_shadow_only_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32562373843
   reconcile_isolated_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32567430829
   soak_trading_days: 3
   soak_run_urls:
-  - https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/31789729418
-  - https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32002940778
-  - https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32108307197
-  note: 'Path B 13209d23 is active (placeholder 11111111 retired). 60-day GHA backfill + 8/19-21 catchup. Current-latest reconcile on Path B #32567430829. soak_run_urls / normal_daily_success_run_url remain the pre-CAS placeholder 4.5c dailies and do not satisfy Path B soak. live_gate stays open until 3 post-CAS trading-day normal dailies on 13209d23. capacity_gate closed separately.'
+  - https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/32818400674
+  - https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33047052364
+  - https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33149036340
+  note: 'closed by user-authorized waiver 2026-08-29. Path B 13209d23 active. soak_run_urls are Path B-era normal dailies 8/25, 8/27, 8/28 (non-contiguous; 8/26 Cron miss). Do not claim continuous 3 trading-day soak achievement.'
   supabase_live_audit_evidence_url: docs/operations/evidence/phase45_supabase_live_audit_2026-08-14.json
 roadmap:
-  phase45_status_phrase: 'PR-45-1..4 merged・rollout 4.5c・Path B active・live_gate open（Path B soak 未達）・capacity_gate closed'
+  phase45_status_phrase: 'PR-45-1..4 merged・rollout 4.5c・Path B active・live_gate closed (user-authorized waiver 2026-08-29)・capacity_gate closed'
 historical_pr_gates:
   pr-45-0-gate-ssot:
     description: gate SSOT + honesty + cutover runbook + rollout helpers
@@ -205,6 +207,8 @@ capacity_gate:
     rollback_days: 5
     failed_days: 3
     reconcile_repair_rate: 0.05
-  evidence_report_hash: 15d3188d9eca585b1168bcf5da42bc5c7177fb66bc90cecda02a3c5d8f08169d
+    layer1_immutable_generations_retained: 3
+    derived_series_superseded_days: 3
+  evidence_report_hash: 24aff330597875b4ecb4b6c716ffec6bd8bd192cc5577e12d988048787e1d156
   evidence_url: docs/operations/evidence/phase45_budget_v2_path_b_report.json
-  note: Path B v2 AC-CAP met (safety_factor 1.20, rollback/failed/reconcile inputs present, within_free_tier). pytest test_phase45_budget_v2_contract.py
+  note: Path B v2 AC-CAP met (safety_factor 1.20, rollback/failed/reconcile inputs present, within_free_tier). ADR-005 retention inputs recorded (layer1_immutable_generations_retained=3, derived_series_superseded_days=3) without changing byte projection. pytest test_phase45_budget_v2_contract.py
