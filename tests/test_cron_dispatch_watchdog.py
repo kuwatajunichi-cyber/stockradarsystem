@@ -26,6 +26,7 @@ def test_map_watchdog_crons() -> None:
     assert map_schedule_cron("20 7 * * *") == "daily"
     assert map_schedule_cron("35 3 * * *") == "patch"
     assert map_schedule_cron("15 2 1 * *") == "monthly"
+    assert map_schedule_cron("5 * * * *") == "mnc_poller"
     with pytest.raises(ValueError, match="unknown_watchdog_cron"):
         map_schedule_cron("45 6 * * *")
 
@@ -151,7 +152,12 @@ def test_parse_github_runs_payload() -> None:
 
 
 def test_watchdog_cron_table_covers_all_targets() -> None:
-    assert set(WATCHDOG_CRON_TO_TARGET.values()) == set(TARGETS)
+    from stockradar.jobs.cron_dispatch_watchdog import MNC_POLLER_TARGET
+
+    values = set(WATCHDOG_CRON_TO_TARGET.values())
+    assert set(TARGETS).issubset(values)
+    assert MNC_POLLER_TARGET in values
+    assert values - set(TARGETS) == {MNC_POLLER_TARGET}
 
 def test_pre_fire_same_day_dispatch_does_not_cover_daily() -> None:
     verdict = evaluate(
@@ -274,4 +280,55 @@ def test_main_report_only_exits_zero_on_miss(tmp_path: Path) -> None:
     ]
     assert main([*argv, "--report-only"]) == 0
     assert main(argv) == 2
+
+
+def test_mnc_poller_disabled_is_ok() -> None:
+    from stockradar.jobs.cron_dispatch_watchdog import evaluate_mnc_poller_liveness
+
+    verdict = evaluate_mnc_poller_liveness(
+        enabled=False,
+        now_utc=_dt("2026-09-01T03:05:00Z"),
+        runs=[],
+    )
+    assert verdict.outcome == "ok"
+    assert verdict.reason == "mnc_dispatch_disabled"
+    assert verdict.miss is False
+
+
+def test_mnc_poller_enabled_miss_without_recent_dispatch() -> None:
+    from stockradar.jobs.cron_dispatch_watchdog import evaluate_mnc_poller_liveness
+
+    verdict = evaluate_mnc_poller_liveness(
+        enabled=True,
+        now_utc=_dt("2026-09-01T03:05:00Z"),
+        runs=[
+            WorkflowRun(
+                created_at=_dt("2026-09-01T02:00:00Z"),
+                event="workflow_dispatch",
+                status="completed",
+                html_url="https://example.test/stale",
+            )
+        ],
+    )
+    assert verdict.outcome == "miss"
+    assert verdict.reason == "no_poller_dispatch_in_lookback"
+
+
+def test_mnc_poller_enabled_ok_with_recent_dispatch() -> None:
+    from stockradar.jobs.cron_dispatch_watchdog import evaluate_mnc_poller_liveness
+
+    verdict = evaluate_mnc_poller_liveness(
+        enabled=True,
+        now_utc=_dt("2026-09-01T03:05:00Z"),
+        runs=[
+            WorkflowRun(
+                created_at=_dt("2026-09-01T02:50:00Z"),
+                event="workflow_dispatch",
+                status="completed",
+                html_url="https://example.test/poller",
+            )
+        ],
+    )
+    assert verdict.outcome == "ok"
+    assert verdict.covering_run_url == "https://example.test/poller"
 

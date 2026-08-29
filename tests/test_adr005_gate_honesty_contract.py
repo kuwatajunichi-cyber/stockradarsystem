@@ -22,6 +22,7 @@ _REQUIRED_PR_GATES = (
     "pr-005-monthly-rpc",
     "pr-005-series-seed",
 )
+_MERGE_SHA = "9c58ddc6073779f9f97311f35fe13ace47d7fb29"
 
 
 def _load_gate_status() -> dict:
@@ -51,17 +52,30 @@ def test_adr005_gate_status_in_progress_and_owned() -> None:
     assert impl.get("workflows_unstarted") is False
     pr_gates = data.get("pr_gates")
     assert isinstance(pr_gates, dict)
-    docs = pr_gates.get("pr-005-docs-adoption")
-    assert isinstance(docs, dict)
-    assert docs.get("status") in {"pending", "local_only", "merged_and_verified"}
     for gate_id in _REQUIRED_PR_GATES:
-        if gate_id == "pr-005-docs-adoption":
-            continue
         gate = pr_gates.get(gate_id)
         assert isinstance(gate, dict), f"missing pr_gate {gate_id}"
         status = gate.get("status")
-        assert status in {"pending", "local_only"}, f"{gate_id} status {status!r} is not an open impl gate"
-        assert not gate.get("merge_commit"), f"{gate_id} must not claim merge without evidence"
+        assert status in {"pending", "local_only", "merged_and_verified"}, (
+            f"{gate_id} status {status!r}"
+        )
+        if status == "merged_and_verified":
+            assert gate.get("merge_commit"), f"{gate_id} needs merge_commit"
+            assert gate.get("merge_ci_run_url"), f"{gate_id} needs merge_ci_run_url"
+        else:
+            assert not gate.get("merge_commit"), f"{gate_id} must not claim merge without evidence"
+
+
+@pytest.mark.unit
+def test_adr005_pr_gates_merged_after_pr159() -> None:
+    data = _load_gate_status()
+    pr_gates = data.get("pr_gates")
+    assert isinstance(pr_gates, dict)
+    for gate_id in _REQUIRED_PR_GATES:
+        gate = pr_gates[gate_id]
+        assert gate.get("status") == "merged_and_verified"
+        assert str(gate.get("merge_commit")) == _MERGE_SHA
+        assert "33235945903" in str(gate.get("merge_ci_run_url") or "")
 
 
 @pytest.mark.unit
@@ -75,6 +89,7 @@ def test_adr005_docs_index_and_roadmap_adopted() -> None:
     assert "Adopted" in roadmap
     assert _PHASE45_PHRASE in roadmap
     assert "未達" not in roadmap.split("## Phase 5")[0]
+    assert "PR #159" in roadmap or "9c58ddc" in roadmap or "merged" in roadmap.lower()
 
 
 @pytest.mark.unit
@@ -131,5 +146,4 @@ def test_adr005_companion_docs_match_waiver_close() -> None:
     )
     assert gate45.get("overall_status") == "closed"
     snap = gate45.get("implementation_snapshot") or {}
-    # While ADR-005 batch is unmerged, honesty requires acknowledging local changes.
-    assert snap.get("local_worktree_has_unmerged_changes") is True
+    assert isinstance(snap.get("local_worktree_has_unmerged_changes"), bool)

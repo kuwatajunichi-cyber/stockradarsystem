@@ -1,54 +1,59 @@
 schema_version: 1
 adr: '005'
-last_updated_utc: '2026-08-29T00:00:00Z'
+last_updated_utc: '2026-08-29T12:00:00Z'
 overall_status: in_progress
 owner: repo-maintainers
 repair_approver_team: repo-maintainers
 implementation_snapshot:
   code_unstarted: false
   workflows_unstarted: false
-  note: Phase 4.5 gate closed (waiver). ADR-005 implementation is local_only (P0-P5/P4
-    code present, unmerged). live_gate_005 stays open until feature_start bootstrap,
-    poller evidence, and capacity remeasure.
+  note: 'PR #159 merged (9c58ddc). pr_gates merged_and_verified. live_gate_005 stays open until feature_start bootstrap, poller evidence, and capacity remeasure. Ops: adr005_ops_gates_sept1.md / adr005_enable_sept1.md. Follow-up may still be unmerged (MNC poller miss watchdog).'
 pr_gates:
   pr-005-docs-adoption:
-    description: ADR-005 adoption docs sync (ADR-003/004, contracts, mapping v6, gate
-      YAML)
-    status: local_only
-    merge_commit: null
-    merge_ci_run_url: null
+    description: ADR-005 adoption docs sync (ADR-003/004, contracts, mapping v6, gate YAML)
+    status: merged_and_verified
+    merge_commit: 9c58ddc6073779f9f97311f35fe13ace47d7fb29
+    merge_ci_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33235945903
+    pytest_ci_pass_on_merge: true
   pr-005-daily-cas:
-    description: Daily Layer 1 immutable pointer CAS + series manifest v2 + lease
-      skip
-    status: local_only
-    merge_commit: null
+    description: Daily Layer 1 immutable pointer CAS + series manifest v2 + lease skip
+    status: merged_and_verified
+    merge_commit: 9c58ddc6073779f9f97311f35fe13ace47d7fb29
+    merge_ci_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33235945903
+    pytest_ci_pass_on_merge: true
   pr-005-monthly-rpc:
     description: commit_monthly_snapshot_with_backfill_request + request/outbox (012)
-    status: local_only
-    merge_commit: null
+    status: merged_and_verified
+    merge_commit: 9c58ddc6073779f9f97311f35fe13ace47d7fb29
+    merge_ci_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33235945903
+    pytest_ci_pass_on_merge: true
   pr-005-series-seed:
     description: series_only writer + catalog 3.1 + sweeper + poller/worker (P5/P4)
-    status: local_only
-    merge_commit: null
+    status: merged_and_verified
+    merge_commit: 9c58ddc6073779f9f97311f35fe13ace47d7fb29
+    merge_ci_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33235945903
+    pytest_ci_pass_on_merge: true
 live_gate_005:
   status: open
-  note: closed only after feature_start bootstrap, poller evidence, and capacity remeasure.
+  note: closed only after feature_start bootstrap, poller evidence, and capacity remeasure. Do not claim closed after PR merge alone.
 correction_log:
-- at_utc: '2026-08-28T09:40:00+09:00'
-  reason: Schema created as proposed. All implementation gates pending. Owner slug
-    repo-maintainers until a GitHub team is named.
-- at_utc: '2026-08-28T18:50:00+09:00'
-  reason: Adoption docs 2-8 synced locally. overall_status remains proposed. pr-005-docs-adoption
-    stays local_only.
-- at_utc: '2026-08-28T21:00:00+09:00'
-  reason: Third-round MUST items written into ADR-005. overall_status remains proposed.
-    Fourth re-review pending.
-- at_utc: '2026-08-28T21:30:00+09:00'
-  reason: Fifth Grok-only review approved leftover loser-row copies. overall_status
-    remains proposed. Not Adopted. pr-005-docs-adoption stays local_only.
-- at_utc: '2026-08-29T00:00:00Z'
-  reason: 'P0: Adopted with Phase 4.5 live_gate waiver close. overall_status in_progress.
-    code_unstarted false for docs+implementation track. live_gate_005 remains open.'
+- at_utc: '2026-08-29T12:00:00Z'
+  reason: 'PR #159 merged to main (9c58ddc). CI run 33235945903 Pass. All pr_gates merged_and_verified. live_gate_005 remains open. Issue #93 comment records soak waiver + remaining ops.'
 - at_utc: '2026-08-29T02:00:00Z'
   reason: Local implementation of P0-P5/P4 present. All pr_gates local_only (unmerged).
     Ops/enable checklists added under docs/operations/. live_gate_005 remains open.
+- at_utc: '2026-08-29T00:00:00Z'
+  reason: 'P0: Adopted with Phase 4.5 live_gate waiver close. overall_status in_progress.
+    code_unstarted false for docs+implementation track. live_gate_005 remains open.'
+- at_utc: '2026-08-28T21:30:00+09:00'
+  reason: Fifth Grok-only review approved leftover loser-row copies. overall_status
+    remains proposed. Not Adopted. pr-005-docs-adoption stays local_only.
+- at_utc: '2026-08-28T21:00:00+09:00'
+  reason: Third-round MUST items written into ADR-005. overall_status remains proposed.
+    Fourth re-review pending.
+- at_utc: '2026-08-28T18:50:00+09:00'
+  reason: Adoption docs 2-8 synced locally. overall_status remains proposed. pr-005-docs-adoption
+    stays local_only.
+- at_utc: '2026-08-28T09:40:00+09:00'
+  reason: Schema created as proposed. All implementation gates pending. Owner slug
+    repo-maintainers until a GitHub team is named.

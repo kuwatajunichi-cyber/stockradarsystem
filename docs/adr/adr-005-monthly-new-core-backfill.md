@@ -15,7 +15,7 @@
 3. ADR-003 の R2 holds に `derived-inputs/` を追加。
 4. `docs/contracts/exit_codes.md`（下記 entrypoint）。
 5. `docs/contracts/daily_replay_and_monthly_universe.md`（選択 `MONTHLY_TAG` の `history_quality`、Phase 4.5「未実装」記述の是正、`canonical_release_for_month` と `pick_monthly_release` の混同禁止）。
-6. mapping YAML の `schema_version` bump、トップレベル `adr005`、cache エントリの `planned_*`、および mapping 契約。**live Layer 1 は `immutable_pointer_cas`（`target_r2_key_pattern` = sha256 objects）** — `pr-005-daily-cas` は同一実装バッチの local_only（未マージ）で docs 採択と同梱してよい。`adr005.status: proposed` は feature_start unset（未 enable）であり fixed-key を意味しない。YAML の `feature_start_release_month` は mirror。正本は DB（§4）。
+6. mapping YAML の `schema_version` bump、トップレベル `adr005`、cache エントリの `planned_*`、および mapping 契約。**live Layer 1 は `immutable_pointer_cas`（`target_r2_key_pattern` = sha256 objects）** — `pr-005-daily-cas` は PR #159 で main にマージ済み。`adr005.status: proposed` は feature_start unset（未 enable）であり fixed-key を意味しない。YAML の `feature_start_release_month` は mirror。正本は DB（§4）。
 7. `docs/operations/adr005_gate_status.yaml` の schema 固定（owner team slug を空にしない。採択後は `status: in_progress` と `owner: repo-maintainers`）。
 8. 新規 cron 契約 `docs/contracts/monthly_new_core_backfill_cloudflare_cron_dispatch.md` の骨格（実装 PR で Worker 差分を埋める）。
 
@@ -28,7 +28,7 @@
 | 3 | 同期済み（ADR-003 `derived-inputs/`） |
 | 4 | 同期済み（`exit_codes.md`） |
 | 5 | 同期済み（`daily_replay_and_monthly_universe.md`） |
-| 6 | 同期済み（mapping YAML `schema_version: 6`、`adr005` ブロック、`planned_*`、mapping 契約）。**live の Layer 1 は既に `immutable_pointer_cas`（sha256 objects）** — `pr-005-daily-cas` は本バッチ local_only（未マージ）。`adr005.status: proposed` は feature_start unset（未 enable）であり fixed-key を意味しない |
+| 6 | 同期済み（mapping YAML `schema_version: 6`、`adr005` ブロック、`planned_*`、mapping 契約）。**live の Layer 1 は `immutable_pointer_cas`（sha256 objects）** — `pr-005-daily-cas` は PR #159（`9c58ddc`）で merge 済み。`adr005.status: proposed` は feature_start unset（未 enable）であり fixed-key を意味しない |
 | 7 | 同期済み（`docs/operations/adr005_gate_status.yaml`。`overall_status: in_progress`、`owner: repo-maintainers`） |
 | 8 | 同期済み（cron 骨格 + 分割 runbook 骨格）。Worker / `wrangler.toml` は実装 PR |
 

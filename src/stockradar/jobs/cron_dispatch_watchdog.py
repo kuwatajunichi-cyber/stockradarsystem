@@ -78,11 +78,17 @@ TARGETS: dict[str, TargetSpec] = {
     ),
 }
 
+# ADR-005 §1.3.8: independent of the three Cloudflare-miss detectors above.
+MNC_POLLER_TARGET = "mnc_poller"
+MNC_POLLER_WORKFLOW_FILE = "monthly_new_core_backfill_dispatch.yml"
+MNC_POLLER_LOOKBACK = timedelta(minutes=45)
+
 # Independent GitHub schedule crons (UTC). Must match cron_dispatch_watchdog.yml.
 WATCHDOG_CRON_TO_TARGET: dict[str, str] = {
     "35 3 * * *": "patch",
     "20 7 * * *": "daily",
     "15 2 1 * *": "monthly",
+    "5 * * * *": MNC_POLLER_TARGET,
 }
 
 
@@ -233,6 +239,51 @@ def evaluate(
     )
 
 
+def evaluate_mnc_poller_liveness(
+    *,
+    enabled: bool,
+    now_utc: datetime,
+    runs: list[WorkflowRun],
+    lookback: timedelta = MNC_POLLER_LOOKBACK,
+) -> WatchdogVerdict:
+    """ADR-005 §1.3.8: while MNC_DISPATCH_ENABLED, require poller dispatch in lookback."""
+    if now_utc.tzinfo is None:
+        now_utc = now_utc.replace(tzinfo=timezone.utc)
+    else:
+        now_utc = now_utc.astimezone(timezone.utc)
+
+    if not enabled:
+        return WatchdogVerdict(
+            outcome="ok",
+            reason="mnc_dispatch_disabled",
+            target=MNC_POLLER_TARGET,
+            workflow_file=MNC_POLLER_WORKFLOW_FILE,
+        )
+
+    earliest = now_utc - lookback
+    covering = [
+        run
+        for run in runs
+        if run.event in COVERING_EVENTS and earliest <= run.created_at <= now_utc
+    ]
+    if covering:
+        covering.sort(key=lambda r: r.created_at)
+        chosen = covering[-1]
+        return WatchdogVerdict(
+            outcome="ok",
+            reason="poller_dispatch_observed",
+            target=MNC_POLLER_TARGET,
+            workflow_file=MNC_POLLER_WORKFLOW_FILE,
+            covering_run_url=chosen.html_url or None,
+        )
+    return WatchdogVerdict(
+        outcome="miss",
+        reason="no_poller_dispatch_in_lookback",
+        target=MNC_POLLER_TARGET,
+        workflow_file=MNC_POLLER_WORKFLOW_FILE,
+    )
+
+
 def _append_github_output(fields: dict[str, str]) -> None:
     path = os_github_output()
     if not path:
@@ -271,11 +322,20 @@ def _print_verdict(verdict: WatchdogVerdict) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Cloudflare cron dispatch watchdog")
     parser.add_argument("--map-schedule", default="", help="Print target name for watchdog cron")
-    parser.add_argument("--target", default="", help="daily|patch|monthly")
+    parser.add_argument(
+        "--target",
+        default="",
+        help="daily|patch|monthly|mnc_poller",
+    )
     parser.add_argument("--runs-json", default="", help="Path to GitHub workflow runs JSON")
     parser.add_argument("--tokyo-date", default="", help="YYYY-MM-DD Asia/Tokyo")
     parser.add_argument("--is-open", default="", help="True/False from resolve_trading_day")
     parser.add_argument("--now-utc", default="", help="ISO-8601 UTC override")
+    parser.add_argument(
+        "--mnc-dispatch-enabled",
+        default="",
+        help="True/False; required for target=mnc_poller (default false when empty)",
+    )
     parser.add_argument(
         "--report-only",
         action="store_true",
@@ -292,12 +352,37 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     target_name = (args.target or "").strip()
+    if args.now_utc.strip():
+        now_utc = parse_github_datetime(args.now_utc.strip())
+    else:
+        now_utc = datetime.now(timezone.utc)
+
+    if not args.runs_json:
+        print("error: --runs-json is required", file=sys.stderr)
+        return 1
+    try:
+        payload = json.loads(Path(args.runs_json).read_text(encoding="utf-8"))
+        runs = parse_runs(payload)
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
+        print(f"error: cannot read runs json: {exc}", file=sys.stderr)
+        return 1
+
+    if target_name == MNC_POLLER_TARGET:
+        enabled = _truthy(args.mnc_dispatch_enabled)
+        verdict = evaluate_mnc_poller_liveness(
+            enabled=enabled,
+            now_utc=now_utc,
+            runs=runs,
+        )
+        _print_verdict(verdict)
+        _append_github_output(verdict_to_outputs(verdict))
+        if verdict.miss and not args.report_only:
+            return 2
+        return 0
+
     spec = TARGETS.get(target_name)
     if spec is None:
         print(f"error: unknown target {target_name!r}", file=sys.stderr)
-        return 1
-    if not args.runs_json:
-        print("error: --runs-json is required", file=sys.stderr)
         return 1
     if not args.tokyo_date:
         print("error: --tokyo-date is required", file=sys.stderr)
@@ -307,18 +392,6 @@ def main(argv: list[str] | None = None) -> int:
         tokyo_date = date.fromisoformat(args.tokyo_date.strip())
     except ValueError:
         print(f"error: invalid --tokyo-date {args.tokyo_date!r}", file=sys.stderr)
-        return 1
-
-    if args.now_utc.strip():
-        now_utc = parse_github_datetime(args.now_utc.strip())
-    else:
-        now_utc = datetime.now(timezone.utc)
-
-    try:
-        payload = json.loads(Path(args.runs_json).read_text(encoding="utf-8"))
-        runs = parse_runs(payload)
-    except (OSError, json.JSONDecodeError, ValueError) as exc:
-        print(f"error: cannot read runs json: {exc}", file=sys.stderr)
         return 1
 
     verdict = evaluate(

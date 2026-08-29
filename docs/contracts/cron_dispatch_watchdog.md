@@ -46,9 +46,19 @@ The watchdog job stays failed after catch-up so the Cloudflare miss remains visi
 - Making Cloudflare Cron itself 100% reliable.
 - Replacing Phase 5 Healthchecks.io (GHA success heartbeat, longer grace).
 - Date-rollover misses: if the watchdog's own GitHub `schedule` is delayed past JST midnight, `resolve_trading_day` looks at D+1 and a miss on D is not recorded. Phase 5 Healthchecks.io is the longer net for that class of failure.
+- Adding the MNC `*/15` Cloudflare Cron to this three-row Cloudflare-miss table (ADR-005 forbids that). MNC poller liveness is a **separate** hourly GitHub schedule (`5 * * * *` → `mnc_poller`).
+
+## ADR-005 MNC poller liveness (`mnc_poller`)
+
+| Watchdog cron (UTC) | Target | Miss rule |
+|---------------------|--------|-----------|
+| `5 * * * *` | `monthly_new_core_backfill_dispatch.yml` | While repository variable `MNC_DISPATCH_ENABLED=true`, no `workflow_dispatch` in the last 45 minutes → `miss` (exit 2). When unset/false → `ok` (`mnc_dispatch_disabled`). |
+
+Catch-up on miss dispatches the **poller** workflow only (not `monthly_new_core_backfill.yml`).
 
 ## Related
 
 - Incident: [docs/operations/incidents/cloudflare_cron_miss_2026-08-26.md](../operations/incidents/cloudflare_cron_miss_2026-08-26.md)
 - Worker: `workers/github-cron-dispatcher/`
 - Workflow: `.github/workflows/cron_dispatch_watchdog.yml`
+- MNC poller contract: [monthly_new_core_backfill_cloudflare_cron_dispatch.md](monthly_new_core_backfill_cloudflare_cron_dispatch.md)
