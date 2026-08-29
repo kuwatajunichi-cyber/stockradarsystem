@@ -62,7 +62,7 @@ Out: 派生 cache(4.5), auth(5), published/統一(5), cleanup Cron(5+)。
 4. ~~Supabase / R2 budget fixture~~ → closed（CI + Postgres 実測；full-scale R2 extrapolation は warn 超過 → 有料移行 gate 要検討）
 5. ~~Phase 4.5 gate SSOT~~ → closed
 
-**次ゲート:** ADR-005 実装（Daily CAS → Monthly RPC → series_seed → poller）。Phase 4.5 live_gate_45c は waiver closed。詳細: [phase4_5_cutover.md](phase4_5_cutover.md)、[adr005_gate_status.yaml](adr005_gate_status.yaml)。
+**次ゲート:** ADR-005 **実装 PR #159 merged**（`9c58ddc`）。残は ops（8/31 CAS canary → 9/1 enable）と `live_gate_005`（bootstrap / poller 証拠 / capacity 再測定）。Phase 4.5 live_gate_45c は waiver closed。詳細: [phase4_5_cutover.md](phase4_5_cutover.md)、[adr005_gate_status.yaml](adr005_gate_status.yaml)、Issue #93 コメント（2026-08-29 事後報告）。
 
 推奨 rollout:
 
@@ -76,7 +76,7 @@ Phase 4.5 gate は CLOSED（user-authorized waiver 2026-08-29）。連続 3 営�
 
 ## ADR-005（Monthly new-Core backfill、Adopted / 実装 in_progress）
 
-[ADR-005](../adr/adr-005-monthly-new-core-backfill.md) は、月次で Core に昇格した銘柄の OHLCV と active Web series を非同期補完する設計契約である。**Adopted（2026-08-29）。** Phase 4.5 gate は closed。実装ゲート SSOT は [adr005_gate_status.yaml](adr005_gate_status.yaml)（`overall_status: in_progress`、`live_gate_005` は open）。
+[ADR-005](../adr/adr-005-monthly-new-core-backfill.md) は、月次で Core に昇格した銘柄の OHLCV と active Web series を非同期補完する設計契約である。**Adopted（2026-08-29）。** Phase 4.5 gate は closed。実装ゲート SSOT は [adr005_gate_status.yaml](adr005_gate_status.yaml)（`overall_status: in_progress`、`pr_gates` merged via [PR #159](https://github.com/kuwatajunichi-cyber/stockradarsystem/pull/159)、`live_gate_005` は open）。
 
 ## Phase 5（entitlements / Web API / observability）
 

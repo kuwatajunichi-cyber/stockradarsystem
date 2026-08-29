@@ -62,9 +62,11 @@ def test_cron_dispatch_watchdog_workflow_matches_python_table() -> None:
     assert "daily.yml" in text
     assert "daily_universe_patch.yml" in text
     assert "monthly.yml" in text
+    assert "monthly_new_core_backfill_dispatch.yml" in text
+    assert "mnc_poller" in text
     on_block = yaml.safe_load(text).get("on") or yaml.safe_load(text).get(True) or {}
     schedule = on_block.get("schedule") or []
-    assert len(schedule) == 3
+    assert len(schedule) == len(WATCHDOG_CRON_TO_TARGET)
 
     assert "--report-only" in text
     assert "steps.fetch.outputs.workflow_file" in text

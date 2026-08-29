@@ -22,6 +22,11 @@ Repository code for P0-P5/P4 is local. The following are **operator steps** (not
 
 Do **not** run enable/bootstrap. current is still 2026-08.
 
+## After merge (repo)
+
+- ADR-005 code is on main via PR #159 (`9c58ddc`).
+- Set GitHub Actions repository variable `MNC_DISPATCH_ENABLED` only when Worker env is true (9/1 morning). Until then leave unset/false so hourly poller liveness stays green (`mnc_dispatch_disabled`).
+
 ## Record
 
 | Gate | Evidence |

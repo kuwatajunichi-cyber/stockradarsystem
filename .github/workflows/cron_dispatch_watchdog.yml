@@ -3,22 +3,26 @@ name: Cron Dispatch Watchdog
 # Independent of Cloudflare Cron. Detects missed Worker -> workflow_dispatch
 # after a grace window and optionally catch-up dispatches (same-day empty
 # run_date = schedule-equivalent / is_replay=false).
+# Also ADR-005 §1.3.8 MNC poller liveness (hourly; not a Cloudflare-miss row).
 # Contract: docs/contracts/cron_dispatch_watchdog.md
+#          docs/contracts/monthly_new_core_backfill_cloudflare_cron_dispatch.md
 
 on:
   schedule:
     - cron: "35 3 * * *"
     - cron: "20 7 * * *"
     - cron: "15 2 1 * *"
+    - cron: "5 * * * *"
   workflow_dispatch:
     inputs:
       target:
-        description: "Which Cloudflare-launched workflow to audit"
+        description: "Which workflow to audit"
         type: choice
         options:
           - daily
           - patch
           - monthly
+          - mnc_poller
         default: daily
 
 concurrency:
@@ -65,6 +69,7 @@ jobs:
 
       - name: Resolve Tokyo trading day
         id: resolve
+        if: steps.target.outputs.target != 'mnc_poller'
         env:
           PYTHONPATH: src
         run: |
@@ -86,6 +91,7 @@ jobs:
             daily) WORKFLOW="daily.yml" ;;
             patch) WORKFLOW="daily_universe_patch.yml" ;;
             monthly) WORKFLOW="monthly.yml" ;;
+            mnc_poller) WORKFLOW="monthly_new_core_backfill_dispatch.yml" ;;
             *) echo "unknown target $TARGET" >&2; exit 1 ;;
           esac
           echo "workflow_file=$WORKFLOW" >> "$GITHUB_OUTPUT"
@@ -96,20 +102,31 @@ jobs:
         env:
           PYTHONPATH: src
           TARGET: ${{ steps.target.outputs.target }}
+          # Repository variable; unset/false until 9/1 enable. Fail-closed miss only when true.
+          MNC_DISPATCH_ENABLED: ${{ vars.MNC_DISPATCH_ENABLED }}
         run: |
           set -euo pipefail
-          python -m stockradar.jobs.cron_dispatch_watchdog \
-            --target "$TARGET" \
-            --runs-json /tmp/watchdog_runs.json \
-            --tokyo-date "${{ steps.resolve.outputs.run_date }}" \
-            --is-open "${{ steps.resolve.outputs.is_open }}" \
-            --report-only
+          if [ "$TARGET" = "mnc_poller" ]; then
+            python -m stockradar.jobs.cron_dispatch_watchdog \
+              --target mnc_poller \
+              --runs-json /tmp/watchdog_runs.json \
+              --mnc-dispatch-enabled "${MNC_DISPATCH_ENABLED:-false}" \
+              --report-only
+          else
+            python -m stockradar.jobs.cron_dispatch_watchdog \
+              --target "$TARGET" \
+              --runs-json /tmp/watchdog_runs.json \
+              --tokyo-date "${{ steps.resolve.outputs.run_date }}" \
+              --is-open "${{ steps.resolve.outputs.is_open }}" \
+              --report-only
+          fi
 
       - name: Same-day catch-up workflow_dispatch
         if: steps.verdict.outputs.miss == 'true'
         env:
           GH_DISPATCH_TOKEN: ${{ secrets.GH_DISPATCH_TOKEN }}
           WORKFLOW_FILE: ${{ steps.fetch.outputs.workflow_file }}
+          TARGET: ${{ steps.target.outputs.target }}
         run: |
           set -euo pipefail
           if [ -z "${GH_DISPATCH_TOKEN}" ]; then
@@ -120,13 +137,13 @@ jobs:
             echo "workflow_file output missing" >&2
             exit 1
           fi
+          # ADR-005: mnc_poller miss catch-up dispatches the poller only (not the worker).
           GH_TOKEN="${GH_DISPATCH_TOKEN}" gh workflow run "${WORKFLOW_FILE}" --ref main
-          echo "catch-up dispatched: ${WORKFLOW_FILE}"
+          echo "catch-up dispatched: ${WORKFLOW_FILE} (target=${TARGET})"
 
       - name: Fail on miss
         if: steps.verdict.outputs.miss == 'true'
         run: |
-          echo "Cloudflare Cron dispatch miss: ${{ steps.verdict.outputs.reason }}" >&2
+          echo "Cron dispatch miss: ${{ steps.verdict.outputs.reason }}" >&2
           echo "target=${{ steps.verdict.outputs.target }} workflow=${{ steps.verdict.outputs.workflow_file }}" >&2
           exit 2
-

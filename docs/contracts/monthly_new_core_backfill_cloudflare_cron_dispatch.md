@@ -39,7 +39,7 @@ Independent miss detection **is required** (ADR-005 section 1.3.8). It is not op
 - GitHub `schedule` every 60 minutes (not a fourth Cloudflare Cron).
 - While `MNC_DISPATCH_ENABLED=true`, miss (exit 2) if `monthly_new_core_backfill_dispatch.yml` has no `workflow_dispatch` in the last 45 minutes.
 - Catch-up may dispatch the **poller** workflow only (not the worker) via `GH_DISPATCH_TOKEN`.
-- Implementation PR adds this GitHub-schedule target in `cron_dispatch_watchdog.py`, distinct from the three Worker-cron miss detectors.
+- Implementation PR adds this GitHub-schedule target in `cron_dispatch_watchdog.py`, distinct from the three Worker-cron miss detectors (`5 * * * *` → `mnc_poller`; repository variable `MNC_DISPATCH_ENABLED`).
 - Stranded `dispatch_pending` / poller job failure remain the in-band alerts **after** a tick has fired. They do not observe a Cloudflare Cron that never ran.
 
 ## Implementation PR delta
