@@ -1,10 +1,6 @@
 """put-immutable create-only object key + pointer CAS."""
 from __future__ import annotations
 
-import json
-import os
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -13,8 +9,6 @@ from stockradar.storage.control_plane import resolve_immutable_object_key
 from stockradar.storage.supabase_client import FakeSupabaseControlAdapter
 
 pytestmark = pytest.mark.unit
-_REPO = Path(__file__).resolve().parents[1]
-_CLI = _REPO / "scripts" / "storage" / "cache_bus_cli.py"
 
 
 def test_resolve_immutable_object_key_from_pattern() -> None:
