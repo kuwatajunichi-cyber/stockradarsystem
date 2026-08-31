@@ -7,7 +7,7 @@ Run **after** 8/31 Daily CAS canary success. Do **not** enable on 8/31 night.
 - [x] Migrations 011-013 applied (prod versions `20260829120000` / `20260829120100` / `20260829120200`; evidence `docs/operations/evidence/adr005_r2_supabase_pre_enable_20260829.json`)
 - [x] Worker production deployed with MNC_DISPATCH_ENABLED=false (version `cc9a7e8c-10f6-44e5-82f0-21a286598aa3`)
 - [x] August committed Core confirmed (`monthly-20260801-30679139304`; R2 object present under `R2_BASE_PREFIX`)
-- [ ] 8/31 both Layer-1 pointers immutable + version bump
+- [x] 8/31 both Layer-1 pointers immutable + version bump (pass; evidence `docs/operations/evidence/adr005_daily_cas_canary_20260831.json`; Daily run `33365512413`)
 
 ## Final confirmation (implementation reality)
 
