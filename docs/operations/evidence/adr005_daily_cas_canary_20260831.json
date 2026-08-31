@@ -1,0 +1,61 @@
+{
+  "recorded_at_utc": "2026-08-31T11:12:00+00:00",
+  "gate": "8/31_dual_pointer_cas",
+  "daily_run_url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33365512413",
+  "daily_run_conclusion": "success",
+  "daily_head_sha": "f0ada82a7d8fe8b0a59524029ee1f9c5082e5911",
+  "daily_created_at_utc": "2026-08-31T06:45:51Z",
+  "daily_updated_at_utc": "2026-08-31T07:06:47Z",
+  "pre_run": {
+    "index-store-zip-v1": {
+      "object_key": "cache/index-store-zip-v1/index_store.zip",
+      "version": 1,
+      "source": "baseline_2026-08-29_pre_enable_evidence"
+    },
+    "ohlc-store-zip-v2": {
+      "object_key": "cache/ohlc-store-zip-v2/ohlc_store.zip",
+      "version": 1,
+      "source": "baseline_2026-08-29_pre_enable_evidence"
+    }
+  },
+  "post_run": {
+    "index-store-zip-v1": {
+      "object_key": "cache/index-store-zip-v1/objects/sha256=ba923f4dcdb41d20549e318494c946819e55de7cdbeac1671e67d2af156d9bac.zip",
+      "version": 2,
+      "sha256": "ba923f4dcdb41d20549e318494c946819e55de7cdbeac1671e67d2af156d9bac",
+      "writer_workflow": "daily.yml",
+      "committed_at_utc": "2026-08-31T06:49:07.356743+00:00",
+      "has_sha256_path": true,
+      "has_objects_prefix": true,
+      "r2_head": {
+        "exists": true,
+        "content_length": 31205,
+        "last_modified": "2026-08-31T06:49:07+00:00"
+      }
+    },
+    "ohlc-store-zip-v2": {
+      "object_key": "cache/ohlc-store-zip-v2/objects/sha256=d91576190a452845a60593b718345137d1a74c432d6b028208ef57387a0bf7a2.zip",
+      "version": 2,
+      "sha256": "d91576190a452845a60593b718345137d1a74c432d6b028208ef57387a0bf7a2",
+      "writer_workflow": "daily.yml",
+      "committed_at_utc": "2026-08-31T07:00:12.359109+00:00",
+      "has_sha256_path": true,
+      "has_objects_prefix": true,
+      "r2_head": {
+        "exists": true,
+        "content_length": 33349271,
+        "last_modified": "2026-08-31T07:00:12+00:00"
+      }
+    }
+  },
+  "adr005_runtime_config_after": {
+    "feature_start_release_month": null,
+    "bootstrap_complete": false
+  },
+  "pass": true,
+  "notes": [
+    "Both Layer-1 pointers moved from fixed-key v1 to immutable sha256 objects v2 on 8/31 Daily.",
+    "feature_start left unset (do not enable on 8/31 night).",
+    "MNC_DISPATCH_ENABLED remains false until 9/1 enable window."
+  ]
+}

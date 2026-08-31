@@ -12,6 +12,11 @@ Operator steps. Pre-enable evidence (2026-08-29): `docs/operations/evidence/adr0
 
 ## 8/31 Daily CAS canary
 
+**Result (2026-08-31): PASS** — evidence `docs/operations/evidence/adr005_daily_cas_canary_20260831.json`.  
+Daily: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33365512413 (`success`, head `f0ada82`).  
+Pointers: both `version` 1→2, `object_key` contains `/objects/sha256=…`. R2 HEAD ok.  
+`feature_start` remains null (do **not** enable tonight).
+
 Cron: Cloudflare `45 6 * * *` UTC → **15:45 JST** → `daily.yml` via Worker.
 
 **DB `cache_key`（正本）** は mapping `source_name_pattern`。entry id ではない。
