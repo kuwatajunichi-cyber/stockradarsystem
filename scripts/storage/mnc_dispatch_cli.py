@@ -40,6 +40,37 @@ def _claim_rows(adapter, *, limit: int, claimed_by: str) -> list[dict]:
     return list(rows) if isinstance(rows, list) else []
 
 
+def _mark_dispatched(
+    adapter,
+    *,
+    outbox_id: str,
+    fencing_token: int,
+    github_run_id: int,
+) -> dict:
+    if isinstance(adapter, FakeSupabaseControlAdapter):
+        for row in adapter.mnc_outbox:
+            if str(row.get("id")) != outbox_id:
+                continue
+            if int(row.get("fencing_token") or 0) != int(fencing_token):
+                return {"ok": False, "reason": "fencing_mismatch"}
+            row["status"] = "dispatched"
+            row["github_run_id"] = int(github_run_id)
+            return {"ok": True, "outbox_id": outbox_id}
+        return {"ok": False, "reason": "not_found"}
+    resp = adapter._request(
+        "POST",
+        "/rest/v1/rpc/mark_mnc_outbox_dispatched",
+        json_body={
+            "p_outbox_id": outbox_id,
+            "p_fencing_token": int(fencing_token),
+            "p_github_run_id": int(github_run_id),
+        },
+    )
+    resp.raise_for_status()
+    payload = resp.json()
+    return dict(payload) if isinstance(payload, dict) else {"ok": True}
+
+
 def _dispatch_worker(
     *,
     token: str,
@@ -117,6 +148,18 @@ def cmd_claim_and_dispatch(args: argparse.Namespace) -> int:
             outbox_id=outbox_id,
             fencing_token=fencing,
         )
+        poller_run_id = int(os.environ.get("GITHUB_RUN_ID") or 0)
+        mark = _mark_dispatched(
+            adapter,
+            outbox_id=outbox_id,
+            fencing_token=int(fencing or 0),
+            github_run_id=poller_run_id,
+        )
+        if mark.get("ok") is False and str(mark.get("reason") or "") == "fencing_mismatch":
+            # Another owner claimed; dispatch already fired — record and continue.
+            pass
+        elif mark.get("ok") is False:
+            raise RuntimeError(f"mark_mnc_outbox_dispatched failed: {mark}")
         dispatched.append(request_id)
     print(json.dumps({"status": "ok", "claimed": len(dispatched), "request_ids": dispatched}))
     return 0
