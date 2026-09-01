@@ -530,3 +530,129 @@ def test_followup_mark_dispatched_failure_exits_2(
     assert rc == 2
     assert mark_calls["n"] >= 2
 
+
+def test_drain_resumes_own_active_outbox(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Same claimed_by still holding dispatched → resume, not exit 2."""
+    monkeypatch.setenv("SUPABASE_CONTROL_FAKE", "1")
+    monkeypatch.setenv("DERIVED_GENERATION_FAKE", "1")
+    monkeypatch.setenv("ADR005_METRIC_SET_VERSION_ID", SET_ID)
+    monkeypatch.chdir(tmp_path)
+
+    from stockradar.storage.supabase_client import FakeSupabaseControlAdapter
+
+    worker = _load_worker_cli("mnc_worker_cli_own_resume")
+    claimed_by = "monthly-series-seed:777"
+    adapter = FakeSupabaseControlAdapter()
+    adapter.mnc_requests[REQUEST_ID] = {
+        "id": REQUEST_ID,
+        "status": "series_running",
+        "added_codes": ["1301"],
+        "expected_trade_dates": ["2026-01-01", "2026-01-02"],
+        "last_committed_trade_date": None,
+    }
+    adapter.mnc_outbox.append(
+        {
+            "id": "outbox-mine",
+            "request_id": REQUEST_ID,
+            "chunk_seq": 0,
+            "status": "dispatched",
+            "claimed_by": claimed_by,
+            "fencing_token": 4,
+            "attempt_count": 1,
+            "attempt_budget": 5,
+            "github_run_id": 777,
+        }
+    )
+    monkeypatch.setattr(worker, "_adapter", lambda: adapter)
+    rc = worker.main(
+        [
+            "drain-request",
+            "--request-id",
+            REQUEST_ID,
+            "--github-run-id",
+            "777",
+            "--claimed-by",
+            claimed_by,
+        ]
+    )
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "own_active_outbox" in out
+    assert adapter.mnc_requests[REQUEST_ID]["status"] == "completed"
+    assert adapter.mnc_requests[REQUEST_ID]["last_committed_trade_date"] == "2026-01-02"
+    mine = next(o for o in adapter.mnc_outbox if o["id"] == "outbox-mine")
+    assert mine["status"] == "done"
+
+
+def test_fencing_mismatch_after_progress_exits_2(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("SUPABASE_CONTROL_FAKE", "1")
+    monkeypatch.setenv("DERIVED_GENERATION_FAKE", "1")
+    monkeypatch.setenv("ADR005_METRIC_SET_VERSION_ID", SET_ID)
+    monkeypatch.chdir(tmp_path)
+
+    import argparse
+
+    from stockradar.storage.supabase_client import FakeSupabaseControlAdapter
+
+    worker = _load_worker_cli("mnc_worker_cli_fencing_progress")
+
+    class _NullKeeper:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    adapter = FakeSupabaseControlAdapter()
+    adapter.mnc_requests[REQUEST_ID] = {
+        "id": REQUEST_ID,
+        "status": "series_running",
+        "added_codes": ["1301"],
+        "expected_trade_dates": ["2026-01-01", "2026-01-02"],
+        "last_committed_trade_date": None,
+    }
+    adapter.mnc_outbox.append(
+        {
+            "id": "outbox-0",
+            "request_id": REQUEST_ID,
+            "chunk_seq": 0,
+            "status": "dispatched",
+            "claimed_by": "monthly-series-seed:55",
+            "fencing_token": 1,
+            "attempt_count": 1,
+            "attempt_budget": 5,
+        }
+    )
+
+    real_rpc = worker._fake_rpc
+
+    def _rpc_wrap(adapter_arg, name: str, body: dict):
+        if name == "commit_trade_date_progress":
+            out = real_rpc(adapter_arg, name, body)
+            for o in adapter_arg.mnc_outbox:
+                if str(o.get("id")) == "outbox-0":
+                    o["fencing_token"] = 999
+            return out
+        return real_rpc(adapter_arg, name, body)
+
+    monkeypatch.setattr(worker, "_adapter", lambda: adapter)
+    monkeypatch.setattr(worker, "_rpc", _rpc_wrap)
+    monkeypatch.setattr(worker, "_HeartbeatKeeper", lambda *_a, **_k: _NullKeeper())
+
+    ns = argparse.Namespace(
+        request_id=REQUEST_ID,
+        outbox_id="outbox-0",
+        fencing_token="1",
+        github_run_id="55",
+        github_actor="",
+        drain=True,
+        writer_workflow="monthly.yml",
+    )
+    rc = worker.cmd_run_request(ns)
+    assert rc == 2
+    assert adapter.mnc_requests[REQUEST_ID]["last_committed_trade_date"] == "2026-01-01"
+

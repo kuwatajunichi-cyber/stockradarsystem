@@ -11,9 +11,10 @@ Canonical runner is `monthly.yml` job `series_seed` (same pattern as Daily `writ
 1. `build` commits the monthly snapshot + MNC request/outbox via RPC.
 2. When `mnc_outcome=runnable`, `series_seed` claims **that request's** outbox (`claim_mnc_outbox` with `p_request_id`) and runs `mnc_worker_cli.py drain-request` in-process (all remaining trade_dates).
 3. If the poller (or another worker) already owns the outbox (`claimed` / `dispatched` with a different `claimed_by`), monthly **skips with exit 0** and leaves catch-up to the owner. Do **not** treat `dispatch_pending` alone as owned-elsewhere, and never `fail_mnc_outbox` a foreign row. Empty claim while outbox is still `pending` is **exit 2** (fail-fast).
-4. Parallelism: `MNC_CODE_CONCURRENCY` (default 8) for Layer1 fetch/compute; `MNC_R2_CONCURRENCY` (default 32) for series GET/PUT. boto3 pool follows `MNC_R2_CONCURRENCY` or `DERIVED_R2_CONCURRENCY`. Drain visibility defaults to 7200s with ≤45s heartbeat. Layer1 ensure runs once per request. Same instrument code stays date-serial.
-5. Parallel PUT blast radius: register stays serial; a mid-batch PUT failure can leave registered-but-not-uploaded objects — `scripts/storage/derived_generation_sweeper.py` is the recovery path.
-6. Cloudflare `mnc_poller` + `monthly_new_core_backfill.yml` remain for catch-up / retry when monthly seed skips (owned elsewhere) or fails.
+4. If claim is empty but this worker already owns an active outbox (`claimed_by` equals `--claimed-by`, typically `monthly-series-seed:${{ github.run_id }}`), **resume** that row (timeout/cancel Re-run). Do not exit 2.
+5. Parallelism: `MNC_CODE_CONCURRENCY` (default 8) for Layer1 fetch/compute; `MNC_R2_CONCURRENCY` (default 32) for series GET/PUT. boto3 pool follows `MNC_R2_CONCURRENCY` or `DERIVED_R2_CONCURRENCY`. Outbox visibility stays **1200s**; long runs extend via ≤45s heartbeat (do not inflate initial TTL). Layer1 ensure runs once per request. Same instrument code stays date-serial.
+6. Parallel PUT blast radius: register stays serial; a mid-batch PUT failure can leave registered-but-not-uploaded objects — `scripts/storage/derived_generation_sweeper.py` is the recovery path.
+7. Cloudflare `mnc_poller` + `monthly_new_core_backfill.yml` remain for catch-up / retry when monthly seed skips (owned elsewhere) or fails.
 
 ## Split request (blocked added_codes or work_units)
 
@@ -30,7 +31,7 @@ Canonical runner is `monthly.yml` job `series_seed` (same pattern as Daily `writ
 - Do not add `actions: write` to `monthly.yml`
 - Live Layer 1 cache protocol is `immutable_pointer_cas` (`put-immutable` + pointer CAS)
 - Repair approver team may stay `repo-maintainers`
-- **Before merging / before the next scheduled Monthly:** apply Supabase migrations `015_adr005_claim_outbox_by_request.sql` (`p_request_id`) and `016_adr005_fail_outbox_reject_done.sql` (`fail_mnc_outbox` rejects `done`), then reload PostgREST schema cache. Unapplied 015 makes monthly drain RPC fail.
+- **Supabase migrations applied (prod `stock-radar-system`, 2026-09-01):** `015` / `adr005_claim_outbox_by_request` (`20260901122905`), `016` / `adr005_fail_outbox_reject_done` (`20260901122916`), PostgREST schema reload done. Re-apply only on new environments.
 
 ## Related
 

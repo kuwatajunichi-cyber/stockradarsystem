@@ -62,7 +62,6 @@ from stockradar.utils.yf_cache import (  # noqa: E402
 
 MAX_TRADE_DATES_PER_CHUNK = 10
 DEFAULT_VISIBILITY_SECONDS = 1200
-DRAIN_VISIBILITY_SECONDS = 7200
 HEARTBEAT_INTERVAL_SECONDS = 45
 DEFAULT_CODE_CONCURRENCY = 8
 
@@ -573,6 +572,21 @@ def _foreign_active_outbox(
     return foreign
 
 
+def _own_active_outbox(
+    outbox_rows: list[dict[str, Any]], *, claimed_by: str
+) -> list[dict[str, Any]]:
+    """Active outbox rows already owned by this worker (Re-run resume)."""
+    me = claimed_by.strip()
+    if not me:
+        return []
+    return [
+        o
+        for o in outbox_rows
+        if str(o.get("status") or "") in _ACTIVE_OUTBOX_STATUSES
+        and str(o.get("claimed_by") or "").strip() == me
+    ]
+
+
 def _claim_outbox_for_request(
     adapter,
     *,
@@ -623,7 +637,8 @@ def cmd_run_request(args: argparse.Namespace) -> int:
     writer_workflow = str(
         getattr(args, "writer_workflow", "") or "monthly_new_core_backfill.yml"
     ).strip()
-    visibility = DRAIN_VISIBILITY_SECONDS if drain else DEFAULT_VISIBILITY_SECONDS
+    # Long jobs rely on ≤45s heartbeat to extend visibility; do not inflate initial TTL.
+    visibility = DEFAULT_VISIBILITY_SECONDS
 
     if not _is_fake(adapter) and (not outbox_id or not fencing_token):
         print(
@@ -638,6 +653,10 @@ def cmd_run_request(args: argparse.Namespace) -> int:
         return 2
 
     fencing_int = int(fencing_token or 0)
+    day_summaries: list[dict[str, Any]] = []
+    finish_payload: dict[str, Any] | None = None
+    layer1_hoisted = False
+    t0 = time.perf_counter()
 
     def heartbeat() -> None:
         if not outbox_id:
@@ -703,11 +722,6 @@ def cmd_run_request(args: argparse.Namespace) -> int:
         metric_keys = spec.metric_keys_ordered
         generation_store = generation_store_from_env()
         r2_store = r2_store_from_env()
-
-        day_summaries: list[dict[str, Any]] = []
-        layer1_hoisted = False
-        finish_payload: dict[str, Any] | None = None
-        t0 = time.perf_counter()
 
         # Finish must run after Keeper stops: heartbeat rejects non-claimed/dispatched
         # (bad_status) and must not rewind a successful finish via fail_mnc_outbox.
@@ -845,6 +859,55 @@ def cmd_run_request(args: argparse.Namespace) -> int:
         )
         return 0
     except FencingMismatch as exc:
+        # Progress committed but lease lost before finish → try finish once, else fail-fast.
+        if day_summaries and outbox_id and finish_payload is None:
+            try:
+                finish_payload = _rpc(
+                    adapter,
+                    "finish_mnc_outbox_chunk",
+                    {"p_outbox_id": outbox_id, "p_fencing_token": fencing_int},
+                )
+                if finish_payload.get("ok") is not False:
+                    wall_ms = int((time.perf_counter() - t0) * 1000)
+                    print(
+                        json.dumps(
+                            {
+                                "status": "ok",
+                                "request_id": args.request_id,
+                                "outbox_id": outbox_id,
+                                "drain": drain,
+                                "processed_trade_dates": [
+                                    d["trade_date"] for d in day_summaries
+                                ],
+                                "days": day_summaries,
+                                "finish": finish_payload,
+                                "warning": f"fencing_mismatch_after_progress:{exc}",
+                                "wall_time_ms": wall_ms,
+                            },
+                            ensure_ascii=False,
+                        )
+                    )
+                    return 0
+            except Exception as finish_exc:  # noqa: BLE001
+                print(
+                    f"warning: finish after fencing_mismatch failed: {finish_exc}",
+                    file=sys.stderr,
+                )
+            print(
+                json.dumps(
+                    {
+                        "status": "error",
+                        "reason": "fencing_mismatch_after_progress",
+                        "request_id": args.request_id,
+                        "outbox_id": outbox_id,
+                        "processed_trade_dates": [d["trade_date"] for d in day_summaries],
+                        "detail": str(exc),
+                    },
+                    ensure_ascii=False,
+                ),
+                file=sys.stderr,
+            )
+            return 2
         req = _load_request(adapter, args.request_id)
         outbox_rows = _list_outbox_for_request(adapter, args.request_id)
         print(
@@ -903,7 +966,7 @@ def cmd_drain_request(args: argparse.Namespace) -> int:
             adapter,
             request_id=request_id,
             claimed_by=claimed_by,
-            visibility_seconds=DRAIN_VISIBILITY_SECONDS,
+            visibility_seconds=DEFAULT_VISIBILITY_SECONDS,
         )
         if claimed is None:
             req = _load_request(adapter, request_id)
@@ -936,22 +999,45 @@ def cmd_drain_request(args: argparse.Namespace) -> int:
                     )
                 )
                 return 0
-            # dispatch_pending + pending with empty claim is a hard failure (not skip).
-            print(
-                json.dumps(
-                    {
-                        "status": "error",
-                        "reason": "no_claimable_outbox",
-                        "request_id": request_id,
-                        "request_status": status,
-                    },
-                    ensure_ascii=False,
-                ),
-                file=sys.stderr,
-            )
-            return 2
-        outbox_id, fencing_int = claimed
-        fencing_token = str(fencing_int)
+            own = _own_active_outbox(outbox_rows, claimed_by=claimed_by)
+            if own:
+                # Timeout/cancel Re-run: same claimed_by still owns claimed/dispatched.
+                row = own[0]
+                outbox_id = str(row.get("id") or "")
+                fencing_int = int(row.get("fencing_token") or 0)
+                fencing_token = str(fencing_int)
+                print(
+                    json.dumps(
+                        {
+                            "status": "ok",
+                            "resumed": True,
+                            "reason": "own_active_outbox",
+                            "request_id": request_id,
+                            "outbox_id": outbox_id,
+                            "fencing_token": fencing_int,
+                            "outbox_status": row.get("status"),
+                        },
+                        ensure_ascii=False,
+                    )
+                )
+            else:
+                # dispatch_pending + pending with empty claim is a hard failure (not skip).
+                print(
+                    json.dumps(
+                        {
+                            "status": "error",
+                            "reason": "no_claimable_outbox",
+                            "request_id": request_id,
+                            "request_status": status,
+                        },
+                        ensure_ascii=False,
+                    ),
+                    file=sys.stderr,
+                )
+                return 2
+        else:
+            outbox_id, fencing_int = claimed
+            fencing_token = str(fencing_int)
     else:
         fencing_int = int(fencing_token)
 
@@ -979,7 +1065,21 @@ def cmd_drain_request(args: argparse.Namespace) -> int:
             )
         )
         return 0
-    _require_ok(mark, action="mark_mnc_outbox_dispatched")
+    if mark.get("ok") is False:
+        print(
+            json.dumps(
+                {
+                    "status": "error",
+                    "reason": "mark_dispatched_failed",
+                    "request_id": request_id,
+                    "outbox_id": outbox_id,
+                    "mark": mark,
+                },
+                ensure_ascii=False,
+            ),
+            file=sys.stderr,
+        )
+        return 2
 
     ns = argparse.Namespace(
         request_id=request_id,
@@ -1003,7 +1103,7 @@ def cmd_drain_request(args: argparse.Namespace) -> int:
             adapter,
             request_id=request_id,
             claimed_by=claimed_by,
-            visibility_seconds=DRAIN_VISIBILITY_SECONDS,
+            visibility_seconds=DEFAULT_VISIBILITY_SECONDS,
         )
         if claimed is None:
             outbox_rows = _list_outbox_for_request(adapter, request_id)
