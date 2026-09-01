@@ -146,7 +146,14 @@ def test_adr005_cron_skeleton_exists_utf8_without_bom() -> None:
     assert not raw_rb.startswith(b"\xef\xbb\xbf")
     rb = raw_rb.decode("utf-8")
     assert "partition_index" in rb
-    assert "pr-005-daily-cas" in rb
+    # Steady-state: monthly.yml inline series_seed; poller is catch-up only.
+    assert "monthly.yml" in rb
+    assert "series_seed" in rb
+    assert "drain-request" in rb
+    assert "immutable_pointer_cas" in rb
+    assert "Do not add `actions: write` to `monthly.yml`" in rb
+    # Stale pre-enable PR slug must not be required as live gate evidence.
+    assert "local_only until merge" not in rb
 
 
 @pytest.mark.unit
