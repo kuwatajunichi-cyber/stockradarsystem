@@ -169,6 +169,8 @@ def _fake_rpc(adapter: FakeSupabaseControlAdapter, name: str, body: dict[str, An
             return {"ok": False, "reason": "not_found"}
         if int(row.get("fencing_token") or 0) != fencing:
             return {"ok": False, "reason": "fencing_mismatch"}
+        if str(row.get("status") or "") not in {"claimed", "dispatched"}:
+            return {"ok": False, "reason": "bad_status", "status": row.get("status")}
         count = int(row.get("heartbeat_count") or 0) + 1
         row["heartbeat_count"] = count
         row["heartbeat_at"] = f"fake-ts-{count}"
@@ -179,6 +181,9 @@ def _fake_rpc(adapter: FakeSupabaseControlAdapter, name: str, body: dict[str, An
             return {"ok": False, "reason": "not_found"}
         if int(row.get("fencing_token") or 0) != fencing:
             return {"ok": False, "reason": "fencing_mismatch"}
+        # Defense: never rewind a successfully finished chunk.
+        if str(row.get("status") or "") == "done":
+            return {"ok": False, "reason": "bad_status", "status": "done"}
         row["status"] = "failed"
         row["last_error"] = str(body.get("p_error") or "worker_failed")[:2000]
         retry = max(60, min(int(body.get("p_retry_seconds") or 300), 86400))
@@ -646,6 +651,9 @@ def cmd_run_request(args: argparse.Namespace) -> int:
                 "p_visibility_seconds": visibility,
             },
         )
+        # After finish (or concurrent race) outbox is no longer claimed/dispatched.
+        if payload.get("ok") is False and str(payload.get("reason") or "") == "bad_status":
+            return
         _require_ok(payload, action="heartbeat_mnc_outbox")
 
     try:
@@ -696,6 +704,13 @@ def cmd_run_request(args: argparse.Namespace) -> int:
         generation_store = generation_store_from_env()
         r2_store = r2_store_from_env()
 
+        day_summaries: list[dict[str, Any]] = []
+        layer1_hoisted = False
+        finish_payload: dict[str, Any] | None = None
+        t0 = time.perf_counter()
+
+        # Finish must run after Keeper stops: heartbeat rejects non-claimed/dispatched
+        # (bad_status) and must not rewind a successful finish via fail_mnc_outbox.
         with _HeartbeatKeeper(heartbeat):
             years = sorted({int(td[:4]) for td in chunk})
             existing = ExistingSeriesState()
@@ -723,7 +738,6 @@ def cmd_run_request(args: argparse.Namespace) -> int:
                     raise
 
             # ADR: Layer1 ensure once per request (use coverage end as run_date).
-            layer1_hoisted = False
             if not (
                 is_derived_generation_fake()
                 or os.environ.get("SUPABASE_CONTROL_FAKE", "").strip().lower()
@@ -735,8 +749,6 @@ def cmd_run_request(args: argparse.Namespace) -> int:
                 )
                 layer1_hoisted = True
 
-            day_summaries: list[dict[str, Any]] = []
-            t0 = time.perf_counter()
             for trade_date in chunk:
                 heartbeat()
                 plan = plan_series_only_trade_date(
@@ -802,14 +814,13 @@ def cmd_run_request(args: argparse.Namespace) -> int:
                     }
                 )
 
-            finish_payload: dict[str, Any] | None = None
-            if outbox_id:
-                finish_payload = _rpc(
-                    adapter,
-                    "finish_mnc_outbox_chunk",
-                    {"p_outbox_id": outbox_id, "p_fencing_token": fencing_int},
-                )
-                _require_ok(finish_payload, action="finish_mnc_outbox_chunk")
+        if outbox_id:
+            finish_payload = _rpc(
+                adapter,
+                "finish_mnc_outbox_chunk",
+                {"p_outbox_id": outbox_id, "p_fencing_token": fencing_int},
+            )
+            _require_ok(finish_payload, action="finish_mnc_outbox_chunk")
 
         wall_ms = int((time.perf_counter() - t0) * 1000)
         print(
@@ -1041,8 +1052,35 @@ def cmd_drain_request(args: argparse.Namespace) -> int:
                 "p_github_run_id": github_run_id,
             },
         )
+        if mark.get("ok") is False and str(mark.get("reason") or "") == "fencing_mismatch":
+            outbox_rows = _list_outbox_for_request(adapter, request_id)
+            print(
+                json.dumps(
+                    _skip_owned_elsewhere_payload(
+                        request_id=request_id,
+                        request_status=status,
+                        outbox_rows=outbox_rows,
+                        detail="followup_mark_dispatched_fencing_mismatch",
+                    ),
+                    ensure_ascii=False,
+                )
+            )
+            return 0
         if mark.get("ok") is False:
-            break
+            print(
+                json.dumps(
+                    {
+                        "status": "error",
+                        "reason": "followup_mark_dispatched_failed",
+                        "request_id": request_id,
+                        "outbox_id": next_id,
+                        "mark": mark,
+                    },
+                    ensure_ascii=False,
+                ),
+                file=sys.stderr,
+            )
+            return 2
         ns = argparse.Namespace(
             request_id=request_id,
             outbox_id=next_id,

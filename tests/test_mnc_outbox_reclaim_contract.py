@@ -36,3 +36,13 @@ def test_migration_015_claim_outbox_by_request_contract() -> None:
     assert "DROP FUNCTION IF EXISTS public.claim_mnc_outbox(text, int, int)" in text
     assert "o.request_id::text = trim(p_request_id)" in text
     assert "GRANT EXECUTE ON FUNCTION public.claim_mnc_outbox(text, int, int, text)" in text
+
+
+def test_migration_016_fail_outbox_rejects_done_contract() -> None:
+    path = _MIG / "016_adr005_fail_outbox_reject_done.sql"
+    raw = path.read_bytes()
+    assert bytes([0]) not in raw
+    text = raw.decode("utf-8")
+    assert "CREATE OR REPLACE FUNCTION public.fail_mnc_outbox" in text
+    assert "v_row.status = 'done'" in text
+    assert "bad_status" in text

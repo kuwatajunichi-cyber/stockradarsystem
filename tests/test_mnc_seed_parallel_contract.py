@@ -381,3 +381,152 @@ def test_load_existing_series_state_warms_client(
         generation_store, r2_store, SET_ID, ["1301", "7203"], 2026
     )
     assert warmed == [True]
+
+
+def test_fail_mnc_outbox_rejects_done(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SUPABASE_CONTROL_FAKE", "1")
+    from stockradar.storage.supabase_client import FakeSupabaseControlAdapter
+
+    worker = _load_worker_cli("mnc_worker_cli_fail_done")
+    adapter = FakeSupabaseControlAdapter()
+    adapter.mnc_requests[REQUEST_ID] = {
+        "id": REQUEST_ID,
+        "status": "series_running",
+        "added_codes": ["1301"],
+        "expected_trade_dates": ["2026-01-01", "2026-01-02"],
+        "last_committed_trade_date": "2026-01-01",
+    }
+    adapter.mnc_outbox.append(
+        {
+            "id": "outbox-done",
+            "request_id": REQUEST_ID,
+            "chunk_seq": 0,
+            "status": "done",
+            "fencing_token": 2,
+            "attempt_count": 1,
+            "attempt_budget": 5,
+        }
+    )
+    hb = worker._fake_rpc(
+        adapter,
+        "heartbeat_mnc_outbox",
+        {"p_outbox_id": "outbox-done", "p_fencing_token": 2, "p_visibility_seconds": 1200},
+    )
+    assert hb.get("ok") is False
+    assert hb.get("reason") == "bad_status"
+    fail = worker._fake_rpc(
+        adapter,
+        "fail_mnc_outbox",
+        {
+            "p_outbox_id": "outbox-done",
+            "p_fencing_token": 2,
+            "p_error": "late_heartbeat",
+            "p_retry_seconds": 60,
+        },
+    )
+    assert fail.get("ok") is False
+    assert fail.get("reason") == "bad_status"
+    assert adapter.mnc_outbox[0]["status"] == "done"
+    assert adapter.mnc_requests[REQUEST_ID]["status"] == "series_running"
+
+
+def test_finish_runs_after_heartbeat_keeper_stops() -> None:
+    """Structural: date-loop finish must not sit inside the Keeper with-block."""
+    src = (
+        Path(__file__).resolve().parents[1]
+        / "scripts"
+        / "storage"
+        / "mnc_worker_cli.py"
+    ).read_text(encoding="utf-8")
+    start = src.index("def cmd_run_request")
+    end = src.index("def cmd_drain_request")
+    body = src[start:end]
+    token = "with _HeartbeatKeeper(heartbeat):"
+    keeper_idx = body.index(token)
+    line_start = body.rfind(chr(10), 0, keeper_idx) + 1
+    with_indent = keeper_idx - line_start
+    lines = body[line_start:].splitlines()
+    suite: list[str] = []
+    for line in lines[1:]:
+        if not line.strip():
+            suite.append(line)
+            continue
+        indent = len(line) - len(line.lstrip(" "))
+        if indent <= with_indent:
+            break
+        suite.append(line)
+    suite_text = chr(10).join(suite)
+    assert "finish_mnc_outbox_chunk" not in suite_text
+    assert "finish_mnc_outbox_chunk" in body[keeper_idx:]
+
+
+def test_followup_mark_dispatched_failure_exits_2(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("SUPABASE_CONTROL_FAKE", "1")
+    monkeypatch.setenv("DERIVED_GENERATION_FAKE", "1")
+    monkeypatch.setenv("ADR005_METRIC_SET_VERSION_ID", SET_ID)
+    monkeypatch.chdir(tmp_path)
+
+    from stockradar.storage.supabase_client import FakeSupabaseControlAdapter
+
+    worker = _load_worker_cli("mnc_worker_cli_followup_mark")
+    adapter = FakeSupabaseControlAdapter()
+    dates = [f"2026-01-{d:02d}" for d in range(1, 12)]
+    adapter.mnc_requests[REQUEST_ID] = {
+        "id": REQUEST_ID,
+        "status": "dispatch_pending",
+        "added_codes": ["1301"],
+        "expected_trade_dates": dates,
+        "last_committed_trade_date": None,
+    }
+    adapter.mnc_outbox.append(
+        {
+            "id": "outbox-0",
+            "request_id": REQUEST_ID,
+            "chunk_seq": 0,
+            "status": "pending",
+            "fencing_token": 0,
+            "attempt_count": 0,
+            "attempt_budget": 5,
+        }
+    )
+
+    real_rpc = worker._fake_rpc
+    mark_calls = {"n": 0}
+
+    def _rpc_wrap(adapter_arg, name: str, body: dict):
+        if name == "mark_mnc_outbox_dispatched":
+            mark_calls["n"] += 1
+            if mark_calls["n"] >= 2:
+                return {"ok": False, "reason": "not_found"}
+        return real_rpc(adapter_arg, name, body)
+
+    monkeypatch.setattr(worker, "_adapter", lambda: adapter)
+    monkeypatch.setattr(worker, "_rpc", _rpc_wrap)
+    # Drain uses --drain so one run-request may finish all dates unless we force
+    # chunked run-request by calling drain which still uses drain=True.
+    # Simulate follow-up by: first drain completes chunk via finish creating next,
+    # but drain=True processes all dates in one cmd_run_request — next outbox only
+    # appears after finish when remaining dates exist AFTER the chunk.
+    # With drain=True, remaining=all dates, so finish completes request with no next.
+    # Force non-drain chunking inside drain loop by patching cmd_run_request drain flag.
+    original_run = worker.cmd_run_request
+
+    def run_chunked(args):
+        args.drain = False
+        return original_run(args)
+
+    monkeypatch.setattr(worker, "cmd_run_request", run_chunked)
+    rc = worker.main(
+        [
+            "drain-request",
+            "--request-id",
+            REQUEST_ID,
+            "--github-run-id",
+            "102",
+        ]
+    )
+    assert rc == 2
+    assert mark_calls["n"] >= 2
+
