@@ -32,6 +32,17 @@ def test_worker_concurrency_and_timeout() -> None:
     assert "secrets.GITHUB_TOKEN" not in text
 
 
+def test_worker_passes_r2_base_prefix_like_daily() -> None:
+    """MNC must write under the same physical prefix Daily reads (NoSuchKey otherwise)."""
+    text = (_REPO / ".github" / "workflows" / "monthly_new_core_backfill.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "secrets.R2_BASE_PREFIX" in text
+    assert "secrets.R2_ENDPOINT_URL" in text
+    assert "secrets.R2_BUCKET" in text
+    assert "secrets.R2_ACCOUNT_ID" in text
+
+
 def test_mnc_dispatch_cli_requires_gh_dispatch_token() -> None:
     text = (_REPO / "scripts" / "storage" / "mnc_dispatch_cli.py").read_text(encoding="utf-8")
     assert "GH_DISPATCH_TOKEN" in text
