@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import sys
+import time
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -180,6 +181,15 @@ def _required_days() -> int:
     return max(rs_max, get_z_lookback_days()) + get_buffer_days()
 
 
+def _raise_if_cache_not_ok(kind: str, name: str, ent: dict[str, Any]) -> None:
+    status = str(ent.get("status") or "")
+    if status == "ok":
+        return
+    raise RuntimeError(
+        f"{kind} cache {status} for {name}: {ent.get('error') or status}"
+    )
+
+
 def _ensure_layer1_caches(*, codes: list[str], trade_date: date) -> None:
     base = Path.cwd()
     daily_dir = get_yf_daily_cache_dir(base)
@@ -200,24 +210,52 @@ def _ensure_layer1_caches(*, codes: list[str], trade_date: date) -> None:
             required_days=required_days,
             run_date=trade_date,
         )
-        if str(ent.get("status") or "") == "failed":
-            raise RuntimeError(f"ohlcv cache failed for {code}: {ent.get('error')}")
+        _raise_if_cache_not_ok("ohlcv", code, ent)
     update_manifest(daily_manifest_path, daily_manifest)
 
+    # Match ensure_index_cache: manifest key is the yfinance ticker (^N225 / 1306.T).
     index_manifest_path = index_dir / MANIFEST_FILENAME
     index_manifest = load_manifest(index_manifest_path)
-    for symbol, ticker in BENCHMARKS.items():
-        ent = ensure_cache_with_incremental_fetch(
-            symbol=symbol,
-            ticker=ticker,
-            cache_path=index_dir / f"{symbol}.csv",
-            manifest=index_manifest,
-            required_days=required_days,
-            run_date=trade_date,
-        )
-        if str(ent.get("status") or "") == "failed":
-            raise RuntimeError(f"index cache failed for {symbol}: {ent.get('error')}")
+    max_passes = 3
+    stale_sleep_sec = 5
+    for pass_i in range(max_passes):
+        pending = list(BENCHMARKS.items())
+        if pass_i > 0:
+            pending = [
+                (name, ticker)
+                for name, ticker in BENCHMARKS.items()
+                if str((index_manifest.get(ticker) or {}).get("status") or "") != "ok"
+            ]
+            if not pending:
+                break
+            time.sleep(stale_sleep_sec)
+        for name, ticker in pending:
+            ent = ensure_cache_with_incremental_fetch(
+                symbol=ticker,
+                ticker=ticker,
+                cache_path=index_dir / f"{name}.csv",
+                manifest=index_manifest,
+                required_days=required_days,
+                run_date=trade_date,
+                force=(pass_i == max_passes - 1),
+            )
+            index_manifest[ticker] = ent
     update_manifest(index_manifest_path, index_manifest)
+    for name, ticker in BENCHMARKS.items():
+        ent = index_manifest.get(ticker) or {}
+        status = str(ent.get("status") or "")
+        if status == "ok":
+            continue
+        # Daily RS path already asof-merges benchmark bars. Keep writing when the
+        # equity bar exists but index feed lags a session after retries.
+        if status == "stale":
+            print(
+                f"warning: index cache stale for {name} ({ticker}) on {trade_date}; "
+                "continuing with asof benchmark bars",
+                file=sys.stderr,
+            )
+            continue
+        _raise_if_cache_not_ok("index", name, ent)
 
 
 def _load_benchmarks(run_date: date) -> dict[str, pd.DataFrame]:
@@ -236,9 +274,13 @@ def _load_benchmarks(run_date: date) -> dict[str, pd.DataFrame]:
         raise RuntimeError("benchmark cache unavailable")
     for name, df in benchmarks.items():
         md = max_ohlc_date_on_or_before(df, run_date)
-        if md is not None and md < run_date:
-            raise RuntimeError(
-                f"benchmark {name} latest OHLC {md} is before trade_date {run_date}"
+        if md is None:
+            raise RuntimeError(f"benchmark {name} has no OHLC on or before {run_date}")
+        if md < run_date:
+            print(
+                f"warning: benchmark {name} latest OHLC {md} is before trade_date "
+                f"{run_date}; using asof bars",
+                file=sys.stderr,
             )
     return {k: v[v.index.date <= run_date] for k, v in benchmarks.items()}
 
