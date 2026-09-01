@@ -185,6 +185,15 @@ def _raise_if_cache_not_ok(kind: str, name: str, ent: dict[str, Any]) -> None:
     status = str(ent.get("status") or "")
     if status == "ok":
         return
+    # New listings often have fewer bars than required_days; Daily/seed compute
+    # already emits nulls for metrics that need longer history.
+    if kind == "ohlcv" and status == "insufficient":
+        print(
+            f"warning: ohlcv cache insufficient for {name}: {ent.get('error')}; "
+            "continuing with available bars",
+            file=sys.stderr,
+        )
+        return
     raise RuntimeError(
         f"{kind} cache {status} for {name}: {ent.get('error') or status}"
     )
