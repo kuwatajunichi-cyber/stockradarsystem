@@ -273,6 +273,8 @@ jobs:
       PHASE4_ROLLOUT_STAGE: "4c"
       MNC_CODE_CONCURRENCY: "8"
       MNC_R2_CONCURRENCY: "32"
+      # boto3 pool in S3R2ObjectStore.from_env; keep in sync with MNC_R2_CONCURRENCY
+      DERIVED_R2_CONCURRENCY: "32"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -311,11 +313,13 @@ jobs:
             --github-run-id "${{ github.run_id }}" \
             --github-actor "${{ github.actor }}" \
             --claimed-by "monthly-series-seed:${{ github.run_id }}" \
+            --writer-workflow monthly.yml \
             | tee /tmp/mnc_series_seed.json
           {
             echo "## series_seed (monthly inline)"
             echo "- request_id: \`$REQUEST_ID\`"
-            python -c "import json,pathlib; p=pathlib.Path('/tmp/mnc_series_seed.json'); d=json.loads(p.read_text()) if p.is_file() and p.stat().st_size else {}; print('- wall_time_ms:', d.get('wall_time_ms')); print('- processed:', len(d.get('processed_trade_dates') or []))"
+            # drain may emit multiple JSON lines; never fail the step on summary parse
+            python -c 'import json,pathlib;p=pathlib.Path("/tmp/mnc_series_seed.json");d={};objs=[json.loads(l) for l in (p.read_text(encoding="utf-8").splitlines() if p.is_file() else []) if l.strip().startswith("{")];d=objs[-1] if objs else {};print("- skipped:",d.get("skipped"));print("- reason:",d.get("reason"));print("- wall_time_ms:",d.get("wall_time_ms"));print("- processed:",len(d.get("processed_trade_dates") or []));print("- request_status:",d.get("request_status"))' || true
           } >> "$GITHUB_STEP_SUMMARY"
 
   finalize_run:

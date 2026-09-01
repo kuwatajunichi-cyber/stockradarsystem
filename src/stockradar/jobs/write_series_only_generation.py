@@ -366,6 +366,10 @@ def load_existing_series_state(
             c, raw = _load_one(code, key)
             loaded[c] = raw
     else:
+        # Parallel GET runs before any PUT; warm boto3 to avoid lazy-init races.
+        warm = getattr(r2_store, "warm_client", None)
+        if callable(warm):
+            warm()
         with ThreadPoolExecutor(max_workers=workers) as pool:
             futures = {
                 pool.submit(_load_one, code, key): code for code, key in to_fetch

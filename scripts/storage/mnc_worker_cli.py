@@ -1,15 +1,16 @@
-"""ADR-005 worker: series_seed chunk (heartbeat → write ≤10 trade_dates → finish)."""
+"""ADR-005 worker: series_seed (chunk or --drain) with outbox fencing/heartbeat."""
 from __future__ import annotations
 
 import argparse
 import json
 import os
 import sys
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import pandas as pd
 
@@ -61,7 +62,31 @@ from stockradar.utils.yf_cache import (  # noqa: E402
 
 MAX_TRADE_DATES_PER_CHUNK = 10
 DEFAULT_VISIBILITY_SECONDS = 1200
+DRAIN_VISIBILITY_SECONDS = 7200
+HEARTBEAT_INTERVAL_SECONDS = 45
 DEFAULT_CODE_CONCURRENCY = 8
+
+# Request already owned / progressed by poller or another worker → monthly skip.
+_OWNED_ELSEWHERE_REQUEST_STATUSES = frozenset(
+    {
+        "dispatched",
+        "ohlcv_running",
+        "ohlcv_ready",
+        "series_running",
+        "dispatch_pending",
+    }
+)
+_TERMINAL_SKIP_REQUEST_STATUSES = frozenset(
+    {
+        "completed",
+        "noop",
+        "blocked",
+        "grandfather",
+        "superseded",
+        "paused",
+    }
+)
+_ACTIVE_OUTBOX_STATUSES = frozenset({"claimed", "dispatched"})
 
 
 class FencingMismatch(Exception):
@@ -108,12 +133,19 @@ def _fake_rpc(adapter: FakeSupabaseControlAdapter, name: str, body: dict[str, An
     if name == "claim_mnc_outbox":
         limit = int(body.get("p_limit") or 1)
         claimed_by = str(body.get("p_claimed_by") or "fake-worker")
+        want_request = str(body.get("p_request_id") or "").strip()
         claimed: list[dict[str, Any]] = []
         for o in adapter.mnc_outbox:
             if len(claimed) >= max(1, min(2, limit)):
                 break
             status = str(o.get("status") or "")
             if status not in {"pending", "failed"}:
+                continue
+            rid = str(o.get("request_id") or "")
+            if want_request and rid != want_request:
+                continue
+            req = adapter.mnc_requests.get(rid) or {}
+            if str(req.get("status") or "") in _TERMINAL_SKIP_REQUEST_STATUSES:
                 continue
             o["status"] = "claimed"
             o["claimed_by"] = claimed_by
@@ -134,7 +166,10 @@ def _fake_rpc(adapter: FakeSupabaseControlAdapter, name: str, body: dict[str, An
             return {"ok": False, "reason": "not_found"}
         if int(row.get("fencing_token") or 0) != fencing:
             return {"ok": False, "reason": "fencing_mismatch"}
-        row["heartbeat_at"] = "fake-ts"
+        count = int(row.get("heartbeat_count") or 0) + 1
+        row["heartbeat_count"] = count
+        row["heartbeat_at"] = f"fake-ts-{count}"
+        row["visibility_timeout_at"] = f"fake+{int(body.get('p_visibility_seconds') or DEFAULT_VISIBILITY_SECONDS)}s"
         return {"ok": True, "outbox_id": outbox_id}
     if name == "fail_mnc_outbox":
         if row is None:
@@ -143,6 +178,13 @@ def _fake_rpc(adapter: FakeSupabaseControlAdapter, name: str, body: dict[str, An
             return {"ok": False, "reason": "fencing_mismatch"}
         row["status"] = "failed"
         row["last_error"] = str(body.get("p_error") or "worker_failed")[:2000]
+        retry = max(60, min(int(body.get("p_retry_seconds") or 300), 86400))
+        row["next_retry_at"] = f"fake+{retry}s"
+        request_id = str(row.get("request_id") or "")
+        req = adapter.mnc_requests.get(request_id)
+        if req is not None and str(req.get("status") or "") not in _TERMINAL_SKIP_REQUEST_STATUSES:
+            req["status"] = "failed_retryable"
+            req["reason_code"] = "worker_failed"
         return {"ok": True, "outbox_id": outbox_id, "status": "failed"}
     if name == "finish_mnc_outbox_chunk":
         if row is None:
@@ -429,49 +471,120 @@ def compute_metric_values_for_codes(
     return values
 
 
+class _HeartbeatKeeper:
+    """Periodic outbox heartbeat during long Layer1 / R2 stretches (ADR ≤60s)."""
+
+    def __init__(self, beat: Callable[[], None], *, interval_s: float = HEARTBEAT_INTERVAL_SECONDS):
+        self._beat = beat
+        self._interval_s = max(0.01, float(interval_s))
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+        self._error: BaseException | None = None
+
+    def __enter__(self) -> "_HeartbeatKeeper":
+        self._thread = threading.Thread(target=self._loop, name="mnc-heartbeat", daemon=True)
+        self._thread.start()
+        return self
+
+    def _loop(self) -> None:
+        while not self._stop.wait(self._interval_s):
+            try:
+                self._beat()
+            except BaseException as exc:  # noqa: BLE001 — surface to owner thread
+                self._error = exc
+                break
+
+    def __exit__(self, exc_type, exc, tb) -> None:  # type: ignore[no-untyped-def]
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=self._interval_s + 5)
+        if self._error is not None and exc_type is None:
+            raise self._error
+
+
+def _list_outbox_for_request(adapter, request_id: str) -> list[dict[str, Any]]:
+    rid = request_id.strip()
+    if isinstance(adapter, FakeSupabaseControlAdapter):
+        return [dict(o) for o in adapter.mnc_outbox if str(o.get("request_id") or "") == rid]
+    resp = adapter._request(
+        "GET",
+        "/rest/v1/monthly_new_core_backfill_outbox",
+        params={
+            "request_id": f"eq.{rid}",
+            "select": "id,request_id,status,claimed_by,fencing_token,chunk_seq,github_run_id",
+            "order": "chunk_seq",
+        },
+    )
+    resp.raise_for_status()
+    rows = resp.json()
+    return list(rows) if isinstance(rows, list) else []
+
+
+def _skip_owned_elsewhere_payload(
+    *,
+    request_id: str,
+    request_status: str,
+    outbox_rows: list[dict[str, Any]],
+    detail: str,
+) -> dict[str, Any]:
+    active = [
+        {
+            "id": str(o.get("id") or ""),
+            "status": str(o.get("status") or ""),
+            "claimed_by": o.get("claimed_by"),
+            "github_run_id": o.get("github_run_id"),
+        }
+        for o in outbox_rows
+        if str(o.get("status") or "") in _ACTIVE_OUTBOX_STATUSES
+    ]
+    return {
+        "status": "ok",
+        "skipped": True,
+        "reason": "owned_by_other_worker",
+        "request_id": request_id,
+        "request_status": request_status,
+        "active_outbox": active,
+        "detail": detail,
+    }
+
+
 def _claim_outbox_for_request(
     adapter,
     *,
     request_id: str,
     claimed_by: str,
+    visibility_seconds: int = DEFAULT_VISIBILITY_SECONDS,
 ) -> tuple[str, int] | None:
-    """Claim a pending outbox row for request_id (limit=1, filter client-side)."""
-    for _ in range(8):
-        payload = _rpc(
-            adapter,
-            "claim_mnc_outbox",
-            {
-                "p_claimed_by": claimed_by,
-                "p_limit": 1,
-                "p_visibility_seconds": DEFAULT_VISIBILITY_SECONDS,
-            },
-        )
-        rows = list(payload.get("rows") or [])
-        if not rows:
-            return None
-        row = rows[0]
-        rid = str(row.get("request_id") or "")
-        oid = str(row.get("id") or "")
-        fencing = int(row.get("fencing_token") or 0)
-        if rid == request_id:
-            return oid, fencing
-        # Claimed a different request — release by failing with short retry so
-        # the rightful poller can reclaim. Prefer not stealing other work.
-        try:
-            _rpc(
-                adapter,
-                "fail_mnc_outbox",
-                {
-                    "p_outbox_id": oid,
-                    "p_fencing_token": fencing,
-                    "p_error": "wrong_request_claim_release",
-                    "p_retry_seconds": 5,
-                },
-            )
-        except Exception as exc:
-            print(f"warning: release foreign claim failed: {exc}", file=sys.stderr)
+    """Claim pending/failed-retryable outbox for this request_id only (never poisons others)."""
+    payload = _rpc(
+        adapter,
+        "claim_mnc_outbox",
+        {
+            "p_claimed_by": claimed_by,
+            "p_limit": 1,
+            "p_visibility_seconds": int(visibility_seconds),
+            "p_request_id": request_id,
+        },
+    )
+    rows = list(payload.get("rows") or [])
+    if not rows:
         return None
-    return None
+    row = rows[0]
+    if str(row.get("request_id") or "") != request_id:
+        # Defense in depth: request-scoped RPC must not return foreign rows.
+        print(
+            json.dumps(
+                {
+                    "status": "warning",
+                    "reason": "claim_returned_foreign_request",
+                    "expected": request_id,
+                    "got": row.get("request_id"),
+                }
+            ),
+            file=sys.stderr,
+        )
+        return None
+    return str(row.get("id") or ""), int(row.get("fencing_token") or 0)
 
 
 def cmd_run_request(args: argparse.Namespace) -> int:
@@ -482,6 +595,10 @@ def cmd_run_request(args: argparse.Namespace) -> int:
     github_run_id = int(args.github_run_id or 0)
     repository = os.environ.get("GITHUB_REPOSITORY", "local/stockradarsystem").strip()
     drain = bool(getattr(args, "drain", False))
+    writer_workflow = str(
+        getattr(args, "writer_workflow", "") or "monthly_new_core_backfill.yml"
+    ).strip()
+    visibility = DRAIN_VISIBILITY_SECONDS if drain else DEFAULT_VISIBILITY_SECONDS
 
     if not _is_fake(adapter) and (not outbox_id or not fencing_token):
         print(
@@ -506,7 +623,7 @@ def cmd_run_request(args: argparse.Namespace) -> int:
             {
                 "p_outbox_id": outbox_id,
                 "p_fencing_token": fencing_int,
-                "p_visibility_seconds": DEFAULT_VISIBILITY_SECONDS,
+                "p_visibility_seconds": visibility,
             },
         )
         _require_ok(payload, action="heartbeat_mnc_outbox")
@@ -515,14 +632,7 @@ def cmd_run_request(args: argparse.Namespace) -> int:
         heartbeat()
         req = _load_request(adapter, args.request_id)
         status = str(req.get("status") or "")
-        if status in {
-            "completed",
-            "noop",
-            "blocked",
-            "grandfather",
-            "superseded",
-            "paused",
-        }:
+        if status in _TERMINAL_SKIP_REQUEST_STATUSES:
             print(
                 json.dumps(
                     {"status": "ok", "skipped": True, "request_status": status},
@@ -566,119 +676,120 @@ def cmd_run_request(args: argparse.Namespace) -> int:
         generation_store = generation_store_from_env()
         r2_store = r2_store_from_env()
 
-        years = sorted({int(td[:4]) for td in chunk})
-        existing = ExistingSeriesState()
-        try:
-            for year in years:
-                partial = load_existing_series_state(
-                    generation_store,
-                    r2_store,
-                    metric_set_version_id,
-                    codes,
-                    year,
-                )
-                existing.dates_by_code.update(partial.dates_by_code)
-                existing.series_by_code.update(partial.series_by_code)
-                existing.flags_by_code.update(partial.flags_by_code)
-                existing.prior_digest_by_code.update(partial.prior_digest_by_code)
-        except Exception as exc:
-            if _is_fake(adapter):
-                print(
-                    f"warning: load_existing_series_state failed in FAKE mode: {exc}",
-                    file=sys.stderr,
-                )
-                existing = ExistingSeriesState()
-            else:
-                raise
+        with _HeartbeatKeeper(heartbeat):
+            years = sorted({int(td[:4]) for td in chunk})
+            existing = ExistingSeriesState()
+            try:
+                for year in years:
+                    partial = load_existing_series_state(
+                        generation_store,
+                        r2_store,
+                        metric_set_version_id,
+                        codes,
+                        year,
+                    )
+                    existing.dates_by_code.update(partial.dates_by_code)
+                    existing.series_by_code.update(partial.series_by_code)
+                    existing.flags_by_code.update(partial.flags_by_code)
+                    existing.prior_digest_by_code.update(partial.prior_digest_by_code)
+            except Exception as exc:
+                if _is_fake(adapter):
+                    print(
+                        f"warning: load_existing_series_state failed in FAKE mode: {exc}",
+                        file=sys.stderr,
+                    )
+                    existing = ExistingSeriesState()
+                else:
+                    raise
 
-        # ADR: Layer1 ensure once per request (use coverage end as run_date).
-        layer1_hoisted = False
-        if not (
-            is_derived_generation_fake()
-            or os.environ.get("SUPABASE_CONTROL_FAKE", "").strip().lower()
-            in ("1", "true", "yes")
-        ):
-            _ensure_layer1_caches(
-                codes=codes,
-                trade_date=date.fromisoformat(chunk[-1]),
-            )
-            layer1_hoisted = True
+            # ADR: Layer1 ensure once per request (use coverage end as run_date).
+            layer1_hoisted = False
+            if not (
+                is_derived_generation_fake()
+                or os.environ.get("SUPABASE_CONTROL_FAKE", "").strip().lower()
+                in ("1", "true", "yes")
+            ):
+                _ensure_layer1_caches(
+                    codes=codes,
+                    trade_date=date.fromisoformat(chunk[-1]),
+                )
+                layer1_hoisted = True
 
-        day_summaries: list[dict[str, Any]] = []
-        t0 = time.perf_counter()
-        for trade_date in chunk:
-            heartbeat()
-            plan = plan_series_only_trade_date(
-                request_id=args.request_id,
-                mode="series_seed",
-                trade_date=trade_date,
-                candidate_codes=codes,
-                existing_dates_by_code=existing.dates_by_code,
-            )
-            generation_id: str | None = None
-            if plan.expected_object_count > 0:
-                values = compute_metric_values_for_codes(
-                    codes=list(plan.write_codes),
+            day_summaries: list[dict[str, Any]] = []
+            t0 = time.perf_counter()
+            for trade_date in chunk:
+                heartbeat()
+                plan = plan_series_only_trade_date(
+                    request_id=args.request_id,
+                    mode="series_seed",
                     trade_date=trade_date,
-                    metric_keys_ordered=metric_keys,
-                    ensure_layer1=not layer1_hoisted,
+                    candidate_codes=codes,
+                    existing_dates_by_code=existing.dates_by_code,
                 )
-                generation_id = run_series_only_trade_date(
-                    plan=plan,
-                    metric_set_version_id=metric_set_version_id,
-                    github_run_id=github_run_id,
-                    values_by_code=values,
-                    existing_state=existing,
-                    generation_store=generation_store,
-                    r2_store=r2_store,
-                    metric_keys_ordered=metric_keys,
-                    set_fingerprint=spec.set_fingerprint,
-                    repository=repository,
-                )
-                # Refresh in-memory state for subsequent days in this chunk.
-                year = int(trade_date[:4])
-                refreshed = load_existing_series_state(
-                    generation_store,
-                    r2_store,
-                    metric_set_version_id,
-                    list(plan.write_codes),
-                    year,
-                )
-                existing.dates_by_code.update(refreshed.dates_by_code)
-                existing.series_by_code.update(refreshed.series_by_code)
-                existing.flags_by_code.update(refreshed.flags_by_code)
-                existing.prior_digest_by_code.update(refreshed.prior_digest_by_code)
+                generation_id: str | None = None
+                if plan.expected_object_count > 0:
+                    values = compute_metric_values_for_codes(
+                        codes=list(plan.write_codes),
+                        trade_date=trade_date,
+                        metric_keys_ordered=metric_keys,
+                        ensure_layer1=not layer1_hoisted,
+                    )
+                    generation_id = run_series_only_trade_date(
+                        plan=plan,
+                        metric_set_version_id=metric_set_version_id,
+                        github_run_id=github_run_id,
+                        values_by_code=values,
+                        existing_state=existing,
+                        generation_store=generation_store,
+                        r2_store=r2_store,
+                        metric_keys_ordered=metric_keys,
+                        set_fingerprint=spec.set_fingerprint,
+                        repository=repository,
+                        writer_workflow=writer_workflow,
+                    )
+                    year = int(trade_date[:4])
+                    refreshed = load_existing_series_state(
+                        generation_store,
+                        r2_store,
+                        metric_set_version_id,
+                        list(plan.write_codes),
+                        year,
+                    )
+                    existing.dates_by_code.update(refreshed.dates_by_code)
+                    existing.series_by_code.update(refreshed.series_by_code)
+                    existing.flags_by_code.update(refreshed.flags_by_code)
+                    existing.prior_digest_by_code.update(refreshed.prior_digest_by_code)
 
-            progress = _rpc(
-                adapter,
-                "commit_trade_date_progress",
-                {
-                    "p_request_id": args.request_id,
-                    "p_trade_date": trade_date,
-                    "p_write_count": len(plan.write_codes),
-                    "p_resolved_noop_count": len(plan.resolved_noop_codes),
-                    "p_generation_id": generation_id,
-                },
-            )
-            day_summaries.append(
-                {
-                    "trade_date": trade_date,
-                    "write_codes": list(plan.write_codes),
-                    "resolved_noop_codes": list(plan.resolved_noop_codes),
-                    "expected_object_count": plan.expected_object_count,
-                    "generation_id": generation_id,
-                    "progress": progress,
-                }
-            )
+                progress = _rpc(
+                    adapter,
+                    "commit_trade_date_progress",
+                    {
+                        "p_request_id": args.request_id,
+                        "p_trade_date": trade_date,
+                        "p_write_count": len(plan.write_codes),
+                        "p_resolved_noop_count": len(plan.resolved_noop_codes),
+                        "p_generation_id": generation_id,
+                    },
+                )
+                day_summaries.append(
+                    {
+                        "trade_date": trade_date,
+                        "write_codes": list(plan.write_codes),
+                        "resolved_noop_codes": list(plan.resolved_noop_codes),
+                        "expected_object_count": plan.expected_object_count,
+                        "generation_id": generation_id,
+                        "progress": progress,
+                    }
+                )
 
-        finish_payload: dict[str, Any] | None = None
-        if outbox_id:
-            finish_payload = _rpc(
-                adapter,
-                "finish_mnc_outbox_chunk",
-                {"p_outbox_id": outbox_id, "p_fencing_token": fencing_int},
-            )
-            _require_ok(finish_payload, action="finish_mnc_outbox_chunk")
+            finish_payload: dict[str, Any] | None = None
+            if outbox_id:
+                finish_payload = _rpc(
+                    adapter,
+                    "finish_mnc_outbox_chunk",
+                    {"p_outbox_id": outbox_id, "p_fencing_token": fencing_int},
+                )
+                _require_ok(finish_payload, action="finish_mnc_outbox_chunk")
 
         wall_ms = int((time.perf_counter() - t0) * 1000)
         print(
@@ -696,15 +807,23 @@ def cmd_run_request(args: argparse.Namespace) -> int:
                     "wall_time_ms": wall_ms,
                     "code_concurrency": _code_concurrency(),
                     "layer1_hoisted": layer1_hoisted,
+                    "writer_workflow": writer_workflow,
                 },
                 ensure_ascii=False,
             )
         )
         return 0
     except FencingMismatch as exc:
+        req = _load_request(adapter, args.request_id)
+        outbox_rows = _list_outbox_for_request(adapter, args.request_id)
         print(
             json.dumps(
-                {"status": "ok", "skipped": True, "reason": "fencing_mismatch", "detail": str(exc)},
+                _skip_owned_elsewhere_payload(
+                    request_id=args.request_id,
+                    request_status=str(req.get("status") or ""),
+                    outbox_rows=outbox_rows,
+                    detail=f"fencing_mismatch:{exc}",
+                ),
                 ensure_ascii=False,
             )
         )
@@ -746,15 +865,20 @@ def cmd_drain_request(args: argparse.Namespace) -> int:
     )
     outbox_id = str(args.outbox_id or "").strip()
     fencing_token = str(args.fencing_token or "").strip()
+    writer_workflow = str(args.writer_workflow or "monthly.yml").strip() or "monthly.yml"
 
     if not outbox_id or not fencing_token:
         claimed = _claim_outbox_for_request(
-            adapter, request_id=request_id, claimed_by=claimed_by
+            adapter,
+            request_id=request_id,
+            claimed_by=claimed_by,
+            visibility_seconds=DRAIN_VISIBILITY_SECONDS,
         )
         if claimed is None:
             req = _load_request(adapter, request_id)
             status = str(req.get("status") or "")
-            if status in {"completed", "noop", "blocked", "grandfather", "superseded"}:
+            outbox_rows = _list_outbox_for_request(adapter, request_id)
+            if status in _TERMINAL_SKIP_REQUEST_STATUSES:
                 print(
                     json.dumps(
                         {
@@ -767,12 +891,31 @@ def cmd_drain_request(args: argparse.Namespace) -> int:
                     )
                 )
                 return 0
+            active = [
+                o
+                for o in outbox_rows
+                if str(o.get("status") or "") in _ACTIVE_OUTBOX_STATUSES
+            ]
+            if active or status in _OWNED_ELSEWHERE_REQUEST_STATUSES:
+                print(
+                    json.dumps(
+                        _skip_owned_elsewhere_payload(
+                            request_id=request_id,
+                            request_status=status,
+                            outbox_rows=outbox_rows,
+                            detail="poller_or_other_worker_owns_outbox",
+                        ),
+                        ensure_ascii=False,
+                    )
+                )
+                return 0
             print(
                 json.dumps(
                     {
                         "status": "error",
                         "reason": "no_claimable_outbox",
                         "request_id": request_id,
+                        "request_status": status,
                     },
                     ensure_ascii=False,
                 ),
@@ -794,18 +937,22 @@ def cmd_drain_request(args: argparse.Namespace) -> int:
         },
     )
     if mark.get("ok") is False and str(mark.get("reason") or "") == "fencing_mismatch":
+        req = _load_request(adapter, request_id)
+        outbox_rows = _list_outbox_for_request(adapter, request_id)
         print(
             json.dumps(
-                {"status": "ok", "skipped": True, "reason": "fencing_mismatch"},
+                _skip_owned_elsewhere_payload(
+                    request_id=request_id,
+                    request_status=str(req.get("status") or ""),
+                    outbox_rows=outbox_rows,
+                    detail="mark_dispatched_fencing_mismatch",
+                ),
                 ensure_ascii=False,
             )
         )
         return 0
     _require_ok(mark, action="mark_mnc_outbox_dispatched")
 
-    # Drain may leave next pending outbox if we only processed one claim's
-    # dates before --drain processed all remaining on this claim. Prefer one
-    # claim that processes all remaining dates (--drain on run-request).
     ns = argparse.Namespace(
         request_id=request_id,
         outbox_id=outbox_id,
@@ -813,23 +960,42 @@ def cmd_drain_request(args: argparse.Namespace) -> int:
         github_run_id=str(github_run_id),
         github_actor=str(args.github_actor or ""),
         drain=True,
+        writer_workflow=writer_workflow,
     )
     rc = cmd_run_request(ns)
     if rc != 0:
         return rc
 
-    # If finish created a next pending chunk (non-drain legacy), keep draining.
-    # With --drain, all remaining dates are processed before finish so this is
-    # usually a no-op.
     while True:
         req = _load_request(adapter, request_id)
         status = str(req.get("status") or "")
-        if status in {"completed", "noop", "blocked", "grandfather", "superseded"}:
+        if status in _TERMINAL_SKIP_REQUEST_STATUSES:
             break
         claimed = _claim_outbox_for_request(
-            adapter, request_id=request_id, claimed_by=claimed_by
+            adapter,
+            request_id=request_id,
+            claimed_by=claimed_by,
+            visibility_seconds=DRAIN_VISIBILITY_SECONDS,
         )
         if claimed is None:
+            outbox_rows = _list_outbox_for_request(adapter, request_id)
+            active = [
+                o
+                for o in outbox_rows
+                if str(o.get("status") or "") in _ACTIVE_OUTBOX_STATUSES
+            ]
+            if active or status in _OWNED_ELSEWHERE_REQUEST_STATUSES:
+                print(
+                    json.dumps(
+                        _skip_owned_elsewhere_payload(
+                            request_id=request_id,
+                            request_status=status,
+                            outbox_rows=outbox_rows,
+                            detail="followup_chunk_owned_elsewhere",
+                        ),
+                        ensure_ascii=False,
+                    )
+                )
             break
         next_id, next_fencing = claimed
         mark = _rpc(
@@ -850,6 +1016,7 @@ def cmd_drain_request(args: argparse.Namespace) -> int:
             github_run_id=str(github_run_id),
             github_actor=str(args.github_actor or ""),
             drain=True,
+            writer_workflow=writer_workflow,
         )
         rc = cmd_run_request(ns)
         if rc != 0:
@@ -871,6 +1038,7 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Process all remaining trade_dates in this invocation (monthly inline).",
     )
+    p.add_argument("--writer-workflow", default="monthly_new_core_backfill.yml")
     p.set_defaults(func=cmd_run_request)
 
     d = sub.add_parser(
@@ -883,6 +1051,7 @@ def main(argv: list[str] | None = None) -> int:
     d.add_argument("--github-run-id", default="0")
     d.add_argument("--github-actor", default="")
     d.add_argument("--claimed-by", default="")
+    d.add_argument("--writer-workflow", default="monthly.yml")
     d.set_defaults(func=cmd_drain_request)
 
     args = parser.parse_args(argv)

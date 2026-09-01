@@ -223,7 +223,14 @@ class S3R2ObjectStore:
         ]
         if missing:
             raise RuntimeError(f"R2 configuration required: {', '.join(missing)}")
-        pool = int(os.environ.get("DERIVED_R2_CONCURRENCY", "32") or "32")
+        # MNC series_seed uses MNC_R2_CONCURRENCY; Daily uses DERIVED_R2_CONCURRENCY.
+        # Pool must track whichever writer concurrency is active to avoid exhaustion.
+        pool_raw = (
+            os.environ.get("MNC_R2_CONCURRENCY", "").strip()
+            or os.environ.get("DERIVED_R2_CONCURRENCY", "").strip()
+            or "32"
+        )
+        pool = int(pool_raw or "32")
         if pool < 1:
             pool = 1
         return cls(
