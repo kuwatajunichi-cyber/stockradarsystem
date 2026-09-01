@@ -163,8 +163,8 @@ See docs/operations/issue_93_roadmap.md and docs/operations/phase4_cutover.md.
 
 Top-level key `adr005`:
 
-- `status`: `proposed` means **feature_start unset** (MNC not enabled / cutover前). It does **not** mean ADR unadopted or that live Layer 1 writers are absent
-- `feature_start_release_month`: YAML mirror (`null` until enable). SSOT is Supabase `adr005_runtime_config` (ADR-005 §4)
+- `status`: `proposed` = feature_start unset; `enabled` = feature_start set in DB (YAML mirror). Does **not** mean ADR unadopted when `proposed`
+- `feature_start_release_month`: YAML mirror (`null` until enable; live `2026-09` after 2026-09-01 enable). SSOT is Supabase `adr005_runtime_config` (ADR-005 §4)
 - `live_cache_protocol` / `planned_cache_protocol`: `immutable_pointer_cas`
 - `planned_objects`: content-addressed cache objects, seed delta, request manifest, `history_quality.json`
 - `planned_writer_workflows` / `planned_scan_workflows`: do **not** copy into `scan_workflows` until the workflow files exist (P4 already promotes live `scan_workflows` when files exist)

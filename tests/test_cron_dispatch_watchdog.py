@@ -332,3 +332,28 @@ def test_mnc_poller_enabled_ok_with_recent_dispatch() -> None:
     assert verdict.outcome == "ok"
     assert verdict.covering_run_url == "https://example.test/poller"
 
+
+def test_mnc_poller_idle_before_monthly_is_ok() -> None:
+    from stockradar.jobs.cron_dispatch_watchdog import evaluate_mnc_poller_liveness
+
+    verdict = evaluate_mnc_poller_liveness(
+        enabled=True,
+        now_utc=_dt("2026-09-01T00:30:00Z"),
+        runs=[],
+    )
+    assert verdict.outcome == "ok"
+    assert verdict.reason == "mnc_poller_idle_window"
+    assert verdict.miss is False
+
+
+def test_mnc_poller_idle_outside_drain_window_is_ok() -> None:
+    from stockradar.jobs.cron_dispatch_watchdog import evaluate_mnc_poller_liveness
+
+    verdict = evaluate_mnc_poller_liveness(
+        enabled=True,
+        now_utc=_dt("2026-09-15T12:00:00Z"),
+        runs=[],
+    )
+    assert verdict.outcome == "ok"
+    assert verdict.reason == "mnc_poller_idle_window"
+

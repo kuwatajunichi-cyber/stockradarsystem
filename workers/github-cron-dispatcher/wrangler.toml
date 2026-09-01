@@ -25,7 +25,7 @@ GITHUB_OWNER = "kuwatajunichi-cyber"
 GITHUB_REPO = "stockradarsystem"
 GITHUB_REF = "main"
 MONTHLY_DISPATCH_ENABLED = "true"
-MNC_DISPATCH_ENABLED = "false"
+MNC_DISPATCH_ENABLED = "true"
 
 # Secret (set via: wrangler secret put GH_DISPATCH_TOKEN)
 # GH_DISPATCH_TOKEN = fine-grained PAT or GitHub App token with workflow dispatch permission

@@ -239,6 +239,18 @@ def evaluate(
     )
 
 
+def is_mnc_before_monthly_window(now_utc: datetime) -> bool:
+    """Day-1 UTC hours 0–1: Monthly (02:00 UTC) has not run yet."""
+    return now_utc.day == 1 and now_utc.hour < 2
+
+
+def is_mnc_active_drain_window(now_utc: datetime) -> bool:
+    """Worker dispatches poller only in this window (day1 02:00 UTC .. day8)."""
+    if now_utc.day == 1:
+        return now_utc.hour >= 2
+    return 2 <= now_utc.day <= 8
+
+
 def evaluate_mnc_poller_liveness(
     *,
     enabled: bool,
@@ -246,7 +258,7 @@ def evaluate_mnc_poller_liveness(
     runs: list[WorkflowRun],
     lookback: timedelta = MNC_POLLER_LOOKBACK,
 ) -> WatchdogVerdict:
-    """ADR-005 §1.3.8: while MNC_DISPATCH_ENABLED, require poller dispatch in lookback."""
+    """ADR-005 §1.3.8: while enabled *and* in active drain window, require poller ticks."""
     if now_utc.tzinfo is None:
         now_utc = now_utc.replace(tzinfo=timezone.utc)
     else:
@@ -256,6 +268,14 @@ def evaluate_mnc_poller_liveness(
         return WatchdogVerdict(
             outcome="ok",
             reason="mnc_dispatch_disabled",
+            target=MNC_POLLER_TARGET,
+            workflow_file=MNC_POLLER_WORKFLOW_FILE,
+        )
+
+    if is_mnc_before_monthly_window(now_utc) or not is_mnc_active_drain_window(now_utc):
+        return WatchdogVerdict(
+            outcome="ok",
+            reason="mnc_poller_idle_window",
             target=MNC_POLLER_TARGET,
             workflow_file=MNC_POLLER_WORKFLOW_FILE,
         )

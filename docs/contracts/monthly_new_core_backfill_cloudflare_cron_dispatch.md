@@ -4,13 +4,21 @@
 
 Start the ADR-005 outbox poller on the same Cloudflare Worker Cron path as Daily / Monthly / patch. The Monthly workflow does not chain-dispatch the worker.
 
-**Status:** P4 implemented in-repo. Worker / workflow files exist. Live `wrangler.toml` has 4 crons. Keep `MNC_DISPATCH_ENABLED=false` until ADR-005 section 10 step 6 (9/1 morning enable + redeploy).
+**Status:** Enabled 2026-09-01 JST morning. Live `wrangler.toml` has 4 crons and `MNC_DISPATCH_ENABLED=true`.
 
 ## Cron (Cloudflare Worker)
 
 | Cron (UTC) | Workflow | Gate |
 |------------|----------|------|
-| `*/15 * * * *` | `monthly_new_core_backfill_dispatch.yml` | Dispatch only when Worker env `MNC_DISPATCH_ENABLED=true` |
+| `*/15 * * * *` | `monthly_new_core_backfill_dispatch.yml` | Dispatch only when Worker env `MNC_DISPATCH_ENABLED=true` **and** active drain window |
+
+**Active drain window (Worker skip outside it — no GHA launch):**
+
+| When (UTC) | Behavior |
+|------------|----------|
+| Day 1, hours 0–1 | Skip (`before_monthly_window_day1_utc`) — Monthly has not run yet |
+| Day 1, hours ≥ 2 through end of day 8 | Dispatch every 15m (aligned with ~7d completion SLO) |
+| Day 9+ | Skip (`outside_active_drain_window`) |
 
 Existing Worker crons (this contract does not change them):
 
@@ -37,7 +45,8 @@ Do **not** add a 15-minute row to the three Cloudflare-miss detectors in `docs/c
 Independent miss detection **is required** (ADR-005 section 1.3.8). It is not optional and is not deferred to a later re-review:
 
 - GitHub `schedule` every 60 minutes (not a fourth Cloudflare Cron).
-- While `MNC_DISPATCH_ENABLED=true`, miss (exit 2) if `monthly_new_core_backfill_dispatch.yml` has no `workflow_dispatch` in the last 45 minutes.
+- While `MNC_DISPATCH_ENABLED=true` **and** inside the active drain window, miss (exit 2) if `monthly_new_core_backfill_dispatch.yml` has no `workflow_dispatch` in the last 45 minutes.
+- Outside the active drain window (or day-1 before Monthly), verdict is `ok` (`mnc_poller_idle_window`) — Worker intentionally does not launch GHA.
 - Catch-up may dispatch the **poller** workflow only (not the worker) via `GH_DISPATCH_TOKEN`.
 - Implementation PR adds this GitHub-schedule target in `cron_dispatch_watchdog.py`, distinct from the three Worker-cron miss detectors (`5 * * * *` → `mnc_poller`; repository variable `MNC_DISPATCH_ENABLED`).
 - Stranded `dispatch_pending` / poller job failure remain the in-band alerts **after** a tick has fired. They do not observe a Cloudflare Cron that never ran.

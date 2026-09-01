@@ -11,12 +11,13 @@ phase4_5_rollout_stage: "4.5c"
 # Required when stage is 4.5a or 4.5b (shadow set UUID). Empty at 4.5c.
 phase4_5_shadow_metric_set_version_id: ""
 
-# ADR-005: live OHLC/index cache keys use immutable_pointer_cas (sha256 objects) via pr-005-daily-cas (local/unmerged batch).
+# ADR-005: live OHLC/index cache keys use immutable_pointer_cas (sha256 objects).
 # adr005.feature_start_release_month is a YAML mirror; SSOT is Supabase adr005_runtime_config.
 # P4: monthly_new_core_backfill.yml (+ dispatch) promoted into live scan_workflows.
+# 2026-09-01 enable: DB feature_start=2026-09; Worker MNC_DISPATCH_ENABLED=true.
 adr005:
-  status: proposed
-  feature_start_release_month: null
+  status: enabled
+  feature_start_release_month: "2026-09"
   live_cache_protocol: immutable_pointer_cas
   planned_cache_protocol: immutable_pointer_cas
   planned_retention_policy: warm_cache_immutable_pointer_cas
