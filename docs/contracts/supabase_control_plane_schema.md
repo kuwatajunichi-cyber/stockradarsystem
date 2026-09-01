@@ -82,11 +82,11 @@ schema_version: 6
 phase3_rollout_stage: "3c"   # must not regress to 3a
 phase4_rollout_stage: "4a"|"4b"|"4c"
 phase4_5_rollout_stage: "off"|"4.5a"|"4.5b"|"4.5c"
-# ADR-005 block: docs Adopted; status=proposed means feature_start unset (not cut over).
-# Live Layer 1 cache protocol is immutable_pointer_cas (pr-005-daily-cas local_only until merge).
+# ADR-005 block: docs Adopted; status=enabled after 2026-09-01 feature_start set (YAML mirror).
+# Live Layer 1 cache protocol is immutable_pointer_cas.
 adr005:
-  status: proposed
-  feature_start_release_month: null
+  status: enabled
+  feature_start_release_month: "2026-09"
   live_cache_protocol: immutable_pointer_cas
 ```
 

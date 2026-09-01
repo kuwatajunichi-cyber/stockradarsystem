@@ -319,8 +319,8 @@ def test_mapping_adr005_planned_block_does_not_cut_over_live_cache() -> None:
     mapping = _load_mapping()
     adr005 = mapping.get("adr005")
     assert isinstance(adr005, dict)
-    assert adr005.get("status") == "proposed"
-    assert adr005.get("feature_start_release_month") is None
+    assert adr005.get("status") == "enabled"
+    assert adr005.get("feature_start_release_month") == "2026-09"
     assert adr005.get("live_cache_protocol") == "immutable_pointer_cas"
     assert adr005.get("planned_cache_protocol") == "immutable_pointer_cas"
     planned_objects = adr005.get("planned_objects")

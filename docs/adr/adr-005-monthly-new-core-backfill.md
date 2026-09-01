@@ -171,7 +171,7 @@ in-flight worker は各 generation commit の直前に request を version CAS �
 
 | 役割 | 実体 | 起動 | 権限 |
 |------|------|------|------|
-| poller | `monthly_new_core_backfill_dispatch.yml` | Cloudflare Worker Cron `*/15 * * * *`、env `MNC_DISPATCH_ENABLED`。`workers/github-cron-dispatcher/` に登録。未登録 cron は throw するため `constants.js` と同一 PR | GHA `permissions: contents: read` のみ。**`actions: write` 禁止**。dispatch は Actions secret `GH_DISPATCH_TOKEN`（Worker と同一値）。**`GITHUB_TOKEN` 禁止**。owner は `adr005_gate_status.yaml` の `owner` |
+| poller | `monthly_new_core_backfill_dispatch.yml` | Cloudflare Worker Cron `*/15 2-5 1 * *`（1日 02–05 UTC = Monthly 後の午前のみ。最大約16回/月）、env `MNC_DISPATCH_ENABLED`。`workers/github-cron-dispatcher/` に登録。未登録 cron は throw するため `constants.js` と同一 PR | GHA `permissions: contents: read` のみ。**`actions: write` 禁止**。dispatch は Actions secret `GH_DISPATCH_TOKEN`（Worker と同一値）。**`GITHUB_TOKEN` 禁止**。owner は `adr005_gate_status.yaml` の `owner` |
 | worker | `monthly_new_core_backfill.yml` | poller の `workflow_dispatch` のみ | `contents: read`。**`actions: write` 禁止**（self-dispatch しない） |
 | Monthly | `monthly.yml` | 既存月次 Cron | outbox を RPC 内で作るだけ。**`actions: write` を足さない** |
 

@@ -48,6 +48,68 @@ export function isMncDispatchEnabled(env, workflowId) {
 }
 
 /**
+ * @param {number | Date | string | null | undefined} scheduledTime
+ * @param {number} [nowMs]
+ * @returns {Date}
+ */
+function mncClock(scheduledTime, nowMs = Date.now()) {
+  if (scheduledTime === undefined || scheduledTime === null || scheduledTime === "") {
+    return new Date(nowMs);
+  }
+  const t = new Date(scheduledTime);
+  return Number.isNaN(t.getTime()) ? new Date(nowMs) : t;
+}
+
+/**
+ * Monthly runs at 02:00 UTC on day 1 (= 11:00 JST). Polling the empty outbox
+ * before that is pure GHA noise — skip MNC dispatch on day-1 UTC hours 0–1.
+ *
+ * @param {number | Date | string | null | undefined} scheduledTime
+ * @param {number} [nowMs]
+ * @returns {boolean}
+ */
+export function isMncBeforeMonthlyWindow(scheduledTime, nowMs = Date.now()) {
+  const t = mncClock(scheduledTime, nowMs);
+  if (t.getUTCDate() !== 1) {
+    return false;
+  }
+  return t.getUTCHours() < 2;
+}
+
+/**
+ * Active poller window: day-1 UTC hours 2-5 only (matches cron every 15m in hours 2-5 on day 1).
+ * Once Monthly has written the outbox, a few same-morning ticks are enough;
+ * multi-day empty fifteen-minute launches are not.
+ *
+ * @param {number | Date | string | null | undefined} scheduledTime
+ * @param {number} [nowMs]
+ * @returns {boolean}
+ */
+export function isMncActiveDrainWindow(scheduledTime, nowMs = Date.now()) {
+  const t = mncClock(scheduledTime, nowMs);
+  if (t.getUTCDate() !== 1) {
+    return false;
+  }
+  const hour = t.getUTCHours();
+  return hour >= 2 && hour <= 5;
+}
+
+/**
+ * @param {number | Date | string | null | undefined} scheduledTime
+ * @param {number} [nowMs]
+ * @returns {string | null} skip reason, or null to dispatch
+ */
+export function mncPollerSkipReason(scheduledTime, nowMs = Date.now()) {
+  if (isMncBeforeMonthlyWindow(scheduledTime, nowMs)) {
+    return "before_monthly_window_day1_utc";
+  }
+  if (!isMncActiveDrainWindow(scheduledTime, nowMs)) {
+    return "outside_active_drain_window";
+  }
+  return null;
+}
+
+/**
  * @param {ScheduledController} controller
  * @param {Record<string, string | undefined>} env
  * @param {typeof fetch} fetchImpl
@@ -92,6 +154,22 @@ export async function handleScheduledCron(controller, env, fetchImpl = fetch) {
       });
       results.push({ workflowId: target.workflowId, ok: true, skipped: true });
       continue;
+    }
+
+    if (target.workflowId === MNC_DISPATCH_WORKFLOW_FILE) {
+      const skipReason = mncPollerSkipReason(controller.scheduledTime);
+      if (skipReason) {
+        logEvent({
+          level: "info",
+          event: "mnc_dispatch_skipped",
+          cron,
+          workflowId: target.workflowId,
+          reason: skipReason,
+          scheduledTime: controller.scheduledTime ?? null,
+        });
+        results.push({ workflowId: target.workflowId, ok: true, skipped: true });
+        continue;
+      }
     }
 
     let inputs = target.inputs ?? {};

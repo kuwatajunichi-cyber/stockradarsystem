@@ -1,13 +1,13 @@
 schema_version: 1
 adr: '005'
-last_updated_utc: '2026-08-29T12:00:00Z'
+last_updated_utc: '2026-09-01T00:52:00Z'
 overall_status: in_progress
 owner: repo-maintainers
 repair_approver_team: repo-maintainers
 implementation_snapshot:
   code_unstarted: false
   workflows_unstarted: false
-  note: 'PR #159 merged (9c58ddc). pr_gates merged_and_verified. live_gate_005 stays open until feature_start bootstrap, poller evidence, and capacity remeasure. Ops: adr005_ops_gates_sept1.md / adr005_enable_sept1.md. Follow-up may still be unmerged (MNC poller miss watchdog).'
+  note: 'feature_start=2026-09 enabled 2026-09-01 JST morning (bootstrap_complete=true, grandfather 0). Worker MNC_DISPATCH_ENABLED=true (version 8e37a9e8-725a-4d2b-8292-d7d33efc241d). live_gate_005 stays open until Monthly/poller evidence + capacity remeasure.'
 pr_gates:
   pr-005-docs-adoption:
     description: ADR-005 adoption docs sync (ADR-003/004, contracts, mapping v6, gate YAML)
@@ -35,8 +35,10 @@ pr_gates:
     pytest_ci_pass_on_merge: true
 live_gate_005:
   status: open
-  note: closed only after feature_start bootstrap, poller evidence, and capacity remeasure. Do not claim closed after PR merge alone.
+  note: feature_start bootstrap done 2026-09-01. Still need Monthly request/outbox evidence, poller/series_seed runs, and capacity remeasure before close.
 correction_log:
+- at_utc: '2026-09-01T00:52:00Z'
+  reason: 'Enable window: DB feature_start=2026-09, bootstrap_complete=true, grandfather 0. Worker MNC=true version 8e37a9e8. GHA var MNC_DISPATCH_ENABLED=true. ADR005_METRIC_SET_VERSION_ID set. live_gate_005 remains open pending Monthly/poller/capacity.'
 - at_utc: '2026-08-29T12:00:00Z'
   reason: 'PR #159 merged to main (9c58ddc). CI run 33235945903 Pass. All pr_gates merged_and_verified. live_gate_005 remains open. Issue #93 comment records soak waiver + remaining ops.'
 - at_utc: '2026-08-29T02:00:00Z'

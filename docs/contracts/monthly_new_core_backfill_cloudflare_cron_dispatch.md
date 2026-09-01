@@ -4,13 +4,23 @@
 
 Start the ADR-005 outbox poller on the same Cloudflare Worker Cron path as Daily / Monthly / patch. The Monthly workflow does not chain-dispatch the worker.
 
-**Status:** P4 implemented in-repo. Worker / workflow files exist. Live `wrangler.toml` has 4 crons. Keep `MNC_DISPATCH_ENABLED=false` until ADR-005 section 10 step 6 (9/1 morning enable + redeploy).
+**Status:** Enabled 2026-09-01 JST morning. Live `wrangler.toml` has 4 crons and `MNC_DISPATCH_ENABLED=true`.
 
 ## Cron (Cloudflare Worker)
 
 | Cron (UTC) | Workflow | Gate |
 |------------|----------|------|
-| `*/15 * * * *` | `monthly_new_core_backfill_dispatch.yml` | Dispatch only when Worker env `MNC_DISPATCH_ENABLED=true` |
+| `*/15 2-5 1 * *` | `monthly_new_core_backfill_dispatch.yml` | Day-1 UTC 02:00–05:45 only (~16 ticks/month). Also requires `MNC_DISPATCH_ENABLED=true` |
+
+Cron itself does **not** fire outside that window (no day-2…day-8 empty spam). Defense-in-depth: Worker also skips if scheduled outside the window.
+
+| When (UTC) | Behavior |
+|------------|----------|
+| Day 1, hours 0–1 | Cron does not fire / skip (`before_monthly_window_day1_utc`) |
+| Day 1, hours 2–5 | Dispatch every 15m (after Monthly 11:00 JST; enough for same-morning outbox claim) |
+| Day 1, hour 6+ and all other days | Cron does not fire / skip (`outside_active_drain_window`) |
+
+If a request is still pending after the morning window, catch-up is **manual** `workflow_dispatch` of the poller (or watchdog catch-up) — not days of idle `*/15`.
 
 Existing Worker crons (this contract does not change them):
 
@@ -37,7 +47,8 @@ Do **not** add a 15-minute row to the three Cloudflare-miss detectors in `docs/c
 Independent miss detection **is required** (ADR-005 section 1.3.8). It is not optional and is not deferred to a later re-review:
 
 - GitHub `schedule` every 60 minutes (not a fourth Cloudflare Cron).
-- While `MNC_DISPATCH_ENABLED=true`, miss (exit 2) if `monthly_new_core_backfill_dispatch.yml` has no `workflow_dispatch` in the last 45 minutes.
+- While `MNC_DISPATCH_ENABLED=true` **and** inside the active window (day-1 UTC hours 2–5), miss (exit 2) if `monthly_new_core_backfill_dispatch.yml` has no `workflow_dispatch` in the last 45 minutes.
+- Outside that window, verdict is `ok` (`mnc_poller_idle_window`) — Cron/Worker intentionally do not launch GHA.
 - Catch-up may dispatch the **poller** workflow only (not the worker) via `GH_DISPATCH_TOKEN`.
 - Implementation PR adds this GitHub-schedule target in `cron_dispatch_watchdog.py`, distinct from the three Worker-cron miss detectors (`5 * * * *` → `mnc_poller`; repository variable `MNC_DISPATCH_ENABLED`).
 - Stranded `dispatch_pending` / poller job failure remain the in-band alerts **after** a tick has fired. They do not observe a Cloudflare Cron that never ran.
@@ -45,7 +56,7 @@ Independent miss detection **is required** (ADR-005 section 1.3.8). It is not op
 ## Implementation PR delta
 
 1. Add the fourth cron in `workers/github-cron-dispatcher/wrangler.toml`.
-2. Register `mnc_dispatch` (name TBD) in `src/constants.js` in the same PR (unknown crons throw).
+2. Register `mnc_dispatch` in `src/constants.js` in the same PR (unknown crons throw).
 3. Merge with Worker env `MNC_DISPATCH_ENABLED=false`; set true after section 10 step 6.
 4. Do not use GitHub `schedule` as the poller itself (ADR-005 rejected).
 5. Add `monthly_new_core_backfill.yml` to `scan_workflows` only in the PR that adds that workflow file.

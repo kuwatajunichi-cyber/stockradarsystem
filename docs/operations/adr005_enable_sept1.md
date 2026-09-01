@@ -1,5 +1,9 @@
 # ADR-005 enable window (9/1 00:00-10:59 JST)
 
+**Status (2026-09-01 ~00:52 JST): ENABLE APPLIED** — evidence `docs/operations/evidence/adr005_enable_20260901.json`.  
+`feature_start=2026-09`, `bootstrap_complete=true`, grandfather 0, Worker `MNC_DISPATCH_ENABLED=true` (version `8e37a9e8-725a-4d2b-8292-d7d33efc241d`), GHA var true, `ADR005_METRIC_SET_VERSION_ID` set.  
+Next: wait for **11:00 JST Monthly**, then poller/series_seed evidence. `live_gate_005` stays **open**.
+
 Run **after** 8/31 Daily CAS canary success. Do **not** enable on 8/31 night.
 
 ## Prerequisites checklist

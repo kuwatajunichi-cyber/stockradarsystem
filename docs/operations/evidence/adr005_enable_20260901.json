@@ -1,0 +1,33 @@
+{
+  "recorded_at_utc": "2026-09-01T00:52:00+09:00",
+  "gate": "9/1_enable_window",
+  "feature_start_release_month": "2026-09",
+  "bootstrap_complete": true,
+  "grandfather_count": 0,
+  "mnc_request_count_at_enable": 0,
+  "current_release_month_at_enable": "2026-08",
+  "worker_version_id": "b79a6619-0010-4b85-84ff-21a3781bd366",
+  "mnc_dispatch_enabled_worker": true,
+  "mnc_dispatch_enabled_gha_variable": true,
+  "adr005_metric_set_version_id": "13209d23-ded6-482d-be08-7da6062013c0",
+  "preflight": {
+    "cas_index_version": 2,
+    "cas_ohlc_version": 2,
+    "feature_start_before": null,
+    "daily_cas_canary_pass": true,
+    "daily_cas_evidence": "docs/operations/evidence/adr005_daily_cas_canary_20260831.json"
+  },
+  "monthly_run_url": null,
+  "poller_run_urls": [],
+  "notes": [
+    "Enable+bootstrap applied in enable window before Monthly (empty [2026-09,2026-08] range).",
+    "live_gate_005 remains open until Monthly/poller evidence and capacity remeasure.",
+    "Do not claim live gate closed from this evidence alone.",
+    "Worker redeployed with active-drain window skip (version b79a6619)."
+  ],
+  "mnc_poller_policy": {
+    "before_monthly_day1_utc_hours_0_1": "skip",
+    "active_drain_day1_hour2_through_day8": "dispatch_every_15m",
+    "day9_plus": "skip"
+  }
+}

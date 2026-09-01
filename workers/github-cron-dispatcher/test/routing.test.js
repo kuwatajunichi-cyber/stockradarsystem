@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { handleScheduledCron, isMonthlyDispatchEnabled, isMncDispatchEnabled, resolveTargetsForCron } from "../src/index.js";
+import {
+  handleScheduledCron,
+  isMonthlyDispatchEnabled,
+  isMncActiveDrainWindow,
+  isMncBeforeMonthlyWindow,
+  isMncDispatchEnabled,
+  mncPollerSkipReason,
+  resolveTargetsForCron,
+} from "../src/index.js";
 import {
   DAILY_CRON,
   DAILY_WORKFLOW_FILE,
@@ -181,10 +189,14 @@ describe("handleScheduledCron", () => {
     assert.equal(called, false);
   });
 
-  it("dispatches mnc poller when MNC_DISPATCH_ENABLED=true", async () => {
+  it("dispatches mnc poller when MNC_DISPATCH_ENABLED=true after monthly window", async () => {
     let capturedUrl = "";
     const result = await handleScheduledCron(
-      { cron: MNC_DISPATCH_CRON },
+      {
+        cron: MNC_DISPATCH_CRON,
+        // 2026-09-01 02:15 UTC = after Monthly 11:00 JST
+        scheduledTime: Date.UTC(2026, 8, 1, 2, 15, 0),
+      },
       { ...env, MNC_DISPATCH_ENABLED: "true" },
       async (url) => {
         capturedUrl = String(url);
@@ -193,5 +205,74 @@ describe("handleScheduledCron", () => {
     );
     assert.equal(result.ok, true);
     assert.match(capturedUrl, /monthly_new_core_backfill_dispatch\.yml/);
+  });
+
+  it("skips mnc poller on day-1 before Monthly 02:00 UTC even when enabled", async () => {
+    let called = false;
+    const result = await handleScheduledCron(
+      {
+        cron: MNC_DISPATCH_CRON,
+        // 2026-09-01 00:30 UTC = 09:30 JST, before Monthly
+        scheduledTime: Date.UTC(2026, 8, 1, 0, 30, 0),
+      },
+      { ...env, MNC_DISPATCH_ENABLED: "true" },
+      async () => {
+        called = true;
+        return { status: 204, ok: true, text: async () => "" };
+      },
+    );
+    assert.equal(result.ok, true);
+    assert.equal(called, false);
+    assert.equal(result.results[0].skipped, true);
+  });
+});
+
+describe("isMncBeforeMonthlyWindow", () => {
+  it("is true on day-1 UTC before hour 2", () => {
+    assert.equal(isMncBeforeMonthlyWindow(Date.UTC(2026, 8, 1, 1, 45, 0)), true);
+  });
+
+  it("is false on day-1 UTC at/after hour 2", () => {
+    assert.equal(isMncBeforeMonthlyWindow(Date.UTC(2026, 8, 1, 2, 0, 0)), false);
+  });
+
+  it("is false on day-2 (drain may still be in progress)", () => {
+    assert.equal(isMncBeforeMonthlyWindow(Date.UTC(2026, 8, 2, 0, 15, 0)), false);
+  });
+});
+
+describe("isMncActiveDrainWindow / mncPollerSkipReason", () => {
+  it("is active only on day-1 UTC hours 2–5", () => {
+    assert.equal(isMncActiveDrainWindow(Date.UTC(2026, 8, 1, 2, 0, 0)), true);
+    assert.equal(isMncActiveDrainWindow(Date.UTC(2026, 8, 1, 5, 45, 0)), true);
+    assert.equal(isMncActiveDrainWindow(Date.UTC(2026, 8, 1, 6, 0, 0)), false);
+  });
+
+  it("is inactive on day 2+", () => {
+    assert.equal(isMncActiveDrainWindow(Date.UTC(2026, 8, 2, 3, 0, 0)), false);
+  });
+
+  it("skips outside active drain even when enabled", async () => {
+    let called = false;
+    const result = await handleScheduledCron(
+      {
+        cron: MNC_DISPATCH_CRON,
+        scheduledTime: Date.UTC(2026, 8, 15, 12, 0, 0),
+      },
+      {
+        GH_DISPATCH_TOKEN: "token",
+        GITHUB_OWNER: "owner",
+        GITHUB_REPO: "repo",
+        GITHUB_REF: "main",
+        MNC_DISPATCH_ENABLED: "true",
+      },
+      async () => {
+        called = true;
+        return { status: 204, ok: true, text: async () => "" };
+      },
+    );
+    assert.equal(result.ok, true);
+    assert.equal(called, false);
+    assert.equal(mncPollerSkipReason(Date.UTC(2026, 8, 15, 12, 0, 0)), "outside_active_drain_window");
   });
 });

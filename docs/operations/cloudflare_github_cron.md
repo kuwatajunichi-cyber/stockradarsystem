@@ -147,4 +147,4 @@ Postmortem for the 2026-06-18/19 missed-dispatch incident, lessons learned, and 
 
 ## Planned (ADR-005, not live)
 
-Fourth Worker cron `*/15 * * * *` → `monthly_new_core_backfill_dispatch.yml` is **not** in `wrangler.toml`. Skeleton: [monthly_new_core_backfill_cloudflare_cron_dispatch.md](../contracts/monthly_new_core_backfill_cloudflare_cron_dispatch.md). Live Worker stays at 3 crons (daily / patch / monthly).
+Fourth Worker cron `*/15 2-5 1 * *` → `monthly_new_core_backfill_dispatch.yml` (day-1 UTC morning after Monthly only; see [monthly_new_core_backfill_cloudflare_cron_dispatch.md](../contracts/monthly_new_core_backfill_cloudflare_cron_dispatch.md)).

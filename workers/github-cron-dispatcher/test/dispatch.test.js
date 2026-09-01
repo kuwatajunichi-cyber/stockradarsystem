@@ -22,7 +22,7 @@ describe("constants and wrangler cron alignment", () => {
     const wrangler = readFileSync(join(workerRoot, "wrangler.toml"), "utf8");
     assert.match(
       wrangler,
-      /crons\s*=\s*\["45 6 \* \* \*", "0 3 \* \* \*", "0 2 1 \* \*", "\*\/15 \* \* \* \*"\]/,
+      /crons\s*=\s*\["45 6 \* \* \*", "0 3 \* \* \*", "0 2 1 \* \*", "\*\/15 2-5 1 \* \*"\]/,
     );
   });
 
