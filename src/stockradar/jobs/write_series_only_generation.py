@@ -9,6 +9,7 @@ import json
 import math
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -64,6 +65,21 @@ from stockradar.storage.series_seed import (  # noqa: E402
     validate_series_repair_approver,
 )
 from stockradar.utils.yf_cache_long_history import fetch_long_history_bounded  # noqa: E402
+
+DEFAULT_R2_CONCURRENCY = 32
+
+
+def _r2_concurrency() -> int:
+    raw = (
+        os.environ.get("MNC_R2_CONCURRENCY", "").strip()
+        or os.environ.get("DERIVED_R2_CONCURRENCY", "").strip()
+        or str(DEFAULT_R2_CONCURRENCY)
+    )
+    try:
+        value = int(raw)
+    except ValueError:
+        value = DEFAULT_R2_CONCURRENCY
+    return max(1, min(64, value))
 
 
 @dataclass(frozen=True)
@@ -328,15 +344,37 @@ def load_existing_series_state(
         metric_set_version_id=set_id,
         series_year=int(year),
     )
+    to_fetch: list[tuple[str, str]] = []
     for code in sorted(code_set):
         object_key = keys_by_code.get(code) or generation_store.get_committed_series_object_key(
             metric_set_version_id=set_id,
             instrument_code=code,
             series_year=int(year),
         )
-        if not object_key:
-            continue
-        raw = r2_store.get_object(object_key)
+        if object_key:
+            to_fetch.append((code, object_key))
+    if not to_fetch:
+        return state
+
+    def _load_one(code: str, object_key: str) -> tuple[str, bytes]:
+        return code, r2_store.get_object(object_key)
+
+    workers = max(1, min(_r2_concurrency(), len(to_fetch)))
+    loaded: dict[str, bytes] = {}
+    if workers == 1:
+        for code, key in to_fetch:
+            c, raw = _load_one(code, key)
+            loaded[c] = raw
+    else:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = {
+                pool.submit(_load_one, code, key): code for code, key in to_fetch
+            }
+            for fut in as_completed(futures):
+                code, raw = fut.result()
+                loaded[code] = raw
+
+    for code, raw in loaded.items():
         canonical = gunzip_series_bytes(raw)
         dates, series, flags = parse_series_canonical_bytes(canonical)
         state.dates_by_code[code] = list(dates)
@@ -386,6 +424,81 @@ def _put_registered_object(
         size_bytes=size_bytes,
     )
     return rec.object_key
+
+
+def _put_registered_objects_parallel(
+    *,
+    generation_store: MetricGenerationPort,
+    r2_store: R2ObjectStorePort,
+    generation_id: str,
+    items: Sequence[dict[str, Any]],
+) -> list[str]:
+    """Register serially, put in parallel, mark uploaded serially (code-safe)."""
+    if not items:
+        return []
+    prepared: list[dict[str, Any]] = []
+    for item in items:
+        content = bytes(item["content"])
+        object_key = str(item["object_key"])
+        logical_digest = str(item["logical_digest"])
+        byte_sha = compute_object_sha256(content)
+        size_bytes = len(content)
+        generation_store.register_pending_object(
+            generation_id=generation_id,
+            object_kind=str(item["object_kind"]),
+            object_key=object_key,
+            logical_digest=logical_digest,
+            byte_sha256=byte_sha,
+            size_bytes=size_bytes,
+            trade_date=item.get("trade_date"),
+            instrument_code=item.get("instrument_code"),
+            series_year=item.get("series_year"),
+        )
+        prepared.append(
+            {
+                "object_key": object_key,
+                "content": content,
+                "content_type": str(item.get("content_type") or "application/octet-stream"),
+                "byte_sha": byte_sha,
+                "size_bytes": size_bytes,
+            }
+        )
+
+    workers = max(1, min(_r2_concurrency(), len(prepared)))
+    if workers == 1:
+        for row in prepared:
+            r2_store.put_create_only(
+                row["object_key"],
+                row["content"],
+                content_type=row["content_type"],
+            )
+    else:
+        warm = getattr(r2_store, "warm_client", None)
+        if callable(warm):
+            warm()
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = [
+                pool.submit(
+                    r2_store.put_create_only,
+                    row["object_key"],
+                    row["content"],
+                    content_type=row["content_type"],
+                )
+                for row in prepared
+            ]
+            for fut in as_completed(futures):
+                fut.result()
+
+    keys: list[str] = []
+    for row in prepared:
+        generation_store.mark_object_uploaded(
+            generation_id=generation_id,
+            object_key=row["object_key"],
+            byte_sha256=row["byte_sha"],
+            size_bytes=row["size_bytes"],
+        )
+        keys.append(row["object_key"])
+    return keys
 
 
 def run_series_only_trade_date(
@@ -439,6 +552,7 @@ def run_series_only_trade_date(
     object_keys: list[str] = []
     series_logical_digests: list[str] = []
     delta_rows: list[dict[str, Any]] = []
+    pending_puts: list[dict[str, Any]] = []
     delta_kind = (
         "series_seed_delta" if plan.mode == "series_seed" else "series_repair_delta"
     )
@@ -476,19 +590,16 @@ def run_series_only_trade_date(
             generation_uuid=generation_id,
             object_sha256=byte_sha,
         )
-        object_keys.append(
-            _put_registered_object(
-                generation_store=generation_store,
-                r2_store=r2_store,
-                generation_id=generation_id,
-                object_kind="series",
-                object_key=series_key,
-                logical_digest=logical,
-                content=content,
-                content_type=SERIES_GZIP_CONTENT_TYPE,
-                instrument_code=code,
-                series_year=year,
-            )
+        pending_puts.append(
+            {
+                "object_kind": "series",
+                "object_key": series_key,
+                "logical_digest": logical,
+                "content": content,
+                "content_type": SERIES_GZIP_CONTENT_TYPE,
+                "instrument_code": code,
+                "series_year": year,
+            }
         )
         manifest_bytes = build_series_manifest_bytes(
             instrument_code=code,
@@ -517,19 +628,16 @@ def run_series_only_trade_date(
             object_sha256=manifest_sha,
             manifest=True,
         )
-        object_keys.append(
-            _put_registered_object(
-                generation_store=generation_store,
-                r2_store=r2_store,
-                generation_id=generation_id,
-                object_kind="series_manifest",
-                object_key=manifest_key,
-                logical_digest=logical,
-                content=manifest_bytes,
-                content_type="application/json",
-                instrument_code=code,
-                series_year=year,
-            )
+        pending_puts.append(
+            {
+                "object_kind": "series_manifest",
+                "object_key": manifest_key,
+                "logical_digest": logical,
+                "content": manifest_bytes,
+                "content_type": "application/json",
+                "instrument_code": code,
+                "series_year": year,
+            }
         )
         row_flags = flags_for_values(
             instrument_code=code,
@@ -547,6 +655,15 @@ def run_series_only_trade_date(
                     "_row_flags": row_flags,
                 }
             )
+
+    object_keys.extend(
+        _put_registered_objects_parallel(
+            generation_store=generation_store,
+            r2_store=r2_store,
+            generation_id=generation_id,
+            items=pending_puts,
+        )
+    )
 
     # Drop helper field; ADR rows keep flags as list.
     clean_delta_rows = [

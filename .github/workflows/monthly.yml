@@ -17,6 +17,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    outputs:
+      mnc_request_id: ${{ steps.export_mnc.outputs.mnc_request_id }}
+      mnc_outcome: ${{ steps.export_mnc.outputs.mnc_outcome }}
     env:
       PHASE4_ROLLOUT_STAGE: "4c"
     steps:
@@ -142,6 +145,25 @@ jobs:
             --phase4-rollout-stage "$PHASE4_ROLLOUT_STAGE" \
             --json-output /tmp/monthly_snapshot_commit.json
 
+      - name: Export MNC outputs
+        id: export_mnc
+        if: success() && steps.get_run_id.outputs.run_id != ''
+        run: |
+          set -euo pipefail
+          OUTCOME=""
+          REQ=""
+          if [ -f /tmp/monthly_snapshot_commit.json ]; then
+            OUTCOME="$(python -c "import json; print(json.load(open('/tmp/monthly_snapshot_commit.json')).get('mnc_outcome') or '')")"
+            REQ="$(python -c "import json; print(json.load(open('/tmp/monthly_snapshot_commit.json')).get('mnc_request_id') or '')")"
+          fi
+          echo "mnc_outcome=$OUTCOME" >> "$GITHUB_OUTPUT"
+          echo "mnc_request_id=$REQ" >> "$GITHUB_OUTPUT"
+          {
+            echo "## MNC commit"
+            echo "- mnc_outcome: \`${OUTCOME:-none}\`"
+            echo "- mnc_request_id: \`${REQ:-none}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Put JPX URL cache (R2 + Supabase RPC)
         if: success() && steps.get_run_id.outputs.run_id != ''
         env:
@@ -240,8 +262,64 @@ jobs:
           retention-days: 7
           if-no-files-found: warn
 
-  finalize_run:
+  series_seed:
     needs: [build]
+    if: success() && needs.build.outputs.mnc_outcome == 'runnable'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    permissions:
+      contents: read
+    env:
+      PHASE4_ROLLOUT_STAGE: "4c"
+      MNC_CODE_CONCURRENCY: "8"
+      MNC_R2_CONCURRENCY: "32"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Drain series_seed for MNC request
+        env:
+          PYTHONPATH: src:.
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          ADR005_METRIC_SET_VERSION_ID: ${{ secrets.ADR005_METRIC_SET_VERSION_ID }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
+          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+        run: |
+          set -euo pipefail
+          REQUEST_ID="${{ needs.build.outputs.mnc_request_id }}"
+          if [ -z "$REQUEST_ID" ]; then
+            echo "::error::mnc_outcome=runnable but mnc_request_id is empty"
+            exit 2
+          fi
+          python scripts/storage/mnc_worker_cli.py drain-request \
+            --request-id "$REQUEST_ID" \
+            --github-run-id "${{ github.run_id }}" \
+            --github-actor "${{ github.actor }}" \
+            --claimed-by "monthly-series-seed:${{ github.run_id }}" \
+            | tee /tmp/mnc_series_seed.json
+          {
+            echo "## series_seed (monthly inline)"
+            echo "- request_id: \`$REQUEST_ID\`"
+            python -c "import json,pathlib; p=pathlib.Path('/tmp/mnc_series_seed.json'); d=json.loads(p.read_text()) if p.is_file() and p.stat().st_size else {}; print('- wall_time_ms:', d.get('wall_time_ms')); print('- processed:', len(d.get('processed_trade_dates') or []))"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  finalize_run:
+    needs: [build, series_seed]
     if: always()
     runs-on: ubuntu-latest
     env:
@@ -268,7 +346,10 @@ jobs:
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
         run: |
           set -euo pipefail
-          if [ "${{ needs.build.result }}" = "success" ]; then
+          BUILD_RESULT="${{ needs.build.result }}"
+          SEED_RESULT="${{ needs.series_seed.result }}"
+          # skipped series_seed (non-runnable) must not fail the monthly run
+          if [ "$BUILD_RESULT" = "success" ] && { [ "$SEED_RESULT" = "success" ] || [ "$SEED_RESULT" = "skipped" ]; }; then
             STATUS="success"
           else
             STATUS="failed"
@@ -279,6 +360,12 @@ jobs:
             --status "$STATUS" \
             --phase4-rollout-stage "$PHASE4_ROLLOUT_STAGE" \
             --json-output /tmp/monthly_update_run.json
+          {
+            echo "## finalize"
+            echo "- build: \`$BUILD_RESULT\`"
+            echo "- series_seed: \`$SEED_RESULT\`"
+            echo "- terminal: \`$STATUS\`"
+          } >> "$GITHUB_STEP_SUMMARY"
           if [ "$STATUS" = "failed" ]; then
             echo "::error::runs terminal status is failed; failing workflow to match Supabase"
             exit 1

@@ -2,7 +2,16 @@
 
 ## Status
 
-ADR-005 **Adopted** (docs). Implementation is **local_only / unmerged** (`docs/operations/adr005_gate_status.yaml`). Not yet a production-enabled operator runbook (`feature_start` unset; `MNC_DISPATCH_ENABLED=false`).
+ADR-005 **Adopted**. Live gate closed 2026-09-01 (`docs/operations/adr005_gate_status.yaml`).
+
+## Steady-state path (monthly inline)
+
+Canonical runner is `monthly.yml` job `series_seed` (same pattern as Daily `write_derived_generation`):
+
+1. `build` commits the monthly snapshot + MNC request/outbox via RPC.
+2. When `mnc_outcome=runnable`, `series_seed` claims the outbox and runs `mnc_worker_cli.py drain-request` in-process (all remaining trade_dates; no poller wait).
+3. Parallelism: `MNC_CODE_CONCURRENCY` (default 8) for Layer1 fetch/compute; `MNC_R2_CONCURRENCY` / `DERIVED_R2_CONCURRENCY` (default 32) for series GET/PUT. Layer1 ensure runs once per request. Same instrument code stays date-serial.
+4. Cloudflare `mnc_poller` + `monthly_new_core_backfill.yml` remain for catch-up / retry if the monthly seed job fails or is skipped.
 
 ## Split request (blocked added_codes or work_units)
 
@@ -17,8 +26,8 @@ ADR-005 **Adopted** (docs). Implementation is **local_only / unmerged** (`docs/o
 
 - Owner: `docs/operations/adr005_gate_status.yaml` field `owner`
 - Do not add `actions: write` to `monthly.yml`
-- Live Layer 1 cache protocol is `immutable_pointer_cas` (`put-immutable` + pointer CAS) under `pr-005-daily-cas` (local_only until merge)
-- Repair approver team may stay `repo-maintainers` until `pr-005-series-seed` merges
+- Live Layer 1 cache protocol is `immutable_pointer_cas` (`put-immutable` + pointer CAS)
+- Repair approver team may stay `repo-maintainers`
 
 ## Related
 
