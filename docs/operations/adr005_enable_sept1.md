@@ -1,8 +1,7 @@
 # ADR-005 enable window (9/1 00:00-10:59 JST)
 
-**Status (2026-09-01 ~00:52 JST): ENABLE APPLIED** — evidence `docs/operations/evidence/adr005_enable_20260901.json`.  
-`feature_start=2026-09`, `bootstrap_complete=true`, grandfather 0, Worker `MNC_DISPATCH_ENABLED=true` (version `8e37a9e8-725a-4d2b-8292-d7d33efc241d`), GHA var true, `ADR005_METRIC_SET_VERSION_ID` set.  
-Next: wait for **11:00 JST Monthly**, then poller/series_seed evidence. `live_gate_005` stays **open**.
+**Status (2026-09-01): ENABLE APPLIED + SEPT DRAIN + CAPACITY CLOSE** — enable `docs/operations/evidence/adr005_enable_20260901.json`; drain `docs/operations/evidence/adr005_live_gate_sept1_drain_20260901.json`.  
+`feature_start=2026-09`, `bootstrap_complete=true`, grandfather 0. Monthly [#33460880750](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33460880750) created runnable request `mnc-v1-883eee…` (17 codes / 68 dates). Final worker [#33486886519](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33486886519) completed (`last_committed=2026-08-31`). `live_gate_005` stays **open** (capacity remeasure pending).
 
 Run **after** 8/31 Daily CAS canary success. Do **not** enable on 8/31 night.
 
