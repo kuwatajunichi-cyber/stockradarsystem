@@ -1,4 +1,4 @@
-"""Contract: ADR-005 gate SSOT after docs adoption (in_progress, live_gate_005 open)."""
+"""Contract: ADR-005 gate SSOT after live_gate_005 close."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -12,6 +12,8 @@ _ROADMAP = _REPO / "docs" / "operations" / "issue_93_roadmap.md"
 _INDEX = _REPO / "docs" / "INDEX.md"
 _CRON = _REPO / "docs" / "contracts" / "monthly_new_core_backfill_cloudflare_cron_dispatch.md"
 _RUNBOOK = _REPO / "docs" / "contracts" / "monthly_new_core_backfill.md"
+_CAPACITY = _REPO / "docs" / "operations" / "evidence" / "adr005_capacity_remeasure_20260901.json"
+_DRAIN = _REPO / "docs" / "operations" / "evidence" / "adr005_live_gate_sept1_drain_20260901.json"
 _PHASE45_PHRASE = (
     "PR-45-1..4 merged・rollout 4.5c・Path B active・"
     "live_gate closed (user-authorized waiver 2026-08-29)・capacity_gate closed"
@@ -23,6 +25,7 @@ _REQUIRED_PR_GATES = (
     "pr-005-series-seed",
 )
 _MERGE_SHA = "9c58ddc6073779f9f97311f35fe13ace47d7fb29"
+_CAPACITY_HASH = "ed35863fe4d88db2abf9b37016fbe4219c460394f0d16f036f8cee2120e583cf"
 
 
 def _load_gate_status() -> dict:
@@ -35,17 +38,36 @@ def _load_gate_status() -> dict:
     return data
 
 
+def _is_url(value: object) -> bool:
+    return isinstance(value, str) and value.startswith("https://")
+
+
 @pytest.mark.unit
-def test_adr005_gate_status_in_progress_and_owned() -> None:
+def test_adr005_gate_status_closed_and_owned() -> None:
     data = _load_gate_status()
-    assert data.get("overall_status") == "in_progress"
+    assert data.get("overall_status") == "closed"
     owner = str(data.get("owner") or "").strip()
     assert owner, "owner must not be empty"
     repair = str(data.get("repair_approver_team") or "").strip()
     assert repair, "repair_approver_team must not be empty"
     live = data.get("live_gate_005")
     assert isinstance(live, dict)
-    assert live.get("status") == "open"
+    assert live.get("status") == "closed"
+    assert live.get("closed_at_utc")
+    assert live.get("capacity_remeasure") == "pass"
+    assert live.get("capacity_report_hash") == _CAPACITY_HASH
+    for key in (
+        "monthly_run_url",
+        "final_worker_run_url",
+        "final_dispatch_run_url",
+    ):
+        assert _is_url(live.get(key)), f"closed requires URL-shaped {key}"
+    assert str(live.get("evidence_url") or "").endswith(
+        "adr005_live_gate_sept1_drain_20260901.json"
+    )
+    assert str(live.get("capacity_evidence_url") or "").endswith(
+        "adr005_capacity_remeasure_20260901.json"
+    )
     impl = data.get("implementation_snapshot")
     assert isinstance(impl, dict)
     assert impl.get("code_unstarted") is False
@@ -55,15 +77,9 @@ def test_adr005_gate_status_in_progress_and_owned() -> None:
     for gate_id in _REQUIRED_PR_GATES:
         gate = pr_gates.get(gate_id)
         assert isinstance(gate, dict), f"missing pr_gate {gate_id}"
-        status = gate.get("status")
-        assert status in {"pending", "local_only", "merged_and_verified"}, (
-            f"{gate_id} status {status!r}"
-        )
-        if status == "merged_and_verified":
-            assert gate.get("merge_commit"), f"{gate_id} needs merge_commit"
-            assert gate.get("merge_ci_run_url"), f"{gate_id} needs merge_ci_run_url"
-        else:
-            assert not gate.get("merge_commit"), f"{gate_id} must not claim merge without evidence"
+        assert gate.get("status") == "merged_and_verified", f"{gate_id} status"
+        assert gate.get("merge_commit"), f"{gate_id} needs merge_commit"
+        assert gate.get("merge_ci_run_url"), f"{gate_id} needs merge_ci_run_url"
 
 
 @pytest.mark.unit
@@ -79,15 +95,35 @@ def test_adr005_pr_gates_merged_after_pr159() -> None:
 
 
 @pytest.mark.unit
+def test_adr005_capacity_remeasure_evidence_pass() -> None:
+    import json
+
+    report = json.loads(_CAPACITY.read_text(encoding="utf-8"))
+    assert report["verdict"]["within_free_tier"] is True
+    assert report["report_hash"] == _CAPACITY_HASH
+    inputs = report["projection_inputs"]
+    assert inputs["layer1_immutable_generations_retained"] == 3
+    assert inputs["derived_series_superseded_days"] == 3
+    assert inputs["safety_factor"] == 1.2
+    drain = json.loads(_DRAIN.read_text(encoding="utf-8"))
+    assert drain["checklist"]["capacity_remeasured"] is True
+    assert drain["request"]["status"] == "completed"
+
+
+@pytest.mark.unit
 def test_adr005_docs_index_and_roadmap_adopted() -> None:
     index = _INDEX.read_text(encoding="utf-8")
     roadmap = _ROADMAP.read_text(encoding="utf-8")
     assert "adr-005-monthly-new-core-backfill.md" in index
     assert "adr005_gate_status.yaml" in index
     assert "Adopted" in index
+    assert "live_gate_005 closed" in index or "Adopted / closed" in index
     assert "adr-005-monthly-new-core-backfill.md" in roadmap
     assert "Adopted" in roadmap
     assert _PHASE45_PHRASE in roadmap
+    assert "live_gate_005 CLOSED" in roadmap
+    assert "overall_status: closed" in roadmap
+    assert "live_gate_005` は open" not in roadmap
     assert "未達" not in roadmap.split("## Phase 5")[0]
     assert "PR #159" in roadmap or "9c58ddc" in roadmap or "merged" in roadmap.lower()
 
@@ -136,6 +172,7 @@ def test_adr005_companion_docs_match_waiver_close() -> None:
     assert "live の `target_r2_key_pattern` は fixed-key のまま" not in adr005
     assert "それまで live は固定 key" not in adr005
     assert "本 docs PR では変えない" not in adr005
+    assert "overall_status: closed" in adr005
     mapping_doc = (_REPO / "docs" / "contracts" / "github_state_to_r2_supabase_mapping.md").read_text(
         encoding="utf-8"
     )

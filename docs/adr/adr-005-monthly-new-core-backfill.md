@@ -2,7 +2,7 @@
 
 ## 状態
 
-**Adopted（2026-08-29）。** 人間レビュー承認と同一 docs PR（`pr-005-docs-adoption`）で採択条件 1–8 を満たす。Phase 4.5 `live_gate_45c` はユーザー承認の waiver で closed（連続 3 営業日 soak 達成とは書かない）。実装ゲートは [adr005_gate_status.yaml](../operations/adr005_gate_status.yaml)（`overall_status: in_progress`）。
+**Adopted（2026-08-29）。** 人間レビュー承認と同一 docs PR（`pr-005-docs-adoption`）で採択条件 1–8 を満たす。Phase 4.5 `live_gate_45c` はユーザー承認の waiver で closed（連続 3 営業日 soak 達成とは書かない）。実装ゲートは [adr005_gate_status.yaml](../operations/adr005_gate_status.yaml)（`overall_status: closed`、`live_gate_005` closed 2026-09-01）。
 
 本 ADR は Issue #93 の運用ギャップ（月次で Core に昇格した銘柄の履歴が Daily / Phase 4.5 series に自動で載らない）を解消する設計契約である。2026-08-24 採択版、2026-08-25 改定、2026-08-27 第 1 次・第 2 次再レビュー、同日第 3 次再レビュー（canonical 全順序、partition identity、§6 `planned_*`、outbox 原子性、catalog fingerprint、Daily skip と `expected_object_count`、`feature_start` SSOT）を反映する。
 
@@ -29,7 +29,7 @@
 | 4 | 同期済み（`exit_codes.md`） |
 | 5 | 同期済み（`daily_replay_and_monthly_universe.md`） |
 | 6 | 同期済み（mapping YAML `schema_version: 6`、`adr005` ブロック、`planned_*`、mapping 契約）。**live の Layer 1 は `immutable_pointer_cas`（sha256 objects）** — `pr-005-daily-cas` は PR #159（`9c58ddc`）で merge 済み。`adr005.status: proposed` は feature_start unset（未 enable）であり fixed-key を意味しない |
-| 7 | 同期済み（`docs/operations/adr005_gate_status.yaml`。`overall_status: in_progress`、`owner: repo-maintainers`） |
+| 7 | 同期済み（`docs/operations/adr005_gate_status.yaml`。`overall_status: closed`、`owner: repo-maintainers`） |
 | 8 | 同期済み（cron 骨格 + 分割 runbook 骨格）。Worker / `wrangler.toml` は実装 PR |
 
 `pr-005-docs-adoption` は `local_only` から merge 後に `merged_and_verified` へ更新する。

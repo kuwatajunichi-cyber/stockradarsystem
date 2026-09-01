@@ -1,0 +1,222 @@
+{
+  "recorded_at_utc": "2026-09-01T08:35:00Z",
+  "gate": "live_gate_005_sept1_drain_evidence",
+  "live_gate_005_status": "closed",
+  "close_claimed": true,
+  "request": {
+    "request_id": "mnc-v1-883eee261cf1c7202dde37c02d3edd5750eb618f664be385847369b0b6b3bfb9",
+    "status": "completed",
+    "release_month": "2026-09",
+    "previous_monthly_tag": "monthly-20260801-30679139304",
+    "metric_set_version_id": "13209d23-ded6-482d-be08-7da6062013c0",
+    "partition_index": 0,
+    "partition_count": 1,
+    "added_codes_count": 17,
+    "added_codes": [
+      "2436",
+      "2477",
+      "264A",
+      "3159",
+      "3418",
+      "3623",
+      "402A",
+      "4381",
+      "4424",
+      "5240",
+      "590A",
+      "6050",
+      "6061",
+      "7823",
+      "8254",
+      "8365",
+      "9438"
+    ],
+    "expected_trade_dates_count": 68,
+    "expected_trade_dates_first": "2026-05-25",
+    "expected_trade_dates_last": "2026-08-31",
+    "last_committed_trade_date": "2026-08-31",
+    "conflict_count": 0,
+    "uncommitted_count": 0,
+    "created_at_utc": "2026-09-01T02:24:51.758657Z",
+    "completed_at_utc": "2026-09-01T08:29:28.758855Z"
+  },
+  "runtime_config": {
+    "feature_start_release_month": "2026-09",
+    "bootstrap_complete": true
+  },
+  "monthly": {
+    "run_id": 33460880750,
+    "run_url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33460880750",
+    "conclusion": "success",
+    "head_sha": "d010f921a260444a58f277647be89d5e2dc6596f",
+    "monthly_tag": "monthly-20260901-33460880750",
+    "monthly_snapshot_id": "23c4c2ee-7261-484d-bd94-a68164bdf158",
+    "mnc_outcome": "runnable",
+    "mnc_request_id": "mnc-v1-883eee261cf1c7202dde37c02d3edd5750eb618f664be385847369b0b6b3bfb9",
+    "added_codes_count": 17,
+    "commit_snapshot_log_excerpt": "{\"status\": \"ok\", \"supabase_commit_ok\": true, \"monthly_snapshot_id\": \"23c4c2ee-7261-484d-bd94-a68164bdf158\", \"monthly_tag\": \"monthly-20260901-33460880750\", \"mnc_outcome\": \"runnable\", \"mnc_reason_code\": null, \"mnc_request_id\": \"mnc-v1-883eee261cf1c7202dde37c02d3edd5750eb618f664be385847369b0b6b3bfb9\", \"added_codes_count\": 17}"
+  },
+  "poller_dispatch": {
+    "note": "Cloudflare cron window */15 2-5 1 * * UTC plus manual workflow_dispatch after window for remaining drain.",
+    "representative_scheduled_success_urls": [
+      "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33466482552",
+      "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33471958333",
+      "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33474842351"
+    ],
+    "manual_drain_success_urls": [
+      "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33475428997",
+      "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33476927667",
+      "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33478236291",
+      "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33479828172",
+      "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33481253610",
+      "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33482757313",
+      "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33484541044",
+      "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33486280240",
+      "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33486843773"
+    ],
+    "final_dispatch_run_url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33486843773"
+  },
+  "series_seed_workers": {
+    "success_chunk_worker_urls": [
+      "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33475462021",
+      "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33476961232",
+      "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33478275592",
+      "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33479860150",
+      "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33481305316",
+      "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33482799909",
+      "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33486886519"
+    ],
+    "failed_then_fixed": [
+      {
+        "run_url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33484575020",
+        "head_sha": "767baf521d4f539d05a050c0e150dd0994f440ac",
+        "error": "benchmark nikkei latest OHLC before trade_date (stale index)",
+        "fix_pr": 166,
+        "fix_merge_sha": "733b99e025310528f6986025560e8f3c7a92acd7"
+      },
+      {
+        "run_url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33486328253",
+        "head_sha": "733b99e025310528f6986025560e8f3c7a92acd7",
+        "error": "ohlcv cache insufficient for 402A: insufficient_bars",
+        "fix_pr": 167,
+        "fix_merge_sha": "a421a694c6ae6101951493f4819eb7abe7313167"
+      }
+    ],
+    "final_worker": {
+      "run_id": 33486886519,
+      "run_url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33486886519",
+      "conclusion": "success",
+      "head_sha": "a421a694c6ae6101951493f4819eb7abe7313167",
+      "processed_trade_dates": [
+        "2026-08-28",
+        "2026-08-31"
+      ],
+      "finish": {
+        "ok": true,
+        "outbox_id": "6843e87f-5860-4ab3-ba42-5e0c3dae63e9",
+        "next_outbox": false,
+        "request_status": "completed"
+      }
+    }
+  },
+  "outbox": [
+    {
+      "chunk_seq": 0,
+      "status": "done",
+      "attempt_count": 6,
+      "done_at_utc": "2026-09-01T06:10:35.592342Z",
+      "note": "includes pre-merge stub reclaim"
+    },
+    {
+      "chunk_seq": 1,
+      "status": "done",
+      "attempt_count": 1,
+      "done_at_utc": "2026-09-01T06:34:40.924074Z"
+    },
+    {
+      "chunk_seq": 2,
+      "status": "done",
+      "attempt_count": 1,
+      "done_at_utc": "2026-09-01T06:56:42.50392Z"
+    },
+    {
+      "chunk_seq": 3,
+      "status": "done",
+      "attempt_count": 1,
+      "done_at_utc": "2026-09-01T07:14:59.788005Z"
+    },
+    {
+      "chunk_seq": 4,
+      "status": "done",
+      "attempt_count": 1,
+      "done_at_utc": "2026-09-01T07:33:34.785138Z"
+    },
+    {
+      "chunk_seq": 5,
+      "status": "done",
+      "attempt_count": 1,
+      "done_at_utc": "2026-09-01T07:55:59.957153Z"
+    },
+    {
+      "chunk_seq": 6,
+      "status": "done",
+      "attempt_count": 3,
+      "done_at_utc": "2026-09-01T08:29:28.758855Z",
+      "last_error_retained": "ohlcv cache insufficient for 402A: insufficient_bars"
+    }
+  ],
+  "events_summary": {
+    "trade_date_progress_count": 68,
+    "chunk_done_count": 6,
+    "terminal_event": {
+      "event_type": "completed",
+      "from_status": "series_running",
+      "to_status": "completed",
+      "actor": "series_seed_worker",
+      "created_at_utc": "2026-09-01T08:29:28.758855Z"
+    }
+  },
+  "watchdog_sample_urls": [
+    "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33476539245",
+    "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33483887803"
+  ],
+  "followup_prs": [
+    {
+      "pr": 165,
+      "merge_sha": "767baf521d4f539d05a050c0e150dd0994f440ac",
+      "summary": "outbox reclaim + real series_seed worker write"
+    },
+    {
+      "pr": 166,
+      "merge_sha": "733b99e025310528f6986025560e8f3c7a92acd7",
+      "summary": "stale Nikkei/TOPIX asof tolerance"
+    },
+    {
+      "pr": 167,
+      "merge_sha": "a421a694c6ae6101951493f4819eb7abe7313167",
+      "summary": "allow insufficient equity history for new listings"
+    }
+  ],
+  "capacity_remeasure": {
+    "status": "pass",
+    "evidence_url": "docs/operations/evidence/adr005_capacity_remeasure_20260901.json",
+    "meta_url": "docs/operations/evidence/adr005_capacity_remeasure_meta_20260901.json",
+    "report_hash": "ed35863fe4d88db2abf9b37016fbe4219c460394f0d16f036f8cee2120e583cf",
+    "within_free_tier": true
+  },
+  "checklist": {
+    "monthly_request_created": true,
+    "outbox_all_done": true,
+    "request_completed": true,
+    "poller_runs_recorded": true,
+    "series_seed_runs_recorded": true,
+    "capacity_remeasured": true
+  },
+  "notes": [
+    "First Sept request completed after manual drain outside Cloudflare */15 2-5 UTC window.",
+    "402A insufficient_bars treated as warning after PR #167; long-window metrics may be null.",
+    "Capacity remeasure pass recorded 2026-09-01T08:48:13Z; live_gate_005 closed in adr005_gate_status.yaml.",
+    "live_gate_005 closed after capacity remeasure PASS."
+  ],
+  "closed_at_utc": "2026-09-01T08:48:13Z"
+}

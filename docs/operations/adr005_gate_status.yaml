@@ -1,13 +1,14 @@
 schema_version: 1
 adr: '005'
-last_updated_utc: '2026-09-01T00:52:00Z'
-overall_status: in_progress
+last_updated_utc: '2026-09-01T08:48:13Z'
+overall_status: closed
 owner: repo-maintainers
 repair_approver_team: repo-maintainers
 implementation_snapshot:
   code_unstarted: false
   workflows_unstarted: false
-  note: 'feature_start=2026-09 enabled 2026-09-01 JST morning (bootstrap_complete=true, grandfather 0). Worker MNC_DISPATCH_ENABLED=true (version 8e37a9e8-725a-4d2b-8292-d7d33efc241d). live_gate_005 stays open until Monthly/poller evidence + capacity remeasure.'
+  note: 'ADR-005 live_gate_005 CLOSED 2026-09-01. Sept request completed; capacity remeasure PASS (docs/operations/evidence/adr005_capacity_remeasure_20260901.json).
+    Issue #93 remains OPEN for Phase 5.'
 pr_gates:
   pr-005-docs-adoption:
     description: ADR-005 adoption docs sync (ADR-003/004, contracts, mapping v6, gate YAML)
@@ -34,28 +35,47 @@ pr_gates:
     merge_ci_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33235945903
     pytest_ci_pass_on_merge: true
 live_gate_005:
-  status: open
-  note: feature_start bootstrap done 2026-09-01. Still need Monthly request/outbox evidence, poller/series_seed runs, and capacity remeasure before close.
+  status: closed
+  closed_at_utc: '2026-09-01T08:48:13Z'
+  note: Closed after Sept-1 drain evidence + Path B capacity remeasure (within_free_tier, ADR-005 retention inputs).
+  evidence_url: docs/operations/evidence/adr005_live_gate_sept1_drain_20260901.json
+  capacity_evidence_url: docs/operations/evidence/adr005_capacity_remeasure_20260901.json
+  capacity_meta_url: docs/operations/evidence/adr005_capacity_remeasure_meta_20260901.json
+  capacity_report_hash: ed35863fe4d88db2abf9b37016fbe4219c460394f0d16f036f8cee2120e583cf
+  monthly_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33460880750
+  final_worker_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33486886519
+  final_dispatch_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33486843773
+  request_id: mnc-v1-883eee261cf1c7202dde37c02d3edd5750eb618f664be385847369b0b6b3bfb9
+  request_status: completed
+  last_committed_trade_date: '2026-08-31'
+  capacity_remeasure: pass
 correction_log:
+- at_utc: '2026-09-01T08:48:13Z'
+  reason: 'live_gate_005 CLOSED. Capacity remeasure PASS (as_of 2026-08-31, report_hash ed35863fe4d88db2abf9b37016fbe4219c460394f0d16f036f8cee2120e583cf,
+    within_free_tier). Drain evidence + Monthly/poller/worker URLs already recorded. overall_status closed. Issue #93 remains
+    OPEN for Phase 5.'
+- at_utc: '2026-09-01T08:35:00Z'
+  reason: Recorded live_gate_005 Sept-1 drain evidence (request completed, outbox 0-6 done, Monthly/poller/worker URLs). Gate
+    remains open; capacity remeasure still pending. Do not claim closed.
 - at_utc: '2026-09-01T00:52:00Z'
-  reason: 'Enable window: DB feature_start=2026-09, bootstrap_complete=true, grandfather 0. Worker MNC=true version 8e37a9e8. GHA var MNC_DISPATCH_ENABLED=true. ADR005_METRIC_SET_VERSION_ID set. live_gate_005 remains open pending Monthly/poller/capacity.'
+  reason: 'Enable window: DB feature_start=2026-09, bootstrap_complete=true, grandfather 0. Worker MNC=true version 8e37a9e8.
+    GHA var MNC_DISPATCH_ENABLED=true. ADR005_METRIC_SET_VERSION_ID set. live_gate_005 remains open pending Monthly/poller/capacity.'
 - at_utc: '2026-08-29T12:00:00Z'
-  reason: 'PR #159 merged to main (9c58ddc). CI run 33235945903 Pass. All pr_gates merged_and_verified. live_gate_005 remains open. Issue #93 comment records soak waiver + remaining ops.'
+  reason: 'PR #159 merged to main (9c58ddc). CI run 33235945903 Pass. All pr_gates merged_and_verified. live_gate_005 remains
+    open. Issue #93 comment records soak waiver + remaining ops.'
 - at_utc: '2026-08-29T02:00:00Z'
-  reason: Local implementation of P0-P5/P4 present. All pr_gates local_only (unmerged).
-    Ops/enable checklists added under docs/operations/. live_gate_005 remains open.
+  reason: Local implementation of P0-P5/P4 present. All pr_gates local_only (unmerged). Ops/enable checklists added under
+    docs/operations/. live_gate_005 remains open.
 - at_utc: '2026-08-29T00:00:00Z'
-  reason: 'P0: Adopted with Phase 4.5 live_gate waiver close. overall_status in_progress.
-    code_unstarted false for docs+implementation track. live_gate_005 remains open.'
+  reason: 'P0: Adopted with Phase 4.5 live_gate waiver close. overall_status in_progress. code_unstarted false for docs+implementation
+    track. live_gate_005 remains open.'
 - at_utc: '2026-08-28T21:30:00+09:00'
-  reason: Fifth Grok-only review approved leftover loser-row copies. overall_status
-    remains proposed. Not Adopted. pr-005-docs-adoption stays local_only.
-- at_utc: '2026-08-28T21:00:00+09:00'
-  reason: Third-round MUST items written into ADR-005. overall_status remains proposed.
-    Fourth re-review pending.
-- at_utc: '2026-08-28T18:50:00+09:00'
-  reason: Adoption docs 2-8 synced locally. overall_status remains proposed. pr-005-docs-adoption
+  reason: Fifth Grok-only review approved leftover loser-row copies. overall_status remains proposed. Not Adopted. pr-005-docs-adoption
     stays local_only.
+- at_utc: '2026-08-28T21:00:00+09:00'
+  reason: Third-round MUST items written into ADR-005. overall_status remains proposed. Fourth re-review pending.
+- at_utc: '2026-08-28T18:50:00+09:00'
+  reason: Adoption docs 2-8 synced locally. overall_status remains proposed. pr-005-docs-adoption stays local_only.
 - at_utc: '2026-08-28T09:40:00+09:00'
-  reason: Schema created as proposed. All implementation gates pending. Owner slug
-    repo-maintainers until a GitHub team is named.
+  reason: Schema created as proposed. All implementation gates pending. Owner slug repo-maintainers until a GitHub team is
+    named.

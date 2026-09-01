@@ -17,17 +17,25 @@
     "daily_cas_canary_pass": true,
     "daily_cas_evidence": "docs/operations/evidence/adr005_daily_cas_canary_20260831.json"
   },
-  "monthly_run_url": null,
-  "poller_run_urls": [],
+  "monthly_run_url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33460880750",
+  "poller_run_urls": [
+    "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33466482552",
+    "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33474842351",
+    "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33486843773"
+  ],
+  "series_seed_final_worker_url": "https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33486886519",
+  "drain_evidence": "docs/operations/evidence/adr005_live_gate_sept1_drain_20260901.json",
   "notes": [
     "Enable+bootstrap applied in enable window before Monthly (empty [2026-09,2026-08] range).",
-    "live_gate_005 remains open until Monthly/poller evidence and capacity remeasure.",
-    "Do not claim live gate closed from this evidence alone.",
-    "Worker redeployed with active-drain window skip (version b79a6619)."
+    "Post-enable: Monthly created runnable request; series_seed completed 2026-09-01T08:29:28Z.",
+    "Worker redeployed with active-drain window skip (version b79a6619).",
+    "Capacity remeasure PASS (as_of 2026-08-31, report_hash ed35863f...).",
+    "live_gate_005 closed with drain + capacity evidence."
   ],
   "mnc_poller_policy": {
     "before_monthly_day1_utc_hours_0_1": "skip",
     "active_drain_day1_hour2_through_day8": "dispatch_every_15m",
     "day9_plus": "skip"
-  }
+  },
+  "capacity_remeasure_evidence": "docs/operations/evidence/adr005_capacity_remeasure_20260901.json"
 }

@@ -1,0 +1,22 @@
+{
+  "recorded_at_utc": "2026-09-01T08:48:13Z",
+  "gate": "live_gate_005_capacity_remeasure",
+  "method": "phase45_budget_cli.py report-v2",
+  "as_of_date": "2026-08-31",
+  "catalog": "config/metrics/metric_set_v1_free.yaml",
+  "path": "B",
+  "report_path": "docs/operations/evidence/adr005_capacity_remeasure_20260901.json",
+  "report_hash": "ed35863fe4d88db2abf9b37016fbe4219c460394f0d16f036f8cee2120e583cf",
+  "within_free_tier": true,
+  "r2_total": 2731433742,
+  "safety_factor": 1.2,
+  "projection_inputs_adr005": {
+    "layer1_immutable_generations_retained": 3,
+    "derived_series_superseded_days": 3
+  },
+  "pass": true,
+  "notes": [
+    "Post-enable Path B capacity remeasure for ADR-005 live_gate_005 close.",
+    "Secrets-free deterministic projection; does not overwrite phase45_budget_v2_path_b_report.json."
+  ]
+}
