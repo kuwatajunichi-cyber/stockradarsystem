@@ -9,8 +9,8 @@ export const UNIVERSE_PATCH_CRON = "0 3 * * *";
 /** Issue #93 Phase 4: monthly.yml (UTC 02:00 on 1st = JST 11:00). */
 export const MONTHLY_CRON = "0 2 1 * *";
 
-/** ADR-005: monthly_new_core_backfill_dispatch.yml every 15 minutes. */
-export const MNC_DISPATCH_CRON = "*/15 * * * *";
+/** ADR-005: poller only on day-1 UTC hours 02–05 (after Monthly; ~16 ticks/month). */
+export const MNC_DISPATCH_CRON = "*/15 2-5 1 * *";
 
 export const DAILY_WORKFLOW_FILE = "daily.yml";
 

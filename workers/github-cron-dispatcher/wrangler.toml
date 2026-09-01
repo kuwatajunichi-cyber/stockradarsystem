@@ -17,7 +17,8 @@ invocation_logs = true
 head_sampling_rate = 1
 
 [triggers]
-crons = ["45 6 * * *", "0 3 * * *", "0 2 1 * *", "*/15 * * * *"]
+# MNC poller: day-1 UTC 02:00–05:45 only (after Monthly 11:00 JST; ~16 ticks/month max).
+crons = ["45 6 * * *", "0 3 * * *", "0 2 1 * *", "*/15 2-5 1 * *"]
 
 # Non-secret config (override per environment via wrangler deploy / dashboard)
 [vars]

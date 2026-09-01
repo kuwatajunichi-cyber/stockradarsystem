@@ -77,9 +77,9 @@ export function isMncBeforeMonthlyWindow(scheduledTime, nowMs = Date.now()) {
 }
 
 /**
- * Active drain window aligned with ADR-005 ~7d completion SLO:
- * day-1 02:00 UTC through end of UTC day 8. Outside this, empty every-15m
- * polls are skipped at the Worker (no GHA launch).
+ * Active poller window: day-1 UTC hours 2-5 only (matches cron every 15m in hours 2-5 on day 1).
+ * Once Monthly has written the outbox, a few same-morning ticks are enough;
+ * multi-day empty fifteen-minute launches are not.
  *
  * @param {number | Date | string | null | undefined} scheduledTime
  * @param {number} [nowMs]
@@ -87,11 +87,11 @@ export function isMncBeforeMonthlyWindow(scheduledTime, nowMs = Date.now()) {
  */
 export function isMncActiveDrainWindow(scheduledTime, nowMs = Date.now()) {
   const t = mncClock(scheduledTime, nowMs);
-  const day = t.getUTCDate();
-  if (day === 1) {
-    return t.getUTCHours() >= 2;
+  if (t.getUTCDate() !== 1) {
+    return false;
   }
-  return day >= 2 && day <= 8;
+  const hour = t.getUTCHours();
+  return hour >= 2 && hour <= 5;
 }
 
 /**

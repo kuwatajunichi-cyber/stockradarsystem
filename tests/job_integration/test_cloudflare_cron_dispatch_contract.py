@@ -15,7 +15,7 @@ pytestmark = pytest.mark.job_integration
 DAILY_CRON = "45 6 * * *"
 UNIVERSE_PATCH_CRON = "0 3 * * *"
 MONTHLY_CRON = "0 2 1 * *"
-MNC_DISPATCH_CRON = "*/15 * * * *"
+MNC_DISPATCH_CRON = "*/15 2-5 1 * *"
 WORKER_ROOT = Path(__file__).resolve().parents[2] / "workers" / "github-cron-dispatcher"
 
 

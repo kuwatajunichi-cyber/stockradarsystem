@@ -245,10 +245,8 @@ def is_mnc_before_monthly_window(now_utc: datetime) -> bool:
 
 
 def is_mnc_active_drain_window(now_utc: datetime) -> bool:
-    """Worker dispatches poller only in this window (day1 02:00 UTC .. day8)."""
-    if now_utc.day == 1:
-        return now_utc.hour >= 2
-    return 2 <= now_utc.day <= 8
+    """Worker dispatches poller only day-1 UTC hours 2–5 (after Monthly morning)."""
+    return now_utc.day == 1 and 2 <= now_utc.hour <= 5
 
 
 def evaluate_mnc_poller_liveness(

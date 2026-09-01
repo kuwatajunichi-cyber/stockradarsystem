@@ -242,13 +242,14 @@ describe("isMncBeforeMonthlyWindow", () => {
 });
 
 describe("isMncActiveDrainWindow / mncPollerSkipReason", () => {
-  it("is active on day-1 after Monthly and through day 8", () => {
+  it("is active only on day-1 UTC hours 2–5", () => {
     assert.equal(isMncActiveDrainWindow(Date.UTC(2026, 8, 1, 2, 0, 0)), true);
-    assert.equal(isMncActiveDrainWindow(Date.UTC(2026, 8, 8, 23, 45, 0)), true);
+    assert.equal(isMncActiveDrainWindow(Date.UTC(2026, 8, 1, 5, 45, 0)), true);
+    assert.equal(isMncActiveDrainWindow(Date.UTC(2026, 8, 1, 6, 0, 0)), false);
   });
 
-  it("is inactive on day 9+", () => {
-    assert.equal(isMncActiveDrainWindow(Date.UTC(2026, 8, 9, 0, 0, 0)), false);
+  it("is inactive on day 2+", () => {
+    assert.equal(isMncActiveDrainWindow(Date.UTC(2026, 8, 2, 3, 0, 0)), false);
   });
 
   it("skips outside active drain even when enabled", async () => {
