@@ -6,9 +6,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -27,16 +28,36 @@ from stockradar.metrics.registry_spec import (  # noqa: E402
 from stockradar.storage.derived_generation import (  # noqa: E402
     ArtifactProfile,
     BeginGenerationRequest,
+    MetricGenerationPort,
     SeriesCoordinateCAS,
     SourceRunIdentity,
+    compute_object_set_digest,
     expected_derived_object_count,
     resolve_artifact_profile,
 )
-from stockradar.storage.derived_series import merge_missing_dates_only  # noqa: E402
+from stockradar.storage.derived_series import (  # noqa: E402
+    SERIES_GZIP_CONTENT_TYPE,
+    build_series_canonical_bytes,
+    build_series_manifest_bytes,
+    compute_object_sha256,
+    gunzip_series_bytes,
+    gzip_series_bytes,
+    merge_missing_dates_only,
+    parse_series_canonical_bytes,
+)
+from stockradar.storage.derived_snapshot import (  # noqa: E402
+    DERIVED_WRITER_VERSION,
+    dump_canonical_json,
+    flags_for_values,
+)
 from stockradar.storage.phase4_5_rollout import (  # noqa: E402
+    DerivedArtifact,
     normalize_run_mode,
+    object_key_for,
+    prefix_for,
     write_allowed,
 )
+from stockradar.storage.r2_object_store import R2ObjectStorePort  # noqa: E402
 from stockradar.storage.series_seed import (  # noqa: E402
     classify_seed_trade_date_codes,
     series_only_expected_object_count,
@@ -54,6 +75,19 @@ class SeriesOnlyWritePlan:
     resolved_noop_codes: tuple[str, ...]
     expected_object_count: int
     artifact_profile: str
+
+
+@dataclass
+class ExistingSeriesState:
+    """Committed year series state for seed CAS / merge."""
+
+    dates_by_code: dict[str, list[str]] = field(default_factory=dict)
+    series_by_code: dict[str, dict[str, list[Any]]] = field(default_factory=dict)
+    flags_by_code: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    prior_digest_by_code: dict[str, str] = field(default_factory=dict)
+
+    def prior_absent_by_code(self, codes: Sequence[str]) -> dict[str, bool]:
+        return {code: code not in self.prior_digest_by_code for code in codes}
 
 
 def plan_series_only_trade_date(
@@ -182,6 +216,391 @@ def fetch_bounded_layer1(
         coverage_end=coverage_end,
         fetch_chunk=fetch_chunk,
     )
+
+
+def _json_number_or_null(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+            return None
+    except TypeError:
+        pass
+    try:
+        # pandas / numpy scalars
+        if hasattr(value, "item"):
+            value = value.item()
+    except Exception:
+        pass
+    if value is None:
+        return None
+    try:
+        if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def build_series_seed_delta_bytes(
+    *,
+    request_id: str,
+    trade_date: str,
+    metric_set_version_id: str,
+    generation_id: str,
+    object_kind: str,
+    rows: Sequence[Mapping[str, Any]],
+) -> bytes:
+    """Gzip ADR series_seed_delta / series_repair_delta payload (canonical JSON)."""
+    kind = str(object_kind).strip().lower()
+    if kind not in {"series_seed_delta", "series_repair_delta"}:
+        raise ValueError(f"unsupported delta object_kind: {object_kind!r}")
+    normalized: list[dict[str, Any]] = []
+    for row in rows:
+        code = str(row["instrument_code"])
+        metric_key = str(row["metric_key"])
+        flags = row.get("flags")
+        if flags is None:
+            flags_out: list[Any] = []
+        elif isinstance(flags, list):
+            flags_out = list(flags)
+        else:
+            flags_out = [flags]
+        normalized.append(
+            {
+                "instrument_code": code,
+                "metric_key": metric_key,
+                "value": _json_number_or_null(row.get("value")),
+                "flags": flags_out,
+            }
+        )
+    normalized.sort(key=lambda item: (item["instrument_code"], item["metric_key"]))
+    seen: set[tuple[str, str]] = set()
+    for item in normalized:
+        key = (item["instrument_code"], item["metric_key"])
+        if key in seen:
+            raise ValueError(f"duplicate delta row for {key!r}")
+        seen.add(key)
+    payload = {
+        "schema_version": 1,
+        "object_kind": kind,
+        "request_id": str(request_id).strip(),
+        "trade_date": str(trade_date).strip(),
+        "metric_set_version_id": str(metric_set_version_id).strip().lower(),
+        "generation_id": str(generation_id).strip().lower(),
+        "rows": normalized,
+    }
+    return gzip_series_bytes(dump_canonical_json(payload))
+
+
+def series_seed_delta_object_key(
+    *,
+    request_id: str,
+    trade_date: str,
+    generation_id: str,
+    sha256: str,
+    object_kind: str = "series_seed_delta",
+) -> str:
+    kind = str(object_kind).strip().lower()
+    return (
+        f"derived-inputs/monthly-new-core/{request_id.strip()}/delta/"
+        f"kind={kind}/"
+        f"trade-date={trade_date.strip()}/"
+        f"generation={generation_id.strip().lower()}/"
+        f"delta-sha256={sha256.strip().lower()}.json.gz"
+    )
+
+
+def load_existing_series_state(
+    generation_store: MetricGenerationPort,
+    r2_store: R2ObjectStorePort,
+    metric_set_version_id: str,
+    codes: Sequence[str],
+    year: int,
+) -> ExistingSeriesState:
+    """Load committed year series for candidate codes (dates/series/flags/prior digests)."""
+    state = ExistingSeriesState()
+    code_set = {str(c).strip() for c in codes if str(c).strip()}
+    if not code_set:
+        return state
+    set_id = metric_set_version_id.strip().lower()
+    keys_by_code = generation_store.list_committed_series_keys(
+        metric_set_version_id=set_id,
+        series_year=int(year),
+    )
+    for code in sorted(code_set):
+        object_key = keys_by_code.get(code) or generation_store.get_committed_series_object_key(
+            metric_set_version_id=set_id,
+            instrument_code=code,
+            series_year=int(year),
+        )
+        if not object_key:
+            continue
+        raw = r2_store.get_object(object_key)
+        canonical = gunzip_series_bytes(raw)
+        dates, series, flags = parse_series_canonical_bytes(canonical)
+        state.dates_by_code[code] = list(dates)
+        state.series_by_code[code] = {k: list(v) for k, v in series.items()}
+        state.flags_by_code[code] = [dict(item) for item in flags]
+        state.prior_digest_by_code[code] = compute_object_sha256(canonical)
+    return state
+
+
+def _join_series_logical_digest(digests: Sequence[str]) -> str:
+    joined = "".join(sorted(d.strip().lower() for d in digests))
+    return compute_object_sha256(joined.encode("utf-8"))
+
+
+def _put_registered_object(
+    *,
+    generation_store: MetricGenerationPort,
+    r2_store: R2ObjectStorePort,
+    generation_id: str,
+    object_kind: str,
+    object_key: str,
+    logical_digest: str,
+    content: bytes,
+    content_type: str,
+    trade_date: str | None = None,
+    instrument_code: str | None = None,
+    series_year: int | None = None,
+) -> str:
+    byte_sha = compute_object_sha256(content)
+    size_bytes = len(content)
+    rec = generation_store.register_pending_object(
+        generation_id=generation_id,
+        object_kind=object_kind,
+        object_key=object_key,
+        logical_digest=logical_digest,
+        byte_sha256=byte_sha,
+        size_bytes=size_bytes,
+        trade_date=trade_date,
+        instrument_code=instrument_code,
+        series_year=series_year,
+    )
+    r2_store.put_create_only(object_key, content, content_type=content_type)
+    generation_store.mark_object_uploaded(
+        generation_id=generation_id,
+        object_key=object_key,
+        byte_sha256=byte_sha,
+        size_bytes=size_bytes,
+    )
+    return rec.object_key
+
+
+def run_series_only_trade_date(
+    *,
+    plan: SeriesOnlyWritePlan,
+    metric_set_version_id: str,
+    github_run_id: int,
+    values_by_code: Mapping[str, Mapping[str, Any]],
+    existing_state: ExistingSeriesState | None = None,
+    generation_store: MetricGenerationPort,
+    r2_store: R2ObjectStorePort,
+    metric_keys_ordered: Sequence[str] | None = None,
+    set_fingerprint: str | None = None,
+    repository: str = "local/stockradarsystem",
+    writer_workflow: str = "monthly_new_core_backfill.yml",
+) -> str | None:
+    """Begin → put series+manifest+delta → commit for one trade_date.
+
+    Returns generation_id, or None when expected_object_count==0 (progress-only).
+    """
+    if plan.expected_object_count == 0:
+        return None
+
+    if metric_keys_ordered is None or set_fingerprint is None:
+        spec = load_metric_set_spec()
+        keys = list(metric_keys_ordered) if metric_keys_ordered is not None else spec.metric_keys_ordered
+        fingerprint = (
+            set_fingerprint.strip().lower()
+            if set_fingerprint is not None
+            else spec.set_fingerprint
+        )
+    else:
+        keys = list(metric_keys_ordered)
+        fingerprint = set_fingerprint.strip().lower()
+    metric_types = {key: "float" for key in keys}
+    state = existing_state or ExistingSeriesState()
+    year = int(str(plan.trade_date)[:4])
+    prefixes = prefix_for(metric_set_version_id)
+
+    begin_req = build_begin_request_for_plan(
+        plan=plan,
+        metric_set_version_id=metric_set_version_id,
+        github_run_id=github_run_id,
+        repository=repository,
+        prior_absent_by_code=state.prior_absent_by_code(plan.write_codes),
+        expected_prior_digest_by_code=state.prior_digest_by_code,
+    )
+    generation = generation_store.begin_generation(begin_req)
+    generation_id = generation.generation_id
+
+    object_keys: list[str] = []
+    series_logical_digests: list[str] = []
+    delta_rows: list[dict[str, Any]] = []
+    delta_kind = (
+        "series_seed_delta" if plan.mode == "series_seed" else "series_repair_delta"
+    )
+    provenance = "series_seed" if plan.mode == "series_seed" else "series_repair"
+
+    for code in plan.write_codes:
+        raw_values = dict(values_by_code.get(code) or {})
+        values = {key: _json_number_or_null(raw_values.get(key)) for key in keys}
+        dates, series, flags, _wrote = merge_seed_observation(
+            trade_date=plan.trade_date,
+            metric_keys_ordered=keys,
+            values=values,
+            instrument_code=code,
+            prior_dates=state.dates_by_code.get(code),
+            prior_series=state.series_by_code.get(code),
+            prior_flags=state.flags_by_code.get(code),
+        )
+        canonical = build_series_canonical_bytes(
+            instrument_code=code,
+            year=year,
+            dates=dates,
+            series=series,
+            flags=flags,
+            metric_keys_ordered=keys,
+        )
+        content = gzip_series_bytes(canonical)
+        byte_sha = compute_object_sha256(content)
+        logical = compute_object_sha256(canonical)
+        series_logical_digests.append(logical)
+        series_key = object_key_for(
+            prefixes=prefixes,
+            object_kind=DerivedArtifact.SERIES,
+            instrument_code=code,
+            year=year,
+            generation_uuid=generation_id,
+            object_sha256=byte_sha,
+        )
+        object_keys.append(
+            _put_registered_object(
+                generation_store=generation_store,
+                r2_store=r2_store,
+                generation_id=generation_id,
+                object_kind="series",
+                object_key=series_key,
+                logical_digest=logical,
+                content=content,
+                content_type=SERIES_GZIP_CONTENT_TYPE,
+                instrument_code=code,
+                series_year=year,
+            )
+        )
+        manifest_bytes = build_series_manifest_bytes(
+            instrument_code=code,
+            year=year,
+            metric_set_version_id=metric_set_version_id,
+            generation_id=generation_id,
+            logical_digest=logical,
+            object_sha256=byte_sha,
+            object_size=len(content),
+            writer_workflow=writer_workflow,
+            set_fingerprint=fingerprint,
+            source_github_run_id=github_run_id,
+            row_count=len(dates),
+            metric_keys_ordered=keys,
+            mode=plan.mode,
+            provenance=provenance,
+            writer_version=DERIVED_WRITER_VERSION,
+        )
+        manifest_sha = compute_object_sha256(manifest_bytes)
+        manifest_key = object_key_for(
+            prefixes=prefixes,
+            object_kind=DerivedArtifact.SERIES,
+            instrument_code=code,
+            year=year,
+            generation_uuid=generation_id,
+            object_sha256=manifest_sha,
+            manifest=True,
+        )
+        object_keys.append(
+            _put_registered_object(
+                generation_store=generation_store,
+                r2_store=r2_store,
+                generation_id=generation_id,
+                object_kind="series_manifest",
+                object_key=manifest_key,
+                logical_digest=logical,
+                content=manifest_bytes,
+                content_type="application/json",
+                instrument_code=code,
+                series_year=year,
+            )
+        )
+        row_flags = flags_for_values(
+            instrument_code=code,
+            metric_keys_ordered=keys,
+            metric_types=metric_types,
+            values_by_key=values,
+        )
+        for key in keys:
+            delta_rows.append(
+                {
+                    "instrument_code": code,
+                    "metric_key": key,
+                    "value": values.get(key),
+                    "flags": [],
+                    "_row_flags": row_flags,
+                }
+            )
+
+    # Drop helper field; ADR rows keep flags as list.
+    clean_delta_rows = [
+        {
+            "instrument_code": row["instrument_code"],
+            "metric_key": row["metric_key"],
+            "value": row["value"],
+            "flags": row["flags"],
+        }
+        for row in delta_rows
+    ]
+    delta_bytes = build_series_seed_delta_bytes(
+        request_id=plan.request_id,
+        trade_date=plan.trade_date,
+        metric_set_version_id=metric_set_version_id,
+        generation_id=generation_id,
+        object_kind=delta_kind,
+        rows=clean_delta_rows,
+    )
+    delta_sha = compute_object_sha256(delta_bytes)
+    delta_logical = compute_object_sha256(gunzip_series_bytes(delta_bytes))
+    delta_key = series_seed_delta_object_key(
+        request_id=plan.request_id,
+        trade_date=plan.trade_date,
+        generation_id=generation_id,
+        sha256=delta_sha,
+        object_kind=delta_kind,
+    )
+    object_keys.append(
+        _put_registered_object(
+            generation_store=generation_store,
+            r2_store=r2_store,
+            generation_id=generation_id,
+            object_kind=delta_kind,
+            object_key=delta_key,
+            logical_digest=delta_logical,
+            content=delta_bytes,
+            content_type=SERIES_GZIP_CONTENT_TYPE,
+            trade_date=plan.trade_date,
+        )
+    )
+
+    object_set_digest = compute_object_set_digest(object_keys)
+    generation_store.set_expected_object_set_digest(
+        generation_id=generation_id,
+        expected_object_set_digest=object_set_digest,
+    )
+    new_logical = _join_series_logical_digest(series_logical_digests)
+    generation_store.commit_generation(
+        generation_id=generation_id,
+        new_logical_digest=new_logical,
+        expected_old_digest=None,
+    )
+    return generation_id
 
 
 def cmd_plan(args: argparse.Namespace) -> int:
