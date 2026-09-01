@@ -98,7 +98,7 @@ def test_adr005_cron_skeleton_exists_utf8_without_bom() -> None:
     assert raw.count(b"\x00") == 0
     assert not raw.startswith(b"\xef\xbb\xbf")
     text = raw.decode("utf-8")
-    assert "*/15 * * * *" in text
+    assert "*/15 2-5 1 * *" in text
     assert "MNC_DISPATCH_ENABLED" in text
     assert "contents: read" in text
     assert "GITHUB_TOKEN" in text
