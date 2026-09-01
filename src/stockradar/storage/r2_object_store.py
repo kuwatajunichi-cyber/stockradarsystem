@@ -230,7 +230,10 @@ class S3R2ObjectStore:
             or os.environ.get("DERIVED_R2_CONCURRENCY", "").strip()
             or "32"
         )
-        pool = int(pool_raw or "32")
+        try:
+            pool = int(pool_raw or "32")
+        except ValueError:
+            pool = 32
         if pool < 1:
             pool = 1
         return cls(

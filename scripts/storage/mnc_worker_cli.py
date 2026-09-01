@@ -488,6 +488,7 @@ class _HeartbeatKeeper:
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._error: BaseException | None = None
+        self._lock = threading.Lock()
 
     def __enter__(self) -> "_HeartbeatKeeper":
         self._thread = threading.Thread(target=self._loop, name="mnc-heartbeat", daemon=True)
@@ -499,8 +500,16 @@ class _HeartbeatKeeper:
             try:
                 self._beat()
             except BaseException as exc:  # noqa: BLE001 — surface to owner thread
-                self._error = exc
+                with self._lock:
+                    self._error = exc
                 break
+
+    def raise_if_failed(self) -> None:
+        """Re-raise lease loss as soon as the owner thread can stop writing."""
+        with self._lock:
+            err = self._error
+        if err is not None:
+            raise err
 
     def __exit__(self, exc_type, exc, tb) -> None:  # type: ignore[no-untyped-def]
         self._stop.set()
@@ -611,19 +620,23 @@ def _claim_outbox_for_request(
         return None
     row = rows[0]
     if str(row.get("request_id") or "") != request_id:
-        # Defense in depth: request-scoped RPC must not return foreign rows.
+        # Defense in depth: do not silently keep a foreign claim and return None.
         print(
             json.dumps(
                 {
-                    "status": "warning",
+                    "status": "error",
                     "reason": "claim_returned_foreign_request",
                     "expected": request_id,
                     "got": row.get("request_id"),
+                    "outbox_id": row.get("id"),
                 }
             ),
             file=sys.stderr,
         )
-        return None
+        raise RuntimeError(
+            f"claim_mnc_outbox returned foreign request_id={row.get('request_id')!r} "
+            f"expected={request_id!r}"
+        )
     return str(row.get("id") or ""), int(row.get("fencing_token") or 0)
 
 
@@ -731,11 +744,12 @@ def cmd_run_request(args: argparse.Namespace) -> int:
 
         # Finish must run after Keeper stops: heartbeat rejects non-claimed/dispatched
         # (bad_status) and must not rewind a successful finish via fail_mnc_outbox.
-        with _HeartbeatKeeper(heartbeat):
+        with _HeartbeatKeeper(heartbeat) as keeper:
             years = sorted({int(td[:4]) for td in chunk})
             existing = ExistingSeriesState()
             try:
                 for year in years:
+                    keeper.raise_if_failed()
                     partial = load_existing_series_state(
                         generation_store,
                         r2_store,
@@ -763,6 +777,7 @@ def cmd_run_request(args: argparse.Namespace) -> int:
                 or os.environ.get("SUPABASE_CONTROL_FAKE", "").strip().lower()
                 in ("1", "true", "yes")
             ):
+                keeper.raise_if_failed()
                 _ensure_layer1_caches(
                     codes=codes,
                     trade_date=date.fromisoformat(chunk[-1]),
@@ -770,6 +785,7 @@ def cmd_run_request(args: argparse.Namespace) -> int:
                 layer1_hoisted = True
 
             for trade_date in chunk:
+                keeper.raise_if_failed()
                 heartbeat()
                 plan = plan_series_only_trade_date(
                     request_id=args.request_id,
@@ -780,12 +796,14 @@ def cmd_run_request(args: argparse.Namespace) -> int:
                 )
                 generation_id: str | None = None
                 if plan.expected_object_count > 0:
+                    keeper.raise_if_failed()
                     values = compute_metric_values_for_codes(
                         codes=list(plan.write_codes),
                         trade_date=trade_date,
                         metric_keys_ordered=metric_keys,
                         ensure_layer1=not layer1_hoisted,
                     )
+                    keeper.raise_if_failed()
                     generation_id = run_series_only_trade_date(
                         plan=plan,
                         metric_set_version_id=metric_set_version_id,
@@ -798,7 +816,9 @@ def cmd_run_request(args: argparse.Namespace) -> int:
                         set_fingerprint=spec.set_fingerprint,
                         repository=repository,
                         writer_workflow=writer_workflow,
+                        lease_check=keeper.raise_if_failed,
                     )
+                    keeper.raise_if_failed()
                     year = int(trade_date[:4])
                     refreshed = load_existing_series_state(
                         generation_store,
@@ -812,6 +832,7 @@ def cmd_run_request(args: argparse.Namespace) -> int:
                     existing.flags_by_code.update(refreshed.flags_by_code)
                     existing.prior_digest_by_code.update(refreshed.prior_digest_by_code)
 
+                keeper.raise_if_failed()
                 progress = _rpc(
                     adapter,
                     "commit_trade_date_progress",
@@ -1203,6 +1224,134 @@ def cmd_drain_request(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_preclaim_request(args: argparse.Namespace) -> int:
+    """Claim + mark_dispatched for request_id so poller cannot steal during build→seed gap."""
+    ensure_seed_catalog_or_block()
+    adapter = _adapter()
+    request_id = str(args.request_id or "").strip()
+    github_run_id = int(args.github_run_id or 0)
+    claimed_by = (
+        str(args.claimed_by or "").strip()
+        or f"monthly-series-seed:{github_run_id or 'local'}"
+    )
+    if not request_id:
+        print(json.dumps({"status": "error", "reason": "request_id_required"}), file=sys.stderr)
+        return 2
+
+    req = _load_request(adapter, request_id)
+    status = str(req.get("status") or "")
+    if status in _TERMINAL_SKIP_REQUEST_STATUSES:
+        print(
+            json.dumps(
+                {
+                    "status": "ok",
+                    "skipped": True,
+                    "reason": "terminal_request",
+                    "request_status": status,
+                },
+                ensure_ascii=False,
+            )
+        )
+        return 0
+
+    outbox_rows = _list_outbox_for_request(adapter, request_id)
+    foreign = _foreign_active_outbox(outbox_rows, claimed_by=claimed_by)
+    if foreign:
+        print(
+            json.dumps(
+                _skip_owned_elsewhere_payload(
+                    request_id=request_id,
+                    request_status=status,
+                    outbox_rows=outbox_rows,
+                    detail="preclaim_poller_owns_outbox",
+                ),
+                ensure_ascii=False,
+            )
+        )
+        return 0
+
+    own = _own_active_outbox(outbox_rows, claimed_by=claimed_by)
+    if own:
+        row = own[0]
+        outbox_id = str(row.get("id") or "")
+        fencing_int = int(row.get("fencing_token") or 0)
+    else:
+        claimed = _claim_outbox_for_request(
+            adapter,
+            request_id=request_id,
+            claimed_by=claimed_by,
+            visibility_seconds=DEFAULT_VISIBILITY_SECONDS,
+        )
+        if claimed is None:
+            print(
+                json.dumps(
+                    {
+                        "status": "error",
+                        "reason": "no_claimable_outbox",
+                        "request_id": request_id,
+                        "request_status": status,
+                    },
+                    ensure_ascii=False,
+                ),
+                file=sys.stderr,
+            )
+            return 2
+        outbox_id, fencing_int = claimed
+
+    mark = _rpc(
+        adapter,
+        "mark_mnc_outbox_dispatched",
+        {
+            "p_outbox_id": outbox_id,
+            "p_fencing_token": fencing_int,
+            "p_github_run_id": github_run_id,
+        },
+    )
+    if mark.get("ok") is False and str(mark.get("reason") or "") == "fencing_mismatch":
+        print(
+            json.dumps(
+                _skip_owned_elsewhere_payload(
+                    request_id=request_id,
+                    request_status=status,
+                    outbox_rows=_list_outbox_for_request(adapter, request_id),
+                    detail="preclaim_mark_fencing_mismatch",
+                ),
+                ensure_ascii=False,
+            )
+        )
+        return 0
+    if mark.get("ok") is False:
+        print(
+            json.dumps(
+                {
+                    "status": "error",
+                    "reason": "preclaim_mark_failed",
+                    "request_id": request_id,
+                    "outbox_id": outbox_id,
+                    "mark": mark,
+                },
+                ensure_ascii=False,
+            ),
+            file=sys.stderr,
+        )
+        return 2
+
+    print(
+        json.dumps(
+            {
+                "status": "ok",
+                "preclaimed": True,
+                "request_id": request_id,
+                "outbox_id": outbox_id,
+                "fencing_token": fencing_int,
+                "claimed_by": claimed_by,
+            },
+            ensure_ascii=False,
+        )
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="MNC series_seed worker")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -1232,6 +1381,15 @@ def main(argv: list[str] | None = None) -> int:
     d.add_argument("--claimed-by", default="")
     d.add_argument("--writer-workflow", default="monthly.yml")
     d.set_defaults(func=cmd_drain_request)
+
+    c = sub.add_parser(
+        "preclaim-request",
+        help="Claim+dispatch outbox at end of monthly build so poller cannot steal before series_seed.",
+    )
+    c.add_argument("--request-id", required=True)
+    c.add_argument("--github-run-id", default="0")
+    c.add_argument("--claimed-by", default="")
+    c.set_defaults(func=cmd_preclaim_request)
 
     args = parser.parse_args(argv)
     return int(args.func(args))

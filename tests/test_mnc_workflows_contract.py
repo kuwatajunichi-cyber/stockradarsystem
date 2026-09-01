@@ -60,12 +60,15 @@ def test_monthly_inline_series_seed_job_contract() -> None:
     )
     assert "mnc_worker_cli.py drain-request" in seed_run
     assert "--writer-workflow monthly.yml" in seed_run
+    assert "mnc_worker_cli.py preclaim-request" in text
+    build = jobs["build"]
+    assert "mnc_outbox_id" in (build.get("outputs") or {})
+    assert "mnc_fencing_token" in (build.get("outputs") or {})
     assert "DERIVED_R2_CONCURRENCY" in text
     assert "objs[-1]" in seed_run or "objs.append" in seed_run
     assert "secrets.R2_BASE_PREFIX" in text
     assert "MNC_CODE_CONCURRENCY" in text
     assert "MNC_R2_CONCURRENCY" in text
-    build = jobs["build"]
     assert "mnc_request_id" in (build.get("outputs") or {})
     assert "mnc_outcome" in (build.get("outputs") or {})
     finalize = jobs["finalize_run"]
@@ -79,3 +82,9 @@ def test_mnc_dispatch_cli_requires_gh_dispatch_token() -> None:
     text = (_REPO / "scripts" / "storage" / "mnc_dispatch_cli.py").read_text(encoding="utf-8")
     assert "GH_DISPATCH_TOKEN" in text
     assert "GITHUB_TOKEN forbidden" in text
+
+
+def test_mnc_dispatch_claim_wraps_single_object() -> None:
+    text = (_REPO / "scripts" / "storage" / "mnc_dispatch_cli.py").read_text(encoding="utf-8")
+    assert "isinstance(rows, dict)" in text
+    assert "return [rows]" in text

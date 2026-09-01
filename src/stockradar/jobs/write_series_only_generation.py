@@ -13,7 +13,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT / "src") not in sys.path:
@@ -436,10 +436,13 @@ def _put_registered_objects_parallel(
     r2_store: R2ObjectStorePort,
     generation_id: str,
     items: Sequence[dict[str, Any]],
+    lease_check: Callable[[], None] | None = None,
 ) -> list[str]:
     """Register serially, put in parallel, mark uploaded serially (code-safe)."""
     if not items:
         return []
+    if lease_check is not None:
+        lease_check()
     prepared: list[dict[str, Any]] = []
     for item in items:
         content = bytes(item["content"])
@@ -468,9 +471,13 @@ def _put_registered_objects_parallel(
             }
         )
 
+    if lease_check is not None:
+        lease_check()
     workers = max(1, min(_r2_concurrency(), len(prepared)))
     if workers == 1:
         for row in prepared:
+            if lease_check is not None:
+                lease_check()
             r2_store.put_create_only(
                 row["object_key"],
                 row["content"],
@@ -491,8 +498,12 @@ def _put_registered_objects_parallel(
                 for row in prepared
             ]
             for fut in as_completed(futures):
+                if lease_check is not None:
+                    lease_check()
                 fut.result()
 
+    if lease_check is not None:
+        lease_check()
     keys: list[str] = []
     for row in prepared:
         generation_store.mark_object_uploaded(
@@ -518,6 +529,7 @@ def run_series_only_trade_date(
     set_fingerprint: str | None = None,
     repository: str = "local/stockradarsystem",
     writer_workflow: str = "monthly_new_core_backfill.yml",
+    lease_check: Callable[[], None] | None = None,
 ) -> str | None:
     """Begin → put series+manifest+delta → commit for one trade_date.
 
@@ -666,6 +678,7 @@ def run_series_only_trade_date(
             r2_store=r2_store,
             generation_id=generation_id,
             items=pending_puts,
+            lease_check=lease_check,
         )
     )
 

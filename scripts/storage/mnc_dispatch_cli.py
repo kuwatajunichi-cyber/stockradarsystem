@@ -37,7 +37,12 @@ def _claim_rows(adapter, *, limit: int, claimed_by: str) -> list[dict]:
     )
     resp.raise_for_status()
     rows = resp.json()
-    return list(rows) if isinstance(rows, list) else []
+    # Align with mnc_worker_cli._rpc: PostgREST may return a single object.
+    if isinstance(rows, list):
+        return list(rows)
+    if isinstance(rows, dict):
+        return [rows]
+    return []
 
 
 def _mark_dispatched(

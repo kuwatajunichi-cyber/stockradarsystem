@@ -441,7 +441,7 @@ def test_finish_runs_after_heartbeat_keeper_stops() -> None:
     start = src.index("def cmd_run_request")
     end = src.index("def cmd_drain_request")
     body = src[start:end]
-    token = "with _HeartbeatKeeper(heartbeat):"
+    token = "with _HeartbeatKeeper(heartbeat) as keeper:"
     keeper_idx = body.index(token)
     line_start = body.rfind(chr(10), 0, keeper_idx) + 1
     with_indent = keeper_idx - line_start
@@ -606,6 +606,9 @@ def test_fencing_mismatch_after_progress_exits_2(
 
         def __exit__(self, *args):
             return False
+
+        def raise_if_failed(self):
+            return None
 
     adapter = FakeSupabaseControlAdapter()
     adapter.mnc_requests[REQUEST_ID] = {
@@ -807,6 +810,9 @@ def test_commit_trade_date_progress_failure_exits_2(
         def __exit__(self, *args):
             return False
 
+        def raise_if_failed(self):
+            return None
+
     adapter = FakeSupabaseControlAdapter()
     adapter.mnc_requests[REQUEST_ID] = {
         "id": REQUEST_ID,
@@ -849,4 +855,79 @@ def test_commit_trade_date_progress_failure_exits_2(
     rc = worker.cmd_run_request(ns)
     assert rc == 2
     assert adapter.mnc_requests[REQUEST_ID]["last_committed_trade_date"] is None
+
+def test_heartbeat_keeper_raise_if_failed_stops_day_loop() -> None:
+    import time
+
+    worker = _load_worker_cli("mnc_worker_cli_keeper_raise")
+    beats = {"n": 0}
+
+    def beat() -> None:
+        beats["n"] += 1
+        if beats["n"] >= 1:
+            raise worker.FencingMismatch("simulated_reclaim")
+
+    keeper = worker._HeartbeatKeeper(beat, interval_s=0.05)
+    keeper.__enter__()
+    try:
+        time.sleep(0.12)
+        raised = False
+        try:
+            keeper.raise_if_failed()
+        except worker.FencingMismatch:
+            raised = True
+        assert raised
+        # Consume error so __exit__ does not re-raise after the owner handled it.
+        with keeper._lock:
+            keeper._error = None
+    finally:
+        keeper.__exit__(None, None, None)
+
+
+def test_preclaim_request_marks_dispatched(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("SUPABASE_CONTROL_FAKE", "1")
+    monkeypatch.setenv("DERIVED_GENERATION_FAKE", "1")
+    monkeypatch.setenv("ADR005_METRIC_SET_VERSION_ID", SET_ID)
+    monkeypatch.chdir(tmp_path)
+    from stockradar.storage.supabase_client import FakeSupabaseControlAdapter
+
+    worker = _load_worker_cli("mnc_worker_cli_preclaim")
+    adapter = FakeSupabaseControlAdapter()
+    adapter.mnc_requests[REQUEST_ID] = {
+        "id": REQUEST_ID,
+        "status": "dispatch_pending",
+        "added_codes": ["1301"],
+        "expected_trade_dates": ["2026-01-01"],
+        "last_committed_trade_date": None,
+    }
+    adapter.mnc_outbox.append(
+        {
+            "id": "outbox-0",
+            "request_id": REQUEST_ID,
+            "chunk_seq": 0,
+            "status": "pending",
+            "fencing_token": 0,
+            "attempt_count": 0,
+            "attempt_budget": 5,
+        }
+    )
+    monkeypatch.setattr(worker, "_adapter", lambda: adapter)
+    rc = worker.main(
+        [
+            "preclaim-request",
+            "--request-id",
+            REQUEST_ID,
+            "--github-run-id",
+            "42",
+            "--claimed-by",
+            "monthly-series-seed:42",
+        ]
+    )
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "preclaimed" in out
+    assert adapter.mnc_outbox[0]["status"] == "dispatched"
+    assert adapter.mnc_outbox[0]["claimed_by"] == "monthly-series-seed:42"
 

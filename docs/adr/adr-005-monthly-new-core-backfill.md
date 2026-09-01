@@ -434,7 +434,7 @@ derived-inputs/monthly-new-core/{request_id}/delta/
 - 同一 key 上書き禁止。失敗 generation は別 `generation_id` / 別 sha の key。
 - status は committed のまま。year 置換で `orphan` にしない。
 - `derived_object_shape` / `derived_object_committed_ts` / `object_kind` CHECK を改訂する。
-- `derived_orphan_sweeper.py` は committed delta を削除しない。`status=orphan` かつ kind が delta でも、同一 sha の committed 行が指す object は削除しない。generation prefix 削除は `derived-snapshots/` と `derived-series/` に限定し、`derived-inputs/` を対象にしない。series prefix の既存不一致（`symbol=` 配下）是正もこの改修範囲に含める。
+- `derived_generation_sweeper.py` は committed delta を削除しない。`status=orphan` かつ kind が delta でも、同一 sha の committed 行が指す object は削除しない。generation prefix 削除は `derived-snapshots/` と `derived-series/` に限定し、`derived-inputs/` を対象にしない。series prefix の既存不一致（`symbol=` 配下）是正もこの改修範囲に含める。
 - `derived_generation_runs` の CHECK に `series_seed` / `series_repair`、`artifact_profile` に `series_only` を足す。
 
 delta JSON payload（gzip 前。文字列は `canonical_json_sha256_v1` と同じ NFC + compact JSON）:

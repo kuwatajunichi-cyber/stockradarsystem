@@ -20,6 +20,8 @@ jobs:
     outputs:
       mnc_request_id: ${{ steps.export_mnc.outputs.mnc_request_id }}
       mnc_outcome: ${{ steps.export_mnc.outputs.mnc_outcome }}
+      mnc_outbox_id: ${{ steps.preclaim_mnc.outputs.mnc_outbox_id }}
+      mnc_fencing_token: ${{ steps.preclaim_mnc.outputs.mnc_fencing_token }}
     env:
       PHASE4_ROLLOUT_STAGE: "4c"
     steps:
@@ -262,6 +264,32 @@ jobs:
           retention-days: 7
           if-no-files-found: warn
 
+      - name: Preclaim MNC outbox (close poller race before series_seed)
+        id: preclaim_mnc
+        if: success() && steps.export_mnc.outputs.mnc_outcome == 'runnable' && steps.export_mnc.outputs.mnc_request_id != ''
+        env:
+          PYTHONPATH: src:.
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          ADR005_METRIC_SET_VERSION_ID: ${{ secrets.ADR005_METRIC_SET_VERSION_ID }}
+        run: |
+          set -euo pipefail
+          REQUEST_ID="${{ steps.export_mnc.outputs.mnc_request_id }}"
+          python scripts/storage/mnc_worker_cli.py preclaim-request \
+            --request-id "$REQUEST_ID" \
+            --github-run-id "${{ github.run_id }}" \
+            --claimed-by "monthly-series-seed:${{ github.run_id }}" \
+            | tee /tmp/mnc_preclaim.json
+          OUTBOX="$(python -c 'import json,pathlib;p=pathlib.Path("/tmp/mnc_preclaim.json");objs=[json.loads(l) for l in p.read_text(encoding="utf-8").splitlines() if l.strip().startswith("{")];d=objs[-1] if objs else {};print(d.get("outbox_id") or "")')"
+          FENCE="$(python -c 'import json,pathlib;p=pathlib.Path("/tmp/mnc_preclaim.json");objs=[json.loads(l) for l in p.read_text(encoding="utf-8").splitlines() if l.strip().startswith("{")];d=objs[-1] if objs else {};print("" if d.get("fencing_token") is None else d.get("fencing_token"))')"
+          echo "mnc_outbox_id=$OUTBOX" >> "$GITHUB_OUTPUT"
+          echo "mnc_fencing_token=$FENCE" >> "$GITHUB_OUTPUT"
+          {
+            echo "## MNC preclaim"
+            echo "- outbox_id: \`${OUTBOX:-none}\`"
+            echo "- fencing_token: \`${FENCE:-none}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   series_seed:
     needs: [build]
     if: success() && needs.build.outputs.mnc_outcome == 'runnable'
@@ -310,6 +338,8 @@ jobs:
           fi
           python scripts/storage/mnc_worker_cli.py drain-request \
             --request-id "$REQUEST_ID" \
+            --outbox-id "${{ needs.build.outputs.mnc_outbox_id }}" \
+            --fencing-token "${{ needs.build.outputs.mnc_fencing_token }}" \
             --github-run-id "${{ github.run_id }}" \
             --github-actor "${{ github.actor }}" \
             --claimed-by "monthly-series-seed:${{ github.run_id }}" \
