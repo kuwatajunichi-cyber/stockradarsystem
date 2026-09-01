@@ -10,7 +10,7 @@ Canonical runner is `monthly.yml` job `series_seed` (same pattern as Daily `writ
 
 1. `build` commits the monthly snapshot + MNC request/outbox via RPC.
 2. When `mnc_outcome=runnable`, `series_seed` claims **that request's** outbox (`claim_mnc_outbox` with `p_request_id`) and runs `mnc_worker_cli.py drain-request` in-process (all remaining trade_dates).
-3. If the poller (or another worker) already owns the outbox (`claimed` / `dispatched`, or request in `dispatched` / `series_running` / …), monthly **skips with exit 0** and leaves catch-up to the owner. Do **not** treat that as monthly failure, and never `fail_mnc_outbox` a foreign row.
+3. If the poller (or another worker) already owns the outbox (`claimed` / `dispatched` with a different `claimed_by`), monthly **skips with exit 0** and leaves catch-up to the owner. Do **not** treat `dispatch_pending` alone as owned-elsewhere, and never `fail_mnc_outbox` a foreign row. Empty claim while outbox is still `pending` is **exit 2** (fail-fast).
 4. Parallelism: `MNC_CODE_CONCURRENCY` (default 8) for Layer1 fetch/compute; `MNC_R2_CONCURRENCY` (default 32) for series GET/PUT. boto3 pool follows `MNC_R2_CONCURRENCY` or `DERIVED_R2_CONCURRENCY`. Drain visibility defaults to 7200s with ≤45s heartbeat. Layer1 ensure runs once per request. Same instrument code stays date-serial.
 5. Parallel PUT blast radius: register stays serial; a mid-batch PUT failure can leave registered-but-not-uploaded objects — `derived_orphan_sweeper` / generation sweeper is the recovery path.
 6. Cloudflare `mnc_poller` + `monthly_new_core_backfill.yml` remain for catch-up / retry when monthly seed skips (owned elsewhere) or fails.
@@ -30,6 +30,7 @@ Canonical runner is `monthly.yml` job `series_seed` (same pattern as Daily `writ
 - Do not add `actions: write` to `monthly.yml`
 - Live Layer 1 cache protocol is `immutable_pointer_cas` (`put-immutable` + pointer CAS)
 - Repair approver team may stay `repo-maintainers`
+- **Before merging / before the next scheduled Monthly:** apply Supabase migration `015_adr005_claim_outbox_by_request.sql` (`claim_mnc_outbox(..., p_request_id)`). Unapplied, monthly drain RPC calls fail.
 
 ## Related
 

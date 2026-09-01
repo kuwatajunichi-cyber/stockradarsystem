@@ -220,6 +220,52 @@ def test_drain_skips_when_poller_already_claimed(
     assert adapter.mnc_requests[REQUEST_ID].get("reason_code") != "worker_failed"
 
 
+
+def test_drain_fails_when_dispatch_pending_claim_empty(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Canonical post-snapshot state must not skip-success on empty claim."""
+    monkeypatch.setenv("SUPABASE_CONTROL_FAKE", "1")
+    monkeypatch.setenv("DERIVED_GENERATION_FAKE", "1")
+    monkeypatch.setenv("ADR005_METRIC_SET_VERSION_ID", SET_ID)
+    monkeypatch.chdir(tmp_path)
+
+    from stockradar.storage.supabase_client import FakeSupabaseControlAdapter
+
+    worker = _load_worker_cli("mnc_worker_cli_empty_claim")
+    adapter = FakeSupabaseControlAdapter()
+    adapter.mnc_requests[REQUEST_ID] = {
+        "id": REQUEST_ID,
+        "status": "dispatch_pending",
+        "added_codes": ["1301"],
+        "expected_trade_dates": ["2026-01-01"],
+        "last_committed_trade_date": None,
+    }
+    adapter.mnc_outbox.append(
+        {
+            "id": "outbox-pending",
+            "request_id": REQUEST_ID,
+            "chunk_seq": 0,
+            "status": "pending",
+            "fencing_token": 0,
+            "attempt_count": 0,
+            "attempt_budget": 5,
+        }
+    )
+
+    def _no_claim(*_a, **_k):
+        return None
+
+    monkeypatch.setattr(worker, "_adapter", lambda: adapter)
+    monkeypatch.setattr(worker, "_claim_outbox_for_request", _no_claim)
+    rc = worker.main(
+        ["drain-request", "--request-id", REQUEST_ID, "--github-run-id", "101"]
+    )
+    assert rc == 2
+    assert adapter.mnc_requests[REQUEST_ID]["status"] == "dispatch_pending"
+    assert adapter.mnc_outbox[0]["status"] == "pending"
+
+
 def test_claim_scoped_to_request_does_not_fail_foreign(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

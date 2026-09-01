@@ -66,16 +66,6 @@ DRAIN_VISIBILITY_SECONDS = 7200
 HEARTBEAT_INTERVAL_SECONDS = 45
 DEFAULT_CODE_CONCURRENCY = 8
 
-# Request already owned / progressed by poller or another worker → monthly skip.
-_OWNED_ELSEWHERE_REQUEST_STATUSES = frozenset(
-    {
-        "dispatched",
-        "ohlcv_running",
-        "ohlcv_ready",
-        "series_running",
-        "dispatch_pending",
-    }
-)
 _TERMINAL_SKIP_REQUEST_STATUSES = frozenset(
     {
         "completed",
@@ -119,7 +109,13 @@ def _rpc(adapter, name: str, body: dict[str, Any]) -> dict[str, Any]:
     resp.raise_for_status()
     payload = resp.json()
     if name == "claim_mnc_outbox":
-        rows = list(payload) if isinstance(payload, list) else []
+        # PostgREST may return a single object for one row, not a one-element list.
+        if isinstance(payload, list):
+            rows = list(payload)
+        elif isinstance(payload, dict):
+            rows = [payload]
+        else:
+            rows = []
         return {"ok": True, "rows": rows}
     if isinstance(payload, dict):
         return payload
@@ -139,7 +135,14 @@ def _fake_rpc(adapter: FakeSupabaseControlAdapter, name: str, body: dict[str, An
             if len(claimed) >= max(1, min(2, limit)):
                 break
             status = str(o.get("status") or "")
-            if status not in {"pending", "failed"}:
+            if status == "pending":
+                pass
+            elif status == "failed":
+                # Mirror SQL: failed is claimable only when next_retry_at has been reached.
+                nra = str(o.get("next_retry_at") or "").strip()
+                if nra and nra not in {"ready", "fake-ready"}:
+                    continue
+            else:
                 continue
             rid = str(o.get("request_id") or "")
             if want_request and rid != want_request:
@@ -548,6 +551,23 @@ def _skip_owned_elsewhere_payload(
     }
 
 
+def _foreign_active_outbox(
+    outbox_rows: list[dict[str, Any]], *, claimed_by: str
+) -> list[dict[str, Any]]:
+    """Active outbox rows owned by someone other than this worker."""
+    me = claimed_by.strip()
+    foreign: list[dict[str, Any]] = []
+    for o in outbox_rows:
+        if str(o.get("status") or "") not in _ACTIVE_OUTBOX_STATUSES:
+            continue
+        owner = str(o.get("claimed_by") or "").strip()
+        if owner and owner == me:
+            continue
+        if owner:
+            foreign.append(o)
+    return foreign
+
+
 def _claim_outbox_for_request(
     adapter,
     *,
@@ -891,12 +911,8 @@ def cmd_drain_request(args: argparse.Namespace) -> int:
                     )
                 )
                 return 0
-            active = [
-                o
-                for o in outbox_rows
-                if str(o.get("status") or "") in _ACTIVE_OUTBOX_STATUSES
-            ]
-            if active or status in _OWNED_ELSEWHERE_REQUEST_STATUSES:
+            foreign = _foreign_active_outbox(outbox_rows, claimed_by=claimed_by)
+            if foreign:
                 print(
                     json.dumps(
                         _skip_owned_elsewhere_payload(
@@ -909,6 +925,7 @@ def cmd_drain_request(args: argparse.Namespace) -> int:
                     )
                 )
                 return 0
+            # dispatch_pending + pending with empty claim is a hard failure (not skip).
             print(
                 json.dumps(
                     {
@@ -979,12 +996,8 @@ def cmd_drain_request(args: argparse.Namespace) -> int:
         )
         if claimed is None:
             outbox_rows = _list_outbox_for_request(adapter, request_id)
-            active = [
-                o
-                for o in outbox_rows
-                if str(o.get("status") or "") in _ACTIVE_OUTBOX_STATUSES
-            ]
-            if active or status in _OWNED_ELSEWHERE_REQUEST_STATUSES:
+            foreign = _foreign_active_outbox(outbox_rows, claimed_by=claimed_by)
+            if foreign:
                 print(
                     json.dumps(
                         _skip_owned_elsewhere_payload(
@@ -996,6 +1009,27 @@ def cmd_drain_request(args: argparse.Namespace) -> int:
                         ensure_ascii=False,
                     )
                 )
+                break
+            leftover = [
+                o
+                for o in outbox_rows
+                if str(o.get("status") or "") in {"pending", "failed"}
+            ]
+            if leftover:
+                print(
+                    json.dumps(
+                        {
+                            "status": "error",
+                            "reason": "no_claimable_outbox",
+                            "request_id": request_id,
+                            "request_status": status,
+                            "detail": "followup_chunk_unclaimable",
+                        },
+                        ensure_ascii=False,
+                    ),
+                    file=sys.stderr,
+                )
+                return 2
             break
         next_id, next_fencing = claimed
         mark = _rpc(
