@@ -239,6 +239,7 @@ def _fake_rpc(adapter: FakeSupabaseControlAdapter, name: str, body: dict[str, An
         }:
             req["status"] = "series_running"
         return {
+            "ok": True,
             "request_id": request_id,
             "trade_date": trade_date,
             "write_count": int(body.get("p_write_count") or 0),
@@ -670,9 +671,14 @@ def cmd_run_request(args: argparse.Namespace) -> int:
                 "p_visibility_seconds": visibility,
             },
         )
-        # After finish (or concurrent race) outbox is no longer claimed/dispatched.
+        # Late heartbeat after successful finish (status=done) is benign.
+        # Reclaim to pending/failed must NOT be swallowed — that would dual-write.
         if payload.get("ok") is False and str(payload.get("reason") or "") == "bad_status":
-            return
+            if str(payload.get("status") or "") == "done":
+                return
+            raise FencingMismatch(
+                f"heartbeat_mnc_outbox: bad_status:{payload.get('status')}"
+            )
         _require_ok(payload, action="heartbeat_mnc_outbox")
 
     try:
@@ -817,6 +823,7 @@ def cmd_run_request(args: argparse.Namespace) -> int:
                         "p_generation_id": generation_id,
                     },
                 )
+                _require_ok(progress, action="commit_trade_date_progress")
                 day_summaries.append(
                     {
                         "trade_date": trade_date,

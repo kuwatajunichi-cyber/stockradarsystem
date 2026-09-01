@@ -656,3 +656,197 @@ def test_fencing_mismatch_after_progress_exits_2(
     assert rc == 2
     assert adapter.mnc_requests[REQUEST_ID]["last_committed_trade_date"] == "2026-01-01"
 
+
+def test_heartbeat_bad_status_pending_is_fencing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Reclaimed outbox (pending) must not be treated as benign late-heartbeat."""
+    monkeypatch.setenv("SUPABASE_CONTROL_FAKE", "1")
+    monkeypatch.setenv("DERIVED_GENERATION_FAKE", "1")
+    monkeypatch.setenv("ADR005_METRIC_SET_VERSION_ID", SET_ID)
+    monkeypatch.chdir(tmp_path)
+
+    import argparse
+
+    from stockradar.storage.supabase_client import FakeSupabaseControlAdapter
+
+    worker = _load_worker_cli("mnc_worker_cli_hb_pending")
+    adapter = FakeSupabaseControlAdapter()
+    adapter.mnc_requests[REQUEST_ID] = {
+        "id": REQUEST_ID,
+        "status": "series_running",
+        "added_codes": ["1301"],
+        "expected_trade_dates": ["2026-01-01"],
+        "last_committed_trade_date": None,
+    }
+    adapter.mnc_outbox.append(
+        {
+            "id": "outbox-0",
+            "request_id": REQUEST_ID,
+            "chunk_seq": 0,
+            "status": "pending",
+            "claimed_by": "monthly-series-seed:1",
+            "fencing_token": 3,
+            "attempt_count": 1,
+            "attempt_budget": 5,
+        }
+    )
+    monkeypatch.setattr(worker, "_adapter", lambda: adapter)
+    ns = argparse.Namespace(
+        request_id=REQUEST_ID,
+        outbox_id="outbox-0",
+        fencing_token="3",
+        github_run_id="1",
+        github_actor="",
+        drain=True,
+        writer_workflow="monthly.yml",
+    )
+    rc = worker.cmd_run_request(ns)
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "owned_by_other_worker" in out
+    assert "bad_status:pending" in out
+    assert adapter.mnc_requests[REQUEST_ID]["last_committed_trade_date"] is None
+
+
+def test_heartbeat_bad_status_failed_is_fencing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("SUPABASE_CONTROL_FAKE", "1")
+    monkeypatch.setenv("DERIVED_GENERATION_FAKE", "1")
+    monkeypatch.setenv("ADR005_METRIC_SET_VERSION_ID", SET_ID)
+    monkeypatch.chdir(tmp_path)
+
+    import argparse
+
+    from stockradar.storage.supabase_client import FakeSupabaseControlAdapter
+
+    worker = _load_worker_cli("mnc_worker_cli_hb_failed")
+    adapter = FakeSupabaseControlAdapter()
+    adapter.mnc_requests[REQUEST_ID] = {
+        "id": REQUEST_ID,
+        "status": "failed_retryable",
+        "added_codes": ["1301"],
+        "expected_trade_dates": ["2026-01-01"],
+        "last_committed_trade_date": None,
+    }
+    adapter.mnc_outbox.append(
+        {
+            "id": "outbox-0",
+            "request_id": REQUEST_ID,
+            "chunk_seq": 0,
+            "status": "failed",
+            "claimed_by": "monthly-series-seed:1",
+            "fencing_token": 2,
+            "attempt_count": 1,
+            "attempt_budget": 5,
+            "next_retry_at": "fake+60s",
+        }
+    )
+    monkeypatch.setattr(worker, "_adapter", lambda: adapter)
+    ns = argparse.Namespace(
+        request_id=REQUEST_ID,
+        outbox_id="outbox-0",
+        fencing_token="2",
+        github_run_id="1",
+        github_actor="",
+        drain=True,
+        writer_workflow="monthly.yml",
+    )
+    rc = worker.cmd_run_request(ns)
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "bad_status:failed" in out
+
+
+def test_heartbeat_bad_status_done_is_ignored(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SUPABASE_CONTROL_FAKE", "1")
+    from stockradar.storage.supabase_client import FakeSupabaseControlAdapter
+
+    worker = _load_worker_cli("mnc_worker_cli_hb_done")
+    adapter = FakeSupabaseControlAdapter()
+    adapter.mnc_outbox.append(
+        {
+            "id": "outbox-done",
+            "request_id": REQUEST_ID,
+            "status": "done",
+            "fencing_token": 5,
+        }
+    )
+    payload = worker._fake_rpc(
+        adapter,
+        "heartbeat_mnc_outbox",
+        {"p_outbox_id": "outbox-done", "p_fencing_token": 5, "p_visibility_seconds": 1200},
+    )
+    assert payload.get("ok") is False
+    assert payload.get("reason") == "bad_status"
+    assert payload.get("status") == "done"
+    # Mimic heartbeat() swallow path: done must not raise.
+    if str(payload.get("status") or "") != "done":
+        raise AssertionError("done should be the only swallowed bad_status")
+
+
+def test_commit_trade_date_progress_failure_exits_2(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("SUPABASE_CONTROL_FAKE", "1")
+    monkeypatch.setenv("DERIVED_GENERATION_FAKE", "1")
+    monkeypatch.setenv("ADR005_METRIC_SET_VERSION_ID", SET_ID)
+    monkeypatch.chdir(tmp_path)
+
+    import argparse
+
+    from stockradar.storage.supabase_client import FakeSupabaseControlAdapter
+
+    worker = _load_worker_cli("mnc_worker_cli_progress_fail")
+
+    class _NullKeeper:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    adapter = FakeSupabaseControlAdapter()
+    adapter.mnc_requests[REQUEST_ID] = {
+        "id": REQUEST_ID,
+        "status": "series_running",
+        "added_codes": ["1301"],
+        "expected_trade_dates": ["2026-01-01", "2026-01-02"],
+        "last_committed_trade_date": None,
+    }
+    adapter.mnc_outbox.append(
+        {
+            "id": "outbox-0",
+            "request_id": REQUEST_ID,
+            "chunk_seq": 0,
+            "status": "dispatched",
+            "claimed_by": "monthly-series-seed:9",
+            "fencing_token": 1,
+            "attempt_count": 1,
+            "attempt_budget": 5,
+        }
+    )
+    real_rpc = worker._fake_rpc
+
+    def _rpc_wrap(adapter_arg, name: str, body: dict):
+        if name == "commit_trade_date_progress":
+            return {"ok": False, "reason": "simulated_progress_failure"}
+        return real_rpc(adapter_arg, name, body)
+
+    monkeypatch.setattr(worker, "_adapter", lambda: adapter)
+    monkeypatch.setattr(worker, "_rpc", _rpc_wrap)
+    monkeypatch.setattr(worker, "_HeartbeatKeeper", lambda *_a, **_k: _NullKeeper())
+    ns = argparse.Namespace(
+        request_id=REQUEST_ID,
+        outbox_id="outbox-0",
+        fencing_token="1",
+        github_run_id="9",
+        github_actor="",
+        drain=True,
+        writer_workflow="monthly.yml",
+    )
+    rc = worker.cmd_run_request(ns)
+    assert rc == 2
+    assert adapter.mnc_requests[REQUEST_ID]["last_committed_trade_date"] is None
+
