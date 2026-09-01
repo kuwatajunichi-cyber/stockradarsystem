@@ -46,6 +46,7 @@
 | 2026-08-28 | 第 4 次 Grok MUST（loser 行形の一意化、cron 契約の欠走検知と UTF-8） |
 | 2026-08-28 | 第 5 次: フロー / §2 / runbook / 降格 / §11 を §1.2 に揃える。続けて §1.1 分岐・winner 限定 fail-fast・§11 降格テスト。Grok 単体承認。未採択 |
 | 2026-08-29 | Adopted。live_gate_45c user-authorized waiver close と同梱。実装は in_progress |
+| 2026-09-01 | Monthly inline `series_seed` drain: 全 remaining dates / invocation、銘柄並列 8・R2 32、`monthly.yml` timeout 180 分。outbox visibility は 1200s + ≤45s heartbeat（7200 に伸ばさない）。poller worker の 10-date chunk / timeout 120 は catch-up 経路として残置 |
 
 ## 用語
 
@@ -59,7 +60,7 @@
 | `current_core_logical_digest` | Core CSV の `code` 列を strip した集合を安定ソートした `canonical_json_sha256_v1`。CSV バイト SHA（`monthly_snapshots.sha256`）とは別 |
 | request | `monthly_new_core_backfill_requests` の 1 行 |
 | outbox | dispatch 行。状態は request と別語彙（§4.1） |
-| chunk | 1 worker invocation が処理する連続 trade_date（最大 10） |
+| chunk | poller worker の 1 invocation が処理する連続 trade_date（最大 10）。Monthly inline drain は remaining 全日付を 1 invocation で処理する |
 | series coordinate | `(metric_set_version_id, instrument_code, series_year)` |
 | candidate coordinate | `added_codes × expected_trade_dates` |
 | expected coordinate | `candidate \ structural_exclusion` |
@@ -315,9 +316,12 @@ complete iff
 ### 4. 非同期実行モデル（async_quality）
 
 1. Monthly RPC が snapshot +（winner なら）request / outbox を commit する。
-2. poller が outbox を claim し worker を dispatch する。concurrency = `mnc-{request_id}`、`cancel-in-progress: false`。
-3. worker は `ohlcv_ready` でなければ Layer 1 ensure を **request につき 1 回**、その後 series chunk（最大 10 `trade_date` / invocation）。
-4. ceiling: 10 dates / invocation、銘柄並列 4（fetch/compute のみ）、timeout 120 分、CAS retry 5、lease TTL 15 分、heartbeat 60 秒以下、retry budget 5。変更は容量証拠と再レビュー。
+2. **Steady-state:** `monthly.yml` job `series_seed` が同一 request の outbox を `p_request_id` 付き claim し、`drain-request` で remaining 全 `trade_date` を 1 invocation で処理する（Daily `write_derived` と同型）。poller + `monthly_new_core_backfill.yml` は catch-up / retry。concurrency = `mnc-{request_id}`、`cancel-in-progress: false`。
+3. worker / drain は `ohlcv_ready` でなければ Layer 1 ensure を **request につき 1 回**、その後 series を書く。poller worker の series chunk は最大 10 `trade_date` / invocation。Monthly inline drain は remaining 全日付。
+4. ceiling（2026-09-01 改正）:
+   - **Monthly inline drain:** remaining 全 dates / invocation、銘柄並列 8（fetch/compute）、R2 GET/PUT 並列 32、`series_seed` timeout 180 分、CAS retry 5、outbox visibility 初期 20 分（heartbeat ≤45s で延長）、lease TTL 15 分、retry budget 5。
+   - **Poller catch-up worker:** 10 dates / invocation、timeout 120 分（従来）。銘柄並列は drain と同じ env（default 8）に揃えられる。
+   - 変更は容量証拠と再レビュー。並列 PUT 失敗時の orphan は `derived_generation_sweeper` 前提。
 5. 各 `trade_date` は RPC `commit_trade_date_progress` を **1 回だけ**呼ぶ（旧称の `commit_series_only_generation_with_checkpoint` / `checkpoint_resolved_noop` はこの RPC の分岐であり、同じ日に並べて呼ぶことは禁止）。partition 内の各 code を同一 transaction で分類する:
    - §3.2 を満たす → `exclusion` に加算。generation に入れない
    - 既存 committed series がその日の canonical 値と一致 → `resolved` に加算。書かない
@@ -430,7 +434,7 @@ derived-inputs/monthly-new-core/{request_id}/delta/
 - 同一 key 上書き禁止。失敗 generation は別 `generation_id` / 別 sha の key。
 - status は committed のまま。year 置換で `orphan` にしない。
 - `derived_object_shape` / `derived_object_committed_ts` / `object_kind` CHECK を改訂する。
-- `derived_orphan_sweeper.py` は committed delta を削除しない。`status=orphan` かつ kind が delta でも、同一 sha の committed 行が指す object は削除しない。generation prefix 削除は `derived-snapshots/` と `derived-series/` に限定し、`derived-inputs/` を対象にしない。series prefix の既存不一致（`symbol=` 配下）是正もこの改修範囲に含める。
+- `derived_generation_sweeper.py` は committed delta を削除しない。`status=orphan` かつ kind が delta でも、同一 sha の committed 行が指す object は削除しない。generation prefix 削除は `derived-snapshots/` と `derived-series/` に限定し、`derived-inputs/` を対象にしない。series prefix の既存不一致（`symbol=` 配下）是正もこの改修範囲に含める。
 - `derived_generation_runs` の CHECK に `series_seed` / `series_repair`、`artifact_profile` に `series_only` を足す。
 
 delta JSON payload（gzip 前。文字列は `canonical_json_sha256_v1` と同じ NFC + compact JSON）:
@@ -479,7 +483,7 @@ Daily は既存 `merge_trade_date_into_series`（当日 LWW）。seed は `merge
 | Layer 1 lease | cache-key | 全体 zip |
 | 日付シリアル | `(set, instrument_code)` の trade_date 昇順 | Perfect Order。set 全体 lease は持たない |
 
-- lease は 1 generation の read-merge-commit の間。Daily の保持上限は 30 分。heartbeat 必須。worker は 60 秒以下で outbox heartbeat を打ち visibility timeout を延長する（`timeout-minutes: 120` と両立）。
+- lease は 1 generation の read-merge-commit の間。Daily の保持上限は 30 分。heartbeat 必須。worker / drain は 60 秒以下（実装 45s）で outbox heartbeat を打ち visibility timeout（初期 20 分）を延長する。Monthly inline は `timeout-minutes: 180`、poller worker は `120`。初期 visibility をジョブ長まで伸ばさない（死んだ worker の reclaim 遅延を避ける）。
 - 優先: Daily > reconcile > repair > seed。**preempt しない**。待ち行列テーブルは作らない。
 - seed が Daily の **active** lease を見たら新規取得せず `failed_retryable`（指数バックオフ）。
 - Daily が seed の active lease に当たった場合: 当該 cache-key または当該 code だけ **最大 120 秒**待つ。超過した code は **`begin_derived_generation` より前**に当日 membership から外す。`expected_object_count` はその後の集合で確定する（skip 後に begin するため live の count mismatch で Daily を落とさない）。

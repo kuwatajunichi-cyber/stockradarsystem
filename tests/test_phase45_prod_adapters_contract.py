@@ -337,8 +337,20 @@ def test_s3_r2_pool_tracks_concurrency_env(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setenv("R2_SECRET_ACCESS_KEY", "secret")
     monkeypatch.setenv("R2_ACCOUNT_ID", "acct")
     monkeypatch.setenv("R2_BUCKET", "bucket")
+    monkeypatch.delenv("MNC_R2_CONCURRENCY", raising=False)
     monkeypatch.setenv("DERIVED_R2_CONCURRENCY", "32")
     store = S3R2ObjectStore.from_env()
     assert store.max_pool_connections >= 32
     assert hasattr(store, "warm_client")
+
+
+def test_s3_r2_pool_prefers_mnc_concurrency(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("R2_ACCESS_KEY_ID", "key")
+    monkeypatch.setenv("R2_SECRET_ACCESS_KEY", "secret")
+    monkeypatch.setenv("R2_ACCOUNT_ID", "acct")
+    monkeypatch.setenv("R2_BUCKET", "bucket")
+    monkeypatch.setenv("DERIVED_R2_CONCURRENCY", "8")
+    monkeypatch.setenv("MNC_R2_CONCURRENCY", "48")
+    store = S3R2ObjectStore.from_env()
+    assert store.max_pool_connections >= 48
 
