@@ -124,6 +124,7 @@ def test_adr005_docs_index_and_roadmap_adopted() -> None:
     assert "live_gate_005 CLOSED" in roadmap
     assert "overall_status: closed" in roadmap
     assert "live_gate_005` は open" not in roadmap
+    assert "ADR-005 実装が残る" not in roadmap
     assert "未達" not in roadmap.split("## Phase 5")[0]
     assert "PR #159" in roadmap or "9c58ddc" in roadmap or "merged" in roadmap.lower()
 
@@ -190,4 +191,13 @@ def test_adr005_companion_docs_match_waiver_close() -> None:
     )
     assert gate45.get("overall_status") == "closed"
     snap = gate45.get("implementation_snapshot") or {}
-    assert isinstance(snap.get("local_worktree_has_unmerged_changes"), bool)
+    assert snap.get("local_worktree_has_unmerged_changes") is False
+    snap_note = str(snap.get("note") or "")
+    assert "live_gate_005 stays open" not in snap_note
+    assert "OPEN for Phase 5 / live_gate_005" not in snap_note
+    assert "follow-up branch may still be unmerged" not in snap_note
+    enable = (_REPO / "docs" / "operations" / "adr005_enable_sept1.md").read_text(
+        encoding="utf-8"
+    )
+    assert "live_gate_005` stays **open**" not in enable
+    assert "`live_gate_005` is **closed**" in enable

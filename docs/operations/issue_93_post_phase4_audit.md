@@ -2,12 +2,14 @@
 
 **監査日:** 2026-07-15  
 **対象:** リポジトリ / GitHub Actions / Cloudflare Workers・R2 / Supabase 本番  
-**位置づけ:** Phase 4 gate の再判定ではなく、Phase 4.5 / 5 着手前の post-gate 品質監査
+**位置づけ:** Phase 4 gate の再判定ではなく、当時の Phase 4.5 / 5 着手前 post-gate 品質監査
+
+**現状注記（2026-09-04）:** Phase 4.5 と ADR-005 は closed。Issue #93 の残は Phase 5。下記の 2026-07-15 判定文は当時の記録であり改変しない。連続 3 営業日 soak 達成とは書かない。
 
 ## 判定
 
 - Phase 4 は、定義済みの merge / CI / live gate 証拠に基づき **gate CLOSED を維持**する。
-- Issue #93 全体は Phase 4.5 / 5 が残るため **OPEN を維持**する。
+- Issue #93 全体は（監査当時）Phase 4.5 / 5 が残るため **OPEN を維持**する。
 - Supabase 制御面の匿名変更可能性は現時点の本番リスクであり、Phase 5 の Auth / entitlement 実装まで延期しない。
 - Phase 4.5 の新規 cache writer を追加する前に、終端状態・冪等性・Secrets-free テストの既知欠陥を解消する。
 
