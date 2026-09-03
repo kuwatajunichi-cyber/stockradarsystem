@@ -1,11 +1,13 @@
 schema_version: 2
 phase: '4.5'
-last_updated_utc: '2026-08-29T00:00:00Z'
+last_updated_utc: '2026-09-04T02:06:00+09:00'
 overall_status: closed
 implementation_snapshot:
-  local_worktree_has_unmerged_changes: true
-  note: 'Path B 13209d23 is active. live_gate_45c closed by user-authorized waiver 2026-08-29 (continuous 3 trading-day Path B soak not claimed). capacity_gate closed. Phase 4.5 gate CLOSED. ADR-005 impl merged via PR #159 (9c58ddc); follow-up branch may still be unmerged (poller miss watchdog / gate sync). Issue #93 remains OPEN for Phase 5 / live_gate_005.'
+  local_worktree_has_unmerged_changes: false
+  note: 'Path B 13209d23 is active. live_gate_45c closed by user-authorized waiver 2026-08-29 (continuous 3 trading-day Path B soak not claimed). capacity_gate closed. Phase 4.5 gate CLOSED. ADR-005 impl merged via PR #159 (9c58ddc); poller miss watchdog and live_gate_005 close are on main. Issue #93 remains OPEN for Phase 5 only (live_gate_005 closed 2026-09-01).'
 correction_log:
+- at_utc: '2026-09-04T02:06:00+09:00'
+  reason: 'SSOT drift reconciliation after live_gate_005 close. Snapshot no longer claims unmerged follow-up or open live_gate_005. local_worktree_has_unmerged_changes false (watchdog / gate-close docs on main). Issue #93 stays OPEN for Phase 5 only. Do not claim continuous soak.'
 - at_utc: '2026-08-29T12:00:00Z'
   reason: 'ADR-005 PR #159 merged (9c58ddc). Phase 4.5 remains closed via waiver. local_worktree_has_unmerged_changes true while post-merge follow-up (gate honesty sync / MNC poller watchdog) is in flight. live_gate_005 stays open on adr005_gate_status.yaml.'
 - at_utc: '2026-08-29T00:00:00Z'

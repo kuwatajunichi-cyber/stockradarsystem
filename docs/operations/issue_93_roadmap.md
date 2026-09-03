@@ -2,7 +2,7 @@
 
 GitHub Issue: [#93](https://github.com/kuwatajunichi-cyber/stockradarsystem/issues/93)
 
-**改訂日:** 2026-08-29
+**改訂日:** 2026-09-04
 **SSOT:** 詳細正本。Issue #93 本文は要約 + リンク。
 
 設計根拠: [ADR-003](../adr/adr-003-r2-supabase-control-blob-split.md)、[ADR-004](../adr/adr-004-derived-indicators-warm-cache.md)。隣接 Adopted（live_gate closed）: [ADR-005](../adr/adr-005-monthly-new-core-backfill.md)
@@ -17,7 +17,7 @@ GitHub Issue: [#93](https://github.com/kuwatajunichi-cyber/stockradarsystem/issu
 | 4.5 | 派生指標時系列基盤 | **PR-45-1..4 merged・rollout 4.5c・Path B active・live_gate closed (user-authorized waiver 2026-08-29)・capacity_gate closed** |
 | 5 | entitlements + observability | 計画 |
 
-Phase 3c gate CLOSED（runbook 記録済）。Issue #93 は Phase 5 / ADR-005 実装が残るため **OPEN** 維持。Phase 4.5 gate は CLOSED（soak は waiver。連続 3 営業日達成とは書かない）。
+Phase 3c gate CLOSED（runbook 記録済）。Issue #93 は Phase 5 が残るため **OPEN** 維持。Phase 4.5 gate は CLOSED（soak は waiver。連続 3 営業日達成とは書かない）。ADR-005 `live_gate_005` は CLOSED（2026-09-01）。
 
 ## Phase 4 後監査と是正順序（2026-07-15）
 
@@ -27,7 +27,7 @@ Phase 3c gate CLOSED（runbook 記録済）。Issue #93 は Phase 5 / ADR-005 �
 |--------|------------|------|
 | **P0** | **即時・Phase 4.5 前** | **gate CLOSED** (2026-07-16): Supabase 6表の RLS / table privilege、`SECURITY DEFINER` RPC の匿名実行権限を hardening |
 | **P1** | **Phase 4.5 着手ゲート** |**gate CLOSED** (2026-07-17): terminal semantics、GHA/Supabase 結論一致、stale `running`、publish mismatch fail-fast|
-| **P2** | Phase 4.5 と同時 | bus CLI Fake test、daily publish/finalize 契約、storage mypy、migration baseline |
+| **P2** | Phase 4.5 と同時 | bus CLI Fake test、daily publish/finalize 契約、storage mypy、migration baseline（**形式ゲートなし・残債。Phase 5 着手ブロッカーではない**） |
 | **P3** | Phase 5 | Auth/entitlement に基づく細粒度 RLS、API、heartbeat、distribution |
 
 P0 は現在の匿名変更可能性を遮断する防御であり、Phase 5 の利用者別認可とは分離する。P0 gate CLOSED（2026-07-16）。P1 gate CLOSED（2026-07-17）。preflight 5/5 closed。rollout 4.5c。Path B 13209d23 は 2026-08-22 に CAS で active。placeholder 11111111 は retired。live_gate_45c は 2026-08-29 の user-authorized waiver で closed（連続 soak 達成とは書かない。8/26 Cron miss）。capacity_gate は Path B v2 safety 1.20 で closed。Phase 4.5 gate CLOSED。
@@ -106,6 +106,8 @@ Worker deploy gate, migration 記録, artifact_index.created_at_utc, contract st
 2026-07-22 Phase 4.5 を Free-first R2 / Supabase split に改訂。条件付き GO、実装未着手、preflight blocker を明記。
 2026-08-28 ADR-005 を隣接 Proposed として追記。Phase 4.5 テーブル行は不変。
 2026-08-29 Phase 4.5 live_gate_45c user-authorized waiver close。ADR-005 Adopted。Issue #93 は Phase 5 / ADR-005 実装のため OPEN。
+2026-09-01 ADR-005 live_gate_005 CLOSED（Sept drain + capacity remeasure PASS）。
+2026-09-04 SSOT ドリフト是正。Issue #93 の残は Phase 5 のみ。P2 は形式ゲートなしの残債と明記。連続 soak 達成とは書かない。
 
 ## 決定事項（2026-07-08 追記）
 
