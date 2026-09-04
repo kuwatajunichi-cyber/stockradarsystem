@@ -104,8 +104,8 @@ CI・ワークフロー・ジョブの変更に関わる「原則」「運用基
 - [docs/contracts/workflow_preflight_contract.md](contracts/workflow_preflight_contract.md)
 - [docs/contracts/daily_replay_and_monthly_universe.md](contracts/daily_replay_and_monthly_universe.md) — 日次 replay / patched cache / `daily.yml` の artifact・cache 契約
 - [docs/contracts/cron_dispatch_watchdog.md](contracts/cron_dispatch_watchdog.md) — Cloudflare Cron 欠走の GitHub 側検知 / 当日 catch-up
-- [docs/contracts/github_state_to_r2_supabase_mapping.md](contracts/github_state_to_r2_supabase_mapping.md) — GHA state → R2 / Supabase mapping（`schema_version` 6、ADR-005 は `planned_*`）
-- [docs/contracts/monthly_new_core_backfill_cloudflare_cron_dispatch.md](contracts/monthly_new_core_backfill_cloudflare_cron_dispatch.md) — ADR-005 poller Cron 契約（Worker 実装は `pr-005-series-seed` / poller PR）
+- [docs/contracts/github_state_to_r2_supabase_mapping.md](contracts/github_state_to_r2_supabase_mapping.md) — GHA state → R2 / Supabase mapping（`schema_version` 6、ADR-005 `enabled` / `live_gate_005` closed。YAML の `planned_*` は別名であり未実装を意味しない）
+- [docs/contracts/monthly_new_core_backfill_cloudflare_cron_dispatch.md](contracts/monthly_new_core_backfill_cloudflare_cron_dispatch.md) — ADR-005 poller Cron 契約（Worker 本番 4 crons、`MNC_DISPATCH_ENABLED=true`）
 - [docs/contracts/monthly_new_core_backfill.md](contracts/monthly_new_core_backfill.md) — ADR-005 分割 request runbook
 
 ### 補助（スコープ・テスト配置）

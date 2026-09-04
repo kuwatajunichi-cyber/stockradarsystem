@@ -47,7 +47,7 @@ Stock Radar System は、日本株市場を対象に、相対的に注目度が�
 [銘柄マスター/補助情報] + [市場データ] -> [ユニバース生成] -> [指標算出]
 |
 v
-[XLSX/CSV/manifest生成] -> [4系統ミラー: Drive / R2 / Dropbox / GitHub Release]
+[XLSX/CSV/manifest生成] -> [live ミラー: Drive(任意) / R2 / Dropbox]
 
 ---
 
@@ -107,23 +107,24 @@ v
   - Work（0011_work）: 内部用。CSV 等の中間・最終成果物を月/日フォルダで管理。
   - Paid（0012_paid）: 顧客向け。XLSX レポートを月フォルダで管理。
 
-### 日次成果物の4系統ミラーと保持期間
+### 日次成果物のミラーと保持期間
 
-日次パイプラインの成果物（指標CSV・enriched CSV・Daily XLSX）は、次の4系統にミラーリングされる。
+日次パイプラインの成果物（指標CSV・enriched CSV・Daily XLSX）の **live TARGETS** は次のとおり（Phase 4c 以降、GitHub Release は live TARGET ではない）。
 
 1. **Google Drive**（0011_work / 0012_paid）: 凍結時はスキップ。解除後に再有効化可能。
 2. **Cloudflare R2**: 無料枠を前提。顧客への「月フォルダ共有」は R2 上のプレフィックス＋簡易一覧等で対応可能。
 3. **Dropbox**: 無料枠を前提。月フォルダ共有リンクを顧客に渡す運用を想定。
-4. **GitHub Releases**: タグ `daily-YYYYMM` に日次ファイルを添付。Private リポジトリでは管理用・バックアップ用。
+
+`daily.yml` / `monthly.yml` の既定は `r2,dropbox`。Drive 解凍時のみ `drive` を追加する。GitHub Release（旧タグ `daily-YYYYMM`）は live に載せず、`cleanup_releases.yml` が残存資産を掃除する。mapping の `release-daily-yyyymm` は論理キー（`published/`）であり、Release への添付を意味しない。
 
 外部ストレージへのアップロードは、日次・月次ともに **`scripts/upload_to_all_targets.py`** に集約する。
 今後ミラーリング系統を追加する場合は、このスクリプトに Adapter を追加するだけで workflow 変更を最小限にできる。
 
 **ミラー配布の成功契約（`upload_to_all_targets.py`）**: `--targets` で有効にした各系統のうち、**少なくとも 1 系統が成功すれば終了コード 0**（全成功は `upload_status=ok`、一部失敗は `upload_status=degraded`）。**指定した全系統が失敗したときのみ非 0**（終了コード 2）。stdout の末尾に常に `upload_status=...` と `upload_failed_targets=...` の 2 行が付く（失敗が無いときは `upload_failed_targets=-`）。stderr の `upload_warnings=` は従来どおり。CI の成否判定はこの終了コードを主とする。
 
-**ストレージ抽象と補助 CLI**: 日次・月次パイプラインの **4 系統ミラーの正系**は上記 `upload_to_all_targets.py`（Drive / R2 / Dropbox / GitHub Release を一括オーケストレーション）。**`scripts/storage/base.py` の `StorageAdapter`** は R2 / Dropbox 等の **プロトコルとしての抽象**であり、Drive と GitHub Release は **この Protocol 外の統合実装**として同スクリプト内に置いている。Drive の 0011_work への **単体アップロード**用に **`scripts/gdrive/upload_to_work.py`** があり、細かいパス操作や手動・他スクリプトからの利用向けの **補助経路**（ミラー本番の代替ではない）。
+**ストレージ抽象と補助 CLI**: 日次・月次パイプラインの **live ミラーの正系**は上記 `upload_to_all_targets.py`（R2 / Dropbox、任意で Drive）。**`scripts/storage/base.py` の `StorageAdapter`** は R2 / Dropbox 等の **プロトコルとしての抽象**であり、Drive は **この Protocol 外の統合実装**として同スクリプト内に置いている。Drive の 0011_work への **単体アップロード**用に **`scripts/gdrive/upload_to_work.py`** があり、細かいパス操作や手動・他スクリプトからの利用向けの **補助経路**（ミラー本番の代替ではない）。
 
-**3か月保持ポリシー**: 全系統で「直近3か月分を保持し、4か月目に削除」する。月1回のクリーンアップ Workflow（`cleanup_r2.yml` / `cleanup_dropbox.yml` / `cleanup_releases.yml` / `cleanup_drive_work.yml`）で自動削除する。
+**3か月保持ポリシー**: live 系統で「直近3か月分を保持し、4か月目に削除」する。月1回のクリーンアップ Workflow（`cleanup_r2.yml` / `cleanup_dropbox.yml` / `cleanup_drive_work.yml`）。`cleanup_releases.yml` は旧 GitHub Release 残存の掃除。
 
 ---
 
@@ -133,7 +134,7 @@ v
 - 欠損や取得失敗は flags / manifest で可視化
 - 成果物は staging -> latest の原子更新
 - 実行ID（run_id）とログを保存
-- 日次成果物は Committed 後に 4 系統へ一括アップロード（`scripts/upload_to_all_targets.py`）。Drive 凍結時は R2 / Dropbox / Release の3系統で継続可能（いずれかが成功すれば当該ステップは成功終了）
+- 日次成果物は Committed 後に live TARGETS へ一括アップロード（`scripts/upload_to_all_targets.py`）。Drive 凍結時は R2 / Dropbox で継続可能（いずれかが成功すれば当該ステップは成功終了）
 
 ---
 
@@ -504,7 +505,7 @@ GitHub Actions `workflow_dispatch` で `.github/workflows/daily.yml` を起動�
 
 - 定時起動: Cloudflare Cron（毎日 JST 15:45）→ Worker → `daily.yml` workflow_dispatch
 - concurrency: 同一workflowの多重起動禁止（`daily-indicators`, cancel-in-progress: false）
-- 主なジョブ: resolve_trading_day（営業日判定）→ **resolve_core_csv**（月次タグ解決・Supabase/R2 patched universe 選定・R2 staging put）と **ensure_index_cache** を並列 → **ensure_core_cache**（core を R2 get、OHLC を R2 put + Phase 3 warm cache `put-fixed`）→ **compute_indicators**（同一 run の OHLC・index・core を **R2 manifest 経由で復元**して算出。Phase 2c 以降、run 内 handoff は GitHub artifact ではなく R2 `runs/daily/{run_id}/...` のみ。Phase 3c 以降、index/OHLC warm cache は R2 `cache/` + Supabase（`actions/cache` なし）。patched universe は **daily_universe_patch.yml**（Cloudflare Cron 12:00 JST）が sole writer、`daily.yml` は Supabase/R2 から restore only。月次 Release 依存は Phase 4 まで継続。契約: `docs/contracts/github_state_to_r2_supabase_mapping.md`）→
+- 主なジョブ: resolve_trading_day（営業日判定）→ **resolve_core_csv**（月次タグ解決・Supabase/R2 patched universe 選定・R2 staging put）と **ensure_index_cache** を並列 → **ensure_core_cache**（core を R2 get、OHLC を R2 put + Layer 1 warm cache `put-immutable` + pointer CAS）→ **compute_indicators**（同一 run の OHLC・index・core を **R2 manifest 経由で復元**して算出。Phase 2c 以降、run 内 handoff は GitHub artifact ではなく R2 `runs/daily/{run_id}/...` のみ。Phase 3c 以降、index/OHLC warm cache は R2 `cache/` + Supabase（`actions/cache` なし）。ADR-005 以降、Layer 1 書込は `put-immutable`。patched universe は **daily_universe_patch.yml**（Cloudflare Cron 12:00 JST）が sole writer、`daily.yml` は Supabase/R2 から restore only。月次正本は Supabase `monthly_snapshots` + R2 `monthly/`（GitHub Release 依存は Phase 4c で終了）。契約: `docs/contracts/github_state_to_r2_supabase_mapping.md`）→
   compute_indicators_for_core → 0011_work へアップロード → render_sheet 等
 - fetch系は部分成功を許容しつつ manifest に残す
 - compute で対象銘柄の有効計算率が極端に低い場合は fail
