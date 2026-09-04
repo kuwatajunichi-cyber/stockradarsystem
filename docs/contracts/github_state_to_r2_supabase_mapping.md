@@ -150,14 +150,16 @@ Machine-readable stage: phase3_rollout_stage in mapping YAML (3a | 3b | 3c).
 
 Runbook: docs/operations/phase3_warm_cache_supabase_cutover.md.
 
-## Phase 4+ (planned)
+## Phase 4+ (live through ADR-005; Phase 5 remaining)
 
 See docs/operations/issue_93_roadmap.md and docs/operations/phase4_cutover.md.
 
-- Phase 4: monthly_snapshots, publish_status, runs lifecycle, monthly Cron, cache-jpx-url R2 migration.
+- Phase 4: monthly_snapshots, publish_status, runs lifecycle, monthly Cron, cache-jpx-url R2 migration（gate CLOSED 2026-07-22）。
 - Phase 4.5: derived indicators warm cache (ADR-004; rollout 4.5c, live_gate closed via waiver 2026-08-29).
-- ADR-005 (Adopted docs; gate in_progress): Monthly new-Core backfill. Live OHLC/index cache uses `immutable_pointer_cas` (`pr-005-daily-cas` in local batch). `planned_scan_workflows` empty after P4 promotion.
-- Phase 5: entitlements, observability, distribution cutover.
+- ADR-005 (Adopted; `live_gate_005` closed 2026-09-01): Monthly new-Core backfill. Live OHLC/index cache uses `immutable_pointer_cas` (`pr-005-daily-cas` merged via PR #159). `planned_scan_workflows` empty after P4 promotion; `monthly_new_core_backfill.yml` is in live `scan_workflows`.
+- Phase 5: entitlements, observability, distribution cutover（計画。Step 5.0 未着手）.
+
+Live daily/monthly `upload_to_all_targets.py` TARGETS are `r2,dropbox` (optional `drive` when unfrozen). GitHub Release is **not** a live TARGET after Phase 4c. Mapping entry `release-daily-yyyymm` remains a logical published/ key; `cleanup_releases.yml` retains leftover Release assets.
 
 ## ADR-005 mapping (schema_version 6)
 
@@ -169,7 +171,7 @@ Top-level key `adr005`:
 - `planned_objects`: content-addressed cache objects, seed delta, request manifest, `history_quality.json`
 - `planned_writer_workflows` / `planned_scan_workflows`: do **not** copy into `scan_workflows` until the workflow files exist (P4 already promotes live `scan_workflows` when files exist)
 
-Cache entries `cache-index-store-zip-v1` / `cache-ohlc-store-zip-v2` use live `writer_workflow: daily.yml` and live `target_r2_key_pattern: cache/{kind}/objects/sha256={object_sha256}.zip` with `retention_policy: warm_cache_immutable_pointer_cas` (`pr-005-daily-cas`, local_only until merge). `writer_workflows` lists current writers. `planned_writer_workflows` adds `monthly_new_core_backfill.yml`; `planned_target_r2_key_pattern` / `planned_retention_policy` match live.
+Cache entries `cache-index-store-zip-v1` / `cache-ohlc-store-zip-v2` use live `writer_workflow: daily.yml` and live `target_r2_key_pattern: cache/{kind}/objects/sha256={object_sha256}.zip` with `retention_policy: warm_cache_immutable_pointer_cas` (`pr-005-daily-cas` merged). `writer_workflows` lists current writers. YAML `planned_*` keys are protocol aliases (not “unimplemented”); `planned_writer_workflows` includes `monthly_new_core_backfill.yml`; `planned_target_r2_key_pattern` / `planned_retention_policy` match live.
 
 Related: `docs/adr/adr-005-monthly-new-core-backfill.md`, `docs/contracts/monthly_new_core_backfill_cloudflare_cron_dispatch.md`, `docs/contracts/monthly_new_core_backfill.md`.
 

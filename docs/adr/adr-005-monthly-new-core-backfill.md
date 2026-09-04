@@ -505,7 +505,7 @@ stateful 再開: その code の前日 committed series。無ければ `coverage
 
 ### 6. Layer 1 補完契約
 
-固定 key 上書き後の pointer CAS は禁止。Daily と MNC worker は同一 `immutable_pointer_cas` protocol を共有する（片側だけ旧 fixed-key に戻さない）。Daily CAS 切替は PR gate `pr-005-daily-cas`（本バッチ local_only / 未マージ）。本機能の Monthly RPC より先にマージする前提。
+固定 key 上書き後の pointer CAS は禁止。Daily と MNC worker は同一 `immutable_pointer_cas` protocol を共有する（片側だけ旧 fixed-key に戻さない）。Daily CAS 切替は PR gate `pr-005-daily-cas`（PR #159 で main マージ済み。`live_gate_005` closed 2026-09-01）。
 
 1. pointer から key / sha / logical digest / version を読む。`cache_pointers` に version 列が無ければ migration で足す。
 2. cache-key lease。失敗は `failed_retryable`。
@@ -515,9 +515,9 @@ stateful 再開: その code の前日 committed series。無ければ `coverage
 6. pointer CAS。失敗時 pointer 不変。未参照 object は orphan として 7 日保持。
 7. `_manifest.jsonl` のみ更新。universe manifest と混ぜない。
 
-mapping **live**（`pr-005-daily-cas` local_only 同梱。YAML 正本）: `writer_workflow: daily.yml`、`target_r2_key_pattern: cache/{kind}/objects/sha256={object_sha256}.zip`、`retention_policy: warm_cache_immutable_pointer_cas`。
+mapping **live**（`pr-005-daily-cas` merged via PR #159。YAML 正本）: `writer_workflow: daily.yml`、`target_r2_key_pattern: cache/{kind}/objects/sha256={object_sha256}.zip`、`retention_policy: warm_cache_immutable_pointer_cas`。
 
-mapping **planned**（worker 昇格用。live と同型）: `planned_writer_workflows: [daily.yml, monthly_new_core_backfill.yml]`、`planned_target_r2_key_pattern` / `planned_retention_policy` は live と同値。`scan_workflows` へ未作成 workflow を足さない。テストは YAML から生成し、タプルの二重定義をやめる。
+mapping **planned**（YAML の `planned_*` キー。live と同型。`monthly_new_core_backfill.yml` は live `scan_workflows`）: `planned_writer_workflows: [daily.yml, monthly_new_core_backfill.yml]`、`planned_target_r2_key_pattern` / `planned_retention_policy` は live と同値。`scan_workflows` へ未作成 workflow を足さない。テストは YAML から生成し、タプルの二重定義をやめる。
 
 #### 6.1 retention（単一指標）
 

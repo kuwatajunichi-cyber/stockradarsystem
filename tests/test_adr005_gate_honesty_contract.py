@@ -127,6 +127,9 @@ def test_adr005_docs_index_and_roadmap_adopted() -> None:
     assert "ADR-005 実装が残る" not in roadmap
     assert "未達" not in roadmap.split("## Phase 5")[0]
     assert "PR #159" in roadmap or "9c58ddc" in roadmap or "merged" in roadmap.lower()
+    assert "ADR-005 は `planned_*`" not in index
+    assert "Worker 実装は `pr-005-series-seed`" not in index
+    assert "MNC_DISPATCH_ENABLED=true" in index
 
 
 @pytest.mark.unit
@@ -197,6 +200,20 @@ def test_adr005_companion_docs_match_waiver_close() -> None:
     )
     assert "proposed` until live writer exists" not in mapping_doc
     assert "live fixed `target_r2_key_pattern`" not in mapping_doc
+    assert "gate in_progress" not in mapping_doc
+    assert "local_only until merge" not in mapping_doc
+    assert "in local batch" not in mapping_doc
+    assert "## Phase 4+ (planned)" not in mapping_doc
+    exit_codes = (_REPO / "docs" / "contracts" / "exit_codes.md").read_text(encoding="utf-8")
+    assert "local_only until merge" not in exit_codes
+    assert "live_gate_005` closed" in adr005 or "live_gate_005 closed" in adr005
+    assert "本バッチ local_only / 未マージ" not in adr005
+    assert "local_only 同梱" not in adr005
+    readme = (_REPO / "README.md").read_text(encoding="utf-8")
+    assert "4系統ミラー: Drive / R2 / Dropbox / GitHub Release" not in readme
+    assert "Phase 3 warm cache `put-fixed`" not in readme
+    assert "月次 Release 依存は Phase 4 まで継続" not in readme
+    assert "put-immutable" in readme
     gate45 = yaml.safe_load(
         (_REPO / "docs" / "operations" / "phase4_5_gate_status.yaml").read_text(encoding="utf-8")
     )
