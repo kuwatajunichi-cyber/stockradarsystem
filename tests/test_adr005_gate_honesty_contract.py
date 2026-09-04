@@ -165,6 +165,17 @@ def test_adr005_companion_docs_match_waiver_close() -> None:
     assert "Proposed amendment。未採択。未実装。" not in adr004
     assert "Adopted" in adr004
     assert "（Proposed。series_seed" not in adr004
+    assert "`in_progress` / `live_gate_005` open" not in adr004
+    assert "impl local_only" not in adr004
+    assert "ADR-005 local_only" not in adr004
+    assert "active writer を有効化しない" not in adr004
+    assert "live_gate_005` closed" in adr004 or "live_gate_005 closed" in adr004
+    adr003 = (_REPO / "docs" / "adr" / "adr-003-r2-supabase-control-blob-split.md").read_text(
+        encoding="utf-8"
+    )
+    assert "writers local_only until merge" not in adr003
+    assert "implementation in_progress / local_only" not in adr003
+    assert "live_gate_005 closed" in adr003
     replay = (_REPO / "docs" / "contracts" / "daily_replay_and_monthly_universe.md").read_text(encoding="utf-8")
     assert "soak 未達のため open" not in replay
     assert "Proposed。未実装。" not in replay

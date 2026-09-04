@@ -4,7 +4,7 @@
 
 採用・設計改訂済み（2026-07-22）。Phase 4.5 実装は **rollout 4.5c・Path B active・`live_gate_45c` closed**（user-authorized waiver 2026-08-29; continuous 3 trading-day Path B soak is **not** claimed）。「実装は未着手」ではない。
 
-[ADR-005](adr-005-monthly-new-core-backfill.md)（Monthly new-Core backfill）は **Adopted**（docs）。実装ゲートは `docs/operations/adr005_gate_status.yaml`（`in_progress` / `live_gate_005` open）。本 ADR の 4.5c gate CLOSED と混同しない。
+[ADR-005](adr-005-monthly-new-core-backfill.md)（Monthly new-Core backfill）は **Adopted**。実装ゲートは `docs/operations/adr005_gate_status.yaml`（`overall_status: closed` / `live_gate_005` closed 2026-09-01）。本 ADR の 4.5c gate CLOSED と混同しない。
 
 Issue #93 Phase 4.5 として Phase 4 live gate 後、Phase 5 の Web API 本格実装前に進める。初版の「単一派生 zip を固定 key へ上書きする」案は、本改訂で置き換える。
 
@@ -122,10 +122,10 @@ active set の in-place 変更は禁止する。CAS 失敗時は再取得して�
 | `replay` | 不変 | 不変 | 不変 | 不変 | 再現 |
 | `backfill` | 不変 | shadow のみ | shadow のみ | 不変 | 新 metric set |
 | `reconcile` | 不変 | CAS 訂正 | merge | 条件付き | フル断面の明示訂正 |
-| `series_seed` | 不変 | 不変 | 欠落日のみ（ADR-005） | 不変 | 新規 Core 履歴。ADR-005 local_only |
-| `series_repair` | 不変 | 不変 | 承認済み coordinate のみ（ADR-005） | 不変 | `value_conflict` 修復。ADR-005 local_only |
+| `series_seed` | 不変 | 不変 | 欠落日のみ（ADR-005） | 不変 | 新規 Core 履歴。ADR-005 live |
+| `series_repair` | 不変 | 不変 | 承認済み coordinate のみ（ADR-005） | 不変 | `value_conflict` 修復。ADR-005 live |
 
-`series_seed` / `series_repair` の write_allowed・CAS・delta 物理契約は ADR-005 を正とする。本表の追加は採択同期であり、active writer を有効化しない。
+`series_seed` / `series_repair` の write_allowed・CAS・delta 物理契約は ADR-005 を正とする。writer は PR #159 以降 main で live（`live_gate_005` closed 2026-09-01）。
 
 「不足日のみ計算」だけでは過去入力訂正を検出できない。各 snapshot に Layer 1 input fingerprint、metric set fingerprint、source run を保存し、不一致を通常 run で検出した場合は fail-fast して reconcile へ分離する。
 
@@ -241,4 +241,4 @@ required_history = max_graph_window + max_metric_lookback + buffer
 - [Phase 4 post-audit](../operations/issue_93_post_phase4_audit.md)
 - [daily replay 契約](../contracts/daily_replay_and_monthly_universe.md)
 - [R2 / Supabase mapping](../../config/github_state_to_r2_supabase_mapping.yaml)
-- [ADR-005](adr-005-monthly-new-core-backfill.md)（Adopted。series_seed / series_repair; impl local_only）
+- [ADR-005](adr-005-monthly-new-core-backfill.md)（Adopted。series_seed / series_repair; live_gate_005 closed）
