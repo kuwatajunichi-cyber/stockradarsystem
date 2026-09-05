@@ -120,8 +120,9 @@ CI・ワークフロー・ジョブの変更に関わる「原則」「運用基
 - Phase runbooks: [phase2c](operations/phase2c_r2_only_cutover.md), [phase3](operations/phase3_warm_cache_supabase_cutover.md), [phase4](operations/phase4_cutover.md), [phase4.5](operations/phase4_5_cutover.md)
 - Phase 4.5 gate SSOT: [phase4_5_gate_status.yaml](operations/phase4_5_gate_status.yaml)
 - ADR-005 gate SSOT（Adopted / closed）: [adr005_gate_status.yaml](operations/adr005_gate_status.yaml)
+- Phase 5 gate SSOT（in_progress。5.5a 単独では overall を閉じない）: [phase5_gate_status.yaml](operations/phase5_gate_status.yaml)
 - Phase 5 observability 調査: [phase5_observability_options.md](operations/phase5_observability_options.md)
-- Phase 5 observability runbook: [phase5_observability_cutover.md](operations/phase5_observability_cutover.md)
+- Phase 5 observability runbook（カレンダー契約 `closed_day_expected_ping`）: [phase5_observability_cutover.md](operations/phase5_observability_cutover.md)
 - Cloudflare Cron 欠走 (2026-08-26): [incidents/cloudflare_cron_miss_2026-08-26.md](operations/incidents/cloudflare_cron_miss_2026-08-26.md)
 - GitHub Issue: [#93](https://github.com/kuwatajunichi-cyber/stockradarsystem/issues/93)
 

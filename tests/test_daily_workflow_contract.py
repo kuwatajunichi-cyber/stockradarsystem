@@ -277,7 +277,16 @@ def test_daily_yml_no_github_artifact_fallback_or_continue_on_error() -> None:
     ).read_text(encoding="utf-8")
     assert "shadow validation count is 0" not in text
     assert "shadow validation count is 0" not in enrichment
-    assert "continue-on-error: true" not in text
+    wf = yaml.safe_load(text)
+    for job in wf["jobs"].values():
+        if not isinstance(job, dict):
+            continue
+        for step in job.get("steps") or []:
+            if not isinstance(step, dict):
+                continue
+            if step.get("continue-on-error") is True:
+                name = str(step.get("name") or "")
+                assert name.startswith("Heartbeat (Healthchecks"), name
     assert "continue-on-error: true" not in enrichment
 
 

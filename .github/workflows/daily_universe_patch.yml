@@ -61,6 +61,16 @@ jobs:
             --run-date "$RUN_DATE" \
             --status running
 
+      - name: Heartbeat (Healthchecks patch, closed day)
+        if: success() && steps.resolve.outputs.is_open != 'True'
+        continue-on-error: true
+        env:
+          PYTHONPATH: src
+          HEALTHCHECKS_PING_URL: ${{ secrets.HEALTHCHECKS_PATCH_PING_URL }}
+        run: |
+          set -euo pipefail
+          python -m stockradar.observability.healthchecks_heartbeat
+
   patch_universe:
     needs: resolve_trading_day
     if: needs.resolve_trading_day.outputs.is_open == 'True'
@@ -178,6 +188,16 @@ jobs:
             --github-run-id "$GITHUB_RUN_ID" \
             --source-ref "${{ github.ref }}" \
             --json-output /tmp/patch_put_patched.json
+
+      - name: Heartbeat (Healthchecks patch)
+        if: success() && needs.resolve_trading_day.outputs.is_open == 'True'
+        continue-on-error: true
+        env:
+          PYTHONPATH: src:.
+          HEALTHCHECKS_PING_URL: ${{ secrets.HEALTHCHECKS_PATCH_PING_URL }}
+        run: |
+          set -euo pipefail
+          python -m stockradar.observability.healthchecks_heartbeat
 
   finalize_run:
     needs: [resolve_trading_day, patch_universe]

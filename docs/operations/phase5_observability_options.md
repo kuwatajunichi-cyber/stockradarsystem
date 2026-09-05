@@ -10,8 +10,9 @@ Issue #93 Phase 5.5。実装 runbook: [phase5_observability_cutover.md](phase5_o
 | ベンダー | [Healthchecks.io](https://healthchecks.io) |
 | 通知 | **メール**（HC アカウント設定） |
 | 監視対象外 | **`is_replay=true`** および **`skip_publish=true`** の run（heartbeat 送信しない） |
+| カレンダー | **`closed_day_expected_ping`**（閉場日も ping。Period 1d × 閉場日非 ping は毎週末に誤報するため禁止） |
 
-段階導入: **5.5a = 方針 C 本番**。Supabase 集計（旧 5.5b）は Phase 4 `runs` lifecycle 後に別 PR。
+段階導入: **5.5a = 方針 C 本番**（ping 実装は cutover カレンダー契約の後）。Supabase 集計（旧 5.5b）は Phase 4 `runs` lifecycle 後に別 PR。画面ではない。
 
 ---
 

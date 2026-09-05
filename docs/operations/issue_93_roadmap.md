@@ -15,7 +15,7 @@ GitHub Issue: [#93](https://github.com/kuwatajunichi-cyber/stockradarsystem/issu
 | 3c | warm cache + Supabase | **gate CLOSED** (2026-07-10) |
 | 4 | 月次 + publish + runs + Cron | **gate CLOSED** (2026-07-22) |
 | 4.5 | 派生指標時系列基盤 | **PR-45-1..4 merged・rollout 4.5c・Path B active・live_gate closed (user-authorized waiver 2026-08-29)・capacity_gate closed** |
-| 5 | entitlements + observability | 計画 |
+| 5 | entitlements + observability | **in_progress（トラック地図。5.5a ping 未マージ。Auth/UI 未着手）** |
 
 Phase 3c gate CLOSED（runbook 記録済）。Issue #93 は Phase 5 が残るため **OPEN** 維持。Phase 4.5 gate は CLOSED（soak は waiver。連続 3 営業日達成とは書かない）。ADR-005 `live_gate_005` は CLOSED（2026-09-01）。
 
@@ -80,15 +80,24 @@ Phase 4.5 gate は CLOSED（user-authorized waiver 2026-08-29）。連続 3 営�
 
 ## Phase 5（entitlements / Web API / observability）
 
-| 項目 | 内容 |
-|------|------|
-| 5.1–5.4 | Auth/RLS, entitlements, webhook, 公開 API（派生系列は Phase 4.5 の R2 series contract を利用） |
-| **5.5a observability** | **Healthchecks.io heartbeat（採用）** — メール通知。Patch + Daily 各 1 check |
-| 5.5b | Supabase 集計ビュー（Phase 4 `runs` 後） |
-| 5.6 | Distribution cutover |
+ゲート正本: [phase5_gate_status.yaml](phase5_gate_status.yaml)（`overall_status: in_progress`）。5.5a live close だけでは overall を closed にしない。Issue #93 は **OPEN**。Web UI 完了とは書かない。
+
+Web UI 仕様の前に終わる工事（A / B）と、仕様後の製品工事（C / D / E）に分ける。
+
+| トラック | 現行番号 | 中身 | Web UI 仕様 |
+|----------|----------|------|-------------|
+| **トラック A** 運用観測 | 5.5a / 5.5b | Healthchecks.io（Patch + Daily）、`runs` 集計ビュー（ops SQL。画面ではない） | 不要 |
+| **トラック B** 配信 capability | 5.4 の一部 | private R2、committed のみ、短命署名、監査。製品ロールなし。P0 継承（RLS ON、anon/authenticated REVOKE、公開 mint 禁止） | 不要 |
+| **トラック C** 認可製品 | 5.1–5.3 | Supabase Auth、entitlements、課金 webhook、利用者別 RLS | 要る |
+| **トラック D** Web UI | ロードマップ外（ADR-004 の消費者） | 銘柄×年 series の閲覧 | これ自体が仕様 |
+| **トラック E** 配布切替 | 5.6 | `published/` 統一。live TARGETS（R2 / Dropbox、任意 Drive）を壊さない | 要る |
 
 **Observability 採用（2026-07-08）:** 方針 C。[phase5_observability_cutover.md](phase5_observability_cutover.md)  
-**監視対象外:** `is_replay=true`, `skip_publish=true`（ping 送信しない）。
+カレンダー契約（実装より先に改訂）: `closed_day_expected_ping`。Period 1d × 閉場日非 ping のまま 5.5a を実装しない。  
+**監視対象外:** `is_replay=true`, `skip_publish=true`（ping 送信しない）。閉場日 ping とは別契約。  
+**Watchdog**（[cron_dispatch_watchdog.md](../contracts/cron_dispatch_watchdog.md)）は Healthchecks の代替ではない。Watchdog = Cloudflare 欠走の当日検知。Healthchecks = GHA 成功の長めネット。両方残す。
+
+P2 は形式ゲートなしの残債。5.5a の blocker にしない。Auth/API 本実装と Issue #93 close は UI 仕様後（トラック C–E）。
 
 ## 受け入れ条件
 
@@ -108,6 +117,8 @@ Worker deploy gate, migration 記録, artifact_index.created_at_utc, contract st
 2026-08-29 Phase 4.5 live_gate_45c user-authorized waiver close。ADR-005 Adopted。Issue #93 は Phase 5 / ADR-005 実装のため OPEN。
 2026-09-01 ADR-005 live_gate_005 CLOSED（Sept drain + capacity remeasure PASS）。
 2026-09-04 SSOT ドリフト是正。Issue #93 の残は Phase 5 のみ。P2 は形式ゲートなしの残債と明記。連続 soak 達成とは書かない。
+2026-09-04 Phase 5 をトラック A–E に分割。gate SSOT `phase5_gate_status.yaml`。cutover 休場日を `closed_day_expected_ping` に改訂。5.5a ping は未実装。
+2026-09-05 U-55a-1/2 完了。5.5a ping を workflow に組み込み（未マージ・live gate 未達）。
 
 ## 決定事項（2026-07-08 追記）
 

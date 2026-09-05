@@ -157,7 +157,7 @@ See docs/operations/issue_93_roadmap.md and docs/operations/phase4_cutover.md.
 - Phase 4: monthly_snapshots, publish_status, runs lifecycle, monthly Cron, cache-jpx-url R2 migration（gate CLOSED 2026-07-22）。
 - Phase 4.5: derived indicators warm cache (ADR-004; rollout 4.5c, live_gate closed via waiver 2026-08-29).
 - ADR-005 (Adopted; `live_gate_005` closed 2026-09-01): Monthly new-Core backfill. Live OHLC/index cache uses `immutable_pointer_cas` (`pr-005-daily-cas` merged via PR #159). `planned_scan_workflows` empty after P4 promotion; `monthly_new_core_backfill.yml` is in live `scan_workflows`.
-- Phase 5: entitlements, observability, distribution cutover（計画。Step 5.0 未着手）.
+- Phase 5: tracks A–E（Step 5.0 トラック地図 in_progress。5.5a ping 未マージ。Auth/UI 未着手）. Gate SSOT: docs/operations/phase5_gate_status.yaml.
 
 Live daily/monthly `upload_to_all_targets.py` TARGETS are `r2,dropbox` (optional `drive` when unfrozen). GitHub Release is **not** a live TARGET after Phase 4c. Mapping entry `release-daily-yyyymm` remains a logical published/ key; `cleanup_releases.yml` retains leftover Release assets.
 

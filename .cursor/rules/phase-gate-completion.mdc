@@ -13,8 +13,9 @@ alwaysApply: true
 
 - リポジトリ内 Phase 4: `docs/operations/phase4_gate_status.yaml`
 - リポジトリ内 Phase 4.5: `docs/operations/phase4_5_gate_status.yaml`
+- リポジトリ内 Phase 5: `docs/operations/phase5_gate_status.yaml`
 - ロードマップ: `docs/operations/issue_93_roadmap.md`（gate_status と整合必須）
-- プラン frontmatter `todos`: gate_status の `pr_gates` / `live_gate_4c`（Phase 4）または `live_gate_45c`（Phase 4.5）と **同一意味** であること
+- プラン frontmatter `todos`: gate_status の `pr_gates` / `live_gate_4c`（Phase 4）または `live_gate_45c`（Phase 4.5）または Phase 5 の `pr_gates` / `live_gates` と **同一意味** であること
 
 ## Agent が completed にしてよい条件
 
@@ -24,20 +25,25 @@ alwaysApply: true
 | **PR-4-N** | (1) main マージ commit SHA、(2) CI pytest Pass on merge、(3) プラン記載のユーザー作業（U-1/U-3 等）の証拠 URL、(4) phase4_gate_status.yaml を merged_and_verified に更新 |
 | **Live gate 4c** | プラン Live gate 全項目の run URL / ログ証拠、live_gate_4c.status: closed |
 | **Phase 4 全体 CLOSED** | 全 PR gate merged_and_verified + live gate closed + roadmap 行更新 |
+| **Step 5.0 Track map** | プラン本文 + `phase5_gate_status.yaml` の整合。Healthchecks ping 実装・本番不要。未マージなら `pr-50-track-map: local_only` |
+| **PR-55a** | merge SHA + CI Pass + U-55a-1 / U-55a-2 証拠。U-gate なしで merged_and_verified にしない |
+| **Live gate 55a** | cutover Live gate 全項目（閉場日 `closed_day_expected_ping` を含む）。Pause をもって代えない。`live_gate_55a` closed でも Phase 5 `overall_status` は in_progress のまま |
+| **Phase 5 全体 CLOSED** | 全トラック（A–E）の pr_gates merged_and_verified + 全 live_gates closed + roadmap 行更新。5.5a 単独では閉じない |
 
 ## 禁止（§0 FAIL 相当）
 
 - ローカル実装・未マージ・live gate 未達のまま To-Do / frontmatter / ユーザー報告を **完了** とする
-- phase4_gate_status.yaml を更新せずに進捗を報告する
+- 該当フェーズの gate_status.yaml を更新せずに進捗を報告する
+- 5.5a live close だけで Phase 5 `overall_status` closed / Issue #93 close / Web UI 完了と報告する
 - stage を飛ばした実装を、飛ばしていない PR の **完了** として記録する
 - CI 未実行・未 Pass を **Pass** と報告する
 
 ## 作業手順（必須）
 
-1. 進捗を主張する **前に** phase4_gate_status.yaml を更新する（local_only は未マージ明示用のみ）
+1. 進捗を主張する **前に** 該当フェーズの gate_status.yaml を更新する（local_only は未マージ明示用のみ）
 2. プラン frontmatter の status は gate_status と同期する
 3. ユーザーへの報告は gate_status の overall_status と矛盾させない
-4. 変更後 pytest tests/test_phase_gate_honesty_contract.py tests/test_phase4_5_gate_honesty_contract.py -v が Pass すること
+4. 変更後 pytest tests/test_phase_gate_honesty_contract.py tests/test_phase4_5_gate_honesty_contract.py tests/test_phase5_gate_honesty_contract.py -v が Pass すること
 
 ## ローカル実装のみの正しい表現
 
