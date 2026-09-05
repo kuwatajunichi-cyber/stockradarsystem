@@ -6,6 +6,7 @@ name: Daily Indicators
 # - Producer: artifact_bus_cli.py put fails the job on R2 error (required artifacts).
 # - Consumer: artifact_bus_cli.py get fails the job on R2 error (required artifacts).
 # - skip_publish=true skips Upload to all targets step only; render_and_upload job still runs.
+# - Phase 5.5a: Healthchecks ping on open-day success (render_and_upload) and closed-day resolve_trading_day.
 # - Patched universe cache is written only by daily_universe_patch.yml; daily.yml restores via get-patched.
 
 on:
@@ -129,6 +130,16 @@ jobs:
           else
             echo "- upsert_run_status: \`(json missing — upsert step failed)\`" >> "$GITHUB_STEP_SUMMARY"
           fi
+
+      - name: Heartbeat (Healthchecks daily, closed day)
+        if: success() && steps.resolve.outputs.is_open != 'True'
+        continue-on-error: true
+        env:
+          PYTHONPATH: src
+          HEALTHCHECKS_PING_URL: ${{ secrets.HEALTHCHECKS_DAILY_PING_URL }}
+        run: |
+          set -euo pipefail
+          python -m stockradar.observability.healthchecks_heartbeat
 
   resolve_core_csv:
     needs: resolve_trading_day
@@ -1402,6 +1413,20 @@ jobs:
             --filename "$XLSX_NAME" \
             --phase4-rollout-stage "$PHASE4_ROLLOUT_STAGE" \
             --json-output /tmp/publish_xlsx.json
+
+      - name: Heartbeat (Healthchecks daily)
+        if: |
+          success()
+          && needs.resolve_trading_day.outputs.is_open == 'True'
+          && needs.resolve_trading_day.outputs.is_replay != 'true'
+          && (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_publish != 'true')
+        continue-on-error: true
+        env:
+          PYTHONPATH: src
+          HEALTHCHECKS_PING_URL: ${{ secrets.HEALTHCHECKS_DAILY_PING_URL }}
+        run: |
+          set -euo pipefail
+          python -m stockradar.observability.healthchecks_heartbeat
 
   finalize_run:
     needs: [preflight, resolve_trading_day, compute_indicators, event_cause_enrichment, render_and_upload, write_derived_generation]
