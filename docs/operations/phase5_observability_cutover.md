@@ -30,11 +30,11 @@ Healthchecks は XTKS を知らない。Cloudflare Cron は毎日起動する（
 | 条件 | ping | 置き場 |
 |------|------|--------|
 | 営業日・通常本番成功 | する | patch: `put-patched` 直後。daily: `render_and_upload` 末尾 |
-| `is_open=False`（土日・XTKS 祝日） | **する**（閉場の成功相当） | 両 workflow とも `resolve_trading_day` job。後続 job に置かない |
-| `is_replay=true` | **しない** | daily のみ（`resolve_trading_day` output） |
-| `skip_publish=true` | **しない** | daily のみ（`workflow_dispatch` **input**。job output ではない） |
+| `is_open=False`（土日・XTKS 祝日） | **する**（閉場の成功相当）。daily は下記の監視対象外なら **しない** | 両 workflow とも `resolve_trading_day` job。後続 job に置かない |
+| `is_replay=true` | **しない**（閉場日経路も含む） | daily のみ。`validate_dispatch` の小文字 `true` / `false`（`!= 'True'` では止まらない） |
+| `skip_publish=true` | **しない**（閉場日経路も含む） | daily のみ（`workflow_dispatch` **input**。job output ではない） |
 
-閉場日 ping は監視対象外の replay / skip_publish とは別契約である。営業日に `resolve_trading_day` と成功経路の両方から ping しない（`is_open` で排他）。
+閉場日 ping も daily の `is_replay` / `skip_publish` を除外する。監視対象外を「閉場日だから送ってよい」と混ぜない。営業日に `resolve_trading_day` と成功経路の両方から ping しない（`is_open` で排他）。
 
 **Pause は主運用ではない。** 土日・祝日の誤報回避に Healthchecks Pause を使わない。Pause は HC メンテや想定外の長期停止の退避に限る。Pause 運用を 5.5a live gate の完了条件の代替にしない。`closed_day_expected_ping` の live 証拠が必須。
 
@@ -44,14 +44,14 @@ Healthchecks は XTKS を知らない。Cloudflare Cron は毎日起動する（
 
 ## 監視対象外（契約）
 
-以下の run では **heartbeat を送らない**（Healthchecks 側も ping 欠落を期待しない）。閉場日とは混ぜない。
+以下の run では **heartbeat を送らない**（Healthchecks 側も ping 欠落を期待しない）。閉場日経路でも除外する。
 
 | 条件 | 理由 |
 |------|------|
 | `is_replay=true` | replay 検証。warm cache 非更新契約と同型 |
 | `skip_publish=true` | 手動検証。外部公開なし。`skip_publish=true` でも job は走るので、job success だけで ping しない |
 
-実装: ping step に `if` を付与。replay 判定は `resolve_trading_day` 出力。skip_publish 判定は `workflow_dispatch` input。
+実装: ping step に `if` を付与。replay 判定は `validate_dispatch` 出力（小文字）。skip_publish 判定は `workflow_dispatch` input。
 
 ---
 
@@ -126,7 +126,11 @@ daily の `is_replay` は `validate_daily_dispatch_run_date` が `true` / `false
 
 ```yaml
 - name: Heartbeat (Healthchecks daily, closed day)
-  if: success() && steps.resolve.outputs.is_open != 'True'
+  if: |
+    success()
+    && steps.resolve.outputs.is_open != 'True'
+    && steps.validate_dispatch.outputs.is_replay != 'true'
+    && (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_publish != 'true')
   continue-on-error: true
   env:
     PYTHONPATH: src
@@ -160,14 +164,14 @@ curl ではなく heartbeat モジュール失敗時は step fail で可視化�
 
 ## Live gate（Phase 5.5a）
 
-U-gate 証拠なしで live close しない。replay / skip_publish 確認は **daily のみ**。
+U-gate 証拠なしで live close しない。replay / skip_publish の「ping なし」確認は **daily のみ**。閉場日に replay / skip_publish すると閉場日経路も送らない。live 確認の本線は **営業日の通常本番** と **Cron 閉場日**（replay ではない）に分ける。
 
-- [ ] **U-55a-1:** 2 check 作成、メール通知テスト
-- [ ] **U-55a-2:** Secrets 設定
+- [x] **U-55a-1:** 2 check 作成、メール通知テスト（[Issue #93 comment](https://github.com/kuwatajunichi-cyber/stockradarsystem/issues/93#issuecomment-5549891323)）
+- [x] **U-55a-2:** Secrets 設定（[Issue #93 comment](https://github.com/kuwatajunichi-cyber/stockradarsystem/issues/93#issuecomment-5549912192)）
 - [ ] 定時 Patch + Daily 各 1 回: HC ダッシュボードに ping 記録
-- [ ] 手動 `skip_publish=true` run: ping **なし** を確認（daily）
-- [ ] 手動 `is_replay=true` run: ping **なし** を確認（daily）
-- [ ] **閉場日**（土日または XTKS 祝日）: `closed_day_expected_ping` の ping 記録。Pause をもって代えない
+- [ ] 手動 `skip_publish=true` run: ping **なし** を確認（daily。**営業日**の `run_date`）
+- [ ] 手動 `is_replay=true` run: ping **なし** を確認（daily。**営業日**の過去 `run_date`）
+- [ ] **閉場日**（土日または XTKS 祝日）: Cron または当日 `run_date`（`is_replay=false`）の `closed_day_expected_ping`。Pause をもって代えない。休場日 replay で代えない
 - [ ] Issue #93 コメントに HC check URL（uuid は伏せ）と検証 run URL
 
 5.5a live close は Track A の一部完了に過ぎない。Phase 5 `overall_status` は閉じない。

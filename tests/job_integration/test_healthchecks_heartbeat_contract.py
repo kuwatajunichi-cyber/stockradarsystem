@@ -66,6 +66,13 @@ def test_daily_closed_day_ping_in_resolve_job() -> None:
     assert env["HEALTHCHECKS_PING_URL"] == "${{ secrets.HEALTHCHECKS_DAILY_PING_URL }}"
     last = job["steps"][-1]
     assert last["name"] == CLOSED_DAILY
+    cond = str(step.get("if"))
+    assert "steps.validate_dispatch.outputs.is_replay != 'true'" in cond
+    assert "is_replay != 'True'" not in cond
+    assert "github.event.inputs.skip_publish != 'true'" in cond
+    assert "outputs.skip_publish" not in cond
+    names = [s.get("name") for s in job["steps"] if isinstance(s, dict)]
+    assert OPEN_DAILY not in names
 
 
 def test_daily_open_day_ping_after_upload_in_render_job() -> None:
@@ -128,6 +135,27 @@ def test_continue_on_error_only_on_heartbeat_steps() -> None:
                     continue
                 if step.get("continue-on-error") is True:
                     assert id(step) in heartbeats, step.get("name")
+
+
+def test_heartbeat_step_count_and_job_split() -> None:
+    daily = _load(_DAILY)
+    patch = _load(_PATCH)
+    assert len(_heartbeat_steps(daily)) == 2
+    assert len(_heartbeat_steps(patch)) == 2
+    render_names = [
+        s.get("name")
+        for s in daily["jobs"]["render_and_upload"]["steps"]
+        if isinstance(s, dict)
+    ]
+    assert OPEN_DAILY in render_names
+    assert CLOSED_DAILY not in render_names
+    patch_resolve_names = [
+        s.get("name")
+        for s in patch["jobs"]["resolve_trading_day"]["steps"]
+        if isinstance(s, dict)
+    ]
+    assert CLOSED_PATCH in patch_resolve_names
+    assert OPEN_PATCH not in patch_resolve_names
 
 
 def test_monthly_and_mnc_out_of_scope() -> None:

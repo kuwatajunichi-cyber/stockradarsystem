@@ -132,7 +132,11 @@ jobs:
           fi
 
       - name: Heartbeat (Healthchecks daily, closed day)
-        if: success() && steps.resolve.outputs.is_open != 'True'
+        if: |
+          success()
+          && steps.resolve.outputs.is_open != 'True'
+          && steps.validate_dispatch.outputs.is_replay != 'true'
+          && (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_publish != 'true')
         continue-on-error: true
         env:
           PYTHONPATH: src
