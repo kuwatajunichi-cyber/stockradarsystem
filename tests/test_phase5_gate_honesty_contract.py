@@ -16,6 +16,7 @@ from stockradar.governance.phase5_gate_honesty import (
     validate_gate_status_document,
     validate_roadmap_against_gate_status,
     validate_signed_url_capability_contract,
+    validate_ops_runs_views_contract,
 )
 
 _REPO = Path(__file__).resolve().parents[1]
@@ -25,6 +26,7 @@ _CUTOVER = _REPO / "docs" / "operations" / "phase5_observability_cutover.md"
 _SIGNED_URL = _REPO / "docs" / "contracts" / "signed_url_capability.md"
 _SCHEMA = _REPO / "docs" / "contracts" / "supabase_control_plane_schema.md"
 _INDEX = _REPO / "docs" / "INDEX.md"
+_OPS_RUNS = _REPO / "docs" / "contracts" / "ops_runs_views.md"
 
 
 def _load_gate_status() -> dict:
@@ -59,6 +61,8 @@ def test_phase5_index_links_gate_ssot() -> None:
     assert "phase5_gate_status.yaml" in index
     assert "phase5_observability_cutover.md" in index
     assert "signed_url_capability.md" in index
+    assert "ops_runs_views.md" in index
+    assert "ops_runs_views.md" in index
 
 
 @pytest.mark.unit
@@ -199,6 +203,9 @@ def test_signed_url_contract_rejects_missing_private_bucket() -> None:
         "ttl_seconds\n"
         "identity_mismatch\n"
         "checksum_mismatch\n"
+        "request_id_conflict\n"
+        "SignedUrlMintPort\n"
+        "017_download_grants\n"
         "Out of scope\n"
         "public mint\n"
         "docs only\n"
@@ -217,6 +224,24 @@ def test_live_gate_5b_closed_requires_capability_pr() -> None:
     violations = validate_gate_status_document(bad)
     assert any("pr-5b-signed-capability" in v for v in violations)
     assert any("docs alone cannot close" in v for v in violations)
+
+
+@pytest.mark.unit
+def test_live_gate_55b_closed_requires_views_pr() -> None:
+    data = _load_gate_status()
+    bad = copy.deepcopy(data)
+    bad["live_gates"]["live_gate_55b"]["status"] = "closed"
+    bad["live_gates"]["live_gate_55b"]["closed_at_utc"] = "2026-09-10T00:00:00Z"
+    violations = validate_gate_status_document(bad)
+    assert any("pr-55b-runs-views" in v for v in violations)
+    assert any("SQL file alone cannot close" in v for v in violations)
+
+
+@pytest.mark.unit
+def test_ops_runs_views_contract() -> None:
+    text = _OPS_RUNS.read_text(encoding="utf-8")
+    violations = validate_ops_runs_views_contract(text)
+    assert violations == [], "\n".join(violations)
 
 
 @pytest.mark.unit

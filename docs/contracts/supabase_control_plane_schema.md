@@ -9,7 +9,7 @@ DDL source of truth:
 - Phase 3: `supabase/migrations/001_phase3_control_plane.sql`
 - Phase 4: `supabase/migrations/002_phase4_control_plane.sql`
 
-Phase 4.5 の metric registry / latest projection は `004` / `005` 以降で実装済み。Phase 5 Track B の `download_grants` は未実装であり、正本は `docs/contracts/signed_url_capability.md` である。本ファイルを Track B 契約の代わりにしない。
+Phase 4.5 の metric registry / latest projection は `004` / `005` 以降で実装済み。Phase 5 Track B の `download_grants` DDL は `017_download_grants.sql`。正本は `docs/contracts/signed_url_capability.md` である。本ファイルを Track B 契約の代わりにしない。
 
 ## Tables
 
@@ -21,7 +21,7 @@ Phase 4.5 の metric registry / latest projection は `004` / `005` 以降で実
 | cache_pointers | 3 | Active fixed-cache pointer |
 | monthly_snapshots | 4 | Monthly universe snapshot metadata + object_keys JSONB |
 | publish_status | 4 | Daily publish committed rows (DB is source of truth) |
-| download_grants | 5 Track B | Signed GetObject mint audit (logical; no DDL yet). SSOT: `docs/contracts/signed_url_capability.md` |
+| download_grants | 5 Track B | Signed GetObject mint audit. DDL: `017_download_grants.sql`. SSOT: `docs/contracts/signed_url_capability.md` |
 
 ## Phase 4.5 tables（DDL: 004/005 以降。本節は実装済みレジストリの説明）
 

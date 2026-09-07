@@ -2,20 +2,20 @@
 
 Phase 5 トラック B の入出力契約。英語本文が機械検証用の正本（トークン signed_url_capability）である。
 
-**docs のみ。** mint CLI / DDL / 公開エンドポイント / Auth / Web UI は含まない。pr-5b-signed-capability 未実装。live_gate_5b は open。Phase 5 overall_status は in_progress。Issue #93 は OPEN。
+Capability SSOT. mint is SignedUrlMintPort (`src/stockradar/storage/signed_url.py`), DDL is `017_download_grants.sql`, internal CLI is `scripts/storage/signed_url_mint_cli.py`. No public endpoint / Auth / Web UI. live_gate_5b is open (docs alone cannot close). Phase 5 overall_status is in_progress. Issue #93 is OPEN. A contract-only **docs only** PR is not capability complete.
 
 要約: private bucket 上の committed blob にだけ短命 GetObject 署名を fail-closed で発行する。orphan 拒否。TTL 60-3600 秒（既定 300）。監査表は download_grants。P0 継承（RLS ON、anon/authenticated REVOKE、user policy ゼロ、service_role のみ）。entitlement 未証明は拒否（allow-stub 禁止）。公開 Worker / 公開 mint は Track C まで禁止。単体テストは Fake。製品ロール・利用者 RLS・画面キーは Out of scope。
 
 ---
 
 **Adopt token:** `signed_url_capability`  
-**Gates:** [phase5_gate_status.yaml](../operations/phase5_gate_status.yaml) `pr-5b-signed-contract` (this contract) and `pr-5b-signed-capability` (later mint implementation)  
+**Gates:** [phase5_gate_status.yaml](../operations/phase5_gate_status.yaml) `pr-5b-signed-contract` (this contract) and `pr-5b-signed-capability` (mint / DDL / internal CLI)  
 **ADR:** [ADR-003](../adr/adr-003-r2-supabase-control-blob-split.md) (R2 = blob / Supabase = control; user download resolves only committed rows)  
 **Cloudflare:** [R2 Presigned URLs](https://developers.cloudflare.com/r2/api/s3/presigned-urls/) (S3 GetObject, bearer token, S3 API domain)
 
 This file is the Track B input/output contract SSOT. [supabase_control_plane_schema.md](supabase_control_plane_schema.md) only names the table; do not treat it as this contract.
 
-This revision is **docs only**. It does not add a mint CLI, DDL, public endpoint, Auth, or Web UI. Do not mark 5b complete from an implementation PR that skips this contract.
+This file remains the Track B SSOT. Capability implementation must keep private bucket / committed / P0 / Fake / allow-stub forbidden. Do not mark live_gate_5b closed from docs or from mint code without live evidence. A contract-only docs only PR is not capability complete.
 
 ---
 
@@ -64,7 +64,7 @@ Define an internal capability to mint short-lived **GetObject** signed URLs for 
 | `object_key` or `(source_table, source_id)` | One required. If both, they must match the committed row or refuse (`identity_mismatch`) |
 | `operation` | `GetObject` only |
 | `ttl_seconds` | Integer. Default **300**. Outside **60-3600** is refuse |
-| `request_id` | Caller unique key. Replay of the same `request_id` must not silently sign a different object (implementation PR locks return-existing vs exit 1) |
+| `request_id` | Caller unique key. Same id + same object: refresh signature (keep grant_id). Same id + different object: refuse `request_id_conflict`. Do not silently sign a different object. |
 | `actor_ref` | Opaque caller id. This contract does not define a product user UUID schema |
 | entitlement proof | Continue only when `EntitlementProofPort` returns `proven`. Missing / `unproven` / `denied` refuse |
 
@@ -99,6 +99,7 @@ Do not fail silently. Insert `download_grants` with `mint_result=denied` and `re
 - `ttl_invalid`
 - `operation_rejected`
 - `public_bucket_forbidden`
+- `request_id_conflict`
 
 ---
 
@@ -157,7 +158,7 @@ Until Track C supplies real proof, no production public call path may exist. Int
 
 ---
 
-## `download_grants` (logical schema; no DDL in this revision)
+## `download_grants` (DDL: `017_download_grants.sql`)
 
 Audit row location. Not the product entitlements table.
 
@@ -178,7 +179,7 @@ Audit row location. Not the product entitlements table.
 
 **Do not store:** full signed URL, R2 secrets, Healthchecks ping URL.
 
-When a later PR adds DDL, **P0 inherit** is mandatory:
+DDL **P0 inherit** is mandatory (`017_download_grants.sql`):
 
 - `ENABLE ROW LEVEL SECURITY`
 - `REVOKE ALL ... FROM PUBLIC, anon, authenticated`
@@ -195,7 +196,7 @@ Per-user RLS on this table is Track C. Do not mix user policies into Track B DDL
 
 I/O is Protocol. Unit tests use Fake. CI `unit` / `job_integration` / `smoke` must pass without Secrets.
 
-Suggested surface (implementation PR locks module names):
+Locked surface:
 
 - `SignedUrlMintPort.mint_get(...)`
 - `EntitlementProofPort.prove(...)`
@@ -223,7 +224,7 @@ live gate 5b must not stand up a public URL. Use a `service_role` CLI. Do not pa
 
 - Re-mint of the same committed `object_key` may create a new signature (new `expires_at`). The blob bytes do not change.
 - mint must not update the committed control-plane row.
-- `request_id` collision rules are locked with tests in the implementation PR. Do not silently sign a different object.
+- `request_id` lock: same object refreshes the issued row (new TTL / URL, same grant_id). Different object is `request_id_conflict` (exit 1). Do not silently sign a different object.
 
 ---
 
@@ -235,12 +236,12 @@ live gate 5b must not stand up a public URL. Use a `service_role` CLI. Do not pa
 
 ---
 
-## Later implementation PR (not this file)
+## Implementation (pr-5b-signed-capability)
 
-1. Protocol + Fake + unit tests that meet this contract
-2. If DDL is added, it belongs to `pr-5b-signed-capability`. A contract-only PR is not capability complete
-3. Internal CLI. Do not add a public Worker
-4. Add the CLI to [exit_codes.md](exit_codes.md)
+1. Protocol + Fake + unit tests in `stockradar.storage.signed_url`
+2. DDL `017_download_grants.sql` (P0 inherit). A contract-only docs only PR is not capability complete
+3. Internal CLI `scripts/storage/signed_url_mint_cli.py`. Do not add a public Worker
+4. CLI exit codes are in [exit_codes.md](exit_codes.md)
 
 ---
 
