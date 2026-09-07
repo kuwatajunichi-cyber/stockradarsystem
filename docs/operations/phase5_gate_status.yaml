@@ -1,11 +1,13 @@
 schema_version: 1
 phase: '5'
-last_updated_utc: '2026-09-07T17:25:00+09:00'
+last_updated_utc: '2026-09-07T17:45:00+09:00'
 overall_status: in_progress
 implementation_snapshot:
-  local_worktree_has_unmerged_changes: true
-  note: 'live_gate_55a closed with GHA + Issue comment evidence. overall_status stays in_progress. Track B signed URL contract docs remain local_only. Issue #93 stays OPEN. Do not claim Web UI complete.'
+  local_worktree_has_unmerged_changes: false
+  note: 'PR #175 merged_and_verified for Track B contract docs. pr-5b-signed-capability and live_gate_5b remain open. live_gate_55a closed. overall_status stays in_progress. Issue #93 stays OPEN.'
 correction_log:
+- at_utc: '2026-09-07T17:45:00+09:00'
+  reason: 'PR #175 merged a10c15a; CI Pass 34101473032. pr-5b-signed-contract merged_and_verified. pr-5b-signed-capability pending. live_gate_5b remains open. overall_status stays in_progress.'
 - at_utc: '2026-09-07T17:25:00+09:00'
   reason: 'live_gate_55a closed: skip_publish 34096740733 and replay 34097933412 Heartbeat skipped; Issue #93 comment 5567447887. HC dashboard operator-confirmed. overall_status stays in_progress. Track B contract still local_only.'
 - at_utc: '2026-09-07T16:40:00+09:00'
@@ -21,7 +23,7 @@ correction_log:
 - at_utc: '2026-09-04T21:20:00+09:00'
   reason: 'Step 5.0: split Phase 5 into tracks A–E. pr_gates include 5.5a and remaining tracks as pending/local_only so 5.5a live close cannot force overall closed. Calendar contract revised to closed_day_expected_ping before ping implementation.'
 roadmap:
-  phase5_status_phrase: in_progress（5.5a live closed。Track B 契約 docs 未マージ。Auth/UI 未着手）
+  phase5_status_phrase: in_progress（5.5a live closed。Track B 契約 docs マージ済・mint 未実装。Auth/UI 未着手）
 tracks:
   A_observability:
     description: 5.5a Healthchecks + 5.5b runs 集計（ops SQL。画面ではない）
@@ -66,18 +68,18 @@ pr_gates:
     pytest_ci_pass_on_merge: null
   pr-5b-signed-contract:
     description: Track B signed URL capability contract docs (no mint/DDL)
-    status: local_only
-    merge_commit: null
-    merge_ci_run_url: null
-    pytest_ci_pass_on_merge: null
-    note: unmerged docs. Not mint implementation. Do not set merged_and_verified without merge SHA + CI Pass.
+    status: merged_and_verified
+    merge_commit: a10c15af430f9a1fd5446d29d97e741a95302207
+    merge_ci_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/34101473032
+    pytest_ci_pass_on_merge: true
+    note: 'merged via PR #175. docs only. mint/DDL not implemented. Do not close live_gate_5b.'
   pr-5b-signed-capability:
     description: Track B signed URL capability（private R2、P0 継承。公開 mint 禁止）
     status: pending
     merge_commit: null
     merge_ci_run_url: null
     pytest_ci_pass_on_merge: null
-    note: mint/DDL not started. Contract docs are pr-5b-signed-contract.
+    note: 'mint/DDL not started. Contract docs merged via PR #175.'
   pr-5c-auth-entitlements:
     description: Track C Auth / entitlements / webhook / 利用者 RLS
     status: pending
