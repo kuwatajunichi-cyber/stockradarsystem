@@ -1,4 +1,4 @@
-# Supabase control plane schema (Phase 3 + Phase 4, Phase 4.5 planned boundary)
+# Supabase control plane schema (Phase 3 + Phase 4 + Phase 4.5; Track B pointer only)
 
 ## Purpose
 
@@ -9,7 +9,7 @@ DDL source of truth:
 - Phase 3: `supabase/migrations/001_phase3_control_plane.sql`
 - Phase 4: `supabase/migrations/002_phase4_control_plane.sql`
 
-Phase 4.5 の metric registry / latest projection は設計済み・未実装であり、現時点の DDL 正本には含まれない。契約は `docs/adr/adr-004-derived-indicators-warm-cache.md` を参照する。
+Phase 4.5 の metric registry / latest projection は `004` / `005` 以降で実装済み。Phase 5 Track B の `download_grants` は未実装であり、正本は `docs/contracts/signed_url_capability.md` である。本ファイルを Track B 契約の代わりにしない。
 
 ## Tables
 
@@ -21,8 +21,9 @@ Phase 4.5 の metric registry / latest projection は設計済み・未実装で
 | cache_pointers | 3 | Active fixed-cache pointer |
 | monthly_snapshots | 4 | Monthly universe snapshot metadata + object_keys JSONB |
 | publish_status | 4 | Daily publish committed rows (DB is source of truth) |
+| download_grants | 5 Track B | Signed GetObject mint audit (logical; no DDL yet). SSOT: `docs/contracts/signed_url_capability.md` |
 
-## Phase 4.5 planned tables（未実装 → DDL: 004/005）
+## Phase 4.5 tables（DDL: 004/005 以降。本節は実装済みレジストリの説明）
 
 | Logical table | Role | Free-stage retention |
 |---------------|------|----------------------|
@@ -47,7 +48,7 @@ Phase 4.5 Free stage では全履歴 `derived_observations` を作らない。�
 
 - write / commit / active CAS は `service_role` のみ。
 - `anon` / `authenticated` への直接 table write policy は付与しない。
-- Phase 5 API は entitlement 確認後に必要な R2 series を返し、R2 bucket を直接 public にしない。
+- R2 bucket を直接 public にしない。Track B の mint 契約（private bucket、committed のみ、公開 mint 禁止）は `docs/contracts/signed_url_capability.md` が正本。本ファイルを Track B の代わりにしない。誰がどの series / published blob を見られるかは Track C / D（Web UI 仕様後）。利用者別 RLS は Track C。
 
 ## runs (Phase 4 terminal)
 
@@ -97,3 +98,4 @@ adr005:
 - docs/contracts/daily_publish_manifest_schema.md
 - docs/adr/adr-004-derived-indicators-warm-cache.md
 - docs/adr/adr-005-monthly-new-core-backfill.md
+- docs/contracts/signed_url_capability.md

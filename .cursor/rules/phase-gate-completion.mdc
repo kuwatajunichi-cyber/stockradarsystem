@@ -28,6 +28,9 @@ alwaysApply: true
 | **Step 5.0 Track map** | プラン本文 + `phase5_gate_status.yaml` の整合。Healthchecks ping 実装・本番不要。未マージなら `pr-50-track-map: local_only` |
 | **PR-55a** | merge SHA + CI Pass + U-55a-1 / U-55a-2 証拠。U-gate なしで merged_and_verified にしない |
 | **Live gate 55a** | cutover Live gate 全項目（閉場日 `closed_day_expected_ping` を含む）。Pause をもって代えない。`live_gate_55a` closed でも Phase 5 `overall_status` は in_progress のまま |
+| **PR-5B-contract** | Track B 契約 docs のみ。mint / DDL / 本番不要。未マージなら `pr-5b-signed-contract: local_only` |
+| **PR-5B-capability** | mint 実装。merge SHA + CI Pass。P0 継承。公開 mint なし。契約 PR だけで merged_and_verified にしない |
+| **Live gate 5b** | 契約の live 項目。docs だけでは閉じない。`live_gate_5b` closed でも Phase 5 `overall_status` は in_progress のまま |
 | **Phase 5 全体 CLOSED** | 全トラック（A–E）の pr_gates merged_and_verified + 全 live_gates closed + roadmap 行更新。5.5a 単独では閉じない |
 
 ## 禁止（§0 FAIL 相当）
@@ -35,6 +38,7 @@ alwaysApply: true
 - ローカル実装・未マージ・live gate 未達のまま To-Do / frontmatter / ユーザー報告を **完了** とする
 - 該当フェーズの gate_status.yaml を更新せずに進捗を報告する
 - 5.5a live close だけで Phase 5 `overall_status` closed / Issue #93 close / Web UI 完了と報告する
+- Track B で公開 mint や利用者 policy を足すこと
 - stage を飛ばした実装を、飛ばしていない PR の **完了** として記録する
 - CI 未実行・未 Pass を **Pass** と報告する
 

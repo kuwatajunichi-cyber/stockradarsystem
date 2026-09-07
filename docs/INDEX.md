@@ -105,6 +105,7 @@ CI・ワークフロー・ジョブの変更に関わる「原則」「運用基
 - [docs/contracts/daily_replay_and_monthly_universe.md](contracts/daily_replay_and_monthly_universe.md) — 日次 replay / patched cache / `daily.yml` の artifact・cache 契約
 - [docs/contracts/cron_dispatch_watchdog.md](contracts/cron_dispatch_watchdog.md) — Cloudflare Cron 欠走の GitHub 側検知 / 当日 catch-up
 - [docs/contracts/github_state_to_r2_supabase_mapping.md](contracts/github_state_to_r2_supabase_mapping.md) — GHA state → R2 / Supabase mapping（`schema_version` 6、ADR-005 `enabled` / `live_gate_005` closed。YAML の `planned_*` は別名であり未実装を意味しない）
+- [docs/contracts/signed_url_capability.md](contracts/signed_url_capability.md) — Phase 5 Track B: private R2 の committed blob へ短命 GetObject 署名（公開 mint 禁止。docs のみ）
 - [docs/contracts/monthly_new_core_backfill_cloudflare_cron_dispatch.md](contracts/monthly_new_core_backfill_cloudflare_cron_dispatch.md) — ADR-005 poller Cron 契約（Worker 本番 4 crons、`MNC_DISPATCH_ENABLED=true`）
 - [docs/contracts/monthly_new_core_backfill.md](contracts/monthly_new_core_backfill.md) — ADR-005 分割 request runbook
 
@@ -123,6 +124,7 @@ CI・ワークフロー・ジョブの変更に関わる「原則」「運用基
 - Phase 5 gate SSOT（in_progress。5.5a 単独では overall を閉じない）: [phase5_gate_status.yaml](operations/phase5_gate_status.yaml)
 - Phase 5 observability 調査: [phase5_observability_options.md](operations/phase5_observability_options.md)
 - Phase 5 observability runbook（カレンダー契約 `closed_day_expected_ping`）: [phase5_observability_cutover.md](operations/phase5_observability_cutover.md)
+- Phase 5 Track B signed URL capability 契約（docs のみ。mint 未実装）: [signed_url_capability.md](contracts/signed_url_capability.md)
 - Cloudflare Cron 欠走 (2026-08-26): [incidents/cloudflare_cron_miss_2026-08-26.md](operations/incidents/cloudflare_cron_miss_2026-08-26.md)
 - GitHub Issue: [#93](https://github.com/kuwatajunichi-cyber/stockradarsystem/issues/93)
 

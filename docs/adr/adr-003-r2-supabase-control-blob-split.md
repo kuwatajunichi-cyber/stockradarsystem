@@ -41,7 +41,7 @@ After a paid web app launch, primary cost risk shifts from GitHub Actions minute
 ### Supabase holds
 
 - `runs`, `artifact_index`, `cache_index`, `monthly_snapshots`, `publish_status`
-- `webhook_events`, `entitlements`, `download_grants` (entitlements detailed in Phase 5)
+- `webhook_events`, `entitlements`, `download_grants` (entitlements product is Track C; `download_grants` audit mint is Track B, SSOT `docs/contracts/signed_url_capability.md`)
 - Phase 4.5 の metric definition / version / active set metadata
 - Free stage で active set の最新断面だけを保持する `latest_derived_observations`
 
@@ -82,7 +82,7 @@ Normal path: resolve `object_key` from workflow outputs or Supabase metadata. Se
 
 - Phase 1+: upload adapters, Supabase migrations
 - Phase 2+: publish manifest writes, orphan sweeper, observability
-- Phase 5: users / subscriptions / payments tables
+- Phase 5: Track B signed URL capability (`download_grants` audit, private R2, committed only; no public mint). Track C: users / subscriptions / payments / entitlements product
 - Phase 4.5: metric registry / active set / latest projection metadata（rollout 4.5c、live_gate closed via waiver 2026-08-29）
 - ADR-005: `derived-inputs/` の Monthly new-Core backfill 成果物（Adopted; live_gate_005 closed 2026-09-01）
 
@@ -93,6 +93,7 @@ Phase 0 is docs + contract tests only. **Production workflow behavior is unchang
 - Issue #93
 - `config/github_state_to_r2_supabase_mapping.yaml`
 - `docs/contracts/supabase_control_plane_schema.md`
+- `docs/contracts/signed_url_capability.md`
 - `docs/contracts/daily_publish_manifest_schema.md`
 - `docs/adr/adr-004-derived-indicators-warm-cache.md`
 - `docs/adr/adr-005-monthly-new-core-backfill.md`
