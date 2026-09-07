@@ -178,9 +178,15 @@ U-gate 証拠なしで live close しない。replay / skip_publish の「ping �
 
 ---
 
+## Track A 5.5b（ops `runs` views）
+
+契約: [ops_runs_views.md](../contracts/ops_runs_views.md)。DDL `018_ops_runs_views.sql`。ユーザー向け画面ではない。live_gate_55b は SQL だけでは閉じない。
+
+---
+
 ## Out of scope（Phase 5.5a）
 
-- Supabase KPI ダッシュボード（5.5b / Phase 4 `runs` 後。ops SQL。ユーザー向け画面ではない）
+- Supabase KPI ダッシュボードの **ユーザー画面**（5.5b は ops SQL ビューのみ。Web UI ではない）
 - `monthly.yml` / MNC poller/worker の heartbeat
 - Worker 専用 heartbeat（Daily/Patch ping で足りる前提）
 - Slack / Discord

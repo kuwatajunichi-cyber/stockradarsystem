@@ -53,6 +53,8 @@ class FakeR2ObjectStore:
 
     objects: dict[str, bytes] = field(default_factory=dict)
     metadata: dict[str, dict[str, Any]] = field(default_factory=dict)
+    public_bucket: bool = False
+    bucket_name: str = "fake-private-bucket"
     _lock: Any = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -146,6 +148,19 @@ class FakeR2ObjectStore:
         key = object_key.strip()
         self.objects.pop(key, None)
         self.metadata.pop(key, None)
+
+    def delivery_bucket_is_public(self) -> bool:
+        return bool(self.public_bucket)
+
+    def presign_get_object(self, object_key: str, *, ttl_seconds: int) -> str:
+        key = object_key.strip()
+        with self._lock:
+            if key not in self.objects:
+                raise FileNotFoundError(f"object not found: {key!r}")
+        return (
+            f"https://example.r2.cloudflarestorage.com/{self.bucket_name}/"
+            f"{key}?X-Amz-Expires={int(ttl_seconds)}&X-Amz-Signature=fake"
+        )
 
 
 ENV_R2_ACCESS_KEY_ID = "R2_ACCESS_KEY_ID"
@@ -325,7 +340,19 @@ class S3R2ObjectStore:
     def head_object(self, object_key: str) -> R2HeadResult:
         key = object_key.strip()
         physical = self._physical_key(key)
-        resp = self._get_client().head_object(Bucket=self.bucket, Key=physical)
+        try:
+            resp = self._get_client().head_object(Bucket=self.bucket, Key=physical)
+        except Exception as exc:
+            code = ""
+            response = getattr(exc, "response", None)
+            if isinstance(response, dict):
+                code = str(response.get("Error", {}).get("Code", ""))
+            http_status = None
+            if isinstance(response, dict):
+                http_status = response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+            if code in {"404", "NoSuchKey", "NotFound"} or http_status == 404:
+                raise FileNotFoundError(f"object not found: {key!r}") from exc
+            raise RuntimeError(f"R2 HEAD failed for {key!r}") from exc
         content = self.get_object(key)
         return R2HeadResult(
             object_key=key,
@@ -339,3 +366,20 @@ class S3R2ObjectStore:
         physical = self._physical_key(key)
         resp = self._get_client().get_object(Bucket=self.bucket, Key=physical)
         return resp["Body"].read()
+
+    def delivery_bucket_is_public(self) -> bool:
+        flag = os.environ.get("R2_PUBLIC_BUCKET", "").strip().lower()
+        return flag in {"1", "true", "yes"}
+
+    def presign_get_object(self, object_key: str, *, ttl_seconds: int) -> str:
+        key = object_key.strip()
+        physical = self._physical_key(key)
+        url = self._get_client().generate_presigned_url(
+            "get_object",
+            Params={"Bucket": self.bucket, "Key": physical},
+            ExpiresIn=int(ttl_seconds),
+            HttpMethod="GET",
+        )
+        if "r2.cloudflarestorage.com" not in url:
+            raise RuntimeError("presign host is not R2 S3 API domain")
+        return str(url)

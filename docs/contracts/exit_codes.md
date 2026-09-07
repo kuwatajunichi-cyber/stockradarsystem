@@ -44,4 +44,8 @@
   - `2`: `failed_retryable` 永続化済み
   - `3`: terminal `blocked` 永続化済み
 
-共通の `3` は ADR-005 worker 専用。Monthly coordinator（`run_monthly.py` / `commit-snapshot`）は `3` を使わない。
+- `python scripts/storage/signed_url_mint_cli.py mint`
+  - `1`: 契約拒否（entitlement 未証明、not committed / orphan、TTL、非 GetObject、request_id_conflict 等）
+  - `2`: R2 HEAD/署名、Supabase 監査書き込み、ネットワーク
+  - `0`: issued。stdout に signed URL 本文は出さない（`--json-output` のみ）
+  - 公開 Worker / 匿名 HTTP ではない

@@ -104,6 +104,9 @@ _SIGNED_URL_REQUIRED_MARKERS: tuple[str, ...] = (
     "ttl_seconds",
     "identity_mismatch",
     "checksum_mismatch",
+    "request_id_conflict",
+    "SignedUrlMintPort",
+    "017_download_grants",
 )
 
 _CUTOVER_REQUIRED_MARKERS: tuple[str, ...] = (
@@ -314,6 +317,8 @@ def validate_gate_status_document(data: dict[str, Any]) -> list[str]:
                 violations.extend(_validate_live_gate_55a_closed(data, live))
             if live_id == "live_gate_5b":
                 violations.extend(_validate_live_gate_5b_closed(data))
+            if live_id == "live_gate_55b":
+                violations.extend(_validate_live_gate_55b_closed(data))
 
     all_merged = _all_pr_gates_merged(pr_gates)
     all_live_closed = _all_live_gates_closed(live_gates)
@@ -432,6 +437,37 @@ def _validate_live_gate_5b_closed(data: dict[str, Any]) -> list[str]:
                 f"live_gates.live_gate_5b closed requires pr_gates.{gid} "
                 "merged_and_verified (docs alone cannot close)"
             )
+    return violations
+
+
+def _validate_live_gate_55b_closed(data: dict[str, Any]) -> list[str]:
+    violations: list[str] = []
+    pr_gates = data.get("pr_gates")
+    if not isinstance(pr_gates, dict):
+        violations.append("live_gates.live_gate_55b closed requires pr_gates mapping")
+        return violations
+    gate = pr_gates.get("pr-55b-runs-views")
+    if not isinstance(gate, dict) or gate.get("status") != "merged_and_verified":
+        violations.append(
+            "live_gates.live_gate_55b closed requires pr_gates.pr-55b-runs-views "
+            "merged_and_verified (SQL file alone cannot close)"
+        )
+    return violations
+
+
+def validate_ops_runs_views_contract(contract_text: str) -> list[str]:
+    violations: list[str] = []
+    for marker in (
+        "ops_runs_views",
+        "ops_runs_by_day",
+        "ops_runs_success_rate_30d",
+        "service_role",
+        "018_ops_runs_views",
+    ):
+        if marker not in contract_text:
+            violations.append(f"ops_runs_views.md missing required marker {marker!r}")
+    if "user dashboard" not in contract_text.lower() and "Web UI" not in contract_text:
+        violations.append("ops_runs_views.md must state it is not a user dashboard / Web UI")
     return violations
 
 

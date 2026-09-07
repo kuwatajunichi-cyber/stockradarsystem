@@ -30,6 +30,7 @@ alwaysApply: true
 | **Live gate 55a** | cutover Live gate 全項目（閉場日 `closed_day_expected_ping` を含む）。Pause をもって代えない。`live_gate_55a` closed でも Phase 5 `overall_status` は in_progress のまま |
 | **PR-5B-contract** | Track B 契約 docs のみ。mint / DDL / 本番不要。未マージなら `pr-5b-signed-contract: local_only` |
 | **PR-5B-capability** | mint 実装。merge SHA + CI Pass。P0 継承。公開 mint なし。契約 PR だけで merged_and_verified にしない |
+| **PR-55b** | ops `runs` views。merge SHA + CI Pass。ユーザー向け画面ではない。未マージなら `pr-55b-runs-views: local_only`。SQL ファイルだけで live_gate_55b を閉じない |
 | **Live gate 5b** | 契約の live 項目。docs だけでは閉じない。`live_gate_5b` closed でも Phase 5 `overall_status` は in_progress のまま |
 | **Phase 5 全体 CLOSED** | 全トラック（A–E）の pr_gates merged_and_verified + 全 live_gates closed + roadmap 行更新。5.5a 単独では閉じない |
 
