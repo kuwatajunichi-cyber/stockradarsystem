@@ -1,19 +1,27 @@
 schema_version: 1
 phase: '5'
-last_updated_utc: '2026-09-05T15:45:00+09:00'
+last_updated_utc: '2026-09-07T17:25:00+09:00'
 overall_status: in_progress
 implementation_snapshot:
   local_worktree_has_unmerged_changes: true
-  note: 'Step 5.0 + 5.5a ping are local_only/unmerged. U-55a-1/2 completed. live_gate_55a stays open. Do not close overall_status. Issue #93 stays OPEN.'
+  note: 'live_gate_55a closed with GHA + Issue comment evidence. overall_status stays in_progress. Track B signed URL contract docs remain local_only. Issue #93 stays OPEN. Do not claim Web UI complete.'
 correction_log:
+- at_utc: '2026-09-07T17:25:00+09:00'
+  reason: 'live_gate_55a closed: skip_publish 34096740733 and replay 34097933412 Heartbeat skipped; Issue #93 comment 5567447887. HC dashboard operator-confirmed. overall_status stays in_progress. Track B contract still local_only.'
+- at_utc: '2026-09-07T16:40:00+09:00'
+  reason: Audited post-merge Cron-equivalent runs. Recorded GHA heartbeat_ok=true URLs for patch_success_ping (Mon 2026-09-07), daily_success_ping (Mon 2026-09-07), closed_day_expected_ping (Sun 2026-09-06 Patch+Daily). skip_publish_no_ping and replay_no_ping still null. live_gate_55a remains open. overall_status stays in_progress.
+- at_utc: '2026-09-05T23:30:00+09:00'
+  reason: Track B signed_url_capability contract docs added (local_only). pr-5b-signed-contract local_only; pr-5b-signed-capability remains pending. live_gate_5b remains open. overall_status stays in_progress.
+- at_utc: '2026-09-05T23:30:00+09:00'
+  reason: 'PR #174 merged 8b8a252; CI Pass run 33957607494. pr-50-track-map and pr-55a-healthchecks merged_and_verified. U-55a-1/2 already completed. live_gate_55a remains open. overall_status stays in_progress.'
 - at_utc: '2026-09-05T15:45:00+09:00'
-  reason: '5.5a ping implemented locally (daily.yml / patch.yml). pr-55a-healthchecks local_only. live_gate_55a remains open. overall_status stays in_progress.'
+  reason: 5.5a ping implemented locally (daily.yml / patch.yml). pr-55a-healthchecks local_only. live_gate_55a remains open. overall_status stays in_progress.
 - at_utc: '2026-09-05T15:20:00+09:00'
   reason: 'U-55a-1/2 completed with Issue #93 evidence. pr-55a-healthchecks remains pending (ping not implemented). live_gate_55a remains open. overall_status stays in_progress.'
 - at_utc: '2026-09-04T21:20:00+09:00'
   reason: 'Step 5.0: split Phase 5 into tracks A–E. pr_gates include 5.5a and remaining tracks as pending/local_only so 5.5a live close cannot force overall closed. Calendar contract revised to closed_day_expected_ping before ping implementation.'
 roadmap:
-  phase5_status_phrase: in_progress（トラック地図。5.5a ping 未マージ。Auth/UI 未着手）
+  phase5_status_phrase: in_progress（5.5a live closed。Track B 契約 docs 未マージ。Auth/UI 未着手）
 tracks:
   A_observability:
     description: 5.5a Healthchecks + 5.5b runs 集計（ops SQL。画面ではない）
@@ -21,7 +29,7 @@ tracks:
     requires_web_ui_spec: false
   B_delivery_capability:
     description: private R2、committed のみ、短命署名、監査。製品ロールなし
-    status: pending
+    status: in_progress
     requires_web_ui_spec: false
   C_auth_entitlements:
     description: Supabase Auth、entitlements、課金 webhook、利用者別 RLS
@@ -38,30 +46,38 @@ tracks:
 pr_gates:
   pr-50-track-map:
     description: Step 5.0 トラック地図 + phase5_gate_status + cutover 休場日契約
-    status: local_only
-    merge_commit: null
-    merge_ci_run_url: null
-    pytest_ci_pass_on_merge: null
-    note: unmerged docs. Not 5.5a implementation.
+    status: merged_and_verified
+    merge_commit: 8b8a252b9c5e913c205b1299effbc021e5aa61e0
+    merge_ci_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33957607494
+    pytest_ci_pass_on_merge: true
+    note: 'merged via PR #174 with 5.5a ping. Not Phase 5 overall close.'
   pr-55a-healthchecks:
     description: Healthchecks.io ping（Check 2本、閉場日 ping、replay/skip_publish 非 ping）
-    status: local_only
-    merge_commit: null
-    merge_ci_run_url: null
-    pytest_ci_pass_on_merge: null
-    note: U-55a-1/2 completed. Ping implemented locally. Do not set merged_and_verified without merge SHA + CI Pass.
+    status: merged_and_verified
+    merge_commit: 8b8a252b9c5e913c205b1299effbc021e5aa61e0
+    merge_ci_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33957607494
+    pytest_ci_pass_on_merge: true
+    note: 'merged via PR #174. U-55a-1/2 completed. live_gate_55a still open. Do not close overall from this gate.'
   pr-55b-runs-views:
     description: Phase 4 runs 集計ビュー（ops SQL。ユーザー向け画面ではない）
     status: pending
     merge_commit: null
     merge_ci_run_url: null
     pytest_ci_pass_on_merge: null
+  pr-5b-signed-contract:
+    description: Track B signed URL capability contract docs (no mint/DDL)
+    status: local_only
+    merge_commit: null
+    merge_ci_run_url: null
+    pytest_ci_pass_on_merge: null
+    note: unmerged docs. Not mint implementation. Do not set merged_and_verified without merge SHA + CI Pass.
   pr-5b-signed-capability:
     description: Track B signed URL capability（private R2、P0 継承。公開 mint 禁止）
     status: pending
     merge_commit: null
     merge_ci_run_url: null
     pytest_ci_pass_on_merge: null
+    note: mint/DDL not started. Contract docs are pr-5b-signed-contract.
   pr-5c-auth-entitlements:
     description: Track C Auth / entitlements / webhook / 利用者 RLS
     status: pending
@@ -95,14 +111,14 @@ user_gates:
 live_gates:
   live_gate_55a:
     track: A
-    status: open
-    closed_at_utc: null
-    patch_success_ping_run_url: null
-    daily_success_ping_run_url: null
-    skip_publish_no_ping_run_url: null
-    replay_no_ping_run_url: null
-    closed_day_expected_ping_run_url: null
-    note: calendar Pause is not the primary weekend/holiday policy. closed_day_expected_ping is required.
+    status: closed
+    closed_at_utc: '2026-09-07T08:25:00Z'
+    patch_success_ping_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/34078193224
+    daily_success_ping_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/34092303792
+    skip_publish_no_ping_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/34096740733
+    replay_no_ping_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/34097933412
+    closed_day_expected_ping_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/34007930390
+    note: closed 2026-09-07. HC dashboard operator-confirmed. Issue comment https://github.com/kuwatajunichi-cyber/stockradarsystem/issues/93#issuecomment-5567447887. Pause not used. 5.5a live close does not close Phase 5 overall.
   live_gate_55b:
     track: A
     status: open
@@ -111,6 +127,7 @@ live_gates:
     track: B
     status: open
     closed_at_utc: null
+    note: docs alone cannot close. requires pr-5b-signed-contract and pr-5b-signed-capability merged_and_verified. no public mint endpoint.
   live_gate_5c:
     track: C
     status: open

@@ -4,7 +4,7 @@
 **ロードマップ:** [issue_93_roadmap.md](issue_93_roadmap.md)  
 **ゲート正本:** [phase5_gate_status.yaml](phase5_gate_status.yaml)
 
-ping は `daily.yml` / `daily_universe_patch.yml` に組み込み済み（未マージなら live 未達）。カレンダー契約を満たさない実装は 5.5a としてマージしない。
+ping は `daily.yml` / `daily_universe_patch.yml` に組み込み済み（PR #174）。`live_gate_55a` は 2026-09-07 に closed。Phase 5 overall は in_progress。カレンダー契約を満たさない実装は 5.5a としてマージしない。
 
 ---
 
@@ -168,11 +168,11 @@ U-gate 証拠なしで live close しない。replay / skip_publish の「ping �
 
 - [x] **U-55a-1:** 2 check 作成、メール通知テスト（[Issue #93 comment](https://github.com/kuwatajunichi-cyber/stockradarsystem/issues/93#issuecomment-5549891323)）
 - [x] **U-55a-2:** Secrets 設定（[Issue #93 comment](https://github.com/kuwatajunichi-cyber/stockradarsystem/issues/93#issuecomment-5549912192)）
-- [ ] 定時 Patch + Daily 各 1 回: HC ダッシュボードに ping 記録
-- [ ] 手動 `skip_publish=true` run: ping **なし** を確認（daily。**営業日**の `run_date`）
-- [ ] 手動 `is_replay=true` run: ping **なし** を確認（daily。**営業日**の過去 `run_date`）
-- [ ] **閉場日**（土日または XTKS 祝日）: Cron または当日 `run_date`（`is_replay=false`）の `closed_day_expected_ping`。Pause をもって代えない。休場日 replay で代えない
-- [ ] Issue #93 コメントに HC check URL（uuid は伏せ）と検証 run URL
+- [x] 定時 Patch + Daily 各 1 回: HC ダッシュボードに ping 記録（運用者確認 2026-09-07）。GHA: [Patch](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/34078193224) / [Daily](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/34092303792)
+- [x] 手動 `skip_publish=true` run: ping **なし**（[34096740733](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/34096740733)。`run_date=2026-09-07` 営業日、両 Heartbeat skipped）
+- [x] 手動 `is_replay=true` run: ping **なし**（[34097933412](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/34097933412)。`run_date=2026-09-04` 営業日の過去日、両 Heartbeat skipped）
+- [x] **閉場日** Cron 相当: `closed_day_expected_ping`（[Patch 34007930390](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/34007930390) / [Daily 34017354982](https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/34017354982)。2026-09-06、Pause なし）
+- [x] Issue #93 コメント（uuid 伏せ + run URL）: https://github.com/kuwatajunichi-cyber/stockradarsystem/issues/93#issuecomment-5567447887
 
 5.5a live close は Track A の一部完了に過ぎない。Phase 5 `overall_status` は閉じない。
 

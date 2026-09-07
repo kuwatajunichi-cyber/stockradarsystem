@@ -15,12 +15,15 @@ from stockradar.governance.phase5_gate_honesty import (
     validate_cutover_calendar_contract,
     validate_gate_status_document,
     validate_roadmap_against_gate_status,
+    validate_signed_url_capability_contract,
 )
 
 _REPO = Path(__file__).resolve().parents[1]
 _GATE_STATUS = _REPO / "docs" / "operations" / "phase5_gate_status.yaml"
 _ROADMAP = _REPO / "docs" / "operations" / "issue_93_roadmap.md"
 _CUTOVER = _REPO / "docs" / "operations" / "phase5_observability_cutover.md"
+_SIGNED_URL = _REPO / "docs" / "contracts" / "signed_url_capability.md"
+_SCHEMA = _REPO / "docs" / "contracts" / "supabase_control_plane_schema.md"
 _INDEX = _REPO / "docs" / "INDEX.md"
 
 
@@ -55,6 +58,22 @@ def test_phase5_index_links_gate_ssot() -> None:
     index = _INDEX.read_text(encoding="utf-8")
     assert "phase5_gate_status.yaml" in index
     assert "phase5_observability_cutover.md" in index
+    assert "signed_url_capability.md" in index
+
+
+@pytest.mark.unit
+def test_phase5_signed_url_capability_contract() -> None:
+    contract = _SIGNED_URL.read_text(encoding="utf-8")
+    violations = validate_signed_url_capability_contract(contract)
+    assert violations == [], "\n".join(violations)
+
+
+@pytest.mark.unit
+def test_schema_is_not_track_b_ssot() -> None:
+    schema = _SCHEMA.read_text(encoding="utf-8")
+    assert "signed_url_capability.md" in schema
+    assert "代わりにしない" in schema
+    assert "download_grants" in schema
 
 
 @pytest.mark.unit
@@ -62,6 +81,8 @@ def test_phase5_required_gates_include_remaining_tracks() -> None:
     assert "pr-55a-healthchecks" in REQUIRED_PR_GATE_IDS
     remainder = REQUIRED_PR_GATE_IDS - {"pr-55a-healthchecks"}
     assert remainder, "pr_gates must not be 5.5a only"
+    assert "pr-5b-signed-contract" in REQUIRED_PR_GATE_IDS
+    assert "pr-5b-signed-capability" in REQUIRED_PR_GATE_IDS
     assert REQUIRED_LIVE_GATE_IDS - {"live_gate_55a"}
 
 
@@ -158,6 +179,44 @@ def test_live_gate_55a_closed_requires_calendar_evidence() -> None:
     bad["live_gates"]["live_gate_55a"]["closed_day_expected_ping_run_url"] = None
     violations = validate_gate_status_document(bad)
     assert any("closed_day_expected_ping_run_url" in v for v in violations)
+
+
+@pytest.mark.unit
+def test_signed_url_contract_rejects_missing_private_bucket() -> None:
+    bad = (
+        "# contract\n"
+        "signed_url_capability\n"
+        "download_grants\n"
+        "committed\n"
+        "orphan\n"
+        "GetObject\n"
+        "service_role\n"
+        "allow-stub forbidden\n"
+        "Fake\n"
+        "P0\n"
+        "anon\n"
+        "authenticated\n"
+        "ttl_seconds\n"
+        "identity_mismatch\n"
+        "checksum_mismatch\n"
+        "Out of scope\n"
+        "public mint\n"
+        "docs only\n"
+        "supabase_control_plane_schema.md\n"
+    )
+    violations = validate_signed_url_capability_contract(bad)
+    assert any("private bucket" in v for v in violations)
+
+
+@pytest.mark.unit
+def test_live_gate_5b_closed_requires_capability_pr() -> None:
+    data = _load_gate_status()
+    bad = copy.deepcopy(data)
+    bad["live_gates"]["live_gate_5b"]["status"] = "closed"
+    bad["live_gates"]["live_gate_5b"]["closed_at_utc"] = "2026-09-10T00:00:00Z"
+    violations = validate_gate_status_document(bad)
+    assert any("pr-5b-signed-capability" in v for v in violations)
+    assert any("docs alone cannot close" in v for v in violations)
 
 
 @pytest.mark.unit

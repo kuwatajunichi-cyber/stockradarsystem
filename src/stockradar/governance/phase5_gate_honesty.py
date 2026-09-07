@@ -38,6 +38,7 @@ REQUIRED_PR_GATE_IDS: frozenset[str] = frozenset(
         "pr-50-track-map",
         "pr-55a-healthchecks",
         "pr-55b-runs-views",
+        "pr-5b-signed-contract",
         "pr-5b-signed-capability",
         "pr-5c-auth-entitlements",
         "pr-5d-web-ui",
@@ -81,6 +82,29 @@ _LIVE_GATE_55A_EVIDENCE_KEYS: tuple[str, ...] = (
 )
 
 CALENDAR_POLICY_TOKEN = "closed_day_expected_ping"
+SIGNED_URL_CAPABILITY_TOKEN = "signed_url_capability"
+_LIVE_GATE_5B_REQUIRED_PR_GATES: tuple[str, ...] = (
+    "pr-5b-signed-contract",
+    "pr-5b-signed-capability",
+)
+
+_SIGNED_URL_REQUIRED_MARKERS: tuple[str, ...] = (
+    SIGNED_URL_CAPABILITY_TOKEN,
+    "download_grants",
+    "private bucket",
+    "committed",
+    "orphan",
+    "GetObject",
+    "service_role",
+    "allow-stub",
+    "Fake",
+    "P0",
+    "anon",
+    "authenticated",
+    "ttl_seconds",
+    "identity_mismatch",
+    "checksum_mismatch",
+)
 
 _CUTOVER_REQUIRED_MARKERS: tuple[str, ...] = (
     CALENDAR_POLICY_TOKEN,
@@ -152,6 +176,33 @@ def validate_cutover_calendar_contract(cutover_text: str) -> list[str]:
         violations.append(
             "phase5_observability_cutover.md must document the weekend false-Down "
             "from Period 1d + closed-day no-ping"
+        )
+    return violations
+
+
+def validate_signed_url_capability_contract(contract_text: str) -> list[str]:
+    """Track B docs must lock private/committed/P0 fail-closed mint before implementation."""
+    violations: list[str] = []
+    for marker in _SIGNED_URL_REQUIRED_MARKERS:
+        if marker not in contract_text:
+            violations.append(
+                f"signed_url_capability.md missing required marker {marker!r}"
+            )
+    if "Out of scope" not in contract_text:
+        violations.append("signed_url_capability.md must keep an Out of scope section")
+    if "public mint" not in contract_text and "\u516c\u958b mint" not in contract_text:
+        violations.append(
+            "signed_url_capability.md must forbid public mint until Track C"
+        )
+    if "allow-stub forbidden" not in contract_text and "allow-stub" not in contract_text:
+        violations.append(
+            "signed_url_capability.md must forbid allow-stub entitlement bypass"
+        )
+    if "docs only" not in contract_text.lower() and "docs \u306e\u307f" not in contract_text:
+        violations.append("signed_url_capability.md must state this revision is docs only")
+    if "supabase_control_plane_schema.md" not in contract_text:
+        violations.append(
+            "signed_url_capability.md must say schema.md is not Track B SSOT"
         )
     return violations
 
@@ -261,6 +312,8 @@ def validate_gate_status_document(data: dict[str, Any]) -> list[str]:
                 violations.append(f"live_gates.{live_id} closed requires closed_at_utc")
             if live_id == "live_gate_55a":
                 violations.extend(_validate_live_gate_55a_closed(data, live))
+            if live_id == "live_gate_5b":
+                violations.extend(_validate_live_gate_5b_closed(data))
 
     all_merged = _all_pr_gates_merged(pr_gates)
     all_live_closed = _all_live_gates_closed(live_gates)
@@ -361,6 +414,24 @@ def _validate_live_gate_55a_closed(
             "live_gates.live_gate_55a closed requires pr_gates.pr-55a-healthchecks "
             "merged_and_verified"
         )
+    return violations
+
+
+def _validate_live_gate_5b_closed(data: dict[str, Any]) -> list[str]:
+    violations: list[str] = []
+    pr_gates = data.get("pr_gates")
+    if not isinstance(pr_gates, dict):
+        violations.append(
+            "live_gates.live_gate_5b closed requires pr_gates mapping"
+        )
+        return violations
+    for gid in _LIVE_GATE_5B_REQUIRED_PR_GATES:
+        gate = pr_gates.get(gid)
+        if not isinstance(gate, dict) or gate.get("status") != "merged_and_verified":
+            violations.append(
+                f"live_gates.live_gate_5b closed requires pr_gates.{gid} "
+                "merged_and_verified (docs alone cannot close)"
+            )
     return violations
 
 
