@@ -26,6 +26,8 @@ def test_creates_ops_views(migration_018: str) -> None:
     assert "END $$;" in migration_018
     assert "FROM public.runs" in migration_018
     assert "success_rate" in migration_018
+    assert "started_at_utc >= now() - interval '30 days'" in migration_018
+    assert "(now() AT TIME ZONE 'utc')" not in migration_018
 
 
 def test_p0_no_anon_grants_or_policies(migration_018: str) -> None:

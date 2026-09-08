@@ -87,6 +87,13 @@ _LIVE_GATE_5B_REQUIRED_PR_GATES: tuple[str, ...] = (
     "pr-5b-signed-contract",
     "pr-5b-signed-capability",
 )
+_LIVE_GATE_5B_EVIDENCE_KEYS: tuple[str, ...] = (
+    "internal_mint_success_run_url",
+    "refuse_unproven_or_not_committed_run_url",
+)
+_LIVE_GATE_55B_EVIDENCE_KEYS: tuple[str, ...] = (
+    "operator_select_evidence_url",
+)
 
 _SIGNED_URL_REQUIRED_MARKERS: tuple[str, ...] = (
     SIGNED_URL_CAPABILITY_TOKEN,
@@ -437,6 +444,16 @@ def _validate_live_gate_5b_closed(data: dict[str, Any]) -> list[str]:
                 f"live_gates.live_gate_5b closed requires pr_gates.{gid} "
                 "merged_and_verified (docs alone cannot close)"
             )
+    live_gates = data.get("live_gates")
+    live = live_gates.get("live_gate_5b") if isinstance(live_gates, dict) else None
+    if isinstance(live, dict):
+        for key in _LIVE_GATE_5B_EVIDENCE_KEYS:
+            value = live.get(key)
+            if not isinstance(value, str) or not _EVIDENCE_URL_RE.match(value.strip()):
+                violations.append(
+                    f"live_gates.live_gate_5b closed requires URL-shaped {key} "
+                    "(docs and mint code cannot close)"
+                )
     return violations
 
 
@@ -452,6 +469,16 @@ def _validate_live_gate_55b_closed(data: dict[str, Any]) -> list[str]:
             "live_gates.live_gate_55b closed requires pr_gates.pr-55b-runs-views "
             "merged_and_verified (SQL file alone cannot close)"
         )
+    live_gates = data.get("live_gates")
+    live = live_gates.get("live_gate_55b") if isinstance(live_gates, dict) else None
+    if isinstance(live, dict):
+        for key in _LIVE_GATE_55B_EVIDENCE_KEYS:
+            value = live.get(key)
+            if not isinstance(value, str) or not _EVIDENCE_URL_RE.match(value.strip()):
+                violations.append(
+                    f"live_gates.live_gate_55b closed requires URL-shaped {key} "
+                    "(SQL file alone cannot close)"
+                )
     return violations
 
 

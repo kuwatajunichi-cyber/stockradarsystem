@@ -37,7 +37,7 @@ SELECT
     )
   END AS success_rate
 FROM public.runs
-WHERE started_at_utc >= (now() AT TIME ZONE 'utc') - interval '30 days'
+WHERE started_at_utc >= now() - interval '30 days'
 GROUP BY workflow;
 
 REVOKE ALL ON TABLE public.ops_runs_by_day FROM PUBLIC, anon, authenticated;

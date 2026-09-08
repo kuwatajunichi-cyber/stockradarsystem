@@ -224,7 +224,8 @@ live gate 5b must not stand up a public URL. Use a `service_role` CLI. Do not pa
 
 - Re-mint of the same committed `object_key` may create a new signature (new `expires_at`). The blob bytes do not change.
 - mint must not update the committed control-plane row.
-- `request_id` lock: same object refreshes the issued row (new TTL / URL, same grant_id). Different object is `request_id_conflict` (exit 1). Do not silently sign a different object.
+- `request_id` lock: same object refreshes the issued row (new TTL / URL, same grant_id). Different object is `request_id_conflict` (exit 1). Do not silently sign a different object. Issued `request_id` is unique (`download_grants_issued_request_id`).
+- Resolve `source_table` only from the allowlist: `artifact_index`, `cache_index`, `publish_status`, `derived_object_index`, `monthly_snapshots`. Unknown tables are `identity_mismatch`. `monthly_snapshots` may resolve core/ipo/illiquid/manifest keys.
 
 ---
 

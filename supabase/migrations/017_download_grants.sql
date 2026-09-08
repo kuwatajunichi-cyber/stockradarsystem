@@ -30,6 +30,9 @@ CREATE INDEX IF NOT EXISTS download_grants_request_id
   ON public.download_grants (request_id, created_at_utc DESC);
 CREATE INDEX IF NOT EXISTS download_grants_object_key
   ON public.download_grants (object_key, created_at_utc DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS download_grants_issued_request_id
+  ON public.download_grants (request_id)
+  WHERE mint_result = 'issued';
 
 ALTER TABLE public.download_grants ENABLE ROW LEVEL SECURITY;
 
@@ -79,6 +82,14 @@ BEGIN
   END IF;
   IF NOT has_table_privilege('service_role', 'public.download_grants', 'UPDATE') THEN
     RAISE EXCEPTION 'P0 check failed: service_role missing UPDATE on download_grants';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_indexes
+    WHERE schemaname = 'public'
+      AND indexname = 'download_grants_issued_request_id'
+  ) THEN
+    RAISE EXCEPTION 'P0 check failed: missing unique issued request_id index';
   END IF;
 END $$;
 

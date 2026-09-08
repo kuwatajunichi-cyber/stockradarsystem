@@ -311,6 +311,7 @@ class S3R2ObjectStore:
                 Body=content,
                 ContentType=content_type,
                 IfNoneMatch="*",
+                Metadata={"byte_sha256": digest},
             )
             return R2PutResult(
                 object_key=key,
@@ -353,6 +354,18 @@ class S3R2ObjectStore:
             if code in {"404", "NoSuchKey", "NotFound"} or http_status == 404:
                 raise FileNotFoundError(f"object not found: {key!r}") from exc
             raise RuntimeError(f"R2 HEAD failed for {key!r}") from exc
+        size_bytes = int(resp.get("ContentLength", 0))
+        meta = resp.get("Metadata") or {}
+        stored_sha = str(
+            meta.get("byte_sha256") or meta.get("byte-sha256") or ""
+        ).strip().lower()
+        if stored_sha:
+            return R2HeadResult(
+                object_key=key,
+                size_bytes=size_bytes,
+                byte_sha256=stored_sha,
+                content_type=str(resp.get("ContentType") or "application/octet-stream"),
+            )
         content = self.get_object(key)
         return R2HeadResult(
             object_key=key,
@@ -368,8 +381,9 @@ class S3R2ObjectStore:
         return resp["Body"].read()
 
     def delivery_bucket_is_public(self) -> bool:
+        """Unset / unknown is fail-closed (treated as public so mint refuses)."""
         flag = os.environ.get("R2_PUBLIC_BUCKET", "").strip().lower()
-        return flag in {"1", "true", "yes"}
+        return flag not in {"0", "false", "no"}
 
     def presign_get_object(self, object_key: str, *, ttl_seconds: int) -> str:
         key = object_key.strip()

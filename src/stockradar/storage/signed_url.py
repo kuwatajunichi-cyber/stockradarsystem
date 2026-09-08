@@ -19,6 +19,16 @@ KNOWN_OBJECT_PREFIXES: tuple[str, ...] = (
     "0012_paid/",
 )
 
+ALLOWED_SOURCE_TABLES: frozenset[str] = frozenset(
+    {
+        "artifact_index",
+        "cache_index",
+        "publish_status",
+        "derived_object_index",
+        "monthly_snapshots",
+    }
+)
+
 TTL_DEFAULT_SECONDS = 300
 TTL_MIN_SECONDS = 60
 TTL_MAX_SECONDS = 3600
@@ -216,6 +226,8 @@ class FakeCommittedObjectResolver:
         key = (object_key or "").strip() or None
         table = (source_table or "").strip() or None
         sid = (source_id or "").strip() or None
+        if table and table not in ALLOWED_SOURCE_TABLES:
+            return None
         hits: list[CommittedObjectRef] = []
         for ref in self.objects:
             if key and ref.object_key != key:
@@ -280,6 +292,13 @@ class FakeDownloadGrantsAudit:
             self.rows[idx] = updated
             return updated
         raise KeyError(f"grant not found: {grant_id}")
+
+
+def source_table_allowed(source_table: str | None) -> bool:
+    table = (source_table or "").strip()
+    if not table:
+        return True
+    return table in ALLOWED_SOURCE_TABLES
 
 
 def object_key_prefix_ok(object_key: str) -> bool:
@@ -398,6 +417,13 @@ class SignedUrlMinter:
                 object_key=None,
             )
         if (source_table and not source_id) or (source_id and not source_table):
+            return self._deny(
+                request=request,
+                now=now,
+                reason=REASON_IDENTITY_MISMATCH,
+                object_key=object_key_in,
+            )
+        if not source_table_allowed(source_table):
             return self._deny(
                 request=request,
                 now=now,

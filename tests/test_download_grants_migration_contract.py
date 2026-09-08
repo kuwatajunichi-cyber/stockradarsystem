@@ -37,6 +37,8 @@ def test_p0_rls_revoke_no_user_policies(migration_017: str) -> None:
     assert "GRANT SELECT, INSERT, UPDATE ON TABLE public.download_grants TO service_role;" in (
         migration_017
     )
+    assert "download_grants_issued_request_id" in migration_017
+    assert "WHERE mint_result = 'issued'" in migration_017
     assert "pg_policies" in migration_017
     assert "tablename = 'download_grants'" in migration_017
     assert "anon" in migration_017
