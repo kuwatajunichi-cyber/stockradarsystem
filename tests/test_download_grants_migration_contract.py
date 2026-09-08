@@ -9,6 +9,7 @@ pytestmark = pytest.mark.unit
 
 _REPO = Path(__file__).resolve().parents[1]
 _M017 = _REPO / "supabase" / "migrations" / "017_download_grants.sql"
+_M019 = _REPO / "supabase" / "migrations" / "019_download_grants_issued_request_id.sql"
 
 
 @pytest.fixture(name="migration_017")
@@ -56,3 +57,15 @@ def test_no_execute_grant_to_anon(migration_017: str) -> None:
 def test_issued_denied_check(migration_017: str) -> None:
     assert "DO $$" in migration_017
     assert "END $$;" in migration_017
+
+
+def test_019_unique_issued_request_id_is_idempotent() -> None:
+    raw = _M019.read_bytes()
+    assert b"\x00" not in raw, "migration 019 must be UTF-8 without NUL bytes"
+    sql = raw.decode("utf-8")
+    assert "CREATE UNIQUE INDEX IF NOT EXISTS download_grants_issued_request_id" in sql
+    assert "WHERE mint_result = 'issued'" in sql
+    assert "started_at_utc >= now() - interval '30 days'" in sql
+    assert "(now() AT TIME ZONE 'utc')" not in sql
+    assert "GRANT SELECT ON TABLE public.ops_runs_success_rate_30d TO service_role;" in sql
+    assert "CREATE POLICY" not in sql

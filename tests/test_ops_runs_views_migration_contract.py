@@ -9,6 +9,7 @@ pytestmark = pytest.mark.unit
 
 _REPO = Path(__file__).resolve().parents[1]
 _M018 = _REPO / "supabase" / "migrations" / "018_ops_runs_views.sql"
+_M019 = _REPO / "supabase" / "migrations" / "019_download_grants_issued_request_id.sql"
 _CONTRACT = _REPO / "docs" / "contracts" / "ops_runs_views.md"
 
 
@@ -55,3 +56,11 @@ def test_contract_doc_exists() -> None:
     assert "ops_runs_success_rate_30d" in text
     assert "service_role" in text
     assert "Web UI" in text or "user dashboard" in text.lower()
+    assert "019_download_grants_issued_request_id.sql" in text
+
+
+def test_019_repeats_timestamptz_safe_30d_window() -> None:
+    sql = _M019.read_text(encoding="utf-8")
+    assert "CREATE OR REPLACE VIEW public.ops_runs_success_rate_30d" in sql
+    assert "started_at_utc >= now() - interval '30 days'" in sql
+    assert "(now() AT TIME ZONE 'utc')" not in sql
