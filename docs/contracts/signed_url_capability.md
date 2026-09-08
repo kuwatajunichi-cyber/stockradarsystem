@@ -158,7 +158,7 @@ Until Track C supplies real proof, no production public call path may exist. Int
 
 ---
 
-## `download_grants` (DDL: `017_download_grants.sql`)
+## `download_grants` (DDL: `017_download_grants.sql`; unique issued `request_id` also in `019_download_grants_issued_request_id.sql`)
 
 Audit row location. Not the product entitlements table.
 
@@ -224,7 +224,8 @@ live gate 5b must not stand up a public URL. Use a `service_role` CLI. Do not pa
 
 - Re-mint of the same committed `object_key` may create a new signature (new `expires_at`). The blob bytes do not change.
 - mint must not update the committed control-plane row.
-- `request_id` lock: same object refreshes the issued row (new TTL / URL, same grant_id). Different object is `request_id_conflict` (exit 1). Do not silently sign a different object.
+- `request_id` lock: same object refreshes the issued row (new TTL / URL, same grant_id). Different object is `request_id_conflict` (exit 1). Do not silently sign a different object. Issued `request_id` is unique (`download_grants_issued_request_id`).
+- Resolve `source_table` only from the allowlist: `artifact_index`, `cache_index`, `publish_status`, `derived_object_index`, `monthly_snapshots`. Unknown tables are `identity_mismatch`. `monthly_snapshots` may resolve core/ipo/illiquid/manifest keys.
 
 ---
 
@@ -239,7 +240,7 @@ live gate 5b must not stand up a public URL. Use a `service_role` CLI. Do not pa
 ## Implementation (pr-5b-signed-capability)
 
 1. Protocol + Fake + unit tests in `stockradar.storage.signed_url`
-2. DDL `017_download_grants.sql` (P0 inherit). A contract-only docs only PR is not capability complete
+2. DDL `017_download_grants.sql` (P0 inherit) plus follow-up `019_download_grants_issued_request_id.sql` for unique issued `request_id`. A contract-only docs only PR is not capability complete
 3. Internal CLI `scripts/storage/signed_url_mint_cli.py`. Do not add a public Worker
 4. CLI exit codes are in [exit_codes.md](exit_codes.md)
 

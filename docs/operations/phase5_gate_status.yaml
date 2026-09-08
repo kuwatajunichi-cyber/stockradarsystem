@@ -1,13 +1,15 @@
 schema_version: 1
 phase: '5'
-last_updated_utc: '2026-09-07T19:30:00+09:00'
+last_updated_utc: '2026-09-08T23:55:00+09:00'
 overall_status: in_progress
 implementation_snapshot:
   local_worktree_has_unmerged_changes: true
-  note: 'PR #175 merged_and_verified for Track B contract docs. pr-5b-signed-capability and pr-55b-runs-views are local_only (unmerged). live_gate_5b and live_gate_55b remain open. live_gate_55a closed. overall_status stays in_progress. Issue #93 stays OPEN.'
+  note: 'PR #177 merged_and_verified for pr-5b-signed-capability and pr-55b-runs-views. live_gate_55b closed. live_gate_5b remains open. live_gate_55a closed. overall_status stays in_progress. Issue #93 stays OPEN.'
 correction_log:
-- at_utc: '2026-09-07T19:30:00+09:00'
-  reason: 'Track B mint/DDL/CLI and Track A 5.5b ops views implemented locally. pr-5b-signed-capability and pr-55b-runs-views local_only. live gates 5b/55b remain open. overall_status stays in_progress.'
+- at_utc: '2026-09-08T23:55:00+09:00'
+  reason: 'PR #178 review fix. roadmap phrase uses live_gate_5b は open (ADR-005 forbids 未達 before ## Phase 5). 019 unique issued request_id is idempotent for DBs that applied original 017. live_gate_5b remains open. overall_status stays in_progress.'
+- at_utc: '2026-09-08T23:20:00+09:00'
+  reason: 'PR #177 merged bf8d5f6; CI Pass 34148877682. pr-5b-signed-capability and pr-55b-runs-views merged_and_verified. production 017/018 applied. live_gate_55b closed with Issue comment 5586713400. live_gate_5b remains open. overall_status stays in_progress.'
 - at_utc: '2026-09-07T17:45:00+09:00'
   reason: 'PR #175 merged a10c15a; CI Pass 34101473032. pr-5b-signed-contract merged_and_verified. pr-5b-signed-capability pending. live_gate_5b remains open. overall_status stays in_progress.'
 - at_utc: '2026-09-07T17:25:00+09:00'
@@ -25,7 +27,7 @@ correction_log:
 - at_utc: '2026-09-04T21:20:00+09:00'
   reason: 'Step 5.0: split Phase 5 into tracks A–E. pr_gates include 5.5a and remaining tracks as pending/local_only so 5.5a live close cannot force overall closed. Calendar contract revised to closed_day_expected_ping before ping implementation.'
 roadmap:
-  phase5_status_phrase: in_progress（5.5a live closed。Track B mint/DDL と 5.5b views 実装済み・未マージ。Auth/UI 未着手）
+  phase5_status_phrase: in_progress（5.5a/5.5b live closed。Track B mint マージ済・live_gate_5b は open。Auth/UI 未着手）
 tracks:
   A_observability:
     description: 5.5a Healthchecks + 5.5b runs 集計（ops SQL。画面ではない）
@@ -64,11 +66,11 @@ pr_gates:
     note: 'merged via PR #174. U-55a-1/2 completed. live_gate_55a still open. Do not close overall from this gate.'
   pr-55b-runs-views:
     description: Phase 4 runs 集計ビュー（ops SQL。ユーザー向け画面ではない）
-    status: local_only
-    merge_commit: null
-    merge_ci_run_url: null
-    pytest_ci_pass_on_merge: null
-    note: '018_ops_runs_views.sql implemented locally. Unmerged. Do not close live_gate_55b.'
+    status: merged_and_verified
+    merge_commit: bf8d5f68b7bf6e7199f5f33c64f33d2125b6b011
+    merge_ci_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/34148877682
+    pytest_ci_pass_on_merge: true
+    note: 'merged via PR #177. Not a user dashboard. live_gate_55b closed with production apply + Issue #93 SELECT evidence.'
   pr-5b-signed-contract:
     description: Track B signed URL capability contract docs (no mint/DDL)
     status: merged_and_verified
@@ -78,11 +80,11 @@ pr_gates:
     note: 'merged via PR #175. docs only. capability is pr-5b-signed-capability. Do not close live_gate_5b.'
   pr-5b-signed-capability:
     description: Track B signed URL capability（private R2、P0 継承。公開 mint 禁止）
-    status: local_only
-    merge_commit: null
-    merge_ci_run_url: null
-    pytest_ci_pass_on_merge: null
-    note: 'mint/DDL/CLI implemented locally. Unmerged. No public mint. Do not close live_gate_5b.'
+    status: merged_and_verified
+    merge_commit: bf8d5f68b7bf6e7199f5f33c64f33d2125b6b011
+    merge_ci_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/34148877682
+    pytest_ci_pass_on_merge: true
+    note: 'merged via PR #177. No public mint. Do not close live_gate_5b without live evidence.'
   pr-5c-auth-entitlements:
     description: Track C Auth / entitlements / webhook / 利用者 RLS
     status: pending
@@ -126,14 +128,15 @@ live_gates:
     note: closed 2026-09-07. HC dashboard operator-confirmed. Issue comment https://github.com/kuwatajunichi-cyber/stockradarsystem/issues/93#issuecomment-5567447887. Pause not used. 5.5a live close does not close Phase 5 overall.
   live_gate_55b:
     track: A
-    status: open
-    closed_at_utc: null
-    note: SQL file alone cannot close. requires pr-55b-runs-views merged_and_verified plus production apply and operator SELECT evidence.
+    status: closed
+    closed_at_utc: '2026-09-08T14:30:00Z'
+    operator_select_evidence_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/issues/93#issuecomment-5586713400
+    note: 'closed 2026-09-08. production 018 applied. operator SELECT evidence in Issue #93 comment. Phase 5 overall stays in_progress.'
   live_gate_5b:
     track: B
     status: open
     closed_at_utc: null
-    note: docs and local mint/DDL cannot close. requires pr-5b-signed-contract and pr-5b-signed-capability merged_and_verified plus live evidence. no public mint endpoint.
+    note: 'PR #177 merged capability. production download_grants applied. live evidence (internal mint, refuse cases, R2_PUBLIC_BUCKET=false) still required. no public mint endpoint.'
   live_gate_5c:
     track: C
     status: open

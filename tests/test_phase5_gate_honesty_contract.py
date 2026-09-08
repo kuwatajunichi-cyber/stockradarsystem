@@ -219,6 +219,11 @@ def test_signed_url_contract_rejects_missing_private_bucket() -> None:
 def test_live_gate_5b_closed_requires_capability_pr() -> None:
     data = _load_gate_status()
     bad = copy.deepcopy(data)
+    cap = bad["pr_gates"]["pr-5b-signed-capability"]
+    cap["status"] = "pending"
+    cap["merge_commit"] = None
+    cap["merge_ci_run_url"] = None
+    cap["pytest_ci_pass_on_merge"] = None
     bad["live_gates"]["live_gate_5b"]["status"] = "closed"
     bad["live_gates"]["live_gate_5b"]["closed_at_utc"] = "2026-09-10T00:00:00Z"
     violations = validate_gate_status_document(bad)
@@ -227,14 +232,41 @@ def test_live_gate_5b_closed_requires_capability_pr() -> None:
 
 
 @pytest.mark.unit
+def test_live_gate_5b_closed_requires_live_evidence() -> None:
+    data = _load_gate_status()
+    bad = copy.deepcopy(data)
+    bad["live_gates"]["live_gate_5b"]["status"] = "closed"
+    bad["live_gates"]["live_gate_5b"]["closed_at_utc"] = "2026-09-10T00:00:00Z"
+    violations = validate_gate_status_document(bad)
+    assert any("internal_mint_success_run_url" in v for v in violations)
+
+
+@pytest.mark.unit
 def test_live_gate_55b_closed_requires_views_pr() -> None:
     data = _load_gate_status()
     bad = copy.deepcopy(data)
+    gate = bad["pr_gates"]["pr-55b-runs-views"]
+    gate["status"] = "pending"
+    gate["merge_commit"] = None
+    gate["merge_ci_run_url"] = None
+    gate["pytest_ci_pass_on_merge"] = None
     bad["live_gates"]["live_gate_55b"]["status"] = "closed"
     bad["live_gates"]["live_gate_55b"]["closed_at_utc"] = "2026-09-10T00:00:00Z"
     violations = validate_gate_status_document(bad)
     assert any("pr-55b-runs-views" in v for v in violations)
     assert any("SQL file alone cannot close" in v for v in violations)
+
+
+@pytest.mark.unit
+def test_live_gate_55b_closed_requires_select_evidence() -> None:
+    data = _load_gate_status()
+    bad = copy.deepcopy(data)
+    live = bad["live_gates"]["live_gate_55b"]
+    live["status"] = "closed"
+    live["closed_at_utc"] = "2026-09-10T00:00:00Z"
+    live["operator_select_evidence_url"] = None
+    violations = validate_gate_status_document(bad)
+    assert any("operator_select_evidence_url" in v for v in violations)
 
 
 @pytest.mark.unit

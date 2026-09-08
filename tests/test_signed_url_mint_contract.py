@@ -327,3 +327,60 @@ def test_module_has_no_public_http_server() -> None:
         "scripts", "storage", "signed_url_mint_cli.py"
     ).read_text(encoding="utf-8")
     assert "public Worker" in cli or "No public" in cli
+
+
+def test_unknown_source_table_is_identity_mismatch() -> None:
+    minter, _, _ = _minter()
+    out = minter.mint_get(
+        _req(
+            object_key=_KEY,
+            source_table="pg_proc",
+            source_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        )
+    )
+    assert out.exit_code == 1
+    assert out.reason_code == REASON_IDENTITY_MISMATCH
+    assert out.signed_url is None
+
+
+def test_s3_delivery_bucket_unset_is_fail_closed(monkeypatch: pytest.MonkeyPatch) -> None:
+    from stockradar.storage.r2_object_store import S3R2ObjectStore
+
+    store = S3R2ObjectStore(
+        access_key_id="x",
+        secret_access_key="y",
+        bucket="b",
+        base_prefix="",
+        endpoint_url="https://example.r2.cloudflarestorage.com",
+    )
+    monkeypatch.delenv("R2_PUBLIC_BUCKET", raising=False)
+    assert store.delivery_bucket_is_public() is True
+    monkeypatch.setenv("R2_PUBLIC_BUCKET", "false")
+    assert store.delivery_bucket_is_public() is False
+    monkeypatch.setenv("R2_PUBLIC_BUCKET", "true")
+    assert store.delivery_bucket_is_public() is True
+
+
+def test_monthly_blob_resolves_non_core_slot() -> None:
+    from stockradar.storage.signed_url_supabase import _monthly_blob
+
+    row = {
+        "object_keys": {
+            "core": {
+                "object_key": "monthly/tag/core.csv",
+                "sha256": "a" * 64,
+                "size_bytes": 10,
+            },
+            "ipo": {
+                "object_key": "monthly/tag/ipo.csv",
+                "sha256": "b" * 64,
+                "size_bytes": 20,
+            },
+        }
+    }
+    key, sha, size = _monthly_blob(row, "monthly/tag/ipo.csv")
+    assert key == "monthly/tag/ipo.csv"
+    assert sha == "b" * 64
+    assert size == 20
+    core_key, _, _ = _monthly_blob(row, None)
+    assert core_key == "monthly/tag/core.csv"

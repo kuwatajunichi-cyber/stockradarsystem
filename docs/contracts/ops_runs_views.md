@@ -4,7 +4,7 @@ Phase 5 Track A operator SQL aggregation. Not a user dashboard. Not a Web UI (Tr
 
 **Adopt token:** `ops_runs_views`
 **Gates:** [phase5_gate_status.yaml](../operations/phase5_gate_status.yaml) `pr-55b-runs-views`
-**DDL:** `supabase/migrations/018_ops_runs_views.sql`
+**DDL:** `supabase/migrations/018_ops_runs_views.sql` (timestamptz-safe 30d window also in `019_download_grants_issued_request_id.sql`)
 
 live_gate_55b cannot close from this file and DDL alone. Production apply plus service_role SELECT evidence is required. Phase 5 overall_status stays in_progress. Issue #93 stays OPEN.
 
