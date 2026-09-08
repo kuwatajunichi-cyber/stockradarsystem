@@ -15,7 +15,7 @@ GitHub Issue: [#93](https://github.com/kuwatajunichi-cyber/stockradarsystem/issu
 | 3c | warm cache + Supabase | **gate CLOSED** (2026-07-10) |
 | 4 | 月次 + publish + runs + Cron | **gate CLOSED** (2026-07-22) |
 | 4.5 | 派生指標時系列基盤 | **PR-45-1..4 merged・rollout 4.5c・Path B active・live_gate closed (user-authorized waiver 2026-08-29)・capacity_gate closed** |
-| 5 | entitlements + observability | **in_progress（5.5a/5.5b live closed。Track B mint マージ済・live_gate_5b は open。Auth/UI 未着手）** |
+| 5 | entitlements + observability | **in_progress（5.5a/5.5b/5b live closed。Auth/UI 未着手）** |
 
 Phase 3c gate CLOSED（runbook 記録済）。Issue #93 は Phase 5 が残るため **OPEN** 維持。Phase 4.5 gate は CLOSED（soak は waiver。連続 3 営業日達成とは書かない）。ADR-005 `live_gate_005` は CLOSED（2026-09-01）。
 
@@ -87,7 +87,7 @@ Web UI 仕様の前に終わる工事（A / B）と、仕様後の製品工事�
 | トラック | 現行番号 | 中身 | Web UI 仕様 |
 |----------|----------|------|-------------|
 | **トラック A** 運用観測 | 5.5a / 5.5b | Healthchecks.io（Patch + Daily）、`runs` 集計ビュー（ops SQL。画面ではない。契約: [ops_runs_views.md](../contracts/ops_runs_views.md)。DDL マージ済。live_gate_55b closed） | 不要 |
-| **トラック B** 配信 capability | 5.4 の一部 | private R2、committed のみ、短命署名、監査。製品ロールなし。P0 継承（RLS ON、anon/authenticated REVOKE、公開 mint 禁止）。契約正本: [signed_url_capability.md](../contracts/signed_url_capability.md)（契約 docs マージ済。mint/DDL マージ済。live_gate_5b は open） | 不要 |
+| **トラック B** 配信 capability | 5.4 の一部 | private R2、committed のみ、短命署名、監査。製品ロールなし。P0 継承（RLS ON、anon/authenticated REVOKE、公開 mint 禁止）。契約正本: [signed_url_capability.md](../contracts/signed_url_capability.md)（契約 docs マージ済。mint/DDL マージ済。live_gate_5b closed。公開 mint なし） | 不要 |
 | **トラック C** 認可製品 | 5.1–5.3 | Supabase Auth、entitlements、課金 webhook、利用者別 RLS | 要る |
 | **トラック D** Web UI | ロードマップ外（ADR-004 の消費者） | 銘柄×年 series の閲覧 | これ自体が仕様 |
 | **トラック E** 配布切替 | 5.6 | `published/` 統一。live TARGETS（R2 / Dropbox、任意 Drive）を壊さない | 要る |
@@ -124,6 +124,7 @@ Worker deploy gate, migration 記録, artifact_index.created_at_utc, contract st
 2026-09-07 Track B 契約 docs を PR #175 で main マージ（mint/DDL 未実装。`live_gate_5b` は open）。
 2026-09-07 Track B mint/DDL/内部 CLI と Track A 5.5b ops views を実装（未マージ。`live_gate_5b` / `live_gate_55b` は open）。
 2026-09-08 Track B mint/DDL と 5.5b views を PR #177 で main マージ。本番 017/018 apply。`live_gate_55b` closed（operator SELECT）。`live_gate_5b` は open。Phase 5 overall は in_progress。
+2026-09-09 `live_gate_5b` closed（内部 CLI issued + unproven/orphan/PutObject 拒否。Issue #93 comment 5587796941。公開 mint なし）。Phase 5 overall は in_progress。Issue #93 は OPEN。
 
 ## 決定事項（2026-07-08 追記）
 

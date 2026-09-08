@@ -2,7 +2,7 @@
 
 Phase 5 トラック B の入出力契約。英語本文が機械検証用の正本（トークン signed_url_capability）である。
 
-Capability SSOT. mint is SignedUrlMintPort (`src/stockradar/storage/signed_url.py`), DDL is `017_download_grants.sql`, internal CLI is `scripts/storage/signed_url_mint_cli.py`. No public endpoint / Auth / Web UI. live_gate_5b is open (docs alone cannot close). Phase 5 overall_status is in_progress. Issue #93 is OPEN. A contract-only **docs only** PR is not capability complete.
+Capability SSOT. mint is SignedUrlMintPort (`src/stockradar/storage/signed_url.py`), DDL is `017_download_grants.sql`, internal CLI is `scripts/storage/signed_url_mint_cli.py`. No public endpoint / Auth / Web UI. live_gate_5b closed with live evidence (docs alone cannot close). Phase 5 overall_status is in_progress. Issue #93 is OPEN. A contract-only **docs only** PR is not capability complete.
 
 要約: private bucket 上の committed blob にだけ短命 GetObject 署名を fail-closed で発行する。orphan 拒否。TTL 60-3600 秒（既定 300）。監査表は download_grants。P0 継承（RLS ON、anon/authenticated REVOKE、user policy ゼロ、service_role のみ）。entitlement 未証明は拒否（allow-stub 禁止）。公開 Worker / 公開 mint は Track C まで禁止。単体テストは Fake。製品ロール・利用者 RLS・画面キーは Out of scope。
 
@@ -256,7 +256,7 @@ Minimum to close:
 - evidence that not-committed / unproven / non-GetObject are refused
 - no public endpoint
 
-Closing `live_gate_5b` leaves Phase 5 `overall_status` `in_progress`. Issue #93 stays OPEN.
+Closed 2026-09-09 with Issue #93 comment `5587796941` (internal CLI issued + refuse; no signed URL body; no public endpoint). Closing `live_gate_5b` leaves Phase 5 `overall_status` `in_progress`. Issue #93 stays OPEN.
 
 ---
 

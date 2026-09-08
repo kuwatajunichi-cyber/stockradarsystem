@@ -235,8 +235,11 @@ def test_live_gate_5b_closed_requires_capability_pr() -> None:
 def test_live_gate_5b_closed_requires_live_evidence() -> None:
     data = _load_gate_status()
     bad = copy.deepcopy(data)
-    bad["live_gates"]["live_gate_5b"]["status"] = "closed"
-    bad["live_gates"]["live_gate_5b"]["closed_at_utc"] = "2026-09-10T00:00:00Z"
+    live = bad["live_gates"]["live_gate_5b"]
+    live["status"] = "closed"
+    live["closed_at_utc"] = "2026-09-10T00:00:00Z"
+    live["internal_mint_success_run_url"] = None
+    live["refuse_unproven_or_not_committed_run_url"] = None
     violations = validate_gate_status_document(bad)
     assert any("internal_mint_success_run_url" in v for v in violations)
 

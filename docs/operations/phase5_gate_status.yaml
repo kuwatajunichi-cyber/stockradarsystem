@@ -1,11 +1,13 @@
 schema_version: 1
 phase: '5'
-last_updated_utc: '2026-09-08T23:55:00+09:00'
+last_updated_utc: '2026-09-09T00:45:00+09:00'
 overall_status: in_progress
 implementation_snapshot:
   local_worktree_has_unmerged_changes: true
-  note: 'PR #177 merged_and_verified for pr-5b-signed-capability and pr-55b-runs-views. live_gate_55b closed. live_gate_5b remains open. live_gate_55a closed. overall_status stays in_progress. Issue #93 stays OPEN.'
+  note: 'PR #177 merged_and_verified for pr-5b-signed-capability and pr-55b-runs-views. live_gate_55a/55b/5b closed. Auth/UI unstarted. overall_status stays in_progress. Issue #93 stays OPEN.'
 correction_log:
+- at_utc: '2026-09-09T00:45:00+09:00'
+  reason: 'live_gate_5b closed: internal CLI issued+refuse evidence in Issue #93 comment 5587796941. R2_PUBLIC_BUCKET=false. no public mint. overall_status stays in_progress. Issue #93 stays OPEN.'
 - at_utc: '2026-09-08T23:55:00+09:00'
   reason: 'PR #178 review fix. roadmap phrase uses live_gate_5b は open (ADR-005 forbids 未達 before ## Phase 5). 019 unique issued request_id is idempotent for DBs that applied original 017. live_gate_5b remains open. overall_status stays in_progress.'
 - at_utc: '2026-09-08T23:20:00+09:00'
@@ -27,7 +29,7 @@ correction_log:
 - at_utc: '2026-09-04T21:20:00+09:00'
   reason: 'Step 5.0: split Phase 5 into tracks A–E. pr_gates include 5.5a and remaining tracks as pending/local_only so 5.5a live close cannot force overall closed. Calendar contract revised to closed_day_expected_ping before ping implementation.'
 roadmap:
-  phase5_status_phrase: in_progress（5.5a/5.5b live closed。Track B mint マージ済・live_gate_5b は open。Auth/UI 未着手）
+  phase5_status_phrase: in_progress（5.5a/5.5b/5b live closed。Auth/UI 未着手）
 tracks:
   A_observability:
     description: 5.5a Healthchecks + 5.5b runs 集計（ops SQL。画面ではない）
@@ -134,9 +136,11 @@ live_gates:
     note: 'closed 2026-09-08. production 018 applied. operator SELECT evidence in Issue #93 comment. Phase 5 overall stays in_progress.'
   live_gate_5b:
     track: B
-    status: open
-    closed_at_utc: null
-    note: 'PR #177 merged capability. production download_grants applied. live evidence (internal mint, refuse cases, R2_PUBLIC_BUCKET=false) still required. no public mint endpoint.'
+    status: closed
+    closed_at_utc: '2026-09-08T15:45:00Z'
+    internal_mint_success_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/issues/93#issuecomment-5587796941
+    refuse_unproven_or_not_committed_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/issues/93#issuecomment-5587796941
+    note: 'closed 2026-09-09. internal CLI issued+refuse on production. R2_PUBLIC_BUCKET=false. no public mint. Phase 5 overall stays in_progress. Issue #93 stays OPEN.'
   live_gate_5c:
     track: C
     status: open
