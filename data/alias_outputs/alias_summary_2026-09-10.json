@@ -1,0 +1,63 @@
+{
+  "run_date": "2026-09-10",
+  "resolved_monthly_tag": "local-manual",
+  "upstream_run_id": "",
+  "inputs": {
+    "core": "C:\\GitHub\\stockradarsystem\\data\\universe\\jpx\\latest_release\\equity_domestic_core_with_name.csv",
+    "illiquid": "C:\\GitHub\\stockradarsystem\\data\\universe\\jpx\\latest_release\\equity_domestic_illiquid_with_name.csv",
+    "ipo": "C:\\GitHub\\stockradarsystem\\data\\universe\\jpx\\latest_release\\equity_domestic_ipo_with_name.csv",
+    "base_alias_yaml": "C:\\GitHub\\stockradarsystem\\config\\kabutan_name_aliases.yaml",
+    "base_state_json": "C:\\GitHub\\stockradarsystem\\data\\alias_outputs\\alias_state.json"
+  },
+  "outputs": {
+    "alias_yaml": "C:\\GitHub\\stockradarsystem\\data\\alias_outputs\\kabutan_name_aliases.yaml",
+    "state_json": "C:\\GitHub\\stockradarsystem\\data\\alias_outputs\\alias_state.json",
+    "delta_csv": "C:\\GitHub\\stockradarsystem\\data\\alias_outputs\\alias_delta_2026-09-10.csv",
+    "summary_json": "C:\\GitHub\\stockradarsystem\\data\\alias_outputs\\alias_summary_2026-09-10.json"
+  },
+  "counts": {
+    "universe_codes": 3741,
+    "aliases_codes": 3784,
+    "added_aliases": 7,
+    "review_aliases": 1,
+    "delta_rows": 6421
+  },
+  "rates": {
+    "media_success_rate": 0.9857254087723851,
+    "effective_media_success_rate": 0.9857254087723851,
+    "low_ratio": 0.125
+  },
+  "anomaly_context": {
+    "enforce_media_success_rate": true,
+    "eligible_media_for_success_rate": [
+      "kabutan",
+      "nikkei",
+      "tdnet"
+    ],
+    "min_requests_for_rate": 10
+  },
+  "media_stats": {
+    "kabutan": {
+      "requests": 3741,
+      "success": 3741,
+      "fail": 0,
+      "retry": 0,
+      "avg_latency_ms": 153.69
+    },
+    "nikkei": {
+      "requests": 3744,
+      "success": 3741,
+      "fail": 0,
+      "retry": 3,
+      "avg_latency_ms": 609.53
+    },
+    "tdnet": {
+      "requests": 221,
+      "success": 114,
+      "fail": 0,
+      "retry": 0,
+      "avg_latency_ms": 30.33
+    }
+  },
+  "anomalies": []
+}
