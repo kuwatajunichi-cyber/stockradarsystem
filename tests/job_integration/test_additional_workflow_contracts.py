@@ -410,6 +410,47 @@ def test_supabase_orphan_sweep_workflow_contract() -> None:
     assert "--dry-run" in run_step["run"]
 
 
+def test_derived_orphan_sweep_workflow_contract() -> None:
+    workflow = _load_workflow("derived_orphan_sweep.yml")
+    on_block = _workflow_on(workflow)
+    assert "workflow_dispatch" in on_block
+    assert "schedule" not in on_block
+    assert on_block["workflow_dispatch"]["inputs"]["dry_run"]["default"] is True
+    assert on_block["workflow_dispatch"]["inputs"]["delete_orphan_rows"]["default"] is False
+    assert workflow["concurrency"]["group"] == "derived-orphan-sweep"
+    assert workflow["concurrency"]["cancel-in-progress"] is False
+    sweep = _job(workflow, "sweep")
+    run_step = _step_named(sweep, "Sweep derived orphans")
+    env_keys = set(run_step["env"])
+    assert {
+        "SUPABASE_URL",
+        "SUPABASE_SECRET_KEY",
+        "R2_ACCESS_KEY_ID",
+        "R2_SECRET_ACCESS_KEY",
+        "R2_ACCOUNT_ID",
+        "R2_BUCKET",
+        "R2_BASE_PREFIX",
+        "R2_ENDPOINT_URL",
+    }.issubset(env_keys)
+    assert "python scripts/storage/derived_generation_sweeper.py" in run_step["run"]
+    assert "--dry-run" in run_step["run"]
+    assert "--delete-orphan-rows" in run_step["run"]
+
+
+def test_daily_derived_504_recovery_runbook_contract() -> None:
+    text = (
+        Path(__file__).resolve().parents[2]
+        / "docs/operations/daily_derived_pooler_504_recovery.md"
+    ).read_text(encoding="utf-8")
+    assert "does not close Phase 5" in text
+    assert "empty run_date" in text
+    assert "orphan-only" in text
+    assert "mixed" in text
+    assert "020_delete_orphan_derived_objects.sql" in text
+    assert "derived_orphan_sweep.yml" in text
+    assert "derived_reconcile.yml" in text
+
+
 def test_phase3_runbook_documents_live_gate_closed() -> None:
     text = (
         Path(__file__).resolve().parents[2]

@@ -76,3 +76,7 @@ econcile_isolated_run_url | reconcile 専用 entrypoint で isolated 訂正 |
 
 - **GitHub Actions の Re-run（同一 run id）では回復できない。**
 - 失敗後は **新規 workflow run**（workflow_dispatch または翌営業日の schedule）が必要。
+
+## Daily derived / publish pooler 504
+
+同時実行 504 と orphan 掃除の運用正本: [daily_derived_pooler_504_recovery.md](daily_derived_pooler_504_recovery.md)。Phase 5 / Issue #93 は閉じない。
