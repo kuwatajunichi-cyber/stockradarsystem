@@ -45,6 +45,7 @@ from stockradar.storage.derived_series import (  # noqa: E402
     gzip_series_bytes,
     merge_missing_dates_only,
     parse_series_canonical_bytes,
+    series_provenance_for_run_mode,
 )
 from stockradar.storage.derived_snapshot import (  # noqa: E402
     DERIVED_WRITER_VERSION,
@@ -572,7 +573,7 @@ def run_series_only_trade_date(
     delta_kind = (
         "series_seed_delta" if plan.mode == "series_seed" else "series_repair_delta"
     )
-    provenance = "series_seed" if plan.mode == "series_seed" else "series_repair"
+    provenance = series_provenance_for_run_mode(plan.mode)
 
     for code in plan.write_codes:
         raw_values = dict(values_by_code.get(code) or {})
