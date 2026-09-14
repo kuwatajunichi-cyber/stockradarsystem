@@ -43,6 +43,7 @@ from stockradar.storage.derived_series import (
     gzip_series_bytes,
     merge_trade_date_into_series,
     parse_series_canonical_bytes,
+    series_provenance_for_run_mode,
 )
 from stockradar.storage.daily_seed_lease import filter_membership_after_seed_lease_wait
 from stockradar.storage.phase4_5_rollout import (
@@ -777,7 +778,7 @@ def run_derived_generation(
                     row_count=row_count,
                     metric_keys_ordered=snapshot_input.metric_keys_ordered,
                     mode=request.mode,
-                    provenance=("daily_normal" if str(request.mode) == "normal" else str(request.mode)),
+                    provenance=series_provenance_for_run_mode(request.mode),
                     writer_version=request.writer_version,
                 )
                 manifest_sha = compute_object_sha256(series_manifest)

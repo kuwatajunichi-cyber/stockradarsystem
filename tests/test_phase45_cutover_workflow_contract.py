@@ -54,7 +54,22 @@ def test_daily_write_derived_waits_for_render_and_upload() -> None:
     assert "render_and_upload" in needs
     assert "compute_indicators" in needs
     cond = str(job.get("if") or "")
-    assert "needs.render_and_upload.result == 'success'" in cond
+    assert "always()" in cond
+    assert "needs.compute_indicators.result == 'success'" in cond
+    assert "needs.render_and_upload.result != 'cancelled'" in cond
+    assert "needs.render_and_upload.result == 'success'" not in cond
+    assert "skip_publish" not in cond
+
+
+def test_daily_write_derived_reads_same_run_indicators_artifact() -> None:
+    job = _write_derived_job()
+    step = _step_named(job, "R2 get indicators for derived writer")
+    env = step.get("env") or {}
+    run = str(step.get("run") or "")
+    assert env.get("GITHUB_RUN_ID") == "${{ github.run_id }}"
+    assert "artifact-daily-indicators" in run
+    assert "--run-id \"$GITHUB_RUN_ID\"" in run
+    assert "needs.render_and_upload.outputs" not in run
 
 
 def test_daily_finalize_includes_write_derived_generation() -> None:
