@@ -1072,8 +1072,10 @@ jobs:
   # Phase 4.5 derived writer (shadow until mapping phase4_5_rollout_stage > off).
   # Rollout stage SSOT: config/github_state_to_r2_supabase_mapping.yaml only (no scheduled PHASE4_5_ROLLOUT_STAGE env).
   write_derived_generation:
-    needs: [resolve_trading_day, compute_indicators]
-    if: needs.resolve_trading_day.outputs.is_open == 'True' && needs.compute_indicators.result == 'success'
+    # After render_and_upload: concurrent derived RPC + publish_status REST
+    # exhausts the Supabase pooler and 504s one of the two (2026-09-14).
+    needs: [resolve_trading_day, compute_indicators, render_and_upload]
+    if: needs.resolve_trading_day.outputs.is_open == 'True' && needs.compute_indicators.result == 'success' && needs.render_and_upload.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

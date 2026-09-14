@@ -13,7 +13,11 @@ from stockradar.jobs.write_derived_generation import (
 from stockradar.metrics.registry_spec import load_metric_set_spec
 from stockradar.metrics.seed_catalog import SET_KEY_PATTERN, build_metric_set_seed_payload
 from stockradar.storage.derived_generation import FakeMetricGenerationStore
-from stockradar.storage.derived_series import gunzip_series_bytes, parse_series_canonical_bytes
+from stockradar.storage.derived_series import (
+    VALID_SERIES_PROVENANCE,
+    gunzip_series_bytes,
+    parse_series_canonical_bytes,
+)
 from stockradar.storage.derived_snapshot import SNAPSHOT_MANIFEST_FIELD_ORDER, LATEST_FLAGS_KEY
 from stockradar.storage.derived_leftover import leftover_scan_prefixes
 from stockradar.storage.r2_object_store import FakeR2ObjectStore, normalize_r2_s3_endpoint
@@ -137,6 +141,10 @@ def test_leftover_scan_includes_forbidden_shadow_and_failed_manifest_prefix() ->
     )
     assert "derived-shadow/" in prefixes
     assert any("generation=56004f01-137a-414a-bd71-b8d1fae3168e/" in item for item in prefixes)
+
+
+def test_reconcile_is_valid_series_provenance() -> None:
+    assert "reconcile" in VALID_SERIES_PROVENANCE
 
 
 def test_latest_rows_embed_canonical_flags() -> None:

@@ -48,6 +48,15 @@ def test_daily_write_derived_step_passes_prod_secrets() -> None:
     assert "phase4_5_shadow_metric_set_version_id" in run
 
 
+def test_daily_write_derived_waits_for_render_and_upload() -> None:
+    job = _write_derived_job()
+    needs = job["needs"]
+    assert "render_and_upload" in needs
+    assert "compute_indicators" in needs
+    cond = str(job.get("if") or "")
+    assert "needs.render_and_upload.result == 'success'" in cond
+
+
 def test_daily_finalize_includes_write_derived_generation() -> None:
     workflow = yaml.safe_load(_text(_DAILY))
     needs = workflow["jobs"]["finalize_run"]["needs"]
