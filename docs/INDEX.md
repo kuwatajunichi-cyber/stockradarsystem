@@ -128,6 +128,7 @@ CI・ワークフロー・ジョブの変更に関わる「原則」「運用基
 - Phase 5 Track B signed URL capability（mint/DDL マージ済・live_gate_5b は open）: [signed_url_capability.md](contracts/signed_url_capability.md)
 - Phase 5 Track A 5.5b ops `runs` views（マージ済・live_gate_55b closed）: [ops_runs_views.md](contracts/ops_runs_views.md)
 - Cloudflare Cron 欠走 (2026-08-26): [incidents/cloudflare_cron_miss_2026-08-26.md](operations/incidents/cloudflare_cron_miss_2026-08-26.md)
+- Daily derived / publish pooler 504 リカバリー（2026-09-14。Phase 5 を閉じない）: [daily_derived_pooler_504_recovery.md](operations/daily_derived_pooler_504_recovery.md)
 - GitHub Issue: [#93](https://github.com/kuwatajunichi-cyber/stockradarsystem/issues/93)
 
 ---
