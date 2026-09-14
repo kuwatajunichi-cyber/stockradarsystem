@@ -301,7 +301,7 @@ def main(argv: list[str] | None = None) -> int:
     latest_counts: dict[str, int] = {}
     for generation_id in sorted(generation_ids):
         if _generation_has_non_orphan(supabase, generation_id):
-            statuses_by_generation[generation_id].add("committed")
+            statuses_by_generation[generation_id].update(LIVE_NON_ORPHAN_STATUSES)
         latest_counts[generation_id] = (
             1 if _generation_has_latest_observations(supabase, generation_id) else 0
         )

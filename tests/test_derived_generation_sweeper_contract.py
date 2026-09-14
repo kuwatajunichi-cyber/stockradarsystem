@@ -85,6 +85,8 @@ def test_sweeper_refuses_mixed_prefix_in_source() -> None:
     assert "Prefix-delete only orphan-only generations" in body
     assert "should_prefix_delete_generation" in body
     assert "--delete-orphan-rows" in body
+    assert "in.(committed,superseded,pending)" in body
+    assert "LIVE_NON_ORPHAN_STATUSES" in body
 
 
 def test_protect_committed_and_inputs() -> None:
