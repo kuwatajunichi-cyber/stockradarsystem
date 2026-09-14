@@ -45,7 +45,13 @@ def generation_sweep_prefixes(
     metric_set_version_id: str,
     trade_date: str,
 ) -> list[str]:
-    """Return R2 prefixes safe to delete for a failed/orphan generation."""
+    """Return R2 prefixes safe to delete for a failed/orphan generation.
+
+    Snapshot keys nest generation under trade-date. Series keys nest
+    generation under symbol=/year=/, so the series prefix here is a
+    no-op for the live layout; per-key delete from derived_object_index
+    is the series path.
+    """
     return [
         (
             f"derived-snapshots/metric-set={metric_set_version_id}/"
@@ -141,7 +147,7 @@ def _list_unpurged_derived_orphans(supabase: Any) -> list[dict]:
             params={
                 "status": "eq.orphan",
                 "purged_at": "is.null",
-                "select": "id,object_key,generation_id,object_kind,instrument_code,trade_date,sha256",
+                "select": "id,object_key,generation_id,object_kind,instrument_code,trade_date,byte_sha256",
                 "order": "object_key",
                 "limit": str(page_size),
                 "offset": str(offset),
