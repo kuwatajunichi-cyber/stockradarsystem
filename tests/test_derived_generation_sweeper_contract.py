@@ -87,6 +87,8 @@ def test_sweeper_refuses_mixed_prefix_in_source() -> None:
     assert "--delete-orphan-rows" in body
     assert "in.(committed,superseded,pending)" in body
     assert "LIVE_NON_ORPHAN_STATUSES" in body
+    assert "byte_sha256" in body
+    assert "trade_date,sha256" not in body
 
 
 def test_protect_committed_and_inputs() -> None:

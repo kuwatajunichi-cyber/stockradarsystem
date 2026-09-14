@@ -449,6 +449,7 @@ def test_daily_derived_504_recovery_runbook_contract() -> None:
     assert "020_delete_orphan_derived_objects.sql" in text
     assert "derived_orphan_sweep.yml" in text
     assert "derived_reconcile.yml" in text
+    assert "byte_sha256" in text
 
 
 def test_phase3_runbook_documents_live_gate_closed() -> None:

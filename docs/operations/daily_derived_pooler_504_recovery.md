@@ -44,12 +44,13 @@ GitHub Re-run of the same github_run_id is rejected by begin_derived_generation.
 scripts/storage/derived_generation_sweeper.py and .github/workflows/derived_orphan_sweep.yml.
 
 1. dry_run is the default. Dispatch derived_orphan_sweep.yml with dry_run=true first.
-2. R2 prefix-delete only orphan-only generations. If the generation has any committed / superseded / pending row, it is mixed: no prefix. If latest_derived_observations points at the generation_id, no prefix.
-3. Mixed: delete only orphan object_keys that are not in the global committed key set. Never derived-inputs/.
-4. mark_orphan_object_purged sets purged_at and does not delete the row. Unique-index bloat needs a physical DELETE.
-5. Physical DELETE is RPC delete_orphan_derived_objects (migration 020_delete_orphan_derived_objects.sql). status=orphan only. Set delete_orphan_rows=true after 020 is applied in production.
-6. After a large DELETE, operator SQL: VACUUM (ANALYZE) public.derived_object_index. REINDEX TABLE CONCURRENTLY if needed. Not from GHA.
-7. Verify: orphan count 0, committed count unchanged, latest generation and observation count as intended.
+2. List orphans with PostgREST columns that exist: byte_sha256, not sha256. Series keys nest generation under symbol=/year=/; prefix `derived-series/.../generation={id}/` is a no-op. Per-key delete from derived_object_index is the series path.
+3. R2 prefix-delete only orphan-only generations. If the generation has any committed / superseded / pending row, it is mixed: no prefix. If latest_derived_observations points at the generation_id, no prefix.
+4. Mixed: delete only orphan object_keys that are not in the global committed key set. Never derived-inputs/.
+5. mark_orphan_object_purged sets purged_at and does not delete the row. Unique-index bloat needs a physical DELETE.
+6. Physical DELETE is RPC delete_orphan_derived_objects (migration 020_delete_orphan_derived_objects.sql). status=orphan only. Set delete_orphan_rows=true after 020 is applied in production.
+7. After a large DELETE, operator SQL: VACUUM (ANALYZE) public.derived_object_index. REINDEX TABLE CONCURRENTLY if needed. Not from GHA.
+8. Verify: orphan count 0, committed count unchanged, latest generation and observation count as intended.
 
 Do not extend weekly orphan_sweeper.py to derived. The rules differ.
 
