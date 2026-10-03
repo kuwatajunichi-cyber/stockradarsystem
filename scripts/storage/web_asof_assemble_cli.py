@@ -100,7 +100,14 @@ def _download_enriched_csv(supabase: SupabaseRestAdapter, r2: R2StagingAdapter, 
         raise AssembleWebAsofError(f"committed enriched CSV missing for {as_of}")
     object_key = str(rows[0]["object_key"])
     dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_bytes(r2.get_object(object_key))
+    try:
+        dest.write_bytes(r2.get_object(object_key))
+    except Exception as exc:
+        if type(exc).__name__ != "NoSuchKey" and "NoSuchKey" not in str(exc):
+            raise
+        raise AssembleWebAsofError(
+            f"r2_csv_nosuchkey as_of={as_of} object_key={object_key}"
+        ) from exc
     return object_key
 
 

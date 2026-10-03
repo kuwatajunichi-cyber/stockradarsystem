@@ -23,6 +23,7 @@ from scripts.storage.web_asof_assemble_cli import (  # noqa: E402
     _download_enriched_csv,
     cmd_assemble,
 )
+from stockradar.jobs.assemble_web_asof import AssembleWebAsofError  # noqa: E402
 
 _load_dotenv()
 
@@ -101,24 +102,38 @@ def main(argv: list[str] | None = None) -> int:
             )
             continue
         skip_download = i > 0 and (args.work_dir / "ohlc_store.zip").is_file()
-        if skip_download:
-            supabase = _adapter_supabase()
-            r2 = R2StagingAdapter()
-            _download_enriched_csv(supabase, r2, as_of, args.work_dir / "enriched.csv")
-        ns = argparse.Namespace(
-            as_of=as_of,
-            work_dir=args.work_dir,
-            github_run_id=args.github_run_id,
-            repository="local-ops-web-asof-backfill",
-            workflow="ops-web-asof-backfill",
-            codes="",
-            put=args.put,
-            require_enabled=False,
-            skip_download=skip_download,
-            skip_freeze=False,
-            json_output=args.work_dir / f"put_{as_of}.json",
-        )
-        code = cmd_assemble(ns)
+        try:
+            if skip_download:
+                supabase = _adapter_supabase()
+                r2 = R2StagingAdapter()
+                _download_enriched_csv(supabase, r2, as_of, args.work_dir / "enriched.csv")
+            ns = argparse.Namespace(
+                as_of=as_of,
+                work_dir=args.work_dir,
+                github_run_id=args.github_run_id,
+                repository="local-ops-web-asof-backfill",
+                workflow="ops-web-asof-backfill",
+                codes="",
+                put=args.put,
+                require_enabled=False,
+                skip_download=skip_download,
+                skip_freeze=False,
+                json_output=args.work_dir / f"put_{as_of}.json",
+            )
+            code = cmd_assemble(ns)
+        except AssembleWebAsofError as exc:
+            reason = str(exc)
+            if "r2_csv_nosuchkey" in reason or "committed enriched CSV missing" in reason:
+                results.append(
+                    {
+                        "as_of": as_of,
+                        "exit_code": 0,
+                        "skipped": "r2_csv_unavailable",
+                        "reason": reason[:400],
+                    }
+                )
+                continue
+            raise
         row = {"as_of": as_of, "exit_code": code}
         put_path = args.work_dir / f"put_{as_of}.json"
         if put_path.is_file():
