@@ -80,12 +80,23 @@ def main(argv: list[str] | None = None) -> int:
     results: list[dict] = []
     exit_code = 0
     for i, as_of in enumerate(dates):
+        put_path = args.work_dir / f"put_{as_of}.json"
+        skip_reason = None
         if as_of == "2026-10-02":
+            skip_reason = "already_committed_e31b9be8"
+        elif put_path.is_file():
+            try:
+                prev = json.loads(put_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                prev = {}
+            if prev.get("exit_code") == 0 or prev.get("status") == "ok":
+                skip_reason = "local_put_ok"
+        if skip_reason:
             results.append(
                 {
                     "as_of": as_of,
                     "exit_code": 0,
-                    "skipped": "already_committed_e31b9be8",
+                    "skipped": skip_reason,
                 }
             )
             continue
