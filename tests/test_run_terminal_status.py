@@ -148,3 +148,37 @@ def test_write_derived_skipped_does_not_fail_open_day_run() -> None:
         )
     )
     assert d.status == "success"
+
+
+@pytest.mark.unit
+def test_write_web_asof_failure_is_failed_on_open_day() -> None:
+    d = resolve_daily_run_terminal_status(
+        DailyRunTerminalInput(
+            is_open=True,
+            compute_indicators="success",
+            event_cause_enrichment="success",
+            render_and_upload="success",
+            skip_publish=True,
+            upload_executed=False,
+            upload_exit_code=0,
+            write_web_asof="failure",
+        )
+    )
+    assert d.status == "failed"
+
+
+@pytest.mark.unit
+def test_write_web_asof_skipped_does_not_fail_open_day_run() -> None:
+    d = resolve_daily_run_terminal_status(
+        DailyRunTerminalInput(
+            is_open=True,
+            compute_indicators="success",
+            event_cause_enrichment="success",
+            render_and_upload="success",
+            skip_publish=True,
+            upload_executed=False,
+            upload_exit_code=0,
+            write_web_asof="skipped",
+        )
+    )
+    assert d.status == "success"

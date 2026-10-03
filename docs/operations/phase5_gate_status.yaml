@@ -1,73 +1,128 @@
 schema_version: 1
 phase: '5'
-last_updated_utc: '2026-09-09T00:45:00+09:00'
+last_updated_utc: '2026-10-03T22:45:00+09:00'
 overall_status: in_progress
 implementation_snapshot:
   local_worktree_has_unmerged_changes: true
-  note: 'PR #177 merged_and_verified for pr-5b-signed-capability and pr-55b-runs-views. live_gate_55a/55b/5b closed. Auth/UI unstarted. overall_status stays in_progress. Issue #93 stays OPEN.'
+  note: 'v1.1 CAS 済 a2a12909-6079-4762-95a3-75b2914bb6a7. 2026-10-02 web_asof recommit generation e31b9be8. writer true. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open (evidence URLs null). overall in_progress. Issue #93 OPEN.'
 correction_log:
+- at_utc: '2026-10-03T22:45:00+09:00'
+  reason: 'v1.1 ops CAS a2a12909 (from retired 13209d23). SMA75 freeze rate 1.0. 2026-10-02 bundles recommitted under new UUID generation e31b9be8. daily YAML bind local unmerged. 60 as-of backfill started. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
+- at_utc: '2026-10-03T21:25:00+09:00'
+  reason: 'Plan/gate alignment audit: v1.1 CAS is not done (slice-3 was falsely completed in the Cursor plan). 60 as-of backfill and browser 20-iter perf are open. generation 17050a14. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
+- at_utc: '2026-10-03T18:50:00+09:00'
+  reason: 'U-6 wait: 2026-10-02 topix+nikkei web_asof committed. BFF dates/mint/signed GET 200 from static origin. writer true. no v1.1 CAS. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
+- at_utc: '2026-10-03T02:40:00+09:00'
+  reason: 'U-5 wait: deployed web-ui-bff + static screen body + R2 CORS GET/HEAD. writer flag stays false. no v1.1 CAS. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
+- at_utc: '2026-10-03T00:50:00+09:00'
+  reason: 'U-4b: Auth invite returned email_exists. operator uid 30573d89-2821-41ce-9fad-a1cc69e81296. applied 021_entitlements_preferences. inserted proven operator entitlement. no BFF deploy. no v1.1 CAS. writer flag stays false. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
+- at_utc: '2026-10-02T23:50:00+09:00'
+  reason: 'U-4a path: deployed web-ui-static login shell (https://web-ui-static.stockradarsystem.workers.dev). Site URL / Redirect URLs / Email Magic link are user console work. no invite. no BFF. writer flag stays false. no v1.1 CAS. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
+- at_utc: '2026-10-02T23:00:00+09:00'
+  reason: 'U-3 GO: production apply 020_web_asof_object_kind (schema_migrations 20261002132947). writer flag stays false. no v1.1 CAS. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
+- at_utc: '2026-10-02T22:50:00+09:00'
+  reason: 'Slice 2 local: Fake web_asof generation, mapping derived-web-asof-bundle, daily.yml write_web_asof gated false until 020.
+    lab gzip SLO in unit tests. no production CAS/DDL. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
+- at_utc: '2026-10-02T22:10:00+09:00'
+  reason: 'Slice 0/1 local: web_asof_bundle_v1 schema; BFF CORS/Bearer; Track C first-live scope without webhook/RLS; live_gate_5c/5d evidence
+    keys; SMA75 compute + YAML bind. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
+- at_utc: '2026-09-22T23:32:00+09:00'
+  reason: 'Audit fixes as docs: public mint=unauthenticated; BFF product path; R2 CORS; derived-web-asof per bench; SMA75 required before Web
+    live; no PostgREST from browser; first live browser GetObject / free later proxy. pr-5d/live_gate_5d stay pending/open. overall in_progress.
+    Issue #93 OPEN.'
+- at_utc: '2026-09-22T22:53:00+09:00'
+  reason: 'Adopt T-1 case C (Pages+BFF), T-2 case C (as-of view bundle), T-5 failure copy as docs. pr-5d/live_gate_5d stay pending/open. overall_status
+    stays in_progress. Issue #93 stays OPEN.'
+- at_utc: '2026-09-22T22:20:00+09:00'
+  reason: 'Expand T-1 cases A-H and T-2 cases A-G (docs comparison only). T-6 remains account preference bag. pr-5d/live_gate_5d stay pending/open.
+    overall_status stays in_progress. Issue #93 stays OPEN.'
+- at_utc: '2026-09-22T22:07:00+09:00'
+  reason: 'Adopt T-3,T-4,T-6 (account prefs bag),T-7,T-8,T-9,T-10 as docs. T-1/T-2 remain undecided with extra alternatives. pr-5d/live_gate_5d
+    stay pending/open. overall_status stays in_progress. Issue #93 stays OPEN.'
+- at_utc: '2026-09-22T21:32:00+09:00'
+  reason: 'Adopt web_ui_v1.md as first-version screen SSOT (docs). Adopt rs_sma75 into metric_set_v1_1 draft catalogs; do not CAS active v1. Remaining
+    items are provisional in phase5_product_spec_requirements.md. pr-5d/live_gate_5d stay pending/open. overall_status stays in_progress. Issue
+    #93 stays OPEN.'
+- at_utc: '2026-09-22T21:07:00+09:00'
+  reason: "phase5_product_spec_requirements.md: localhost prototype capture 2026-09-22 (D-2/D-8/D-9 改, D-10–D-14). Unadopted. not Track D SSOT.\
+    \ does not close pr-5d / live_gate_5d / C/E. overall_status stays in_progress. Issue #93 stays OPEN."
+- at_utc: '2026-09-10T21:50:00+09:00'
+  reason: 'SSOT sync: tracks A/B closed (live gates already closed). phase5_product_spec_requirements.md is requirements inventory only, not Track
+    D SSOT. C/D/E remain pending. overall_status stays in_progress. Issue #93 stays OPEN.'
 - at_utc: '2026-09-09T00:45:00+09:00'
-  reason: 'live_gate_5b closed: internal CLI issued+refuse evidence in Issue #93 comment 5587796941. R2_PUBLIC_BUCKET=false. no public mint. overall_status stays in_progress. Issue #93 stays OPEN.'
+  reason: 'live_gate_5b closed: internal CLI issued+refuse evidence in Issue #93 comment 5587796941. R2_PUBLIC_BUCKET=false. no public mint. overall_status
+    stays in_progress. Issue #93 stays OPEN.'
 - at_utc: '2026-09-08T23:55:00+09:00'
-  reason: 'PR #178 review fix. roadmap phrase uses live_gate_5b は open (ADR-005 forbids 未達 before ## Phase 5). 019 unique issued request_id is idempotent for DBs that applied original 017. live_gate_5b remains open. overall_status stays in_progress.'
+  reason: "PR #178 review fix. roadmap phrase uses live_gate_5b は open (ADR-005 forbids 未達 before ## Phase 5). 019 unique issued request_id is\
+    \ idempotent for DBs that applied original 017. live_gate_5b remains open. overall_status stays in_progress."
 - at_utc: '2026-09-08T23:20:00+09:00'
-  reason: 'PR #177 merged bf8d5f6; CI Pass 34148877682. pr-5b-signed-capability and pr-55b-runs-views merged_and_verified. production 017/018 applied. live_gate_55b closed with Issue comment 5586713400. live_gate_5b remains open. overall_status stays in_progress.'
+  reason: 'PR #177 merged bf8d5f6; CI Pass 34148877682. pr-5b-signed-capability and pr-55b-runs-views merged_and_verified. production 017/018
+    applied. live_gate_55b closed with Issue comment 5586713400. live_gate_5b remains open. overall_status stays in_progress.'
 - at_utc: '2026-09-07T17:45:00+09:00'
-  reason: 'PR #175 merged a10c15a; CI Pass 34101473032. pr-5b-signed-contract merged_and_verified. pr-5b-signed-capability pending. live_gate_5b remains open. overall_status stays in_progress.'
+  reason: 'PR #175 merged a10c15a; CI Pass 34101473032. pr-5b-signed-contract merged_and_verified. pr-5b-signed-capability pending. live_gate_5b
+    remains open. overall_status stays in_progress.'
 - at_utc: '2026-09-07T17:25:00+09:00'
-  reason: 'live_gate_55a closed: skip_publish 34096740733 and replay 34097933412 Heartbeat skipped; Issue #93 comment 5567447887. HC dashboard operator-confirmed. overall_status stays in_progress. Track B contract still local_only.'
+  reason: 'live_gate_55a closed: skip_publish 34096740733 and replay 34097933412 Heartbeat skipped; Issue #93 comment 5567447887. HC dashboard
+    operator-confirmed. overall_status stays in_progress. Track B contract still local_only.'
 - at_utc: '2026-09-07T16:40:00+09:00'
-  reason: Audited post-merge Cron-equivalent runs. Recorded GHA heartbeat_ok=true URLs for patch_success_ping (Mon 2026-09-07), daily_success_ping (Mon 2026-09-07), closed_day_expected_ping (Sun 2026-09-06 Patch+Daily). skip_publish_no_ping and replay_no_ping still null. live_gate_55a remains open. overall_status stays in_progress.
+  reason: Audited post-merge Cron-equivalent runs. Recorded GHA heartbeat_ok=true URLs for patch_success_ping (Mon 2026-09-07), daily_success_ping
+    (Mon 2026-09-07), closed_day_expected_ping (Sun 2026-09-06 Patch+Daily). skip_publish_no_ping and replay_no_ping still null. live_gate_55a
+    remains open. overall_status stays in_progress.
 - at_utc: '2026-09-05T23:30:00+09:00'
-  reason: Track B signed_url_capability contract docs added (local_only). pr-5b-signed-contract local_only; pr-5b-signed-capability remains pending. live_gate_5b remains open. overall_status stays in_progress.
+  reason: Track B signed_url_capability contract docs added (local_only). pr-5b-signed-contract local_only; pr-5b-signed-capability remains pending.
+    live_gate_5b remains open. overall_status stays in_progress.
 - at_utc: '2026-09-05T23:30:00+09:00'
-  reason: 'PR #174 merged 8b8a252; CI Pass run 33957607494. pr-50-track-map and pr-55a-healthchecks merged_and_verified. U-55a-1/2 already completed. live_gate_55a remains open. overall_status stays in_progress.'
+  reason: 'PR #174 merged 8b8a252; CI Pass run 33957607494. pr-50-track-map and pr-55a-healthchecks merged_and_verified. U-55a-1/2 already completed.
+    live_gate_55a remains open. overall_status stays in_progress.'
 - at_utc: '2026-09-05T15:45:00+09:00'
-  reason: 5.5a ping implemented locally (daily.yml / patch.yml). pr-55a-healthchecks local_only. live_gate_55a remains open. overall_status stays in_progress.
+  reason: 5.5a ping implemented locally (daily.yml / patch.yml). pr-55a-healthchecks local_only. live_gate_55a remains open. overall_status stays
+    in_progress.
 - at_utc: '2026-09-05T15:20:00+09:00'
-  reason: 'U-55a-1/2 completed with Issue #93 evidence. pr-55a-healthchecks remains pending (ping not implemented). live_gate_55a remains open. overall_status stays in_progress.'
+  reason: 'U-55a-1/2 completed with Issue #93 evidence. pr-55a-healthchecks remains pending (ping not implemented). live_gate_55a remains open.
+    overall_status stays in_progress.'
 - at_utc: '2026-09-04T21:20:00+09:00'
-  reason: 'Step 5.0: split Phase 5 into tracks A–E. pr_gates include 5.5a and remaining tracks as pending/local_only so 5.5a live close cannot force overall closed. Calendar contract revised to closed_day_expected_ping before ping implementation.'
+  reason: "Step 5.0: split Phase 5 into tracks A–E. pr_gates include 5.5a and remaining tracks as pending/local_only so 5.5a live close cannot\
+    \ force overall closed. Calendar contract revised to closed_day_expected_ping before ping implementation."
 roadmap:
-  phase5_status_phrase: in_progress（5.5a/5.5b/5b live closed。Auth/UI 未着手）
+  phase5_status_phrase: "in_progress（A/B live closed。020/022-024 本番 apply 済。v1.1 CAS 済。Web 束 2026-10-02 を新 UUID で再 commit。writer ゲートオン。U-6 人確認待ち。pr-5c/pr-5d pending。C/D/E pending）"
 tracks:
   A_observability:
-    description: 5.5a Healthchecks + 5.5b runs 集計（ops SQL。画面ではない）
-    status: in_progress
+    description: "5.5a Healthchecks + 5.5b runs 集計（ops SQL。画面ではない）"
+    status: closed
     requires_web_ui_spec: false
   B_delivery_capability:
-    description: private R2、committed のみ、短命署名、監査。製品ロールなし
-    status: in_progress
+    description: "private R2、committed のみ、短命署名、監査。製品ロールなし"
+    status: closed
     requires_web_ui_spec: false
   C_auth_entitlements:
-    description: Supabase Auth、entitlements、課金 webhook、利用者別 RLS
+    description: "Supabase Auth、allowlist（operator / internal_beta）、preferences、policy ゼロ、認証済み BFF。課金 webhook と利用者 RLS は後続"
     status: pending
     requires_web_ui_spec: true
   D_web_ui:
-    description: ADR-004 消費者のインタラクティブ Web UI
+    description: "ADR-004 消費者のインタラクティブ Web UI"
     status: pending
     requires_web_ui_spec: true
   E_distribution:
-    description: published/ 統一。live TARGETS を壊さない
+    description: "published/ 統一。live TARGETS を壊さない"
     status: pending
     requires_web_ui_spec: true
 pr_gates:
   pr-50-track-map:
-    description: Step 5.0 トラック地図 + phase5_gate_status + cutover 休場日契約
+    description: "Step 5.0 トラック地図 + phase5_gate_status + cutover 休場日契約"
     status: merged_and_verified
     merge_commit: 8b8a252b9c5e913c205b1299effbc021e5aa61e0
     merge_ci_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33957607494
     pytest_ci_pass_on_merge: true
     note: 'merged via PR #174 with 5.5a ping. Not Phase 5 overall close.'
   pr-55a-healthchecks:
-    description: Healthchecks.io ping（Check 2本、閉場日 ping、replay/skip_publish 非 ping）
+    description: "Healthchecks.io ping（Check 2本、閉場日 ping、replay/skip_publish 非 ping）"
     status: merged_and_verified
     merge_commit: 8b8a252b9c5e913c205b1299effbc021e5aa61e0
     merge_ci_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/33957607494
     pytest_ci_pass_on_merge: true
-    note: 'merged via PR #174. U-55a-1/2 completed. live_gate_55a still open. Do not close overall from this gate.'
+    note: 'merged via PR #174. U-55a-1/2 completed. live_gate_55a closed. Do not close overall from this gate.'
   pr-55b-runs-views:
-    description: Phase 4 runs 集計ビュー（ops SQL。ユーザー向け画面ではない）
+    description: "Phase 4 runs 集計ビュー（ops SQL。ユーザー向け画面ではない）"
     status: merged_and_verified
     merge_commit: bf8d5f68b7bf6e7199f5f33c64f33d2125b6b011
     merge_ci_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/34148877682
@@ -79,38 +134,39 @@ pr_gates:
     merge_commit: a10c15af430f9a1fd5446d29d97e741a95302207
     merge_ci_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/34101473032
     pytest_ci_pass_on_merge: true
-    note: 'merged via PR #175. docs only. capability is pr-5b-signed-capability. Do not close live_gate_5b.'
+    note: 'merged via PR #175. docs only. capability is pr-5b-signed-capability. live_gate_5b closed with live evidence.'
   pr-5b-signed-capability:
-    description: Track B signed URL capability（private R2、P0 継承。公開 mint 禁止）
+    description: "Track B signed URL capability（private R2、P0 継承。公開 mint 禁止）"
     status: merged_and_verified
     merge_commit: bf8d5f68b7bf6e7199f5f33c64f33d2125b6b011
     merge_ci_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/34148877682
     pytest_ci_pass_on_merge: true
-    note: 'merged via PR #177. No public mint. Do not close live_gate_5b without live evidence.'
+    note: 'merged via PR #177. No public mint. live_gate_5b closed with Issue #93 comment 5587796941.'
   pr-5c-auth-entitlements:
-    description: Track C Auth / entitlements / webhook / 利用者 RLS
+    description: 'Track C first live: Auth / allowlist / preferences / policy-zero BFF. webhook and user RLS are follow-on, not this gate'
     status: pending
     merge_commit: null
     merge_ci_run_url: null
     pytest_ci_pass_on_merge: null
-    note: requires Web UI spec
+    note: requires Web UI spec. first live excludes billing webhook and per-user RLS (T-9). phase5_product_spec_requirements.md is inventory only
   pr-5d-web-ui:
     description: Track D Web UI
     status: pending
     merge_commit: null
     merge_ci_run_url: null
     pytest_ci_pass_on_merge: null
-    note: requires Web UI spec
+    note: first-version screen spec is docs/contracts/web_ui_v1.md (adopted docs, includes T-1C/T-2C/T-5). not implementation. not live. not Track
+      D complete
   pr-5e-distribution:
     description: Track E published/ distribution cutover
     status: pending
     merge_commit: null
     merge_ci_run_url: null
     pytest_ci_pass_on_merge: null
-    note: requires Web UI spec; must not break live TARGETS
+    note: requires Web UI spec; must not break live TARGETS. requirements inventory is not cutover approval
 user_gates:
   u-55a-1:
-    description: Healthchecks アカウント、Check 2本、メール通知テスト
+    description: "Healthchecks アカウント、Check 2本、メール通知テスト"
     status: completed
     evidence_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/issues/93#issuecomment-5549891323
   u-55a-2:
@@ -127,7 +183,8 @@ live_gates:
     skip_publish_no_ping_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/34096740733
     replay_no_ping_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/34097933412
     closed_day_expected_ping_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/actions/runs/34007930390
-    note: closed 2026-09-07. HC dashboard operator-confirmed. Issue comment https://github.com/kuwatajunichi-cyber/stockradarsystem/issues/93#issuecomment-5567447887. Pause not used. 5.5a live close does not close Phase 5 overall.
+    note: closed 2026-09-07. HC dashboard operator-confirmed. Issue comment https://github.com/kuwatajunichi-cyber/stockradarsystem/issues/93#issuecomment-5567447887.
+      Pause not used. 5.5a live close does not close Phase 5 overall.
   live_gate_55b:
     track: A
     status: closed
@@ -140,15 +197,35 @@ live_gates:
     closed_at_utc: '2026-09-08T15:45:00Z'
     internal_mint_success_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/issues/93#issuecomment-5587796941
     refuse_unproven_or_not_committed_run_url: https://github.com/kuwatajunichi-cyber/stockradarsystem/issues/93#issuecomment-5587796941
-    note: 'closed 2026-09-09. internal CLI issued+refuse on production. R2_PUBLIC_BUCKET=false. no public mint. Phase 5 overall stays in_progress. Issue #93 stays OPEN.'
+    note: 'closed 2026-09-09. internal CLI issued+refuse on production. R2_PUBLIC_BUCKET=false. no public mint. Phase 5 overall stays in_progress.
+      Issue #93 stays OPEN.'
   live_gate_5c:
     track: C
     status: open
     closed_at_utc: null
+    auth_login_evidence_url: null
+    unauthenticated_mint_401_url: null
+    unproven_403_url: null
+    allowlist_proven_mint_url: null
+    preferences_roundtrip_url: null
+    rls_policy_zero_url: null
+    bff_cors_preflight_url: null
+    note: open. docs/DDL cannot close. needs pr-5c merged_and_verified plus live URLs.
   live_gate_5d:
     track: D
     status: open
     closed_at_utc: null
+    note: open. v1.1 CAS 済. first live still needs Issue #93 human URLs. docs and prototype cannot close.
+    static_origin_login_to_table_url: null
+    browser_getobject_cors_url: null
+    sma75_values_present_url: null
+    asof_switch_url: null
+    bench_split_fetch_url: null
+    news_asof_aligned_url: null
+    t5_api_down_copy_url: null
+    targets_unchanged_url: null
+    bundle_perf_lab_url: null
+    bundle_perf_browser_url: null
   live_gate_5e:
     track: E
     status: open

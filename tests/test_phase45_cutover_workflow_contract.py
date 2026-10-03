@@ -46,6 +46,18 @@ def test_daily_write_derived_step_passes_prod_secrets() -> None:
     assert "DERIVED_GENERATION_FAKE" not in run
     assert "11111111-2222-3333-4444-555555555555" not in run
     assert "phase4_5_shadow_metric_set_version_id" in run
+    assert "resolve_metric_set_yaml.py" in run
+    assert "--metric-set-yaml \"$METRIC_SET_YAML\"" in run
+    assert "config/metrics/metric_set_v1_free.yaml" not in run
+
+
+def test_daily_write_derived_waits_for_render_and_upload() -> None:
+    job = _write_derived_job()
+    needs = job["needs"]
+    assert "render_and_upload" in needs
+    assert "compute_indicators" in needs
+    cond = str(job.get("if") or "")
+    assert "needs.render_and_upload.result == 'success'" in cond
 
 
 def test_daily_finalize_includes_write_derived_generation() -> None:
@@ -57,6 +69,32 @@ def test_daily_finalize_includes_write_derived_generation() -> None:
     assert "needs.write_derived_generation.result" in text
 
 
+def test_daily_write_web_asof_is_mapping_gated_and_needs_derived_plus_enrichment() -> None:
+    workflow = yaml.safe_load(_text(_DAILY))
+    job = workflow["jobs"]["write_web_asof"]
+    needs = job["needs"]
+    assert "write_derived_generation" in needs
+    assert "event_cause_enrichment" in needs
+    cond = str(job.get("if") or "")
+    assert "needs.write_derived_generation.result == 'success'" in cond
+    text = _text(_DAILY)
+    assert "web_asof_writer_enabled" in text
+    assert "Fake generation stores are forbidden on the live path" in text
+    assert "--write-web-asof-result" in text
+    assert "needs.write_web_asof.result" in text
+    assert "write_web_asof" in workflow["jobs"]["finalize_run"]["needs"]
+    write_step = None
+    for step in job.get("steps") or []:
+        if isinstance(step, dict) and step.get("name") == "Write web-asof bundles":
+            write_step = step
+            break
+    assert write_step is not None
+    env = write_step.get("env") or {}
+    assert env.get("SUPABASE_URL")
+    assert env.get("R2_ACCESS_KEY_ID")
+    assert "DERIVED_GENERATION_FAKE" not in str(write_step.get("run") or "")
+
+
 def test_backfill_prod_path_forbids_ci_fixture() -> None:
     text = _text(_BACKFILL)
     prod_start = text.find("Derived backfill put-generation (prod adapters)")
@@ -66,6 +104,8 @@ def test_backfill_prod_path_forbids_ci_fixture() -> None:
     assert "snapshot_r2_key" in prod
     assert "CI fixture forbidden" in prod
     assert "derived_bus_cli.py get-object" in prod
+    assert "resolve_metric_set_yaml.py" in prod
+    assert "config/metrics/metric_set_v1_free.yaml" not in prod
 
 
 def test_reconcile_prod_path_forbids_ci_fixture() -> None:
@@ -79,6 +119,8 @@ def test_reconcile_prod_path_forbids_ci_fixture() -> None:
     assert "derived_bus_cli.py get-object" in prod
     assert "--expected-old-digest" in prod
     assert "is-current-latest-trade-date" in prod
+    assert "resolve_metric_set_yaml.py" in prod
+    assert "config/metrics/metric_set_v1_free.yaml" not in prod
 
 
 def test_mapping_shadow_metric_set_id_contract() -> None:

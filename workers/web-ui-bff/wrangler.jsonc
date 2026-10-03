@@ -1,0 +1,17 @@
+{
+  "name": "web-ui-bff",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-02",
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true,
+    "traces": { "enabled": true }
+  },
+  "vars": {
+    "SUPABASE_URL": "https://wocvepixlzqupasoipbk.supabase.co",
+    "STATIC_ORIGIN": "https://web-ui-static.stockradarsystem.workers.dev",
+    "R2_PUBLIC_BUCKET": "false",
+    "R2_ACCOUNT_ID": "9bc0de3743f8ddac0056746233b77513"
+  }
+}

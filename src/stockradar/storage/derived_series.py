@@ -38,7 +38,7 @@ SERIES_MANIFEST_FIELD_ORDER: tuple[str, ...] = (
 )
 
 VALID_SERIES_PROVENANCE: frozenset[str] = frozenset(
-    {"daily_normal", "series_seed", "series_repair"}
+    {"daily_normal", "series_seed", "series_repair", "reconcile"}
 )
 
 SERIES_SERIALIZATION: dict[str, Any] = {

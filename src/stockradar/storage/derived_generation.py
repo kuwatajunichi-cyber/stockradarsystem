@@ -17,6 +17,12 @@ class ArtifactProfile(str, Enum):
     SNAPSHOT_SERIES = "snapshot_series"
     SNAPSHOT_SERIES_LATEST = "snapshot_series_latest"
     SERIES_ONLY = "series_only"
+    WEB_ASOF = "web_asof"
+
+
+WEB_ASOF_OBJECT_KINDS: frozenset[str] = frozenset({"web_asof_bundle", "web_asof_manifest"})
+WEB_ASOF_BENCHMARKS: frozenset[str] = frozenset({"topix", "nikkei"})
+WEB_ASOF_EXPECTED_OBJECT_COUNT = 3
 
 
 VALID_ARTIFACT_PROFILES: frozenset[str] = frozenset(p.value for p in ArtifactProfile)
@@ -119,6 +125,7 @@ class PendingObjectRecord:
     series_year: int | None = None
     layer1_input_fingerprint: str | None = None
     upload_verified_at: datetime | None = None
+    benchmark: str | None = None
 
 
 @dataclass(frozen=True)
@@ -146,6 +153,7 @@ class MetricGenerationPort(Protocol):
         instrument_code: str | None = None,
         series_year: int | None = None,
         layer1_input_fingerprint: str | None = None,
+        benchmark: str | None = None,
     ) -> PendingObjectRecord: ...
 
     def mark_object_uploaded(
@@ -211,6 +219,14 @@ class MetricGenerationPort(Protocol):
         metric_set_version_id: str,
         series_year: int,
     ) -> dict[str, str]: ...
+
+    def get_committed_web_asof_object_key(
+        self,
+        *,
+        metric_set_version_id: str,
+        benchmark: str,
+        as_of: str,
+    ) -> str | None: ...
 
     def register_pending_objects(
         self,
@@ -295,6 +311,8 @@ def expected_derived_object_count(*, profile: str | ArtifactProfile, instrument_
         return 2
     if normalized == ArtifactProfile.SERIES_ONLY.value:
         return (2 * n) + 1
+    if normalized == ArtifactProfile.WEB_ASOF.value:
+        return WEB_ASOF_EXPECTED_OBJECT_COUNT
     return 2 + (2 * n)
 
 
@@ -377,12 +395,15 @@ def _object_coordinate_key(
     trade_date: str | None,
     instrument_code: str | None,
     series_year: int | None,
-) -> tuple[str, str | None, str | None, int | None]:
+    benchmark: str | None = None,
+) -> tuple[str, str | None, str | None, int | None, str | None]:
+    bench = benchmark.strip().lower() if isinstance(benchmark, str) and benchmark.strip() else None
     return (
         object_kind.strip().lower(),
         trade_date,
         instrument_code,
         series_year,
+        bench,
     )
 
 
@@ -397,6 +418,7 @@ class FakeMetricGenerationStore:
   committed_series_object_key_by_coord: dict[tuple[str, str, int], str] = field(default_factory=dict)
   committed_series_digest_by_coord: dict[tuple[str, str, int], str] = field(default_factory=dict)
   committed_latest_observations: dict[tuple[str, str], dict[str, Any]] = field(default_factory=dict)
+  committed_web_asof_object_key_by_coord: dict[tuple[str, str, str], str] = field(default_factory=dict)
   identity_index: dict[tuple[str, ...], str] = field(default_factory=dict)
   _clock: datetime | None = None
   _lock: RLock = field(default_factory=RLock)
@@ -488,6 +510,7 @@ class FakeMetricGenerationStore:
     instrument_code: str | None = None,
     series_year: int | None = None,
     layer1_input_fingerprint: str | None = None,
+    benchmark: str | None = None,
   ) -> PendingObjectRecord:
     with self._lock:
       return self._register_pending_object_unlocked(
@@ -501,6 +524,7 @@ class FakeMetricGenerationStore:
         instrument_code=instrument_code,
         series_year=series_year,
         layer1_input_fingerprint=layer1_input_fingerprint,
+        benchmark=benchmark,
       )
 
   def _register_pending_object_unlocked(
@@ -516,9 +540,11 @@ class FakeMetricGenerationStore:
     instrument_code: str | None = None,
     series_year: int | None = None,
     layer1_input_fingerprint: str | None = None,
+    benchmark: str | None = None,
   ) -> PendingObjectRecord:
     generation = self._require_pending_generation(generation_id)
     kind = object_kind.strip().lower()
+    bench = benchmark.strip().lower() if isinstance(benchmark, str) and benchmark.strip() else None
     allowed_kinds = {
       "snapshot",
       "snapshot_manifest",
@@ -526,18 +552,49 @@ class FakeMetricGenerationStore:
       "series_manifest",
       "series_seed_delta",
       "series_repair_delta",
+      "web_asof_bundle",
+      "web_asof_manifest",
     }
     if kind not in allowed_kinds:
       raise GenerationConflictError(f"unsupported derived object kind: {kind!r}")
     if kind in {"snapshot", "snapshot_manifest"}:
-      valid_shape = trade_date is not None and instrument_code is None and series_year is None
+      valid_shape = (
+        trade_date is not None
+        and instrument_code is None
+        and series_year is None
+        and bench is None
+      )
     elif kind in {"series", "series_manifest"}:
-      valid_shape = trade_date is None and instrument_code is not None and series_year is not None
+      valid_shape = (
+        trade_date is None
+        and instrument_code is not None
+        and series_year is not None
+        and bench is None
+      )
+    elif kind == "web_asof_bundle":
+      valid_shape = (
+        trade_date is not None
+        and instrument_code is None
+        and series_year is None
+        and bench in WEB_ASOF_BENCHMARKS
+      )
+    elif kind == "web_asof_manifest":
+      valid_shape = (
+        trade_date is not None
+        and instrument_code is None
+        and series_year is None
+        and bench is None
+      )
     else:
-      valid_shape = trade_date is not None and instrument_code is None and series_year is None
+      valid_shape = trade_date is not None and instrument_code is None and series_year is None and bench is None
     if not valid_shape:
       raise GenerationConflictError(f"invalid object coordinate shape for {kind!r}")
     profile = str(generation["artifact_profile"])
+    if profile == ArtifactProfile.WEB_ASOF.value:
+      if kind not in WEB_ASOF_OBJECT_KINDS:
+        raise GenerationConflictError(f"web_asof profile rejects object kind {kind!r}")
+    elif kind in WEB_ASOF_OBJECT_KINDS:
+      raise GenerationConflictError(f"profile {profile!r} rejects object kind {kind!r}")
     if profile == ArtifactProfile.SERIES_ONLY.value:
       expected_delta = (
         "series_seed_delta"
@@ -557,6 +614,7 @@ class FakeMetricGenerationStore:
       trade_date=trade_date,
       instrument_code=instrument_code,
       series_year=series_year,
+      benchmark=bench,
     )
     for existing in self.pending_objects.values():
       if existing["generation_id"] != generation_id:
@@ -566,6 +624,7 @@ class FakeMetricGenerationStore:
         trade_date=existing.get("trade_date"),
         instrument_code=existing.get("instrument_code"),
         series_year=existing.get("series_year"),
+        benchmark=existing.get("benchmark"),
       )
       if existing_coord != coord:
         continue
@@ -587,6 +646,7 @@ class FakeMetricGenerationStore:
       "trade_date": trade_date,
       "instrument_code": instrument_code,
       "series_year": series_year,
+      "benchmark": bench,
       "layer1_input_fingerprint": layer1_input_fingerprint,
       "upload_verified_at": None,
       "status": "pending",
@@ -741,6 +801,10 @@ class FakeMetricGenerationStore:
       raise GenerationConflictError(
         "series_only profile rejects snapshot expected_old_digest"
       )
+    if profile == ArtifactProfile.WEB_ASOF.value and expected_old_digest is not None:
+      raise GenerationConflictError(
+        "web_asof profile rejects snapshot expected_old_digest"
+      )
     if expected_old_digest is not None:
       current = self.committed_snapshot_digest_by_set_date.get((set_id, trade_date))
       expected = expected_old_digest.strip().lower()
@@ -769,6 +833,21 @@ class FakeMetricGenerationStore:
     has_series = any(row["object_kind"] == "series" for row in objects)
     has_snapshot = any(row["object_kind"] == "snapshot" for row in objects)
     object_kinds = {str(row["object_kind"]) for row in objects}
+    if profile == ArtifactProfile.WEB_ASOF.value:
+      if object_kinds - WEB_ASOF_OBJECT_KINDS:
+        raise GenerationConflictError("web_asof profile contains an invalid object kind")
+      bundles = [row for row in objects if row["object_kind"] == "web_asof_bundle"]
+      manifests = [row for row in objects if row["object_kind"] == "web_asof_manifest"]
+      if len(bundles) != 2 or len(manifests) != 1:
+        raise GenerationConflictError(
+          "web_asof profile requires exactly two bundles and one manifest"
+        )
+      benches = {
+        str(row.get("benchmark") or "").strip().lower()
+        for row in bundles
+      }
+      if benches != set(WEB_ASOF_BENCHMARKS):
+        raise GenerationConflictError("web_asof profile requires topix and nikkei bundles")
     if profile == ArtifactProfile.SNAPSHOT_ONLY.value and has_series:
       raise GenerationConflictError("snapshot_only profile rejects series objects")
     if profile in {ArtifactProfile.SNAPSHOT_SERIES.value, ArtifactProfile.SNAPSHOT_SERIES_LATEST.value} and not has_series:
@@ -878,6 +957,18 @@ class FakeMetricGenerationStore:
             and prior.get("series_year") == item.series_year
           ):
             prior["status"] = "superseded"
+    elif profile == ArtifactProfile.WEB_ASOF.value:
+      for prior in self.pending_objects.values():
+        if prior["generation_id"] == generation_id:
+          continue
+        if prior.get("metric_set_version_id") != set_id:
+          continue
+        if prior.get("status") != "committed":
+          continue
+        if prior["object_kind"] == "web_asof_manifest" and prior.get("trade_date") == trade_date:
+          prior["status"] = "orphan"
+        if prior["object_kind"] == "web_asof_bundle" and prior.get("trade_date") == trade_date:
+          prior["status"] = "orphan"
     else:
       for prior in self.pending_objects.values():
         if prior["generation_id"] == generation_id:
@@ -931,6 +1022,11 @@ class FakeMetricGenerationStore:
         )
         self.committed_series_object_key_by_coord[coord] = str(row["object_key"])
         self.committed_series_digest_by_coord[coord] = str(row["logical_digest"])
+      if row["object_kind"] == "web_asof_bundle":
+        bench = str(row.get("benchmark") or "").strip().lower()
+        self.committed_web_asof_object_key_by_coord[
+          (set_id, bench, str(row.get("trade_date") or trade_date))
+        ] = str(row["object_key"])
     if has_snapshot:
       self.committed_snapshot_digest_by_set_date[(set_id, trade_date)] = digest
     for row in staging_rows:
@@ -1023,13 +1119,14 @@ class FakeMetricGenerationStore:
     objects: list[dict[str, Any]],
   ) -> list[PendingObjectRecord]:
     with self._lock:
-      seen: set[tuple[str, str | None, str | None, int | None]] = set()
+      seen: set[tuple[str, str | None, str | None, int | None, str | None]] = set()
       for item in objects:
         coord = _object_coordinate_key(
           object_kind=str(item["object_kind"]),
           trade_date=item.get("trade_date"),
           instrument_code=item.get("instrument_code"),
           series_year=item.get("series_year"),
+          benchmark=item.get("benchmark"),
         )
         if coord in seen:
           raise ObjectCoordinateConflictError(
@@ -1050,6 +1147,7 @@ class FakeMetricGenerationStore:
             instrument_code=item.get("instrument_code"),
             series_year=item.get("series_year"),
             layer1_input_fingerprint=item.get("layer1_input_fingerprint"),
+            benchmark=item.get("benchmark"),
           )
         )
       return records
@@ -1120,6 +1218,22 @@ class FakeMetricGenerationStore:
         )
       )
 
+  def get_committed_web_asof_object_key(
+    self,
+    *,
+    metric_set_version_id: str,
+    benchmark: str,
+    as_of: str,
+  ) -> str | None:
+    with self._lock:
+      return self.committed_web_asof_object_key_by_coord.get(
+        (
+          metric_set_version_id.strip().lower(),
+          benchmark.strip().lower(),
+          as_of.strip(),
+        )
+      )
+
 
   def _latest_rows(self, generation_id: str) -> list[LatestStagingRow]:
     return [
@@ -1176,6 +1290,7 @@ class FakeMetricGenerationStore:
       series_year=row.get("series_year"),
       layer1_input_fingerprint=row.get("layer1_input_fingerprint"),
       upload_verified_at=row.get("upload_verified_at"),
+      benchmark=row.get("benchmark"),
     )
 
 

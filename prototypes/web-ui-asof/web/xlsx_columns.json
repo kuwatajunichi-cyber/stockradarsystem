@@ -1,0 +1,116 @@
+[
+  {
+    "key": "date",
+    "h1": null,
+    "h2": null,
+    "fmt": "yyyy\\-mm\\-dd"
+  },
+  {
+    "key": "code",
+    "h1": null,
+    "h2": "ｺｰﾄﾞ",
+    "fmt": "General"
+  },
+  {
+    "key": "name",
+    "h1": null,
+    "h2": "銘柄名",
+    "fmt": "General"
+  },
+  {
+    "key": "link_kabutan",
+    "h1": "株探",
+    "h2": "概要",
+    "fmt": "General"
+  },
+  {
+    "key": "link_kabutan_chart",
+    "h1": null,
+    "h2": "チャート",
+    "fmt": "General"
+  },
+  {
+    "key": "link_kabutan_news",
+    "h1": null,
+    "h2": "ニュース",
+    "fmt": "General"
+  },
+  {
+    "key": "link_buffett",
+    "h1": "バフェット・コード",
+    "h2": null,
+    "fmt": "General"
+  },
+  {
+    "key": "price_text",
+    "h1": "日足形状",
+    "h2": "(当日の価格挙動)",
+    "fmt": "General"
+  },
+  {
+    "key": "z_turnover_60",
+    "h1": "売買代金",
+    "h2": "Zscore",
+    "fmt": "\\+0.0;\\-0.0;\\±0"
+  },
+  {
+    "key": "rs_acceleration_zscore_topix",
+    "h1": "対TOPIXリターン強度（Relative Strength）",
+    "h2": "加速Z",
+    "fmt": "\\+0.0;\\-0.0;\\±0"
+  },
+  {
+    "key": "rs_acceleration_topix",
+    "h1": null,
+    "h2": "加速",
+    "fmt": "\\+0.0;\\-0.0;\\±0"
+  },
+  {
+    "key": "rs31_topix",
+    "h1": null,
+    "h2": "31日",
+    "fmt": "\\+0.0;\\-0.0;\\±0"
+  },
+  {
+    "key": "rs63_topix",
+    "h1": null,
+    "h2": "63日",
+    "fmt": "\\+0.0;\\-0.0;\\±0"
+  },
+  {
+    "key": "rs126_topix",
+    "h1": null,
+    "h2": "126日",
+    "fmt": "\\+0.0;\\-0.0;\\±0"
+  },
+  {
+    "key": "rs252_topix",
+    "h1": null,
+    "h2": "252日",
+    "fmt": "\\+0.0;\\-0.0;\\±0"
+  },
+  {
+    "key": "event_news_1_title",
+    "h1": "売買代金急増　要因ニュース候補（β）",
+    "h2": "第一候補",
+    "fmt": "General"
+  },
+  {
+    "key": "event_news_2_title",
+    "h1": null,
+    "h2": "第二候補",
+    "fmt": "General"
+  },
+  {
+    "key": "event_news_3_title",
+    "h1": null,
+    "h2": "第三候補",
+    "fmt": "General"
+  },
+  {
+    "key": "research_prompt_block",
+    "h1": "観測データ（調査プロンプト用）",
+    "h2": "拙粋ブロック",
+    "fmt": "General"
+  }
+]

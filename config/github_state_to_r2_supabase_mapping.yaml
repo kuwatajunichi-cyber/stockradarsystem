@@ -10,6 +10,8 @@ phase4_rollout_stage: "4c"
 phase4_5_rollout_stage: "4.5c"
 # Required when stage is 4.5a or 4.5b (shadow set UUID). Empty at 4.5c.
 phase4_5_shadow_metric_set_version_id: ""
+# Track D web-asof writer. v1.1 CAS 2026-10-03 (a2a12909 active). 2026-10-02 bundles recommitted under that UUID. pr-5c/5d still pending.
+web_asof_writer_enabled: true
 
 # ADR-005: live OHLC/index cache keys use immutable_pointer_cas (sha256 objects).
 # adr005.feature_start_release_month is a YAML mirror; SSOT is Supabase adr005_runtime_config.
@@ -53,8 +55,9 @@ required_fields:
 #   runs/...       per-run staging blobs (artifacts)
 #   cache/...      warm cache zip bodies
 #   monthly/...    monthly snapshot blobs
-#   derived-snapshots/  Phase 4.5 daily snapshots
-#   derived-series/     Phase 4.5 Web series
+#   derived-snapshots/  Phase 4.5 daily snapshots (audit/rebuild parquet, not XLSX)
+#   derived-series/     Phase 4.5 per-name year series (writer SSOT)
+#   derived-web-asof/   Phase 5 Track D as-of view bundles (screen read; split by benchmark)
 #   derived-inputs/     ADR-005 planned (request manifest + seed/repair delta)
 entries:
   - id: artifact-daily-core-csv
@@ -260,3 +263,15 @@ entries:
     supabase_table: monthly_snapshots
     retention_policy: immutable_per_github_run_id
     optional: false
+
+  - id: derived-web-asof-bundle
+    source_kind: derived
+    source_name_pattern: derived-web-asof-bundle
+    writer_workflow: daily.yml
+    writer_job: write_web_asof
+    reader_workflow: daily.yml
+    reader_job: write_web_asof
+    target_r2_key_pattern: derived-web-asof/metric-set={metric_set_uuid}/benchmark={benchmark}/as-of={as_of}/
+    supabase_table: derived_object_index
+    retention_policy: immutable_create_only_per_generation; unique_committed_set_bench_asof
+    optional: true

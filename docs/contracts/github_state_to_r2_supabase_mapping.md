@@ -61,7 +61,8 @@ Migration staging (this contract):
 - `runs/` — per-run artifact bodies and manifests
 - `cache/` — warm cache zip bodies (Phase 3)
 - `monthly/` — monthly universe snapshots (Phase 4)
-- `derived-snapshots/` / `derived-series/` — Phase 4.5 derived objects
+- `derived-snapshots/` / `derived-series/` — Phase 4.5 derived objects (snapshots = audit parquet; series = writer)
+- `derived-web-asof/` — Phase 5 Track D as-of view bundles (screen; web_asof_bundle_v1). Mapping entry `derived-web-asof-bundle`. Production CHECK accepts `web_asof_bundle` / `web_asof_manifest` after U-3 apply of `020_web_asof_object_kind.sql` (2026-10-02). `web_asof_writer_enabled` is true after payload wiring (2026-10-03). Ops CAS of `metric_set_v1_1` is recorded in `phase5_gate_status.yaml`; this mapping file does not CAS.
 - `derived-inputs/` — ADR-005 planned request manifests and seed/repair deltas（live writer なし）
 
 **Contract:** resolve object keys from deterministic resolver (`run_id` + `run_date`) or workflow manifest outputs. Do not rely on R2 `ListObjects` in the normal consumer path.

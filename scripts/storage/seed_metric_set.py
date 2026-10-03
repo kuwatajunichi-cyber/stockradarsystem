@@ -20,11 +20,14 @@ from stockradar.metrics.seed_catalog import (  # noqa: E402
     plan_metric_set_seed,
     seed_apply_result,
 )
+from scripts.storage.r2_client import _load_dotenv  # noqa: E402
 from stockradar.storage.derived_adapters import (  # noqa: E402
     is_derived_generation_fake,
     registry_store_from_env,
 )
 from stockradar.storage.metric_registry import FakeMetricRegistryStore  # noqa: E402
+
+_load_dotenv()
 
 
 def _find_fake_set_by_key(

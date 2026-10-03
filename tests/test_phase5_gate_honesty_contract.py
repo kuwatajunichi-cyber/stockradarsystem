@@ -11,12 +11,17 @@ import yaml
 from stockradar.governance.phase5_gate_honesty import (
     REQUIRED_LIVE_GATE_IDS,
     REQUIRED_PR_GATE_IDS,
+    _LIVE_GATE_5C_EVIDENCE_KEYS,
+    _LIVE_GATE_5D_EVIDENCE_KEYS,
     extract_phase5_roadmap_phrase,
     validate_cutover_calendar_contract,
     validate_gate_status_document,
     validate_roadmap_against_gate_status,
     validate_signed_url_capability_contract,
     validate_ops_runs_views_contract,
+    validate_product_spec_requirements,
+    validate_web_ui_v1_contract,
+    validate_metric_set_v1_1_contract,
 )
 
 _REPO = Path(__file__).resolve().parents[1]
@@ -27,6 +32,9 @@ _SIGNED_URL = _REPO / "docs" / "contracts" / "signed_url_capability.md"
 _SCHEMA = _REPO / "docs" / "contracts" / "supabase_control_plane_schema.md"
 _INDEX = _REPO / "docs" / "INDEX.md"
 _OPS_RUNS = _REPO / "docs" / "contracts" / "ops_runs_views.md"
+_PRODUCT_SPEC = _REPO / "docs" / "operations" / "phase5_product_spec_requirements.md"
+_WEB_UI_V1 = _REPO / "docs" / "contracts" / "web_ui_v1.md"
+_METRIC_SET_V11 = _REPO / "docs" / "contracts" / "metric_set_v1_1.md"
 
 
 def _load_gate_status() -> dict:
@@ -62,7 +70,9 @@ def test_phase5_index_links_gate_ssot() -> None:
     assert "phase5_observability_cutover.md" in index
     assert "signed_url_capability.md" in index
     assert "ops_runs_views.md" in index
-    assert "ops_runs_views.md" in index
+    assert "phase5_product_spec_requirements.md" in index
+    assert "web_ui_v1.md" in index
+    assert "metric_set_v1_1.md" in index
 
 
 @pytest.mark.unit
@@ -277,6 +287,65 @@ def test_ops_runs_views_contract() -> None:
     text = _OPS_RUNS.read_text(encoding="utf-8")
     violations = validate_ops_runs_views_contract(text)
     assert violations == [], "\n".join(violations)
+
+
+@pytest.mark.unit
+def test_product_spec_requirements_is_not_adopted() -> None:
+    text = _PRODUCT_SPEC.read_text(encoding="utf-8")
+    violations = validate_product_spec_requirements(text)
+    assert violations == [], "\n".join(violations)
+    assert _PRODUCT_SPEC.is_file()
+
+
+@pytest.mark.unit
+def test_web_ui_v1_contract_does_not_close_track_d() -> None:
+    text = _WEB_UI_V1.read_text(encoding="utf-8")
+    violations = validate_web_ui_v1_contract(text)
+    assert violations == [], "\n".join(violations)
+
+
+@pytest.mark.unit
+def test_metric_set_v1_1_contract_stays_draft() -> None:
+    text = _METRIC_SET_V11.read_text(encoding="utf-8")
+    violations = validate_metric_set_v1_1_contract(text)
+    assert violations == [], "\n".join(violations)
+
+
+@pytest.mark.unit
+def test_live_gate_5c_closed_requires_pr_and_evidence() -> None:
+    data = _load_gate_status()
+    bad = copy.deepcopy(data)
+    live = bad["live_gates"]["live_gate_5c"]
+    live["status"] = "closed"
+    live["closed_at_utc"] = "2026-10-02T00:00:00Z"
+    violations = validate_gate_status_document(bad)
+    assert any("pr-5c-auth-entitlements" in v for v in violations)
+    assert any("docs and DDL cannot close" in v for v in violations)
+    for key in _LIVE_GATE_5C_EVIDENCE_KEYS:
+        assert any(key in v for v in violations)
+
+
+@pytest.mark.unit
+def test_live_gate_5d_closed_requires_pr_and_evidence() -> None:
+    data = _load_gate_status()
+    bad = copy.deepcopy(data)
+    live = bad["live_gates"]["live_gate_5d"]
+    live["status"] = "closed"
+    live["closed_at_utc"] = "2026-10-02T00:00:00Z"
+    violations = validate_gate_status_document(bad)
+    assert any("pr-5d-web-ui" in v for v in violations)
+    assert any("docs and prototype cannot close" in v for v in violations)
+    for key in _LIVE_GATE_5D_EVIDENCE_KEYS:
+        assert any(key in v for v in violations)
+
+
+@pytest.mark.unit
+def test_open_live_gates_5c_5d_allow_null_evidence_keys() -> None:
+    data = _load_gate_status()
+    violations = validate_gate_status_document(data)
+    assert violations == [], "\n".join(violations)
+    assert data["live_gates"]["live_gate_5c"]["status"] == "open"
+    assert data["live_gates"]["live_gate_5d"]["status"] == "open"
 
 
 @pytest.mark.unit

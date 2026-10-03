@@ -15,6 +15,7 @@ KNOWN_OBJECT_PREFIXES: tuple[str, ...] = (
     "derived-snapshots/",
     "derived-series/",
     "derived-inputs/",
+    "derived-web-asof/",
     "0011_work/",
     "0012_paid/",
 )

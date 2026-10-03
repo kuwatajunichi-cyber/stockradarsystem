@@ -1,0 +1,13 @@
+{
+  "rules": [
+    {
+      "allowed": {
+        "origins": ["https://web-ui-static.stockradarsystem.workers.dev"],
+        "methods": ["GET", "HEAD"],
+        "headers": ["content-type", "range"]
+      },
+      "expose": ["etag", "content-length", "content-type", "content-encoding"],
+      "maxAgeSeconds": 3600
+    }
+  ]
+}

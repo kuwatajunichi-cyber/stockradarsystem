@@ -1,0 +1,20 @@
+{
+  "recorded_at_utc": "2026-10-03T13:45:00Z",
+  "operation": "activate_metric_set_cas",
+  "expected_set_id": "13209d23-ded6-482d-be08-7da6062013c0",
+  "new_set_id": "a2a12909-6079-4762-95a3-75b2914bb6a7",
+  "writer_workflow": "ops-activate-metric-set-cas",
+  "source_github_run_id": 0,
+  "active_before": "13209d23-ded6-482d-be08-7da6062013c0",
+  "active_after": "a2a12909-6079-4762-95a3-75b2914bb6a7",
+  "new_set_key": "daily_core_v1_1__04f32c67f984",
+  "new_set_fingerprint": "04f32c67f984ad43776312cf34fc4ef00abb29930334fda02828e53397d234c6",
+  "new_set_lifecycle_after": "active",
+  "old_set_lifecycle_after": "retired",
+  "member_count": 23,
+  "sma75_topix_non_null_rate": 1.0,
+  "sma75_nikkei_non_null_rate": 1.0,
+  "web_asof_recommit_generation": "e31b9be8-9689-417f-8179-cc2a3e112fba",
+  "web_asof_recommit_as_of": "2026-10-02",
+  "note": "Weekend ops CAS via Supabase SQL SECURITY DEFINER activate_metric_set_cas. REST seed 403 on metric_definitions; catalog seeded via SQL. daily YAML bind is local unmerged. live_gate_5c/5d stay open. Issue #93 OPEN."
+}

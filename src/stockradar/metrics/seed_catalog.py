@@ -7,7 +7,7 @@ from typing import Any
 
 from stockradar.metrics.registry_spec import MetricSetSpec
 
-SET_KEY_PATTERN = re.compile(r"^daily_core_v1__[a-f0-9]{12}$")
+SET_KEY_PATTERN = re.compile(r"^daily_core_v1(?:_1)?__[a-f0-9]{12}$")
 _ALLOWED_SEED_LIFECYCLES = frozenset({"draft", "shadow"})
 
 
@@ -94,7 +94,8 @@ def plan_metric_set_seed(
 def validate_set_key(set_key: str) -> None:
     if not SET_KEY_PATTERN.match(set_key.strip()):
         raise ValueError(
-            f"set_key must match daily_core_v1__{{fingerprint12}}, got {set_key!r}"
+            f"set_key must match daily_core_v1__{{fingerprint12}} or "
+            f"daily_core_v1_1__{{fingerprint12}}, got {set_key!r}"
         )
 
 

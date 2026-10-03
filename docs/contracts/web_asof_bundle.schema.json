@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "web_asof_bundle_v1",
+  "title": "derived-web-asof view bundle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "as_of",
+    "benchmark",
+    "metric_set_version_id",
+    "set_fingerprint",
+    "axis_dates",
+    "rows",
+    "series"
+  ],
+  "properties": {
+    "schema_id": { "const": "web_asof_bundle_v1" },
+    "as_of": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+    "benchmark": { "enum": ["topix", "nikkei"] },
+    "metric_set_version_id": { "type": "string", "minLength": 1 },
+    "set_fingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "axis_dates": {
+      "type": "array",
+      "minItems": 60,
+      "maxItems": 60,
+      "items": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "code",
+          "name",
+          "z_turnover_60",
+          "rs_acceleration",
+          "rs_acceleration_zscore",
+          "rs31",
+          "rs63",
+          "rs126",
+          "rs252",
+          "rs_sma75"
+        ],
+        "properties": {
+          "code": { "type": "string", "pattern": "^[0-9A-Z]{4}$" },
+          "name": { "type": "string" },
+          "price_text": { "type": ["string", "null"] },
+          "event_news_bundle": {},
+          "research_prompt_block": { "type": ["string", "null"] },
+          "candle_labels": { "type": ["string", "null"] },
+          "link_kabutan": { "type": ["string", "null"] },
+          "link_kabutan_chart": { "type": ["string", "null"] },
+          "link_kabutan_news": { "type": ["string", "null"] },
+          "link_buffett": { "type": ["string", "null"] },
+          "link_minkabu": { "type": ["string", "null"] },
+          "link_yahoo": { "type": ["string", "null"] },
+          "z_turnover_60": { "type": ["number", "null"] },
+          "rs_acceleration": { "type": ["number", "null"] },
+          "rs_acceleration_zscore": { "type": ["number", "null"] },
+          "rs31": { "type": ["number", "null"] },
+          "rs63": { "type": ["number", "null"] },
+          "rs126": { "type": ["number", "null"] },
+          "rs252": { "type": ["number", "null"] },
+          "rs_sma75": { "type": ["number", "null"] },
+          "turnover_ma_ratio_60": { "type": ["number", "null"] },
+          "price_change_pct": { "type": ["number", "null"] },
+          "perfect_order_days": { "type": ["number", "null"] },
+          "beta_adjusted_rs": { "type": ["number", "null"] },
+          "information_ratio": { "type": ["number", "null"] }
+        }
+      }
+    },
+    "series": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "z_turnover_60",
+          "rs_acceleration",
+          "rs_acceleration_zscore",
+          "rs31",
+          "rs63",
+          "rs126",
+          "rs252",
+          "rs_sma75"
+        ],
+        "properties": {
+          "z_turnover_60": {
+            "type": "array",
+            "minItems": 60,
+            "maxItems": 60,
+            "items": { "type": ["number", "null"] }
+          },
+          "rs_acceleration": {
+            "type": "array",
+            "minItems": 60,
+            "maxItems": 60,
+            "items": { "type": ["number", "null"] }
+          },
+          "rs_acceleration_zscore": {
+            "type": "array",
+            "minItems": 60,
+            "maxItems": 60,
+            "items": { "type": ["number", "null"] }
+          },
+          "rs31": {
+            "type": "array",
+            "minItems": 60,
+            "maxItems": 60,
+            "items": { "type": ["number", "null"] }
+          },
+          "rs63": {
+            "type": "array",
+            "minItems": 60,
+            "maxItems": 60,
+            "items": { "type": ["number", "null"] }
+          },
+          "rs126": {
+            "type": "array",
+            "minItems": 60,
+            "maxItems": 60,
+            "items": { "type": ["number", "null"] }
+          },
+          "rs252": {
+            "type": "array",
+            "minItems": 60,
+            "maxItems": 60,
+            "items": { "type": ["number", "null"] }
+          },
+          "rs_sma75": {
+            "type": "array",
+            "minItems": 60,
+            "maxItems": 60,
+            "items": { "type": ["number", "null"] }
+          }
+        }
+      }
+    }
+  }
+}

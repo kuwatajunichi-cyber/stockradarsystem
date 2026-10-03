@@ -1,0 +1,147 @@
+{
+  "now": "2026-09-07T10:00:00Z",
+  "body_hex": "636f6d6d69747465642d6279746573",
+  "committed": {
+    "object_key": "derived-web-asof/metric-set=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/benchmark=topix/as-of=2026-09-01/bundle.json.gz",
+    "source_table": "derived_object_index",
+    "source_id": "row-1",
+    "status": "committed"
+  },
+  "cases": [
+    {
+      "id": "ttl_low",
+      "request": {
+        "request_id": "req-ttl-low",
+        "actor_ref": "user-1",
+        "operation": "GetObject",
+        "object_key": "derived-web-asof/metric-set=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/benchmark=topix/as-of=2026-09-01/bundle.json.gz",
+        "ttl_seconds": 59
+      },
+      "proof": "proven",
+      "expect": { "exit_code": 1, "mint_result": "denied", "reason_code": "ttl_invalid" }
+    },
+    {
+      "id": "ttl_high",
+      "request": {
+        "request_id": "req-ttl-high",
+        "actor_ref": "user-1",
+        "operation": "GetObject",
+        "object_key": "derived-web-asof/metric-set=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/benchmark=topix/as-of=2026-09-01/bundle.json.gz",
+        "ttl_seconds": 3601
+      },
+      "proof": "proven",
+      "expect": { "exit_code": 1, "mint_result": "denied", "reason_code": "ttl_invalid" }
+    },
+    {
+      "id": "unproven",
+      "request": {
+        "request_id": "req-unproven",
+        "actor_ref": "user-1",
+        "operation": "GetObject",
+        "object_key": "derived-web-asof/metric-set=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/benchmark=topix/as-of=2026-09-01/bundle.json.gz",
+        "ttl_seconds": 300
+      },
+      "proof": "unproven",
+      "expect": { "exit_code": 1, "mint_result": "denied", "reason_code": "entitlement_unproven" }
+    },
+    {
+      "id": "denied",
+      "request": {
+        "request_id": "req-denied",
+        "actor_ref": "user-1",
+        "operation": "GetObject",
+        "object_key": "derived-web-asof/metric-set=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/benchmark=topix/as-of=2026-09-01/bundle.json.gz",
+        "ttl_seconds": 300
+      },
+      "proof": "denied",
+      "expect": { "exit_code": 1, "mint_result": "denied", "reason_code": "entitlement_denied" }
+    },
+    {
+      "id": "prefix_rejected",
+      "request": {
+        "request_id": "req-prefix",
+        "actor_ref": "user-1",
+        "operation": "GetObject",
+        "object_key": "secrets/not-allowlisted.bin",
+        "ttl_seconds": 300
+      },
+      "proof": "proven",
+      "extra_object": {
+        "object_key": "secrets/not-allowlisted.bin",
+        "source_table": "derived_object_index",
+        "source_id": "row-bad",
+        "status": "committed"
+      },
+      "expect": { "exit_code": 1, "mint_result": "denied", "reason_code": "prefix_rejected" }
+    },
+    {
+      "id": "operation_rejected",
+      "request": {
+        "request_id": "req-put",
+        "actor_ref": "user-1",
+        "operation": "PutObject",
+        "object_key": "derived-web-asof/metric-set=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/benchmark=topix/as-of=2026-09-01/bundle.json.gz",
+        "ttl_seconds": 300
+      },
+      "proof": "proven",
+      "expect": { "exit_code": 1, "mint_result": "denied", "reason_code": "operation_rejected" }
+    },
+    {
+      "id": "issued",
+      "request": {
+        "request_id": "req-ok",
+        "actor_ref": "user-1",
+        "operation": "GetObject",
+        "object_key": "derived-web-asof/metric-set=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/benchmark=topix/as-of=2026-09-01/bundle.json.gz",
+        "ttl_seconds": 300
+      },
+      "proof": "proven",
+      "expect": { "exit_code": 0, "mint_result": "issued", "reason_code": null }
+    },
+    {
+      "id": "request_id_reuse_same_object",
+      "setup": "issued",
+      "request": {
+        "request_id": "req-ok",
+        "actor_ref": "user-1",
+        "operation": "GetObject",
+        "object_key": "derived-web-asof/metric-set=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/benchmark=topix/as-of=2026-09-01/bundle.json.gz",
+        "ttl_seconds": 120
+      },
+      "proof": "proven",
+      "expect": { "exit_code": 0, "mint_result": "issued", "reason_code": null, "same_grant": true }
+    },
+    {
+      "id": "request_id_conflict",
+      "setup": "issued",
+      "request": {
+        "request_id": "req-ok",
+        "actor_ref": "user-1",
+        "operation": "GetObject",
+        "object_key": "derived-web-asof/metric-set=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/benchmark=nikkei/as-of=2026-09-01/bundle.json.gz",
+        "ttl_seconds": 300
+      },
+      "proof": "proven",
+      "extra_object": {
+        "object_key": "derived-web-asof/metric-set=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/benchmark=nikkei/as-of=2026-09-01/bundle.json.gz",
+        "source_table": "derived_object_index",
+        "source_id": "row-2",
+        "status": "committed"
+      },
+      "expect": { "exit_code": 1, "mint_result": "denied", "reason_code": "request_id_conflict" }
+    },
+    {
+      "id": "checksum_mismatch",
+      "request": {
+        "request_id": "req-cksum",
+        "actor_ref": "user-1",
+        "operation": "GetObject",
+        "object_key": "derived-web-asof/metric-set=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/benchmark=topix/as-of=2026-09-01/bundle.json.gz",
+        "ttl_seconds": 300
+      },
+      "proof": "proven",
+      "head_override": { "size_bytes": 999, "byte_sha256": "deadbeef" },
+      "expect": { "exit_code": 1, "mint_result": "denied", "reason_code": "checksum_mismatch" }
+    }
+  ]
+}

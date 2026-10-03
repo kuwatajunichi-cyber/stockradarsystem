@@ -69,11 +69,19 @@ class FakeMetricRegistryStore:
             "source_github_run_id": source_github_run_id,
         }
 
-    def seed_set(self, *, set_id: str | None = None, lifecycle: str = "shadow") -> str:
+    def seed_set(
+        self,
+        *,
+        set_id: str | None = None,
+        lifecycle: str = "shadow",
+        set_fingerprint: str | None = None,
+        set_key: str | None = None,
+    ) -> str:
         sid = set_id or str(uuid4())
         self.metric_set_versions[sid] = {
             "id": sid,
-            "set_key": f"daily_core_v1__{sid.replace('-', '')[:12]}",
+            "set_key": set_key or f"daily_core_v1__{sid.replace('-', '')[:12]}",
             "lifecycle_status": lifecycle,
+            "set_fingerprint": set_fingerprint,
         }
         return sid

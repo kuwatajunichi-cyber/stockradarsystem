@@ -67,7 +67,7 @@ class SupabaseMetricRegistryAdapter:
             "/rest/v1/metric_set_versions",
             params={
                 "id": f"eq.{set_id.strip()}",
-                "select": "id,lifecycle_status,set_key",
+                "select": "id,lifecycle_status,set_key,set_fingerprint",
             },
         )
         resp.raise_for_status()
@@ -79,6 +79,7 @@ class SupabaseMetricRegistryAdapter:
             "id": str(row.get("id")),
             "lifecycle_status": str(row.get("lifecycle_status") or "draft"),
             "set_key": row.get("set_key"),
+            "set_fingerprint": row.get("set_fingerprint"),
         }
 
     def activate_metric_set_cas(

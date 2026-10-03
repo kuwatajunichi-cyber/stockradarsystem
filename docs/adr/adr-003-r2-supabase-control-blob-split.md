@@ -31,8 +31,9 @@ After a paid web app launch, primary cost risk shifts from GitHub Actions minute
 
 - Workflow artifact bodies (`runs/...`)
 - Warm cache zips (`cache/...`)
-- Derived immutable daily snapshots (`derived-snapshots/...`)
-- Derived Web series projections (`derived-series/...`)
+- Derived immutable daily snapshots (`derived-snapshots/...`) — audit/rebuild parquet, not XLSX
+- Derived per-name year series (`derived-series/...`) — series writer SSOT
+- Derived Web as-of view bundles (`derived-web-asof/...`) — Track D screen read (T-2 C; ADR-004 2026-09-22)
 - Derived inputs and supplementary rebuild deltas (`derived-inputs/...`, ADR-005 Adopted; live_gate_005 closed)
 - Monthly universe CSVs (`monthly/...`)
 - Daily published CSV/XLSX and publish manifests (`published/...`)

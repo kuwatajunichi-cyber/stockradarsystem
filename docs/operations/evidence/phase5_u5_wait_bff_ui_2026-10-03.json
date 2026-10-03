@@ -1,0 +1,17 @@
+{
+  "static_origin": "https://web-ui-static.stockradarsystem.workers.dev",
+  "bff_origin": "https://web-ui-bff.stockradarsystem.workers.dev",
+  "session_unauth_status": 401,
+  "session_unauth_copy": "login",
+  "preflight_status": 204,
+  "preflight_allow_origin": "https://web-ui-static.stockradarsystem.workers.dev",
+  "static_get_status": 200,
+  "static_has_login_copy": true,
+  "config_status": 200,
+  "config_ok": true,
+  "cors_set_ok": true,
+  "writer_enabled": false,
+  "cas_done": false,
+  "next_user_gate": "U-5",
+  "config_has_publishable": true
+}

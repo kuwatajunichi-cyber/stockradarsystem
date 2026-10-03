@@ -1,0 +1,38 @@
+{
+  "applied_at_utc": "2026-10-02T13:29:47Z",
+  "project_id": "wocvepixlzqupasoipbk",
+  "project_name": "stock-radar-system",
+  "migration_file": "supabase/migrations/020_web_asof_object_kind.sql",
+  "schema_migrations_version": "20261002132947",
+  "schema_migrations_name": "020_web_asof_object_kind",
+  "method": "supabase_mcp_apply_migration",
+  "changes": [
+    "ADD COLUMN derived_object_index.benchmark TEXT",
+    "CHECK object_kind includes web_asof_bundle and web_asof_manifest",
+    "CHECK derived_object_shape includes web_asof coordinates",
+    "UNIQUE INDEX derived_object_index_committed_web_asof_bundle (metric_set_version_id, benchmark, trade_date) WHERE committed bundle"
+  ],
+  "p0_inherit": {
+    "anon_authenticated_grants_on_derived_object_index": [],
+    "no_new_grants": true
+  },
+  "not_done_in_this_step": [
+    "web_asof_writer_enabled remains false",
+    "metric_set_v1_1 CAS not applied",
+    "active pointer unchanged"
+  ],
+  "active_metric_set_version_id": "13209d23-ded6-482d-be08-7da6062013c0",
+  "active_set_key": "daily_core_v1__4dca11eaed32",
+  "web_asof_rows_after_apply": 0,
+  "existing_object_kind_counts": {
+    "series": 32986,
+    "series_manifest": 32984,
+    "series_seed_delta": 226,
+    "snapshot": 101,
+    "snapshot_manifest": 93
+  },
+  "u3": "GO",
+  "pr-5d": "pending",
+  "live_gate_5d": "open",
+  "overall_status": "in_progress"
+}

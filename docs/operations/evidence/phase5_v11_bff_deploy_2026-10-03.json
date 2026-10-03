@@ -1,0 +1,21 @@
+{
+  "static_origin": "https://web-ui-static.stockradarsystem.workers.dev",
+  "bff_origin": "https://web-ui-bff.stockradarsystem.workers.dev",
+  "session_unauth_status": 401,
+  "session_unauth_copy": "login",
+  "preflight_status": 204,
+  "preflight_allow_origin": "https://web-ui-static.stockradarsystem.workers.dev",
+  "static_get_status": 200,
+  "static_has_login_copy": true,
+  "config_status": 200,
+  "config_ok": true,
+  "cors_set_ok": true,
+  "writer_enabled": true,
+  "cas_done": true,
+  "next_user_gate": "U-6",
+  "config_has_publishable": true,
+  "bff_version_id": "b360ed12-2ae3-4905-bf23-325d137bf8cc",
+  "active_metric_set_filter": true,
+  "web_asof_generation": "e31b9be8-9689-417f-8179-cc2a3e112fba",
+  "active_metric_set_version_id": "a2a12909-6079-4762-95a3-75b2914bb6a7"
+}

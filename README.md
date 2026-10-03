@@ -12,7 +12,7 @@ Stock Radar System は、日本株市場を対象に、相対的に注目度が�
 定量指標にもとづいて日次で抽出・可視化するデータパイプライン型システム。
 
 本システムは投資判断や売買シグナルの提示ではなく、「調査対象候補の抽出」に特化する。
-成果物は XLSX / CSV として出力し、UI はスプレッドシート操作に委譲する。
+日次成果物は XLSX / CSV を当面の顧客正本とする。Phase 5 で Web UI を追加閲覧として採用する（画面正本: [docs/contracts/web_ui_v1.md](docs/contracts/web_ui_v1.md)。実装・live は未）。「UI はスプレッドシート操作に委譲し続ける」方針は撤回済み。
 
 > This repository contains research and experimental code for market analysis.
 > It does not provide investment advice.
@@ -142,7 +142,7 @@ v
 
 - 投資助言・推奨
 - 個別銘柄の定性評価
-- Web UI / ダッシュボード（将来検討）
+- 本番 Web UI の live（仕様は採用済み。実装・`live_gate_5d` は未）
 
 ---
 

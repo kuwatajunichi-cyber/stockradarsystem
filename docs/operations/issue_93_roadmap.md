@@ -2,7 +2,7 @@
 
 GitHub Issue: [#93](https://github.com/kuwatajunichi-cyber/stockradarsystem/issues/93)
 
-**改訂日:** 2026-09-04
+**改訂日:** 2026-10-03
 **SSOT:** 詳細正本。Issue #93 本文は要約 + リンク。
 
 設計根拠: [ADR-003](../adr/adr-003-r2-supabase-control-blob-split.md)、[ADR-004](../adr/adr-004-derived-indicators-warm-cache.md)。隣接 Adopted（live_gate closed）: [ADR-005](../adr/adr-005-monthly-new-core-backfill.md)
@@ -15,7 +15,7 @@ GitHub Issue: [#93](https://github.com/kuwatajunichi-cyber/stockradarsystem/issu
 | 3c | warm cache + Supabase | **gate CLOSED** (2026-07-10) |
 | 4 | 月次 + publish + runs + Cron | **gate CLOSED** (2026-07-22) |
 | 4.5 | 派生指標時系列基盤 | **PR-45-1..4 merged・rollout 4.5c・Path B active・live_gate closed (user-authorized waiver 2026-08-29)・capacity_gate closed** |
-| 5 | entitlements + observability | **in_progress（5.5a/5.5b/5b live closed。Auth/UI 未着手）** |
+| 5 | entitlements + observability | **in_progress（A/B live closed。020/022-024 本番 apply 済。v1.1 CAS 済。Web 束 2026-10-02 を新 UUID で再 commit。writer ゲートオン。U-6 人確認待ち。pr-5c/pr-5d pending。C/D/E pending）** |
 
 Phase 3c gate CLOSED（runbook 記録済）。Issue #93 は Phase 5 が残るため **OPEN** 維持。Phase 4.5 gate は CLOSED（soak は waiver。連続 3 営業日達成とは書かない）。ADR-005 `live_gate_005` は CLOSED（2026-09-01）。
 
@@ -87,9 +87,9 @@ Web UI 仕様の前に終わる工事（A / B）と、仕様後の製品工事�
 | トラック | 現行番号 | 中身 | Web UI 仕様 |
 |----------|----------|------|-------------|
 | **トラック A** 運用観測 | 5.5a / 5.5b | Healthchecks.io（Patch + Daily）、`runs` 集計ビュー（ops SQL。画面ではない。契約: [ops_runs_views.md](../contracts/ops_runs_views.md)。DDL マージ済。live_gate_55b closed） | 不要 |
-| **トラック B** 配信 capability | 5.4 の一部 | private R2、committed のみ、短命署名、監査。製品ロールなし。P0 継承（RLS ON、anon/authenticated REVOKE、公開 mint 禁止）。契約正本: [signed_url_capability.md](../contracts/signed_url_capability.md)（契約 docs マージ済。mint/DDL マージ済。live_gate_5b closed。公開 mint なし） | 不要 |
-| **トラック C** 認可製品 | 5.1–5.3 | Supabase Auth、entitlements、課金 webhook、利用者別 RLS | 要る |
-| **トラック D** Web UI | ロードマップ外（ADR-004 の消費者） | 銘柄×年 series の閲覧 | これ自体が仕様 |
+| **トラック B** 配信 capability | 5.4 の一部 | private R2、committed のみ、短命署名、監査。製品ロールなし。P0 継承（RLS ON、anon/authenticated REVOKE、公開 mint＝未認証の署名発行は禁止。認証済み BFF は Track C/D）。契約正本: [signed_url_capability.md](../contracts/signed_url_capability.md)（契約 docs マージ済。mint/DDL マージ済。live_gate_5b closed。公開 mint なし） | 不要 |
+| **トラック C** 認可製品 | 5.1–5.3 | 初回: Supabase Auth、allowlist（operator / internal_beta）、preferences、policy ゼロ、認証済み BFF。課金 webhook と利用者 RLS は後続 | 要る |
+| **トラック D** Web UI | ロードマップ外（ADR-004 の消費者） | ファーストバージョン画面仕様: [web_ui_v1.md](../contracts/web_ui_v1.md)（docs 採用。T-1 案 C / T-2 案 C / T-5 含む。本番 Workers 投入済・v1.1 CAS 済・**未マージ**・`live_gate_5d` open。Web UI 完了とは書かない）。要件整理: [phase5_product_spec_requirements.md](phase5_product_spec_requirements.md) | これ自体が仕様 |
 | **トラック E** 配布切替 | 5.6 | `published/` 統一。live TARGETS（R2 / Dropbox、任意 Drive）を壊さない | 要る |
 
 **Observability 採用（2026-07-08）:** 方針 C。[phase5_observability_cutover.md](phase5_observability_cutover.md)  
@@ -97,7 +97,7 @@ Web UI 仕様の前に終わる工事（A / B）と、仕様後の製品工事�
 **監視対象外:** `is_replay=true`, `skip_publish=true`（ping 送信しない）。閉場日 ping とは別契約。  
 **Watchdog**（[cron_dispatch_watchdog.md](../contracts/cron_dispatch_watchdog.md)）は Healthchecks の代替ではない。Watchdog = Cloudflare 欠走の当日検知。Healthchecks = GHA 成功の長めネット。両方残す。
 
-P2 は形式ゲートなしの残債。5.5a の blocker にしない。Auth/API 本実装と Issue #93 close は UI 仕様後（トラック C–E）。
+P2 は形式ゲートなしの残債。5.5a の blocker にしない。Auth/API 本実装と Issue #93 close は UI 仕様後（トラック C–E）。画面ファーストバージョン正本は [web_ui_v1.md](../contracts/web_ui_v1.md)。本番投入済でも **未マージ・live_gate_5d open**。Web UI 完了とは書かない。[phase5_product_spec_requirements.md](phase5_product_spec_requirements.md) は棚卸し（採用節が正。2026-09-10 作業中は打ち消し）。本ファイルだけでは `live_gate_5c` / `5d` / `5e` を閉じない。
 
 ## 受け入れ条件
 
@@ -108,7 +108,17 @@ AC-1,5,6,7,10 完了。AC-9→Phase5。AC-2,3,4,8 部分。Phase 4 後監査の 
 Worker deploy gate, migration 記録, artifact_index.created_at_utc, contract stage dict。
 
 ## 改訂履歴
+2026-10-03 v1.1 ops CAS（a2a12909 active、13209d23 retired）。2026-10-02 束を新 UUID で再 commit（generation e31b9be8）。daily YAML bind はローカル未マージ。60 as-of backfill 開始。pr-5c/5d pending。live_gate_5c/5d open。Issue #93 は OPEN。
+2026-10-03 計画/gate 整合監査: v1.1 CAS 未（プラン slice-3 completed は虚偽だったので pending に戻した）。60 as-of backfill・browser 20 回計測・pr-5c/5d merge 未。束 generation 17050a14。Issue #93 は OPEN。
+2026-10-03 U-6 手前: 2026-10-02 topix/nikkei 束 commit、BFF dates/mint 200、writer オン、CAS 未。人の画面確認待ち。Issue #93 は OPEN。
+2026-10-03 U-5 検証済（agent）: 静的/BFF origin、R2 OPTIONS CORS GET/HEAD、operator session、dates 空、mint not_committed。writer / CAS 未。Issue #93 は OPEN。
+2026-10-03 U-5 wait: web-ui-bff と画面本体を deploy。R2 CORS は静的 origin の GET/HEAD。writer / CAS 未。Issue #93 は OPEN。
 
+2026-10-03 U-4b: operator は既に参加済（Invite は email_exists）。021_entitlements_preferences を本番 apply。BFF / CAS 未。Issue #93 は OPEN。
+2026-10-02 U-4a: web-ui-static login shell を deploy (https://web-ui-static.stockradarsystem.workers.dev)。Site URL はユーザー作業。invite / BFF / CAS 未。Issue #93 は OPEN。
+2026-10-02 U-3 GO: 本番に 020_web_asof_object_kind を apply。writer flag は false のまま。v1.1 CAS していない。Issue #93 は OPEN。
+2026-10-02 Web 束 writer（Fake generation / mapping-gated daily）はローカル（未マージ・CAS 未）。Issue #93 は OPEN。
+2026-10-02 Web 束 schema / Track C 初回範囲（webhook・利用者 RLS は後続）/ SMA75 計算はローカル（未マージ）。CAS していない。Issue #93 は OPEN。
 2026-07-08 初版。
 2026-07-15 Phase 4 gate CLOSED および post-gate 監査・是正順序を追記。
 2026-07-22 Phase 4 gate 監査是正（PR-4-2 merge CI 失敗記録・corrective evidence 追加）および P1 closed 反映。
@@ -125,6 +135,13 @@ Worker deploy gate, migration 記録, artifact_index.created_at_utc, contract st
 2026-09-07 Track B mint/DDL/内部 CLI と Track A 5.5b ops views を実装（未マージ。`live_gate_5b` / `live_gate_55b` は open）。
 2026-09-08 Track B mint/DDL と 5.5b views を PR #177 で main マージ。本番 017/018 apply。`live_gate_55b` closed（operator SELECT）。`live_gate_5b` は open。Phase 5 overall は in_progress。
 2026-09-09 `live_gate_5b` closed（内部 CLI issued + unproven/orphan/PutObject 拒否。Issue #93 comment 5587796941。公開 mint なし）。Phase 5 overall は in_progress。Issue #93 は OPEN。
+2026-09-22 監査是正（docs）: 公開 mint＝未認証。derived-web-asof ベンチ別。R2 CORS。SMA75 空列禁止。MVP の UI 禁止撤回。実装・live 未。Issue #93 は OPEN。
+2026-09-22 T-1 案 C / T-2 案 C / T-5 を docs 採用。実装・live 未。Issue #93 は OPEN。
+2026-09-22 T-1 を案 A–H、T-2 を案 A–G まで比較拡充（未決）。T-6 はアカウント設定袋のまま。実装・live 未。Issue #93 は OPEN。
+2026-09-22 T-3/T-4/T-6（設定袋）/T-7/T-8/T-9/T-10 を docs 採用。T-1/T-2 は未決のまま案を拡充。実装・live 未。Issue #93 は OPEN。
+2026-09-22 画面仕様ファーストバージョンを `web_ui_v1.md` として採用（docs。実装・live 未）。`rs_sma75_*` を `metric_set_v1_1` draft に追加採用（active v1 は未切替）。残りは暫定案。C/D/E ゲートは pending/open。Issue #93 は OPEN。
+2026-09-22 製品・UI 要件整理に localhost プロト検証を追記（D-2/D-8/D-9 改、D-10〜D-14。未採用。Track D 正本ではない）。C/D/E は pending。Issue #93 は OPEN。
+2026-09-10 SSOT 是正。tracks A/B を live close に合わせて closed。製品・UI 要件整理 `phase5_product_spec_requirements.md` を追加（未採用。Track D 正本ではない）。C/D/E は pending。Issue #93 は OPEN。
 
 ## 決定事項（2026-07-08 追記）
 

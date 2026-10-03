@@ -1072,8 +1072,10 @@ jobs:
   # Phase 4.5 derived writer (shadow until mapping phase4_5_rollout_stage > off).
   # Rollout stage SSOT: config/github_state_to_r2_supabase_mapping.yaml only (no scheduled PHASE4_5_ROLLOUT_STAGE env).
   write_derived_generation:
-    needs: [resolve_trading_day, compute_indicators]
-    if: needs.resolve_trading_day.outputs.is_open == 'True' && needs.compute_indicators.result == 'success'
+    # After render_and_upload: concurrent derived RPC + publish_status REST
+    # exhausts the Supabase pooler and 504s one of the two (2026-09-14).
+    needs: [resolve_trading_day, compute_indicators, render_and_upload]
+    if: needs.resolve_trading_day.outputs.is_open == 'True' && needs.compute_indicators.result == 'success' && needs.render_and_upload.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -1157,12 +1159,8 @@ jobs:
           RUN_DATE_COMPACT="${RUN_DATE//-/}"
           INDICATORS_CSV="data/indicators/daily/indicators_${RUN_DATE_COMPACT}.csv"
           SNAPSHOT_JSON="/tmp/derived_snapshot_${RUN_DATE_COMPACT}.json"
-          python scripts/storage/indicators_csv_to_snapshot_json.py \
-            --csv "$INDICATORS_CSV" \
-            --metric-set-yaml config/metrics/metric_set_v1_free.yaml \
-            --output "$SNAPSHOT_JSON"
-          LAYER1_FP=$(python -c "import hashlib; from pathlib import Path; p=Path('$INDICATORS_CSV'); print(hashlib.sha256(p.read_bytes()).hexdigest())")
           METRIC_SET_ARGS=()
+          RESOLVE_ARGS=()
           STAGE="${{ steps.phase45.outputs.rollout_stage }}"
           if [ "$STAGE" = "4.5a" ] || [ "$STAGE" = "4.5b" ]; then
             SHADOW_SET=$(python -c "import yaml; from pathlib import Path; m=yaml.safe_load(Path('config/github_state_to_r2_supabase_mapping.yaml').read_text(encoding='utf-8')); print((m.get('phase4_5_shadow_metric_set_version_id') or '').strip())")
@@ -1171,14 +1169,21 @@ jobs:
               exit 2
             fi
             METRIC_SET_ARGS=(--metric-set-version-id "$SHADOW_SET")
+            RESOLVE_ARGS=(--metric-set-version-id "$SHADOW_SET")
           fi
+          METRIC_SET_YAML=$(python scripts/storage/resolve_metric_set_yaml.py "${RESOLVE_ARGS[@]}")
+          python scripts/storage/indicators_csv_to_snapshot_json.py \
+            --csv "$INDICATORS_CSV" \
+            --metric-set-yaml "$METRIC_SET_YAML" \
+            --output "$SNAPSHOT_JSON"
+          LAYER1_FP=$(python -c "import hashlib; from pathlib import Path; p=Path('$INDICATORS_CSV'); print(hashlib.sha256(p.read_bytes()).hexdigest())")
           python scripts/storage/derived_bus_cli.py put-generation \
             --mode "$MODE" \
             --trade-date "$RUN_DATE" \
             --phase4-5-rollout-stage "$STAGE" \
             "${METRIC_SET_ARGS[@]}" \
             --lifecycle-status "$LIFECYCLE" \
-            --metric-set-yaml config/metrics/metric_set_v1_free.yaml \
+            --metric-set-yaml "$METRIC_SET_YAML" \
             --snapshot-json "$SNAPSHOT_JSON" \
             --layer1-input-fingerprint "$LAYER1_FP" \
             --workflow daily.yml \
@@ -1432,8 +1437,77 @@ jobs:
           set -euo pipefail
           python -m stockradar.observability.healthchecks_heartbeat
 
+  write_web_asof:
+    # Mapping-gated. Flag false: write step skipped, job succeeds.
+    # Bundle failure fails daily when the writer is enabled (BUNDLE_FAILURE_FAILS_DAILY).
+    # Does not CAS metric_set_v1_1.
+    needs: [resolve_trading_day, write_derived_generation, event_cause_enrichment]
+    if: |
+      needs.resolve_trading_day.outputs.is_open == 'True' &&
+      needs.write_derived_generation.result == 'success' &&
+      (needs.event_cause_enrichment.result == 'success' || needs.event_cause_enrichment.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Resolve web-asof writer flag from mapping
+        id: web_asof_flag
+        env:
+          PYTHONPATH: src:.
+        run: |
+          set -euo pipefail
+          FLAG=$(python -c "from stockradar.storage.mapping_catalog import web_asof_writer_enabled; print('true' if web_asof_writer_enabled() else 'false')")
+          echo "enabled=$FLAG" >> "$GITHUB_OUTPUT"
+
+      - name: Write web-asof bundles
+        if: steps.web_asof_flag.outputs.enabled == 'true'
+        env:
+          PYTHONPATH: src:.
+          RUN_DATE: ${{ needs.resolve_trading_day.outputs.run_date }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_BASE_PREFIX: ${{ secrets.R2_BASE_PREFIX }}
+          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+        run: |
+          set -euo pipefail
+          echo "Fake generation stores are forbidden on the live path"
+          python scripts/storage/web_asof_assemble_cli.py assemble \
+            --as-of "$RUN_DATE" \
+            --work-dir /tmp/web_asof_work \
+            --github-run-id "$GITHUB_RUN_ID" \
+            --repository "${GITHUB_REPOSITORY}" \
+            --put \
+            --require-enabled \
+            --json-output /tmp/write_web_asof.json
+
+      - name: Write web-asof skip summary
+        if: always()
+        run: |
+          {
+            echo "## write_web_asof"
+            echo "- enabled: \`${{ steps.web_asof_flag.outputs.enabled }}\`"
+            echo "- mapping_ssot: \`config/github_state_to_r2_supabase_mapping.yaml\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   finalize_run:
-    needs: [preflight, resolve_trading_day, compute_indicators, event_cause_enrichment, render_and_upload, write_derived_generation]
+    needs: [preflight, resolve_trading_day, compute_indicators, event_cause_enrichment, render_and_upload, write_derived_generation, write_web_asof]
     if: always() && needs.preflight.result == 'success'
     runs-on: ubuntu-latest
     steps:
@@ -1477,6 +1551,7 @@ jobs:
             --enrichment-result "$ENRICH_RESULT" \
             --render-result "${{ needs.render_and_upload.result }}" \
             --write-derived-result "${{ needs.write_derived_generation.result }}" \
+            --write-web-asof-result "${{ needs.write_web_asof.result }}" \
             --skip-publish "$SKIP_PUBLISH" \
             --upload-executed "$UPLOAD_EXEC" \
             --upload-exit-code "$UPLOAD_RC" \
