@@ -44,8 +44,9 @@ export async function verifyAccessToken(token, env) {
   const res = await fetch(jwksUrl, { headers: { apikey: env.SUPABASE_PUBLISHABLE_KEY || "" } });
   if (!res.ok) throw new Error("jwks");
   const jwks = await res.json();
-  const jwk = (jwks.keys || []).find((k) => k.kid === header.kid) || (jwks.keys || [])[0];
-  if (!jwk) throw new Error("jwk");
+  if (!header.kid) throw new Error("kid");
+  const jwk = (jwks.keys || []).find((k) => k.kid === header.kid);
+  if (!jwk) throw new Error("kid");
   const key = await jwkToCryptoKey(jwk);
   const data = new TextEncoder().encode(`${parts[0]}.${parts[1]}`);
   const sig = b64urlToBytes(parts[2]);

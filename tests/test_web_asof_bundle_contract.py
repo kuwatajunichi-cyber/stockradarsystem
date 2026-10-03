@@ -116,6 +116,12 @@ def test_sma75_cas_rejects_empty_and_all_null() -> None:
     assert not sma75_cas_allowed(almost)
     ok = [0.1] * 98 + [None] * 2
     assert sma75_cas_allowed(ok)
+    ineligible_nulls = [0.1] * 98 + [None] * 5
+    mask = [True] * 98 + [False] * 5
+    assert sma75_cas_allowed(ineligible_nulls, eligible=mask)
+    assert not sma75_cas_allowed(ineligible_nulls)
+    with pytest.raises(ValueError, match="eligible mask"):
+        sma75_cas_allowed([0.1], eligible=[True, False])
 
 
 def test_alphanumeric_jpx_code_accepted() -> None:

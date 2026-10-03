@@ -4,7 +4,7 @@ from __future__ import annotations
 import gzip
 import hashlib
 import json
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 SCHEMA_ID = "web_asof_bundle_v1"
 AXIS_LEN = 60
@@ -242,7 +242,24 @@ def sma75_non_null_rate(values: list[Any]) -> float:
     return present / len(values)
 
 
-def sma75_cas_allowed(values: list[Any], *, min_rate: float = SMA75_NON_NULL_RATE_MIN) -> bool:
-    if not values:
+def sma75_cas_allowed(
+    values: list[Any],
+    *,
+    min_rate: float = SMA75_NON_NULL_RATE_MIN,
+    eligible: Sequence[bool] | None = None,
+) -> bool:
+    """Non-null SMA75 rate for CAS.
+
+    Contract denominator is names with 105 trading-day lookback. Pass that
+    population via ``eligible``. When omitted, every entry is counted so
+    short-history nulls fail-closed instead of inflating the rate.
+    """
+    if eligible is None:
+        subset = list(values)
+    else:
+        if len(eligible) != len(values):
+            raise ValueError("eligible mask length must match values")
+        subset = [v for v, ok in zip(values, eligible, strict=True) if ok]
+    if not subset:
         return False
-    return sma75_non_null_rate(values) >= min_rate
+    return sma75_non_null_rate(subset) >= min_rate

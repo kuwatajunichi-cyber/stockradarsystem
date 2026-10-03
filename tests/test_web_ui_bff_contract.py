@@ -61,6 +61,10 @@ def test_bff_source_has_t5_and_no_secrets() -> None:
     assert "/v1/mint" in blob
     assert "active_metric_set" in blob
     assert "metric_set_version_id=eq." in blob
+    jwt = _read(_BFF / "src" / "jwt.js")
+    assert "k.kid === header.kid" in jwt
+    assert "if (!header.kid)" in jwt
+    assert "|| (jwks.keys || [])[0]" not in jwt
     assert "/v1/preferences" in blob
     assert "Authorization" in blob
     assert "derived-web-asof/" in blob

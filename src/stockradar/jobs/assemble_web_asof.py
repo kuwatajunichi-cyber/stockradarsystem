@@ -87,6 +87,8 @@ def payloads_from_freeze_sqlite(
             projected_rows.append(row)
             projected_series[code] = series
             sma_values.append(row.get("rs_sma75"))
+        # Fail-closed: no 105-day eligibility mask on freeze rows, so every
+        # name is in the denominator (short-history nulls cannot inflate 0.98).
         if not sma75_cas_allowed(sma_values):
             raise AssembleWebAsofError(
                 f"{bench} rs_sma75 non-null rate below SMA75_NON_NULL_RATE_MIN"

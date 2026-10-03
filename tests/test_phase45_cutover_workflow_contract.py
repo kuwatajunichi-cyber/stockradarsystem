@@ -138,6 +138,26 @@ def test_reconcile_prod_path_forbids_ci_fixture() -> None:
     assert "config/metrics/metric_set_v1_free.yaml" not in prod
 
 
+def test_backfill_fake_path_pins_v1_free_yaml() -> None:
+    text = _text(_BACKFILL)
+    fake_start = text.find("Derived backfill put-generation (Fake)")
+    prod_start = text.find("Derived backfill put-generation (prod adapters)")
+    assert 0 < fake_start < prod_start
+    fake = text[fake_start:prod_start]
+    assert "config/metrics/metric_set_v1_free.yaml" in fake
+    assert "resolve_metric_set_yaml.py" not in fake
+
+
+def test_reconcile_fake_path_pins_v1_free_yaml() -> None:
+    text = _text(_RECONCILE)
+    fake_start = text.find("Derived reconcile put-generation (Fake)")
+    prod_start = text.find("Derived reconcile put-generation (prod adapters)")
+    assert 0 < fake_start < prod_start
+    fake = text[fake_start:prod_start]
+    assert "config/metrics/metric_set_v1_free.yaml" in fake
+    assert "resolve_metric_set_yaml.py" not in fake
+
+
 def test_mapping_shadow_metric_set_id_contract() -> None:
     mapping = yaml.safe_load(
         (_REPO / "config" / "github_state_to_r2_supabase_mapping.yaml").read_text(
