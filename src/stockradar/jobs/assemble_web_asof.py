@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import zipfile
+from datetime import date
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -119,6 +120,32 @@ def write_payload_files(
         )
         paths[bench] = path
     return paths
+
+
+def write_universe_csv_from_ohlc_zip(zip_path: Path, as_of: str, dest: Path) -> int:
+    """Minimal date,code,name CSV from OHLC zip members.
+
+    Used when R2 staging has expired the enriched CSV (r2_runs_staging_days=14).
+    Freeze recomputes last-bar metrics from the cache; news/identity stay empty.
+    """
+    date.fromisoformat(as_of)
+    if not zip_path.is_file():
+        raise AssembleWebAsofError(f"ohlc zip missing: {zip_path}")
+    codes: list[str] = []
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        for name in zf.namelist():
+            stem = Path(name).stem.strip()
+            if len(stem) != 4 or not stem.isalnum():
+                continue
+            codes.append(stem.zfill(4) if stem.isdigit() else stem)
+    unique = sorted(set(codes))
+    if not unique:
+        raise AssembleWebAsofError(f"ohlc zip has no ticker csvs: {zip_path}")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    lines = ["date,code,name\n"]
+    lines.extend(f"{as_of},{code},\n" for code in unique)
+    dest.write_text("".join(lines), encoding="utf-8")
+    return len(unique)
 
 
 def extract_zip(zip_path: Path, dest_dir: Path) -> None:

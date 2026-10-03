@@ -30,6 +30,7 @@ from stockradar.jobs.assemble_web_asof import (  # noqa: E402
     extract_zip,
     payloads_from_freeze_sqlite,
     write_payload_files,
+    write_universe_csv_from_ohlc_zip,
 )
 from stockradar.jobs.write_web_asof_bundle import (  # noqa: E402
     WEB_ASOF_SOURCE_WORKFLOW,
@@ -80,7 +81,22 @@ def _download_cache_zip(supabase: SupabaseRestAdapter, r2: R2StagingAdapter, ent
     return object_key
 
 
-def _download_enriched_csv(supabase: SupabaseRestAdapter, r2: R2StagingAdapter, as_of: str, dest: Path) -> str:
+def _r2_object_missing(exc: BaseException) -> bool:
+    text = str(exc)
+    if type(exc).__name__ == "NoSuchKey":
+        return True
+    lowered = text.lower()
+    return "nosuchkey" in lowered or "not found" in lowered or "(404)" in text
+
+
+def _download_enriched_csv(
+    supabase: SupabaseRestAdapter,
+    r2: R2StagingAdapter,
+    as_of: str,
+    dest: Path,
+    *,
+    ohlc_zip: Path | None = None,
+) -> str:
     compact = as_of.replace("-", "")
     needle = f"indicators_event_enriched_{compact}.csv"
     resp = supabase._request(
@@ -96,19 +112,36 @@ def _download_enriched_csv(supabase: SupabaseRestAdapter, r2: R2StagingAdapter, 
     )
     resp.raise_for_status()
     rows = resp.json()
-    if not isinstance(rows, list) or not rows:
+    object_key = ""
+    if isinstance(rows, list) and rows:
+        object_key = str(rows[0]["object_key"])
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            dest.write_bytes(r2.get_object(object_key))
+            return object_key
+        except Exception as exc:
+            if not _r2_object_missing(exc):
+                raise
+    if ohlc_zip is not None and ohlc_zip.is_file():
+        n_codes = write_universe_csv_from_ohlc_zip(ohlc_zip, as_of, dest)
+        print(
+            json.dumps(
+                {
+                    "csv_source": "ohlc_universe",
+                    "as_of": as_of,
+                    "n_codes": n_codes,
+                    "missing_r2": object_key or None,
+                },
+                ensure_ascii=False,
+            ),
+            flush=True,
+        )
+        return f"ohlc_universe:{n_codes}"
+    if not object_key:
         raise AssembleWebAsofError(f"committed enriched CSV missing for {as_of}")
-    object_key = str(rows[0]["object_key"])
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        dest.write_bytes(r2.get_object(object_key))
-    except Exception as exc:
-        if type(exc).__name__ != "NoSuchKey" and "NoSuchKey" not in str(exc):
-            raise
-        raise AssembleWebAsofError(
-            f"r2_csv_nosuchkey as_of={as_of} object_key={object_key}"
-        ) from exc
-    return object_key
+    raise AssembleWebAsofError(
+        f"r2_csv_nosuchkey as_of={as_of} object_key={object_key}"
+    )
 
 
 def _resolve_active_set() -> tuple[str, str]:
@@ -154,7 +187,9 @@ def cmd_assemble(args: argparse.Namespace) -> int:
         downloaded["index"] = _download_cache_zip(
             supabase, r2, "cache-index-store-zip-v1", index_zip
         )
-        downloaded["csv"] = _download_enriched_csv(supabase, r2, as_of, csv_path)
+        downloaded["csv"] = _download_enriched_csv(
+            supabase, r2, as_of, csv_path, ohlc_zip=ohlc_zip
+        )
 
     if not csv_path.is_file():
         raise AssembleWebAsofError(f"enriched csv missing: {csv_path}")

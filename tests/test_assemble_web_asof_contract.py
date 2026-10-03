@@ -11,6 +11,7 @@ from stockradar.jobs.assemble_web_asof import (
     AssembleWebAsofError,
     payloads_from_freeze_sqlite,
     write_payload_files,
+    write_universe_csv_from_ohlc_zip,
 )
 from stockradar.storage.web_asof_bundle import AXIS_LEN, SCHEMA_ID, validate_web_asof_bundle
 
@@ -152,3 +153,20 @@ def test_payloads_from_freeze_sqlite_rejects_low_sma75(tmp_path: Path) -> None:
             metric_set_version_id=_SET,
             set_fingerprint=_FP,
         )
+
+
+def test_universe_csv_from_ohlc_zip_lists_ticker_members(tmp_path: Path) -> None:
+    import zipfile
+
+    zip_path = tmp_path / "ohlc.zip"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr("7203.csv", "Date,Close\n")
+        zf.writestr("135A.csv", "Date,Close\n")
+        zf.writestr("readme.txt", "nope")
+    dest = tmp_path / "universe.csv"
+    n = write_universe_csv_from_ohlc_zip(zip_path, "2026-09-17", dest)
+    assert n == 2
+    text = dest.read_text(encoding="utf-8")
+    assert "date,code,name" in text
+    assert "2026-09-17,7203," in text
+    assert "2026-09-17,135A," in text

@@ -1,12 +1,14 @@
 """Backfill web-asof bundles for the last N as-of dates that have committed enriched CSV.
 
 Uses the active metric_set UUID. Does not CAS.
+R2 staging retention may drop enriched CSV; then freeze uses an OHLC-universe CSV.
 """
 from __future__ import annotations
 
 import argparse
 import json
 import sys
+import traceback
 from datetime import date
 from pathlib import Path
 
@@ -23,9 +25,10 @@ from scripts.storage.web_asof_assemble_cli import (  # noqa: E402
     _download_enriched_csv,
     cmd_assemble,
 )
-from stockradar.jobs.assemble_web_asof import AssembleWebAsofError  # noqa: E402
 
 _load_dotenv()
+
+_PRECOMMITTED = {"2026-10-02": "already_committed_e31b9be8"}
 
 
 def _committed_as_ofs(limit: int) -> list[str]:
@@ -66,6 +69,52 @@ def _committed_as_ofs(limit: int) -> list[str]:
     return seen
 
 
+def _put_ok(work_dir: Path, as_of: str) -> bool:
+    path = work_dir / f"put_{as_of}.json"
+    if not path.is_file():
+        return False
+    try:
+        prev = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return False
+    return prev.get("exit_code") == 0 or prev.get("status") == "ok"
+
+
+def _as_of_done(work_dir: Path, as_of: str) -> bool:
+    return as_of in _PRECOMMITTED or _put_ok(work_dir, as_of)
+
+
+def _assemble_one(
+    *,
+    as_of: str,
+    work_dir: Path,
+    github_run_id: int,
+    put: bool,
+    skip_download: bool,
+) -> int:
+    ohlc_zip = work_dir / "ohlc_store.zip"
+    if skip_download:
+        supabase = _adapter_supabase()
+        r2 = R2StagingAdapter()
+        _download_enriched_csv(
+            supabase, r2, as_of, work_dir / "enriched.csv", ohlc_zip=ohlc_zip
+        )
+    ns = argparse.Namespace(
+        as_of=as_of,
+        work_dir=work_dir,
+        github_run_id=github_run_id,
+        repository="local-ops-web-asof-backfill",
+        workflow="ops-web-asof-backfill",
+        codes="",
+        put=put,
+        require_enabled=False,
+        skip_download=skip_download,
+        skip_freeze=False,
+        json_output=work_dir / f"put_{as_of}.json",
+    )
+    return cmd_assemble(ns)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Backfill web-asof as-of windows.")
     parser.add_argument("--work-dir", required=True, type=Path)
@@ -73,85 +122,94 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--github-run-id", type=int, default=0)
     parser.add_argument("--put", action="store_true")
     parser.add_argument("--json-output", type=Path, default=None)
+    parser.add_argument("--max-passes", type=int, default=8)
+    parser.add_argument("--retries-per-as-of", type=int, default=3)
     args = parser.parse_args(argv)
     dates = _committed_as_ofs(args.limit)
     if len(dates) < 1:
         print(json.dumps({"status": "error", "reason": "no_enriched_as_of"}, ensure_ascii=False))
         return 2
+
     results: list[dict] = []
     exit_code = 0
-    for i, as_of in enumerate(dates):
-        put_path = args.work_dir / f"put_{as_of}.json"
-        skip_reason = None
-        if as_of == "2026-10-02":
-            skip_reason = "already_committed_e31b9be8"
-        elif put_path.is_file():
-            try:
-                prev = json.loads(put_path.read_text(encoding="utf-8"))
-            except json.JSONDecodeError:
-                prev = {}
-            if prev.get("exit_code") == 0 or prev.get("status") == "ok":
-                skip_reason = "local_put_ok"
-        if skip_reason:
-            results.append(
+    for pass_i in range(max(1, args.max_passes)):
+        remaining = [as_of for as_of in dates if not _as_of_done(args.work_dir, as_of)]
+        print(
+            json.dumps(
                 {
-                    "as_of": as_of,
-                    "exit_code": 0,
-                    "skipped": skip_reason,
-                }
-            )
-            continue
-        skip_download = i > 0 and (args.work_dir / "ohlc_store.zip").is_file()
-        try:
-            if skip_download:
-                supabase = _adapter_supabase()
-                r2 = R2StagingAdapter()
-                _download_enriched_csv(supabase, r2, as_of, args.work_dir / "enriched.csv")
-            ns = argparse.Namespace(
-                as_of=as_of,
-                work_dir=args.work_dir,
-                github_run_id=args.github_run_id,
-                repository="local-ops-web-asof-backfill",
-                workflow="ops-web-asof-backfill",
-                codes="",
-                put=args.put,
-                require_enabled=False,
-                skip_download=skip_download,
-                skip_freeze=False,
-                json_output=args.work_dir / f"put_{as_of}.json",
-            )
-            code = cmd_assemble(ns)
-        except AssembleWebAsofError as exc:
-            reason = str(exc)
-            if "r2_csv_nosuchkey" in reason or "committed enriched CSV missing" in reason:
-                results.append(
-                    {
-                        "as_of": as_of,
-                        "exit_code": 0,
-                        "skipped": "r2_csv_unavailable",
-                        "reason": reason[:400],
-                    }
-                )
-                continue
-            raise
-        row = {"as_of": as_of, "exit_code": code}
-        put_path = args.work_dir / f"put_{as_of}.json"
-        if put_path.is_file():
-            try:
-                row["result"] = json.loads(put_path.read_text(encoding="utf-8"))
-            except json.JSONDecodeError:
-                row["result"] = None
-        results.append(row)
-        if code != 0:
-            exit_code = code
+                    "pass": pass_i + 1,
+                    "remaining": len(remaining),
+                    "done": len(dates) - len(remaining),
+                    "total": len(dates),
+                },
+                ensure_ascii=False,
+            ),
+            flush=True,
+        )
+        if not remaining:
+            exit_code = 0
             break
+        progressed = False
+        for as_of in remaining:
+            skip_download = (args.work_dir / "ohlc_store.zip").is_file()
+            last_error: str | None = None
+            code = 1
+            for attempt in range(max(1, args.retries_per_as_of)):
+                try:
+                    code = _assemble_one(
+                        as_of=as_of,
+                        work_dir=args.work_dir,
+                        github_run_id=args.github_run_id,
+                        put=args.put,
+                        skip_download=skip_download,
+                    )
+                    last_error = None
+                    if code == 0:
+                        break
+                except Exception as exc:
+                    last_error = f"{type(exc).__name__}: {exc}"
+                    print(
+                        json.dumps(
+                            {
+                                "as_of": as_of,
+                                "attempt": attempt + 1,
+                                "error": last_error[:400],
+                            },
+                            ensure_ascii=False,
+                        ),
+                        flush=True,
+                    )
+                    traceback.print_exc()
+                    code = 1
+            row: dict = {"as_of": as_of, "exit_code": code}
+            put_path = args.work_dir / f"put_{as_of}.json"
+            if put_path.is_file():
+                try:
+                    row["result"] = json.loads(put_path.read_text(encoding="utf-8"))
+                except json.JSONDecodeError:
+                    row["result"] = None
+            if last_error:
+                row["error"] = last_error[:400]
+            results.append(row)
+            if code == 0:
+                progressed = True
+            else:
+                exit_code = code
+        if not progressed:
+            break
+
+    remaining = [as_of for as_of in dates if not _as_of_done(args.work_dir, as_of)]
+    if remaining:
+        exit_code = exit_code or 1
+    else:
+        exit_code = 0
     payload = {
         "status": "ok" if exit_code == 0 else "error",
         "exit_code": exit_code,
         "requested": args.limit,
-        "attempted": len(results),
+        "remaining": remaining,
         "as_ofs": dates,
-        "results": results,
+        "results": results[-80:],
     }
     text = json.dumps(payload, ensure_ascii=False)
     print(text[:4000])
