@@ -1,4 +1,6 @@
 -- Track D: register_pending_derived_object includes benchmark (P0 inherit).
+-- Git 029. Production applied as schema_migrations name 024_web_asof_register_benchmark
+-- (version 20261003063714). Do not re-apply.
 -- Does not CAS metric_set. Does not mint.
 
 BEGIN;

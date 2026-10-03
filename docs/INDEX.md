@@ -131,6 +131,7 @@ CI・ワークフロー・ジョブの変更に関わる「原則」「運用基
 - Phase 5 metric_set_v1_1（rs_sma75 追加採用の draft カタログ。active 未切替）: [metric_set_v1_1.md](contracts/metric_set_v1_1.md)
 - Phase 5 製品・Web UI 要件整理（全体は仕様正本ではない。採用節と web_ui_v1 が正。2026-09-10 作業中は打ち消し）: [phase5_product_spec_requirements.md](operations/phase5_product_spec_requirements.md)
 - Cloudflare Cron 欠走 (2026-08-26): [incidents/cloudflare_cron_miss_2026-08-26.md](operations/incidents/cloudflare_cron_miss_2026-08-26.md)
+- Daily derived / publish pooler 504 リカバリー（2026-09-14。Phase 5 を閉じない）: [daily_derived_pooler_504_recovery.md](operations/daily_derived_pooler_504_recovery.md)
 - GitHub Issue: [#93](https://github.com/kuwatajunichi-cyber/stockradarsystem/issues/93)
 
 ---

@@ -1,6 +1,8 @@
 -- Track D web_asof artifact_profile (P0 inherit).
+-- Git 027. Production applied as schema_migrations name 022_web_asof_artifact_profile
+-- (version 20261003063413). Do not re-apply.
 -- Does not CAS metric_set. Does not mint. Does not add user policies.
--- Commit orphan for web_asof is 023.
+-- Commit orphan for web_asof is 028.
 
 BEGIN;
 

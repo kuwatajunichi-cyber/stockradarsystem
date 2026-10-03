@@ -9,7 +9,7 @@ DDL source of truth:
 - Phase 3: `supabase/migrations/001_phase3_control_plane.sql`
 - Phase 4: `supabase/migrations/002_phase4_control_plane.sql`
 
-Phase 4.5 の metric registry / latest projection は `004` / `005` 以降で実装済み。Phase 5 Track B の `download_grants` DDL は `017_download_grants.sql`。正本は `docs/contracts/signed_url_capability.md` である。本ファイルを Track B 契約の代わりにしない。Track D `derived-web-asof/` object_kind (`web_asof_bundle` / `web_asof_manifest`) is contracted in web_ui_v1.md; DDL is `020_web_asof_object_kind.sql`. 本ファイルを Track D の代わりにしない。 Track C entitlements/preferences DDL is `021_entitlements_preferences.sql`. 本ファイルを Track C の代わりにしない。
+Phase 4.5 の metric registry / latest projection は `004` / `005` 以降で実装済み。Phase 5 Track B の `download_grants` DDL は `017_download_grants.sql`。正本は `docs/contracts/signed_url_capability.md` である。本ファイルを Track B 契約の代わりにしない。Track D `derived-web-asof/` object_kind (`web_asof_bundle` / `web_asof_manifest`) is contracted in web_ui_v1.md; git DDL is `025_web_asof_object_kind.sql` (production schema_migrations name remains `020_web_asof_object_kind`). 本ファイルを Track D の代わりにしない。 Track C entitlements/preferences git DDL is `026_entitlements_preferences.sql` (production name remains `021_entitlements_preferences`). 本ファイルを Track C の代わりにしない。
 
 ## Tables
 
@@ -22,8 +22,8 @@ Phase 4.5 の metric registry / latest projection は `004` / `005` 以降で実
 | monthly_snapshots | 4 | Monthly universe snapshot metadata + object_keys JSONB |
 | publish_status | 4 | Daily publish committed rows (DB is source of truth) |
 | download_grants | 5 Track B | Signed GetObject mint audit. DDL: `017_download_grants.sql` plus unique issued `request_id` in `019_download_grants_issued_request_id.sql`. SSOT: `docs/contracts/signed_url_capability.md` |
-| entitlements | 5 Track C | First-live allowlist (`operator` / `internal_beta`). DDL: `021_entitlements_preferences.sql`. Not a user RLS policy. |
-| user_preferences | 5 Track C | T-6 namespaced bag. DDL: `021_entitlements_preferences.sql`. Browser must not touch this table. |
+| entitlements | 5 Track C | First-live allowlist (`operator` / `internal_beta`). DDL: `026_entitlements_preferences.sql`. Not a user RLS policy. |
+| user_preferences | 5 Track C | T-6 namespaced bag. DDL: `026_entitlements_preferences.sql`. Browser must not touch this table. |
 
 ## Phase 4.5 tables（DDL: 004/005 以降。本節は実装済みレジストリの説明）
 

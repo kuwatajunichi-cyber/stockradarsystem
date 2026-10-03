@@ -8,7 +8,7 @@ import pytest
 pytestmark = pytest.mark.unit
 
 _REPO = Path(__file__).resolve().parents[1]
-_M021 = _REPO / "supabase" / "migrations" / "021_entitlements_preferences.sql"
+_M021 = _REPO / "supabase" / "migrations" / "026_entitlements_preferences.sql"
 
 
 @pytest.fixture(name="migration_021")

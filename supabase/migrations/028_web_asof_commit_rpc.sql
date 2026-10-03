@@ -1,4 +1,6 @@
 -- Track D web_asof commit: reject snapshot digest, require 2+1 objects, orphan prior as-of.
+-- Git 028. Production applied as schema_migrations name 023_web_asof_commit_rpc
+-- (version 20261003063535). Do not re-apply.
 -- Does not CAS metric_set. Does not mint. P0: service_role execute only.
 
 BEGIN;

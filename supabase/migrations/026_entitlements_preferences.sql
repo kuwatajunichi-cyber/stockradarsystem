@@ -1,5 +1,7 @@
 -- Track C first-live entitlements + preferences (P0 inherit).
--- RLS ON, REVOKE PUBLIC/anon/authenticated, zero user policies, service_role only.
+-- Git 026 after origin/main claimed 020. Production applied as
+-- schema_migrations name 021_entitlements_preferences (version 20261002154055).
+-- Do not re-apply. RLS ON, REVOKE PUBLIC/anon/authenticated, zero user policies, service_role only.
 -- First-live roles are operator / internal_beta only. No user RLS. No webhook.
 
 BEGIN;

@@ -1,5 +1,8 @@
 -- Track D derived-web-asof control plane (object_kind + benchmark).
--- Does not CAS metric_set. Does not mint. P0 inherit: no new anon/authenticated grants.
+-- Git 025: origin/main already owns 020_delete_orphan_derived_objects.sql.
+-- Production applied this DDL as schema_migrations name 020_web_asof_object_kind
+-- (version 20261002132947). Do not re-apply. P0 inherit: no new anon/authenticated grants.
+-- Does not CAS metric_set. Does not mint.
 
 BEGIN;
 

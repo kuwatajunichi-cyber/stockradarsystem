@@ -1,4 +1,4 @@
-"""Contract: web-asof bundle builder and migration 020 tokens."""
+"""Contract: web-asof bundle builder and migration 025–029 tokens."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -13,10 +13,10 @@ from stockradar.storage.web_asof_bundle import AXIS_LEN, SCHEMA_ID, gunzip_bundl
 
 pytestmark = pytest.mark.unit
 _REPO = Path(__file__).resolve().parents[1]
-_M020 = _REPO / "supabase" / "migrations" / "020_web_asof_object_kind.sql"
-_M022 = _REPO / "supabase" / "migrations" / "022_web_asof_artifact_profile.sql"
-_M023 = _REPO / "supabase" / "migrations" / "023_web_asof_commit_rpc.sql"
-_M024 = _REPO / "supabase" / "migrations" / "024_web_asof_register_benchmark.sql"
+_M025 = _REPO / "supabase" / "migrations" / "025_web_asof_object_kind.sql"
+_M027 = _REPO / "supabase" / "migrations" / "027_web_asof_artifact_profile.sql"
+_M028 = _REPO / "supabase" / "migrations" / "028_web_asof_commit_rpc.sql"
+_M029 = _REPO / "supabase" / "migrations" / "029_web_asof_register_benchmark.sql"
 _FP = "b" * 64
 _SET = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 
@@ -73,8 +73,18 @@ def test_builder_encodes_gzip_key():
     assert again["rows"][0]["code"] == "7203"
 
 
-def test_migration_020_tokens():
-    raw = _M020.read_bytes()
+def test_migration_numeric_prefixes_are_unique() -> None:
+    stems = [
+        path.name.split("_", 1)[0]
+        for path in (_REPO / "supabase" / "migrations").glob("*.sql")
+        if path.name[:1].isdigit()
+    ]
+    dupes = sorted({stem for stem in stems if stems.count(stem) > 1})
+    assert not dupes, f"duplicate migration prefixes: {dupes}"
+
+
+def test_migration_025_tokens():
+    raw = _M025.read_bytes()
     assert bytes([0]) not in raw
     text = raw.decode("utf-8")
     for token in (
@@ -89,8 +99,8 @@ def test_migration_020_tokens():
     assert "TO anon" not in text.lower()
 
 
-def test_migration_022_tokens():
-    raw = _M022.read_bytes()
+def test_migration_027_tokens():
+    raw = _M027.read_bytes()
     assert bytes([0]) not in raw
     text = raw.decode("utf-8")
     for token in (
@@ -104,8 +114,8 @@ def test_migration_022_tokens():
     assert "activate_metric_set_cas" not in text
 
 
-def test_migration_023_tokens():
-    raw = _M023.read_bytes()
+def test_migration_028_tokens():
+    raw = _M028.read_bytes()
     assert bytes([0]) not in raw
     text = raw.decode("utf-8")
     for token in (
@@ -120,8 +130,8 @@ def test_migration_023_tokens():
     assert "activate_metric_set_cas" not in text
 
 
-def test_migration_024_tokens():
-    raw = _M024.read_bytes()
+def test_migration_029_tokens():
+    raw = _M029.read_bytes()
     assert bytes([0]) not in raw
     text = raw.decode("utf-8")
     for token in (

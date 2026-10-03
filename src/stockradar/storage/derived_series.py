@@ -38,8 +38,27 @@ SERIES_MANIFEST_FIELD_ORDER: tuple[str, ...] = (
 )
 
 VALID_SERIES_PROVENANCE: frozenset[str] = frozenset(
-    {"daily_normal", "series_seed", "series_repair", "reconcile"}
+    {"daily_normal", "series_seed", "series_repair", "reconcile", "backfill"}
 )
+
+# RunMode → series manifest provenance. Unknown / replay must fail-fast (do not leak mode).
+SERIES_PROVENANCE_BY_RUN_MODE: dict[str, str] = {
+    "normal": "daily_normal",
+    "backfill": "backfill",
+    "reconcile": "reconcile",
+    "series_seed": "series_seed",
+    "series_repair": "series_repair",
+}
+
+
+def series_provenance_for_run_mode(mode: str) -> str:
+    """Map a writer run mode to a series-manifest provenance. Fail closed."""
+    key = str(mode or "").strip().lower()
+    provenance = SERIES_PROVENANCE_BY_RUN_MODE.get(key)
+    if provenance is None or provenance not in VALID_SERIES_PROVENANCE:
+        raise ValueError(f"unsupported run mode for series provenance: {mode!r}")
+    return provenance
+
 
 SERIES_SERIALIZATION: dict[str, Any] = {
     "format": "json",
