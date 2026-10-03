@@ -17,7 +17,6 @@ from stockradar.prototype_web_ui_asof.free_preview import free_preview_keep_mask
 from stockradar.prototype_web_ui_asof.freeze_core import FreezePaths, freeze_asof, _to_session_calendar_index
 from stockradar.prototype_web_ui_asof.isolation import (
     assert_gate_track_d_still_open,
-    read_package_source_tree,
     scan_source_for_forbidden_imports,
     validate_bind_host,
     validate_readme_markers,
@@ -64,7 +63,6 @@ def test_readme_p_iso_markers() -> None:
 @pytest.mark.unit
 def test_freeze_source_has_no_forbidden_imports() -> None:
     pkg = REPO / "src" / "stockradar" / "prototype_web_ui_asof"
-    src = read_package_source_tree(pkg)
     # isolation module mentions forbidden tokens in strings; scan freeze_core only
     core = (pkg / "freeze_core.py").read_text(encoding="utf-8")
     assert scan_source_for_forbidden_imports(core) == []
