@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 from stockradar.storage.derived_generation import (
     ArtifactProfile,
@@ -169,8 +169,8 @@ def build_web_asof_bundle_payload(
     benchmark: str,
     metric_set_version_id: str,
     set_fingerprint: str,
-    axis_dates: list[str],
-    rows: list[Mapping[str, Any]],
+    axis_dates: Sequence[str],
+    rows: Sequence[Mapping[str, Any]],
     series: Mapping[str, Mapping[str, list[Any]]],
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
@@ -203,7 +203,7 @@ def build_web_asof_manifest(
     as_of: str,
     metric_set_version_id: str,
     set_fingerprint: str,
-    objects: list[Mapping[str, Any]],
+    objects: Sequence[Mapping[str, Any]],
 ) -> dict[str, Any]:
     return {
         "schema_id": "web_asof_manifest_v1",
