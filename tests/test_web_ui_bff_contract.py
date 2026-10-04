@@ -66,7 +66,12 @@ def test_bff_source_has_t5_and_no_secrets() -> None:
     assert "if (!header.kid)" in jwt
     assert "|| (jwks.keys || [])[0]" not in jwt
     assert 'typeof payload.exp !== "number"' in jwt
+    assert 'err.status = 503' in jwt
+    assert 'new Error("jwks")' in jwt
     index = _read(_BFF / "src" / "index.js")
+    assert "if (e.status) throw e" in index
+    assert 'err.status = 503' in index
+    assert 'new Error("entitlements")' in index
     assert "body.request_id" not in index
     assert "body.ttl_seconds" not in index
     assert "crypto.randomUUID()" in index
@@ -78,6 +83,8 @@ def test_bff_source_has_t5_and_no_secrets() -> None:
         assert token.lower() not in blob.lower()
     assert "SUPABASE_SECRET_KEY" in blob
     assert "env.R2_SECRET_ACCESS_KEY" in blob
+    workflow = (_REPO / ".github" / "workflows" / "test.yml").read_text(encoding="utf-8")
+    assert "npm test --prefix workers/web-ui-bff" in workflow
 
 
 def test_r2_cors_get_head_static_origin_only() -> None:
@@ -118,4 +125,4 @@ def test_static_config_exposes_bff_origin() -> None:
     assert "textContent = minted" not in app
     live = _read(_STATIC / "assets" / "live.js")
     assert "signInWithOtp" in live
-    assert "/v1/session" in live
+    assert "csv_source=ohlc_universe" in app

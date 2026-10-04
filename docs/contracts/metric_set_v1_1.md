@@ -13,7 +13,6 @@
 | Free set | `config/metrics/metric_set_v1_1_free.yaml`. v1_free 13 + SMA75 RS 2 |
 | Definition | SMA75 series then B-method RS window 31. `min_history_days` / `lookback_trading_days` = 105. missing `null` |
 | fingerprint | YAML `definition_fingerprint` is canonical JSON SHA-256; mismatch fails load |
-| writer | YAML must match resolved UUID fingerprint before \egin_generation\. First Web live active YAML is \metric_set_v1_1.yaml\ (not this file) |
 | writer | YAML must match resolved UUID fingerprint before `begin_generation`. First Web live active YAML is `metric_set_v1_1.yaml` (not this file) |
 ## Must not
 

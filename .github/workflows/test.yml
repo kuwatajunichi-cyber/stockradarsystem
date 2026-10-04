@@ -82,3 +82,5 @@ jobs:
           node-version: "20"
       - name: Worker unit tests
         run: npm test --prefix workers/github-cron-dispatcher
+      - name: BFF unit tests
+        run: npm test --prefix workers/web-ui-bff

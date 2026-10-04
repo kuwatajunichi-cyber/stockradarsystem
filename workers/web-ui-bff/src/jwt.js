@@ -41,8 +41,19 @@ export async function verifyAccessToken(token, env) {
   if (!payload.sub) throw new Error("sub");
   if (header.alg !== "ES256") throw new Error("alg");
   const jwksUrl = issExpected + "/.well-known/jwks.json";
-  const res = await fetch(jwksUrl, { headers: { apikey: env.SUPABASE_PUBLISHABLE_KEY || "" } });
-  if (!res.ok) throw new Error("jwks");
+  let res;
+  try {
+    res = await fetch(jwksUrl, { headers: { apikey: env.SUPABASE_PUBLISHABLE_KEY || "" } });
+  } catch {
+    const err = new Error("jwks");
+    err.status = 503;
+    throw err;
+  }
+  if (!res.ok) {
+    const err = new Error("jwks");
+    err.status = 503;
+    throw err;
+  }
   const jwks = await res.json();
   if (!header.kid) throw new Error("kid");
   const jwk = (jwks.keys || []).find((k) => k.kid === header.kid);

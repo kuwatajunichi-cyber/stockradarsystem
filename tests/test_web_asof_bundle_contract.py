@@ -156,5 +156,15 @@ def test_schema_lists_optional_last_bar_keys() -> None:
         "perfect_order_days",
         "beta_adjusted_rs",
         "information_ratio",
+        "csv_source",
     ):
         assert key in schema
+
+
+def test_optional_csv_source_is_validated() -> None:
+    payload = _valid()
+    payload["csv_source"] = "ohlc_universe"
+    validate_web_asof_bundle(payload)
+    payload["csv_source"] = "nope"
+    with pytest.raises(WebAsofBundleError, match="csv_source"):
+        validate_web_asof_bundle(payload)

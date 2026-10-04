@@ -45,11 +45,23 @@ async function activeMetricSetId(env) {
 }
 
 async function loadEntitlement(env, uid) {
-  const res = await sb(
-    env,
-    `/rest/v1/entitlements?user_id=eq.${encodeURIComponent(uid)}&select=user_id,role,status,email`,
-  );
-  if (!res.ok) throw new Error("entitlements");
+  let res;
+  try {
+    res = await sb(
+      env,
+      `/rest/v1/entitlements?user_id=eq.${encodeURIComponent(uid)}&select=user_id,role,status,email`,
+    );
+  } catch (e) {
+    if (e && e.status) throw e;
+    const err = new Error("entitlements");
+    err.status = 503;
+    throw err;
+  }
+  if (!res.ok) {
+    const err = new Error("entitlements");
+    err.status = 503;
+    throw err;
+  }
   const rows = await res.json();
   return rows[0] || null;
 }

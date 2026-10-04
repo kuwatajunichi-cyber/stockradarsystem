@@ -1,6 +1,7 @@
 """Unit tests for localhost Web UI as-of prototype (fixtures only)."""
 from __future__ import annotations
 
+import copy
 import json
 import sqlite3
 import subprocess
@@ -77,6 +78,18 @@ def test_gate_track_d_still_open() -> None:
 
 
 @pytest.mark.unit
+def test_isolation_allows_pr5d_merged_while_live_open() -> None:
+    gate = yaml.safe_load(
+        (REPO / "docs" / "operations" / "phase5_gate_status.yaml").read_text(encoding="utf-8")
+    )
+    mutated = copy.deepcopy(gate)
+    mutated["pr_gates"]["pr-5d-web-ui"]["status"] = "merged_and_verified"
+    assert assert_gate_track_d_still_open(mutated) == []
+    mutated["live_gates"]["live_gate_5d"]["status"] = "closed"
+    assert assert_gate_track_d_still_open(mutated) != []
+
+
+@pytest.mark.unit
 def test_bind_host_127_only() -> None:
     validate_bind_host("127.0.0.1")
     for bad in ("", "0.0.0.0", "::", "localhost"):
@@ -139,6 +152,8 @@ def test_reconcile_last_bar_matches_csv(frozen_db: Path, fixtures_ready: Path) -
     assert series["values"]["rs31_topix"][-1] == payload["rs31_topix"]
     assert series["values"]["rs_sma75_topix"][-1] == payload["rs_sma75_topix"]
     assert isinstance(payload.get("price_text"), str) and payload["price_text"]
+    assert isinstance(payload["sma75_lookback_eligible_topix"], bool)
+    assert isinstance(payload["sma75_lookback_eligible_nikkei"], bool)
 
 
 @pytest.mark.unit

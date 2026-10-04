@@ -9,6 +9,7 @@ import pytest
 
 from stockradar.jobs.assemble_web_asof import (
     AssembleWebAsofError,
+    catalog_from_registry_row,
     payloads_from_freeze_sqlite,
     write_payload_files,
     write_universe_csv_from_ohlc_zip,
@@ -116,11 +117,13 @@ def _write_sqlite(path: Path, *, sma_topix: float | None, sma_nikkei: float | No
 def test_payloads_from_freeze_sqlite_projects_benches(tmp_path: Path) -> None:
     sqlite_path = tmp_path / "freeze.sqlite"
     _write_sqlite(sqlite_path, sma_topix=0.91, sma_nikkei=0.82)
-    payloads = payloads_from_freeze_sqlite(
+    projection = payloads_from_freeze_sqlite(
         sqlite_path,
         metric_set_version_id=_SET,
         set_fingerprint=_FP,
     )
+    payloads = projection.payloads
+    assert projection.sma75_eligible["topix"] is None
     assert set(payloads) == {"topix", "nikkei"}
     for bench, payload in payloads.items():
         validate_web_asof_bundle(payload)
@@ -129,6 +132,7 @@ def test_payloads_from_freeze_sqlite_projects_benches(tmp_path: Path) -> None:
         assert payload["rows"][0]["code"] == "7203"
         assert payload["rows"][0]["name"] == "Toyota"
         assert payload["series"]["7203"]["rs_sma75"][-1] == payload["rows"][0]["rs_sma75"]
+        assert "sma75_lookback_eligible_topix" not in payload["rows"][0]
     assert payloads["topix"]["rows"][0]["rs_sma75"] == 0.91
     assert payloads["nikkei"]["rows"][0]["rs_sma75"] == 0.82
     assert payloads["topix"]["rows"][0]["rs31"] == 1.1
@@ -170,3 +174,123 @@ def test_universe_csv_from_ohlc_zip_lists_ticker_members(tmp_path: Path) -> None
     assert "date,code,name" in text
     assert "2026-09-17,7203," in text
     assert "2026-09-17,135A," in text
+
+
+def test_sma75_eligible_mask_excludes_short_history_nulls(tmp_path: Path) -> None:
+    sqlite_path = tmp_path / "freeze.sqlite"
+    _write_sqlite(sqlite_path, sma_topix=0.91, sma_nikkei=0.82)
+    conn = sqlite3.connect(str(sqlite_path))
+    try:
+        n = AXIS_LEN
+        long_row = json.loads(
+            conn.execute("SELECT payload_json FROM rows WHERE code='7203'").fetchone()[0]
+        )
+        long_row["sma75_lookback_eligible_topix"] = True
+        long_row["sma75_lookback_eligible_nikkei"] = True
+        short = dict(long_row)
+        short["code"] = "9984"
+        short["name"] = "Softbank"
+        short["rs_sma75_topix"] = None
+        short["rs_sma75_nikkei"] = None
+        short["sma75_lookback_eligible_topix"] = False
+        short["sma75_lookback_eligible_nikkei"] = False
+        null_series = {
+            "dates_ref": "meta.axis_dates_json",
+            "values": {
+                "z_turnover_60": [0.1] * n,
+                "rs_acceleration_topix": [0.2] * n,
+                "rs_acceleration_nikkei": [0.3] * n,
+                "rs_acceleration_zscore_topix": [0.2] * n,
+                "rs_acceleration_zscore_nikkei": [0.3] * n,
+                "rs31_topix": [1.1] * n,
+                "rs31_nikkei": [1.2] * n,
+                "rs63_topix": [1.1] * n,
+                "rs63_nikkei": [1.2] * n,
+                "rs126_topix": [1.1] * n,
+                "rs126_nikkei": [1.2] * n,
+                "rs252_topix": [1.1] * n,
+                "rs252_nikkei": [1.2] * n,
+                "rs_sma75_topix": [None] * n,
+                "rs_sma75_nikkei": [None] * n,
+            },
+        }
+        conn.execute(
+            "UPDATE rows SET payload_json=? WHERE code='7203'",
+            (json.dumps(long_row, ensure_ascii=False),),
+        )
+        conn.execute(
+            "INSERT INTO rows VALUES (?,?)",
+            ("9984", json.dumps(short, ensure_ascii=False)),
+        )
+        conn.execute(
+            "INSERT INTO series VALUES (?,?)",
+            ("9984", json.dumps(null_series, ensure_ascii=False)),
+        )
+        conn.execute("UPDATE meta SET n_rows=2")
+        conn.commit()
+    finally:
+        conn.close()
+    projection = payloads_from_freeze_sqlite(
+        sqlite_path,
+        metric_set_version_id=_SET,
+        set_fingerprint=_FP,
+    )
+    assert projection.sma75_eligible["topix"] == [True, False]
+    assert projection.sma75_eligible["nikkei"] == [True, False]
+    assert projection.payloads["topix"]["rows"][0]["code"] == "7203"
+    assert projection.payloads["topix"]["rows"][0]["rs_sma75"] == 0.91
+    assert projection.payloads["topix"]["rows"][1]["code"] == "9984"
+    assert projection.payloads["topix"]["rows"][1]["rs_sma75"] is None
+
+
+def test_catalog_from_registry_row_binds_v11_yaml() -> None:
+    from stockradar.metrics.registry_spec import load_metric_set_spec
+
+    spec = load_metric_set_spec(
+        Path(__file__).resolve().parents[1] / "config" / "metrics" / "metric_set_v1_1.yaml"
+    )
+    set_id, fingerprint, yaml_name = catalog_from_registry_row(
+        {
+            "id": _SET,
+            "set_fingerprint": spec.set_fingerprint,
+            "set_key": spec.set_key,
+        }
+    )
+    assert set_id == _SET
+    assert fingerprint == spec.set_fingerprint
+    assert yaml_name == "metric_set_v1_1.yaml"
+
+
+def test_catalog_from_registry_row_rejects_v1_free_fingerprint() -> None:
+    from stockradar.metrics.registry_spec import load_metric_set_spec
+
+    v11 = load_metric_set_spec(
+        Path(__file__).resolve().parents[1] / "config" / "metrics" / "metric_set_v1_1.yaml"
+    )
+    free = load_metric_set_spec(
+        Path(__file__).resolve().parents[1]
+        / "config"
+        / "metrics"
+        / "metric_set_v1_free.yaml"
+    )
+    with pytest.raises(AssembleWebAsofError, match="mismatch"):
+        catalog_from_registry_row(
+            {
+                "id": _SET,
+                "set_fingerprint": free.set_fingerprint,
+                "set_key": v11.set_key,
+            }
+        )
+
+
+def test_payloads_include_csv_source_when_provided(tmp_path: Path) -> None:
+    sqlite_path = tmp_path / "freeze.sqlite"
+    _write_sqlite(sqlite_path, sma_topix=0.91, sma_nikkei=0.82)
+    projection = payloads_from_freeze_sqlite(
+        sqlite_path,
+        metric_set_version_id=_SET,
+        set_fingerprint=_FP,
+        csv_source="ohlc_universe",
+    )
+    assert projection.payloads["topix"]["csv_source"] == "ohlc_universe"
+    validate_web_asof_bundle(projection.payloads["topix"])

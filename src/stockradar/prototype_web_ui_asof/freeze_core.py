@@ -26,6 +26,7 @@ from stockradar.indicators.zscore import compute_zscore_turnover_from_prepared
 from stockradar.prototype_web_ui_asof import ABS_TOL, AXIS_LEN
 from stockradar.prototype_web_ui_asof.axis import require_index_asof_bar, xtks_axis_dates
 from stockradar.prototype_web_ui_asof.sma75_rs import sma_series
+from stockradar.storage.web_asof_bundle import SMA75_LOOKBACK_TRADING_DAYS
 from stockradar.utils.candle_descriptor import compute_candle_descriptors
 
 RS_WINDOWS = (31, 63, 126, 252)
@@ -119,6 +120,24 @@ def _json_sanitize(obj: Any) -> Any:
     except (TypeError, ValueError):
         pass
     return obj
+
+
+def _n_bars_upto(index: Any, as_of: date) -> int:
+    n = 0
+    for ts in index:
+        day = ts.date() if hasattr(ts, "date") else ts
+        if day <= as_of:
+            n += 1
+    return n
+
+
+def _sma75_lookback_eligible(
+    stock_df: pd.DataFrame, bench_close: pd.Series, as_of: date
+) -> bool:
+    return (
+        _n_bars_upto(stock_df.index, as_of) >= SMA75_LOOKBACK_TRADING_DAYS
+        and _n_bars_upto(bench_close.index, as_of) >= SMA75_LOOKBACK_TRADING_DAYS
+    )
 
 
 def _f(v: Any) -> float | None:
@@ -356,6 +375,10 @@ def freeze_asof(
         else:
             row["rs_sma75_topix"] = last.get("rs_sma75_topix")
             row["rs_sma75_nikkei"] = last.get("rs_sma75_nikkei")
+        for b_name, bench_close in benches.items():
+            row[f"sma75_lookback_eligible_{b_name}"] = _sma75_lookback_eligible(
+                stock_df, bench_close, as_of
+            )
         # price_text is OHLC-derived for the freeze as-of (XLSX parity), not CSV date.
         try:
             mask = [ts.date() <= as_of for ts in stock_df.index]

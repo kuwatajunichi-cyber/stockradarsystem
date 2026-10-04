@@ -182,6 +182,7 @@
       as_of: bundle.as_of,
       axis_dates: bundle.axis_dates,
       n_rows: rows.length,
+      csv_source: bundle.csv_source || "",
     };
   }
 
@@ -2056,10 +2057,14 @@
   }
 
   function updateBanner() {
+    const source = state.meta.csv_source === "ohlc_universe"
+      ? " | csv_source=ohlc_universe（ニュース/銘柄名は空。現行OHLCユニバース）"
+      : "";
     $("asof-banner").textContent =
       "as-of=" + state.meta.as_of +
       " rows=" + state.meta.n_rows +
       " axis=" + ((state.meta.axis_dates || []).length) +
+      source +
       " | 内部向け初回ライブ。投資助言ではありません。";
   }
 
@@ -2135,6 +2140,7 @@
       n_rows: aliased.n_rows,
       n_excluded: 0,
       axis_dates: aliased.axis_dates || [],
+      csv_source: aliased.csv_source || "",
     };
     state.rows = aliased.rows || [];
     state.seriesCache = aliased.series || {};

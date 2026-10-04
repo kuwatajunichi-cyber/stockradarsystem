@@ -36,9 +36,6 @@ def assert_gate_track_d_still_open(gate_status: dict) -> list[str]:
     d = tracks.get("D_web_ui") or tracks.get("D") or {}
     if str(d.get("status") or "").lower() in {"closed", "merged_and_verified"}:
         violations.append("Track D must remain pending for prototype work")
-    pr = (gate_status.get("pr_gates") or {}).get("pr-5d-web-ui") or {}
-    if str(pr.get("status") or "").lower() == "merged_and_verified":
-        violations.append("pr-5d-web-ui must not be closed by prototype")
     live = (gate_status.get("live_gates") or {}).get("live_gate_5d") or {}
     if str(live.get("status") or "").lower() == "closed":
         violations.append("live_gate_5d must stay open for prototype")

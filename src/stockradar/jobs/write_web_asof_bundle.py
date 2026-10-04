@@ -1,6 +1,6 @@
 """Build and (optionally) commit Track D as-of view bundles.
 
-Live daily stays mapping-gated until migration 020 is applied (U-3).
+YAML fingerprint bind lives in the assemble CLI before put.
 This module does not activate metric_set CAS.
 """
 from __future__ import annotations
@@ -172,6 +172,7 @@ def build_web_asof_bundle_payload(
     axis_dates: Sequence[str],
     rows: Sequence[Mapping[str, Any]],
     series: Mapping[str, Mapping[str, list[Any]]],
+    csv_source: str | None = None,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "schema_id": SCHEMA_ID,
@@ -183,6 +184,8 @@ def build_web_asof_bundle_payload(
         "rows": [dict(row) for row in rows],
         "series": {str(code): dict(values) for code, values in series.items()},
     }
+    if csv_source is not None:
+        payload["csv_source"] = csv_source
     validate_web_asof_bundle(payload)
     return payload
 
@@ -224,6 +227,7 @@ class WebAsofGenerationRequest:
     payloads: Mapping[str, Mapping[str, Any]]
     workflow: str = WEB_ASOF_SOURCE_WORKFLOW
     mode: str = "normal"
+    sma75_eligible: Mapping[str, Sequence[bool]] | None = None
 
 
 @dataclass(frozen=True)
@@ -269,7 +273,12 @@ def run_web_asof_generation(
                 exit_code=2,
                 reason=f"{bench} metric_set_version_id mismatch",
             )
-        if not sma75_cas_allowed(_sma75_values(payload)):
+        eligible = None
+        if request.sma75_eligible is not None:
+            mask = request.sma75_eligible.get(bench)
+            if mask is not None:
+                eligible = list(mask)
+        if not sma75_cas_allowed(_sma75_values(payload), eligible=eligible):
             return WebAsofGenerationResult(
                 status="error",
                 exit_code=2,

@@ -27,6 +27,7 @@ from stockradar.config import (  # noqa: E402
 )
 from stockradar.jobs.assemble_web_asof import (  # noqa: E402
     AssembleWebAsofError,
+    catalog_from_registry_row,
     extract_zip,
     payloads_from_freeze_sqlite,
     write_payload_files,
@@ -96,6 +97,7 @@ def _download_enriched_csv(
     dest: Path,
     *,
     ohlc_zip: Path | None = None,
+    allow_ohlc_universe_fallback: bool = False,
 ) -> str:
     compact = as_of.replace("-", "")
     needle = f"indicators_event_enriched_{compact}.csv"
@@ -122,7 +124,11 @@ def _download_enriched_csv(
         except Exception as exc:
             if not _r2_object_missing(exc):
                 raise
-    if ohlc_zip is not None and ohlc_zip.is_file():
+    if (
+        allow_ohlc_universe_fallback
+        and ohlc_zip is not None
+        and ohlc_zip.is_file()
+    ):
         n_codes = write_universe_csv_from_ohlc_zip(ohlc_zip, as_of, dest)
         print(
             json.dumps(
@@ -144,7 +150,19 @@ def _download_enriched_csv(
     )
 
 
-def _resolve_active_set() -> tuple[str, str]:
+def _csv_source_label(downloaded: dict[str, str], csv_path: Path) -> str:
+    csv_ref = str(downloaded.get("csv") or "")
+    if csv_ref.startswith("ohlc_universe:"):
+        return "ohlc_universe"
+    if csv_path.is_file():
+        with csv_path.open(encoding="utf-8", errors="replace") as handle:
+            first = handle.readline().strip()
+        if first == "date,code,name":
+            return "ohlc_universe"
+    return "enriched_csv"
+
+
+def _resolve_active_set() -> tuple[str, str, str]:
     registry = registry_store_from_env()
     set_id = registry.get_active_metric_set_id()
     if not set_id:
@@ -152,10 +170,7 @@ def _resolve_active_set() -> tuple[str, str]:
     row = registry.get_metric_set_version(set_id)
     if not row:
         raise AssembleWebAsofError(f"metric_set_versions row missing: {set_id}")
-    fingerprint = str(row.get("set_fingerprint") or "").strip().lower()
-    if len(fingerprint) != 64:
-        raise AssembleWebAsofError("active set_fingerprint must be 64 hex chars")
-    return str(row["id"]).strip().lower(), fingerprint
+    return catalog_from_registry_row(row)
 
 
 def cmd_assemble(args: argparse.Namespace) -> int:
@@ -188,7 +203,14 @@ def cmd_assemble(args: argparse.Namespace) -> int:
             supabase, r2, "cache-index-store-zip-v1", index_zip
         )
         downloaded["csv"] = _download_enriched_csv(
-            supabase, r2, as_of, csv_path, ohlc_zip=ohlc_zip
+            supabase,
+            r2,
+            as_of,
+            csv_path,
+            ohlc_zip=ohlc_zip,
+            allow_ohlc_universe_fallback=bool(
+                getattr(args, "allow_ohlc_universe_fallback", False)
+            ),
         )
 
     if not csv_path.is_file():
@@ -228,18 +250,28 @@ def cmd_assemble(args: argparse.Namespace) -> int:
             overwrite_metrics_from_cache=True,
         )
 
-    set_id, fingerprint = _resolve_active_set()
-    payloads = payloads_from_freeze_sqlite(
+    set_id, fingerprint, yaml_name = _resolve_active_set()
+    csv_source = _csv_source_label(downloaded, csv_path)
+    projection = payloads_from_freeze_sqlite(
         sqlite_path,
         metric_set_version_id=set_id,
         set_fingerprint=fingerprint,
+        csv_source=csv_source,
     )
+    payloads = projection.payloads
     paths = write_payload_files(payloads, payload_dir)
+    sma75_eligible = {
+        bench: mask
+        for bench, mask in projection.sma75_eligible.items()
+        if mask is not None
+    }
     result_payload: dict = {
         "status": "assembled",
         "as_of": as_of,
         "metric_set_version_id": set_id,
         "set_fingerprint": fingerprint,
+        "metric_set_yaml": yaml_name,
+        "csv_source": csv_source,
         "freeze": freeze_meta,
         "payload_paths": {k: str(v) for k, v in paths.items()},
         "downloaded": downloaded,
@@ -258,6 +290,7 @@ def cmd_assemble(args: argparse.Namespace) -> int:
                 github_run_id=int(args.github_run_id),
                 workflow=args.workflow,
                 payloads=payloads,
+                sma75_eligible=sma75_eligible or None,
             ),
             generation_store=generation_store_from_env(),
             r2_store=r2_store_from_env(),
@@ -292,6 +325,11 @@ def main(argv: list[str] | None = None) -> int:
     assemble.add_argument("--require-enabled", action="store_true")
     assemble.add_argument("--skip-download", action="store_true")
     assemble.add_argument("--skip-freeze", action="store_true")
+    assemble.add_argument(
+        "--allow-ohlc-universe-fallback",
+        action="store_true",
+        help="Backfill-only: synthesize date,code,name CSV from OHLC zip when R2 CSV is gone.",
+    )
     assemble.add_argument("--json-output", type=Path, default=None)
     args = parser.parse_args(argv)
     if args.command != "assemble":

@@ -1,11 +1,15 @@
 schema_version: 1
 phase: '5'
-last_updated_utc: '2026-10-03T22:45:00+09:00'
+last_updated_utc: '2026-10-04T20:50:00+09:00'
 overall_status: in_progress
 implementation_snapshot:
   local_worktree_has_unmerged_changes: true
-  note: 'v1.1 CAS 済 a2a12909-6079-4762-95a3-75b2914bb6a7. 2026-10-02 web_asof recommit generation e31b9be8. writer true. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open (evidence URLs null). overall in_progress. Issue #93 OPEN.'
+  note: 'v1.1 ops CAS 主張 a2a12909. daily YAML bind 未マージのため月曜 main daily は v1_free を v1.1 UUID に書き得る. ローカル 59 as-of は live 証拠ではない. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
 correction_log:
+- at_utc: '2026-10-04T20:50:00+09:00'
+  reason: 'Opus audit follow-up: T-5 JWKS/entitlements 503, backfill not_met for short lists, csv_source on bundle, BFF npm in CI, prototype isolation no longer blocks pr-5d merge. do not reverse CAS without GO. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
+- at_utc: '2026-10-04T20:40:00+09:00'
+  reason: 'Audit follow-up: daily YAML/fingerprint bind still unmerged. local 59 as-of freeze remaining empty is not Issue/live evidence. browser 20-iter open. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
 - at_utc: '2026-10-03T22:45:00+09:00'
   reason: 'v1.1 ops CAS a2a12909 (from retired 13209d23). SMA75 freeze rate 1.0. 2026-10-02 bundles recommitted under new UUID generation e31b9be8. daily YAML bind local unmerged. 60 as-of backfill started. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
 - at_utc: '2026-10-03T21:25:00+09:00'

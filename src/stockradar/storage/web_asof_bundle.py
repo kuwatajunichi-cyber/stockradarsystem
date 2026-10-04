@@ -13,6 +13,7 @@ GZIP_MAX_BYTES = 8 * 1024 * 1024
 SMA75_LOOKBACK_TRADING_DAYS = 105
 SMA75_NON_NULL_RATE_MIN = 0.98
 BUNDLE_FAILURE_FAILS_DAILY = True
+CSV_SOURCE_VALUES = frozenset({"enriched_csv", "ohlc_universe"})
 
 OBJECT_KEY_TEMPLATE = (
     "derived-web-asof/metric-set={metric_set_version_id}/"
@@ -233,6 +234,11 @@ def validate_web_asof_bundle(payload: Mapping[str, Any]) -> None:
                 raise WebAsofBundleError(
                     f"row {code} {key} must equal series last bar"
                 )
+    csv_source = payload.get("csv_source")
+    if csv_source is not None and csv_source not in CSV_SOURCE_VALUES:
+        raise WebAsofBundleError(
+            "csv_source must be enriched_csv or ohlc_universe"
+        )
 
 
 def sma75_non_null_rate(values: list[Any]) -> float:

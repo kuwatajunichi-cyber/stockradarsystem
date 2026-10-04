@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import zipfile
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from typing import Any, Mapping
@@ -16,6 +17,10 @@ from stockradar.jobs.write_web_asof_bundle import (
     project_csv_row,
     window_series_to_axis,
 )
+from stockradar.metrics.catalog_bind import (
+    CatalogYamlMismatchError,
+    yaml_path_for_registry_row,
+)
 from stockradar.storage.web_asof_bundle import AXIS_LEN, BENCHMARKS, sma75_cas_allowed
 
 
@@ -23,12 +28,55 @@ class AssembleWebAsofError(RuntimeError):
     pass
 
 
+@dataclass(frozen=True)
+class FreezeBundleProjection:
+    """Projected bundles plus optional SMA75 105-day eligible masks."""
+
+    payloads: dict[str, dict[str, Any]]
+    sma75_eligible: dict[str, list[bool] | None]
+
+
+def catalog_from_registry_row(row: Mapping[str, Any]) -> tuple[str, str, str]:
+    """Bind active UUID + fingerprint to the unique canonical YAML."""
+    set_id = str(row.get("id") or "").strip().lower()
+    fingerprint = str(row.get("set_fingerprint") or "").strip().lower()
+    if not set_id:
+        raise AssembleWebAsofError("active metric set missing")
+    if len(fingerprint) != 64 or any(ch not in "0123456789abcdef" for ch in fingerprint):
+        raise AssembleWebAsofError("active set_fingerprint must be 64 hex chars")
+    try:
+        yaml_path = yaml_path_for_registry_row(row)
+    except CatalogYamlMismatchError as exc:
+        raise AssembleWebAsofError(str(exc)) from exc
+    return set_id, fingerprint, yaml_path.name
+
+
+def _sma75_eligible_mask(
+    row_map: Mapping[str, Mapping[str, Any]], bench: str
+) -> list[bool] | None:
+    """Return 105-day flags in sorted-code order, or None when freeze omitted them."""
+    key = f"sma75_lookback_eligible_{bench}"
+    flags: list[bool | None] = []
+    seen = False
+    for code in sorted(row_map):
+        raw = row_map[code].get(key)
+        if raw is None:
+            flags.append(None)
+            continue
+        seen = True
+        flags.append(bool(raw))
+    if not seen:
+        return None
+    return [False if flag is None else flag for flag in flags]
+
+
 def payloads_from_freeze_sqlite(
     sqlite_path: Path,
     *,
     metric_set_version_id: str,
     set_fingerprint: str,
-) -> dict[str, dict[str, Any]]:
+    csv_source: str | None = None,
+) -> FreezeBundleProjection:
     """Project a freeze SQLite snapshot into topix/nikkei bundle payloads."""
     if not sqlite_path.is_file():
         raise AssembleWebAsofError(f"freeze sqlite missing: {sqlite_path}")
@@ -69,6 +117,7 @@ def payloads_from_freeze_sqlite(
         raise AssembleWebAsofError("freeze sqlite row codes must equal series codes")
 
     out: dict[str, dict[str, Any]] = {}
+    eligible_out: dict[str, list[bool] | None] = {}
     for bench in ("topix", "nikkei"):
         if bench not in BENCHMARKS:
             continue
@@ -88,9 +137,9 @@ def payloads_from_freeze_sqlite(
             projected_rows.append(row)
             projected_series[code] = series
             sma_values.append(row.get("rs_sma75"))
-        # Fail-closed: no 105-day eligibility mask on freeze rows, so every
-        # name is in the denominator (short-history nulls cannot inflate 0.98).
-        if not sma75_cas_allowed(sma_values):
+        eligible = _sma75_eligible_mask(row_map, bench)
+        eligible_out[bench] = eligible
+        if not sma75_cas_allowed(sma_values, eligible=eligible):
             raise AssembleWebAsofError(
                 f"{bench} rs_sma75 non-null rate below SMA75_NON_NULL_RATE_MIN"
             )
@@ -102,8 +151,9 @@ def payloads_from_freeze_sqlite(
             axis_dates=list(axis_dates),
             rows=projected_rows,
             series=projected_series,
+            csv_source=csv_source,
         )
-    return out
+    return FreezeBundleProjection(payloads=out, sma75_eligible=eligible_out)
 
 
 def write_payload_files(

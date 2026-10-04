@@ -1,7 +1,8 @@
 """Backfill web-asof bundles for the last N as-of dates that have committed enriched CSV.
 
 Uses the active metric_set UUID. Does not CAS.
-R2 staging retention may drop enriched CSV; then freeze uses an OHLC-universe CSV.
+R2 staging retention may drop enriched CSV; this CLI opts into OHLC-universe fallback.
+Daily assemble does not.
 """
 from __future__ import annotations
 
@@ -84,6 +85,20 @@ def _as_of_done(work_dir: Path, as_of: str) -> bool:
     return as_of in _PRECOMMITTED or _put_ok(work_dir, as_of)
 
 
+def backfill_coverage_status(
+    *,
+    requested: int,
+    found: int,
+    remaining: list[str],
+) -> tuple[str, int]:
+    """Report coverage honestly. Short candidate lists are not_met, not ok."""
+    if remaining:
+        return "error", 1
+    if found < requested:
+        return "not_met", 1
+    return "ok", 0
+
+
 def _assemble_one(
     *,
     as_of: str,
@@ -97,7 +112,12 @@ def _assemble_one(
         supabase = _adapter_supabase()
         r2 = R2StagingAdapter()
         _download_enriched_csv(
-            supabase, r2, as_of, work_dir / "enriched.csv", ohlc_zip=ohlc_zip
+            supabase,
+            r2,
+            as_of,
+            work_dir / "enriched.csv",
+            ohlc_zip=ohlc_zip,
+            allow_ohlc_universe_fallback=True,
         )
     ns = argparse.Namespace(
         as_of=as_of,
@@ -110,6 +130,7 @@ def _assemble_one(
         require_enabled=False,
         skip_download=skip_download,
         skip_freeze=False,
+        allow_ohlc_universe_fallback=True,
         json_output=work_dir / f"put_{as_of}.json",
     )
     return cmd_assemble(ns)
@@ -199,14 +220,16 @@ def main(argv: list[str] | None = None) -> int:
             break
 
     remaining = [as_of for as_of in dates if not _as_of_done(args.work_dir, as_of)]
-    if remaining:
-        exit_code = exit_code or 1
-    else:
-        exit_code = 0
+    status, exit_code = backfill_coverage_status(
+        requested=args.limit,
+        found=len(dates),
+        remaining=remaining,
+    )
     payload = {
-        "status": "ok" if exit_code == 0 else "error",
+        "status": status,
         "exit_code": exit_code,
         "requested": args.limit,
+        "found": len(dates),
         "remaining": remaining,
         "as_ofs": dates,
         "results": results[-80:],

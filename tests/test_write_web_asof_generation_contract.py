@@ -370,6 +370,46 @@ def test_v11_shadow_generation_does_not_activate_registry() -> None:
     assert store.committed_snapshot_digest_by_set_date == {}
 
 
+def test_web_asof_commit_uses_sma75_eligible_mask() -> None:
+    store = FakeMetricGenerationStore()
+    r2 = FakeR2ObjectStore()
+    as_of = _axis()[-1]
+    topix = _payload("topix", codes=["7203", "9984"], sma=0.2)
+    nikkei = _payload("nikkei", codes=["7203", "9984"], sma=0.2)
+    for payload in (topix, nikkei):
+        payload["rows"][1]["rs_sma75"] = None
+        sma_series = list(payload["series"]["9984"]["rs_sma75"])
+        sma_series[-1] = None
+        payload["series"]["9984"]["rs_sma75"] = sma_series
+    rejected = run_web_asof_generation(
+        WebAsofGenerationRequest(
+            as_of=as_of,
+            metric_set_version_id=_SET,
+            set_fingerprint=_FP,
+            repository="local",
+            github_run_id=701,
+            payloads={"topix": topix, "nikkei": nikkei},
+        ),
+        generation_store=store,
+        r2_store=r2,
+    )
+    assert rejected.status == "error"
+    accepted = run_web_asof_generation(
+        WebAsofGenerationRequest(
+            as_of=as_of,
+            metric_set_version_id=_SET,
+            set_fingerprint=_FP,
+            repository="local",
+            github_run_id=702,
+            payloads={"topix": topix, "nikkei": nikkei},
+            sma75_eligible={"topix": [True, False], "nikkei": [True, False]},
+        ),
+        generation_store=store,
+        r2_store=r2,
+    )
+    assert accepted.status == "ok"
+
+
 def test_project_csv_row_rounds_bundle_floats() -> None:
     csv_row = {
         "date": "2026-08-31",
