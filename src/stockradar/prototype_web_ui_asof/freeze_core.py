@@ -317,7 +317,19 @@ def freeze_asof(
                 continue
             raise ValueError(f"stock {code} missing as-of {as_of}")
 
-        metrics_by_day = _metrics_for_symbol(stock_df, benches, axis)
+        try:
+            metrics_by_day = _metrics_for_symbol(stock_df, benches, axis)
+        except Exception as exc:
+            # One ticker must not abort the as-of (pandas/numpy TypeError observed
+            # mid-universe on 2026-08-04: set_module() takes 1 positional argument).
+            if exclude_stale_symbols:
+                print(
+                    f"freeze skip {code}: {type(exc).__name__}: {exc}",
+                    flush=True,
+                )
+                n_excluded += 1
+                continue
+            raise
         metric_keys = sorted(metrics_by_day[0].keys())
         metrics_json_obj = {
             "dates_ref": "meta.axis_dates_json",

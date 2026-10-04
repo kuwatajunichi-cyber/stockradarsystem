@@ -6,13 +6,17 @@ from __future__ import annotations
 
 from datetime import date
 
+import numpy as np
 import pandas as pd
 import pytest
 
+from stockradar.indicators.date_anchor import merged_close
 from stockradar.indicators.rs import (
+    _one_row_frame,
     compute_rs,
     compute_rs_acceleration,
     compute_rs_acceleration_zscore,
+    compute_rs_from_merged,
 )
 
 
@@ -91,3 +95,21 @@ def test_compute_rs_acceleration_zscore_leading_nan(
         stock_df, bench_df, date(2026, 1, 14), lookback_days=21, short_window=1, long_window=2
     )
     assert pd.isna(result.iloc[0])
+
+
+def test_one_row_frame_keeps_nan_without_list_of_dict() -> None:
+    frame = _one_row_frame({"rs31": None, "rs63": 0.01}, date(2026, 8, 4))
+    assert list(frame.columns) == ["rs31", "rs63"]
+    assert pd.isna(frame["rs31"].iloc[0])
+    assert frame["rs63"].iloc[0] == pytest.approx(0.01)
+
+
+def test_compute_rs_from_merged_numpy_float64_values(
+    stock_df: pd.DataFrame, bench_df: pd.DataFrame
+) -> None:
+    merged = merged_close(stock_df, bench_df)
+    merged["stock_close"] = merged["stock_close"].astype(np.float64)
+    merged["bench_close"] = merged["bench_close"].astype(np.float64)
+    result = compute_rs_from_merged(merged, [1], date(2026, 1, 14))
+    assert len(result) == 1
+    assert result["rs1"].iloc[0] == pytest.approx(118 / 116 - 109 / 108, rel=1e-9)
