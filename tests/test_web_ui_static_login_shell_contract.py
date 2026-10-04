@@ -80,6 +80,17 @@ def test_app_js_reads_event_news_bundle() -> None:
     assert 'state.allKeys.includes("event_news_bundle")' in app
 
 
+def test_app_js_escapes_bundle_html() -> None:
+    app = (_STATIC / "assets" / "app.js").read_text(encoding="utf-8")
+    proto = (_REPO / "prototypes" / "web-ui-asof" / "web" / "app.js").read_text(encoding="utf-8")
+    for blob in (app, proto):
+        assert "function safeHttpUrl" in blob
+        assert "escapeHtml(row.name || \"\")" in blob
+        assert "return '<a href=\"' + String(v)" not in blob
+        assert "td.innerHTML = cellHtml" in blob
+        assert "return v == null ? \"\" : escapeHtml(String(v));" in blob
+
+
 def test_app_js_accel_cf_pm1_and_extra_last_bar() -> None:
     app = (_STATIC / "assets" / "app.js").read_text(encoding="utf-8")
     pm5, _, rest = app.partition("const CF_PM5")

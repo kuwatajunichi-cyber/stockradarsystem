@@ -201,6 +201,9 @@ export async function mintGet(request, ports) {
     return await deny(REASON_REQUEST_ID_CONFLICT, resolvedKey, ref);
   }
   const refreshRow = issuedExisting[0] || null;
+  if (refreshRow && String(refreshRow.actor_ref || "") !== actorRef) {
+    return await deny(REASON_REQUEST_ID_CONFLICT, resolvedKey, ref);
+  }
 
   let proof;
   try {

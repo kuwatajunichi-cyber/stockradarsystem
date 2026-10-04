@@ -23,11 +23,16 @@ from stockradar.indicators.date_anchor import (
 def _as_float64(value: object) -> float:
     if value is None:
         return float("nan")
-    try:
-        out = float(value)
-    except (TypeError, ValueError):
+    if isinstance(value, bool):
         return float("nan")
-    return out
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, np.generic):
+        try:
+            return float(value.item())
+        except (TypeError, ValueError):
+            return float("nan")
+    return float("nan")
 
 
 def _one_row_frame(values: dict[str, float | None], index_value: object) -> pd.DataFrame:

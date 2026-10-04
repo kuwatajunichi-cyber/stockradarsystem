@@ -530,7 +530,20 @@
       .replaceAll("&", "&amp;")
       .replaceAll("<", "&lt;")
       .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;");
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+  }
+
+  function safeHttpUrl(v) {
+    const raw = String(v || "").trim();
+    if (!raw) return "";
+    try {
+      const u = new URL(raw);
+      if (u.protocol !== "http:" && u.protocol !== "https:") return "";
+      return u.href;
+    } catch {
+      return "";
+    }
   }
 
   function clamp01(t) {
@@ -846,10 +859,11 @@
       return items
         .map((it) => {
           const t = escapeHtml(it.title);
-          if (it.url) {
+          const href = safeHttpUrl(it.url);
+          if (href) {
             return (
               '<div class="news-line"><a href="' +
-              escapeHtml(it.url) +
+              escapeHtml(href) +
               '" target="_blank" rel="noopener">' +
               t +
               "</a></div>"
@@ -861,16 +875,17 @@
     }
     const v = row[key];
     if (def.kind === "link") {
-      if (!v) return "";
+      const href = safeHttpUrl(v);
+      if (!href) return "";
       const t = def.linkText || "開く";
-      return '<a href="' + String(v) + '" target="_blank" rel="noopener">' + t + "</a>";
+      return '<a href="' + escapeHtml(href) + '" target="_blank" rel="noopener">' + escapeHtml(t) + "</a>";
     }
-    if (def.kind === "signed1") return fmtSigned1(v);
+    if (def.kind === "signed1") return escapeHtml(fmtSigned1(v));
     if (def.kind === "int") {
       if (v == null || Number.isNaN(Number(v))) return "";
-      return String(Math.round(Number(v)));
+      return escapeHtml(String(Math.round(Number(v))));
     }
-    return v == null ? "" : String(v);
+    return v == null ? "" : escapeHtml(String(v));
   }
 
   function renderTable() {
@@ -1454,7 +1469,7 @@
       if (state.selected === code) card.classList.add("selected");
       if (state.hovered === code && state.selected !== code) card.classList.add("is-hover");
       card.innerHTML =
-        "<h4>" + code + " " + (row.name || "") + "</h4>" +
+        "<h4>" + escapeHtml(code) + " " + escapeHtml(row.name || "") + "</h4>" +
         "<div class=\"hover\"></div>" +
         "<div class=\"chart-slot\" aria-hidden=\"true\"></div>";
       card.addEventListener("mouseenter", () => setHoveredCode(code, { from: "chart" }));

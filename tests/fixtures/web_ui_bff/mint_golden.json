@@ -112,6 +112,19 @@
       "expect": { "exit_code": 0, "mint_result": "issued", "reason_code": null, "same_grant": true }
     },
     {
+      "id": "request_id_reuse_other_actor",
+      "setup": "issued",
+      "request": {
+        "request_id": "req-ok",
+        "actor_ref": "user-2",
+        "operation": "GetObject",
+        "object_key": "derived-web-asof/metric-set=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/benchmark=topix/as-of=2026-09-01/bundle.json.gz",
+        "ttl_seconds": 120
+      },
+      "proof": "proven",
+      "expect": { "exit_code": 1, "mint_result": "denied", "reason_code": "request_id_conflict" }
+    },
+    {
       "id": "request_id_conflict",
       "setup": "issued",
       "request": {

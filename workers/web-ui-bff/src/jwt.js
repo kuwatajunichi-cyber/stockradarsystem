@@ -36,7 +36,7 @@ export async function verifyAccessToken(token, env) {
     (Array.isArray(aud) && aud.includes("authenticated"));
   if (!audOk) throw new Error("aud");
   const now = Math.floor(Date.now() / 1000);
-  if (typeof payload.exp === "number" && payload.exp < now) throw new Error("exp");
+  if (typeof payload.exp !== "number" || payload.exp < now) throw new Error("exp");
   if (typeof payload.nbf === "number" && payload.nbf > now) throw new Error("nbf");
   if (!payload.sub) throw new Error("sub");
   if (header.alg !== "ES256") throw new Error("alg");

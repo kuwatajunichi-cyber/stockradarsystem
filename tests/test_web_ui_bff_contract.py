@@ -65,6 +65,12 @@ def test_bff_source_has_t5_and_no_secrets() -> None:
     assert "k.kid === header.kid" in jwt
     assert "if (!header.kid)" in jwt
     assert "|| (jwks.keys || [])[0]" not in jwt
+    assert 'typeof payload.exp !== "number"' in jwt
+    index = _read(_BFF / "src" / "index.js")
+    assert "body.request_id" not in index
+    assert "body.ttl_seconds" not in index
+    assert "crypto.randomUUID()" in index
+    assert "ttl_seconds: TTL_DEFAULT_SECONDS" in index
     assert "/v1/preferences" in blob
     assert "Authorization" in blob
     assert "derived-web-asof/" in blob

@@ -319,7 +319,7 @@ def freeze_asof(
 
         try:
             metrics_by_day = _metrics_for_symbol(stock_df, benches, axis)
-        except Exception as exc:
+        except (TypeError, ValueError) as exc:
             # One ticker must not abort the as-of (pandas/numpy TypeError observed
             # mid-universe on 2026-08-04: set_module() takes 1 positional argument).
             if exclude_stale_symbols:

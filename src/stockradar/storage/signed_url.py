@@ -522,6 +522,14 @@ class SignedUrlMinter:
                 ref=ref,
             )
         refresh_row = issued_existing[0] if issued_existing else None
+        if refresh_row is not None and str(refresh_row.actor_ref or "") != actor_ref:
+            return self._deny(
+                request=request,
+                now=now,
+                reason=REASON_REQUEST_ID_CONFLICT,
+                object_key=resolved_key,
+                ref=ref,
+            )
 
         try:
             proof = self.entitlement.prove(actor_ref=actor_ref, object_key=resolved_key)

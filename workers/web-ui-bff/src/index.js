@@ -224,7 +224,7 @@ export default {
             cors,
           );
         }
-        const requestId = String(body.request_id || crypto.randomUUID());
+        const requestId = crypto.randomUUID();
         const out = await mintGet(
           {
             request_id: requestId,
@@ -233,7 +233,7 @@ export default {
             object_key: row.object_key,
             source_table: "derived_object_index",
             source_id: row.id,
-            ttl_seconds: Number.isInteger(body.ttl_seconds) ? body.ttl_seconds : TTL_DEFAULT_SECONDS,
+            ttl_seconds: TTL_DEFAULT_SECONDS,
           },
           {
             entitlement: { prove() { return session.proof; } },

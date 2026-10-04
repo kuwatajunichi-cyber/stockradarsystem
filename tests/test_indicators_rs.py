@@ -19,6 +19,8 @@ from stockradar.indicators.rs import (
     compute_rs_from_merged,
 )
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture
 def stock_df() -> pd.DataFrame:
