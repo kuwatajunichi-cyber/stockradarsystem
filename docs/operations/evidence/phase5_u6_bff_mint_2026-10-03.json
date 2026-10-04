@@ -1,0 +1,44 @@
+{
+  "as_of": "2026-10-02",
+  "generation_id": "a20dbb1f-7348-4289-846c-92b210d88da9",
+  "metric_set_version_id": "13209d23-ded6-482d-be08-7da6062013c0",
+  "cas_done": false,
+  "live_gates_closed": false,
+  "generate_link_status": 200,
+  "generate_link_has_hash": true,
+  "verify_status": 200,
+  "verify_uid_is_operator": true,
+  "verify_has_access_token": true,
+  "session_status": 200,
+  "session_role": "operator",
+  "session_acao": "https://web-ui-static.stockradarsystem.workers.dev",
+  "dates_status": 200,
+  "dates": [
+    "2026-10-02"
+  ],
+  "dates_default": "2026-10-02",
+  "mint": {
+    "topix": {
+      "status": 200,
+      "has_signed_url": true,
+      "signed_host_is_r2": true,
+      "response_has_object_key": false,
+      "acao": "https://web-ui-static.stockradarsystem.workers.dev",
+      "signed_get_status": 200,
+      "signed_get_acao": "https://web-ui-static.stockradarsystem.workers.dev",
+      "signed_get_bytes": 4168746
+    },
+    "nikkei": {
+      "status": 200,
+      "has_signed_url": true,
+      "signed_host_is_r2": true,
+      "response_has_object_key": false,
+      "acao": "https://web-ui-static.stockradarsystem.workers.dev",
+      "signed_get_status": 200,
+      "signed_get_acao": "https://web-ui-static.stockradarsystem.workers.dev",
+      "signed_get_bytes": 4203184
+    }
+  },
+  "failures": [],
+  "u6_bff_pass": true
+}

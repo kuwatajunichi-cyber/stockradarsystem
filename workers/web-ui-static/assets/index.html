@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Stock Radar (internal)</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    #login-shell { max-width: 28rem; margin: 3rem auto; padding: 0 1rem; color: var(--fg, #e8eef4); }
+    #login-shell input, #login-shell button { font-size: 1rem; padding: 0.4rem 0.5rem; }
+    #login-shell input[type=email] { width: 100%; box-sizing: border-box; }
+    .t5-overlay { padding: 0.8rem 1rem; }
+    .t5-login { color: #d7e4f5; }
+    .t5-unavailable { color: #ffb4b4; }
+    .t5-temporary { color: #ffd089; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div id="t5-overlay" class="t5-overlay t5-login" hidden></div>
+  <div id="login-shell">
+    <div class="banner-title">内部向けの初回ライブです。投資助言ではありません。</div>
+    <h1>Stock Radar</h1>
+    <p id="t5-login">ログインしてください</p>
+    <p id="t5-unavailable" hidden>利用できません</p>
+    <p id="t5-temporary" hidden>一時的に利用できません</p>
+    <form id="form">
+      <label for="email">メール</label>
+      <input id="email" name="email" type="email" autocomplete="username" required>
+      <button type="submit" id="send">Magic link を送る</button>
+    </form>
+    <p class="msg" id="msg"></p>
+  </div>
+  <div id="app-root" hidden>
+  <header class="banner">
+    <div class="banner-main">
+      <div class="banner-title">内部向け初回ライブ / 投資助言ではありません / live_gate_5d は開いたまま</div>
+      <div id="asof-banner">loading…</div>
+    </div>
+  </header>
+  <section class="toolbar">
+    <label>日付
+      <select id="asof-mode"></select>
+    </label>
+    <label>ベンチ
+      <select id="bench-mode">
+        <option value="topix">TOPIX</option>
+        <option value="nikkei">日経</option>
+      </select>
+    </label>
+    <button type="button" id="filter-toggle">特殊フィルタ</button>
+    <button type="button" id="cols-toggle">列の出し隠し</button>
+    <span id="row-count" class="muted"></span>
+  </section>
+  <main class="layout">
+    <div class="main-left" id="main-left">
+      <div class="table-wrap" id="table-wrap">
+        <table id="grid"><thead></thead><tbody></tbody></table>
+      </div>
+      <div class="v-split" id="kabutan-split" role="separator" aria-orientation="horizontal" title="ドラッグで高さ変更"></div>
+      <div class="kabutan" id="kabutan-pane">
+        <div class="kabutan-tabs" id="kabutan-tabs">
+          <div class="kabutan-tabs-main" id="kabutan-tabs-main"></div>
+          <button type="button" id="tab-settings-toggle" class="tab-settings-btn" title="タブ表示設定">表示設定</button>
+        </div>
+        <div class="kabutan-stage" id="kabutan-stage">
+          <iframe id="kabutan-frame" title="web-preview" sandbox="allow-scripts allow-same-origin allow-popups" class="is-empty"></iframe>
+          <a id="kabutan-blank" class="kabutan-open-tab hidden" href="#" target="_blank" rel="noopener">別タブで開く</a>
+          <div id="kabutan-empty" class="kabutan-overlay">
+            <p class="kabutan-overlay-title">銘柄が選択されていません</p>
+            <p class="kabutan-overlay-body">左の表から銘柄行を選択すると、ここに関連ページを表示します。</p>
+          </div>
+          <div id="kabutan-blocked" class="kabutan-overlay hidden">
+            <p class="kabutan-overlay-title">このページは埋め込み表示できません</p>
+            <p id="kabutan-blocked-reason" class="kabutan-overlay-body"></p>
+            <a id="kabutan-blocked-open" class="kabutan-blocked-btn" href="#" target="_blank" rel="noopener">別タブで開く</a>
+          </div>
+        </div>
+      </div>
+    </div>
+    <aside class="side">
+      <div class="chart-legend" id="chart-legend"></div>
+      <div id="chart-host"></div>
+    </aside>
+  </main>
+  <div id="filter-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" data-filter-close="1"></div>
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="filter-modal-title">
+      <div class="modal-header">
+        <h2 id="filter-modal-title">特殊フィルタ</h2>
+        <button type="button" id="filter-modal-close" class="modal-close" aria-label="close">×</button>
+      </div>
+      <div class="modal-body filter-modal-body">
+        <p id="filter-modal-note" class="muted filter-modal-note"></p>
+        <label id="filter-exclude-all-rs-neg-label" class="filter-switch">
+          <input type="checkbox" id="filter-exclude-all-rs-neg" />
+          <span>RS系が全てマイナスの銘柄を除外（RS31/63/126/252/SMA75）</span>
+        </label>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="filter-modal-done">閉じる</button>
+      </div>
+    </div>
+  </div>
+  <div id="tab-settings-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" data-tab-settings-close="1"></div>
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="tab-settings-title">
+      <div class="modal-header">
+        <h2 id="tab-settings-title">タブ表示設定</h2>
+        <button type="button" id="tab-settings-close" class="modal-close" aria-label="close">×</button>
+      </div>
+      <div id="tab-settings-panel" class="modal-body"></div>
+      <div class="modal-footer">
+        <button type="button" id="tab-settings-done">閉じる</button>
+      </div>
+    </div>
+  </div>
+  <div id="cols-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" data-cols-close="1"></div>
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="cols-modal-title">
+      <div class="modal-header">
+        <h2 id="cols-modal-title">列の出し隠し</h2>
+        <button type="button" id="cols-modal-close" class="modal-close" aria-label="close">×</button>
+      </div>
+      <div id="cols-panel" class="modal-body"></div>
+      <div class="modal-footer">
+        <button type="button" id="cols-modal-done">閉じる</button>
+      </div>
+    </div>
+  </div>
+  </div>
+  <script src="/app.js"></script>
+  <script type="module" src="/live.js"></script>
+</body>
+</html>

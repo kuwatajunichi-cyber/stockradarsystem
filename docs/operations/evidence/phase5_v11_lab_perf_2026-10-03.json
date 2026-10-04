@@ -1,0 +1,17 @@
+{
+  "status": "ok",
+  "bench": "topix",
+  "as_of": "2026-10-02",
+  "metric_set_version_id": "a2a12909-6079-4762-95a3-75b2914bb6a7",
+  "n_rows": 2190,
+  "gzip_bytes": 4227500,
+  "gzip_max_bytes": 8388608,
+  "iters": 20,
+  "parse_ms_min": 138.683500001207,
+  "parse_ms_median": 154.55465000013646,
+  "parse_ms_p95": 156.49299999859068,
+  "parse_ms_max": 160.5980999993335,
+  "slo_parse_p95_ms": 2000,
+  "parse_p95_under_2s": true,
+  "browser_20_iter": "not_run_operator_session_required"
+}

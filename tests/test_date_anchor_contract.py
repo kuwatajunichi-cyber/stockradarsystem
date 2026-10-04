@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 from stockradar.indicators.date_anchor import (
@@ -17,6 +18,7 @@ def test_nth_business_anchor_uses_unique_sorted_dates() -> None:
     assert nth_business_anchor(ctx, anchor, 0) == pd.Timestamp("2026-01-06")
     assert nth_business_anchor(ctx, anchor, 1) == pd.Timestamp("2026-01-03")
     assert nth_business_anchor(ctx, anchor, 2) == pd.Timestamp("2026-01-02")
+    assert nth_business_anchor(ctx, anchor, np.int64(1)) == pd.Timestamp("2026-01-03")
 
 
 def test_asof_value_uses_dropna_sort_and_latest_before_anchor() -> None:

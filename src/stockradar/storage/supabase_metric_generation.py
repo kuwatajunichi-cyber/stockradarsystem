@@ -184,6 +184,7 @@ class SupabaseMetricGenerationAdapter:
         instrument_code: str | None = None,
         series_year: int | None = None,
         layer1_input_fingerprint: str | None = None,
+        benchmark: str | None = None,
     ) -> PendingObjectRecord:
         body: dict[str, Any] = {
             "p_generation_id": generation_id,
@@ -195,6 +196,11 @@ class SupabaseMetricGenerationAdapter:
             "p_trade_date": trade_date,
             "p_instrument_code": instrument_code,
             "p_series_year": series_year,
+            "p_benchmark": (
+                benchmark.strip().lower()
+                if isinstance(benchmark, str) and benchmark.strip()
+                else None
+            ),
         }
         object_id = str(self._rpc("register_pending_derived_object", body))
         key = (generation_id, object_key.strip())
@@ -212,6 +218,7 @@ class SupabaseMetricGenerationAdapter:
             series_year=series_year,
             layer1_input_fingerprint=layer1_input_fingerprint,
             upload_verified_at=None,
+            benchmark=benchmark,
         )
 
     def mark_object_uploaded(
@@ -490,6 +497,26 @@ class SupabaseMetricGenerationAdapter:
         if row is None:
             return None
         return str(row["object_key"])
+
+    def get_committed_web_asof_object_key(
+        self,
+        *,
+        metric_set_version_id: str,
+        benchmark: str,
+        as_of: str,
+    ) -> str | None:
+        row = self._fetch_committed_object_row(
+            metric_set_version_id=metric_set_version_id,
+            filters={
+                "object_kind": "eq.web_asof_bundle",
+                "benchmark": f"eq.{benchmark.strip().lower()}",
+                "trade_date": f"eq.{as_of.strip()}",
+            },
+        )
+        if row is None:
+            return None
+        return str(row["object_key"])
+
     BATCH_OBJECT_CHUNK_SIZE = 500
     BATCH_RPC_TIMEOUT_S = 60.0
     COMMIT_RPC_TIMEOUT_S = 180.0

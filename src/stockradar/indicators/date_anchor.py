@@ -69,11 +69,14 @@ def nth_business_anchor(index: pd.Index | AnchorContext, run_anchor: pd.Timestam
         ctx = index
     else:
         ctx = build_anchor_context(index)
-    pos = int(np.searchsorted(ctx.index_ns, run_anchor.value, side="right") - 1)
+    days_back = int(days_back)
+    pos = int(np.searchsorted(ctx.index_ns, int(run_anchor.value), side="right") - 1)
     target = pos - days_back
-    if target < 0:
+    if target < 0 or target >= len(ctx.index_ns):
         return None
-    return pd.Timestamp(ctx.index[target])
+    # Python int via ns array. numpy.int64 keys hit a pandas Index.__getitem__
+    # path that raises NameError: _data is not defined.
+    return pd.Timestamp(int(ctx.index_ns[target]))
 
 
 def prepare_asof_series(series: pd.Series) -> AsofSeries:

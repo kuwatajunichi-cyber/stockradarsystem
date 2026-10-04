@@ -1,0 +1,27 @@
+{
+  "deployed_at_utc": "2026-10-02T13:50:00Z",
+  "worker_name": "web-ui-static",
+  "origin": "https://web-ui-static.stockradarsystem.workers.dev",
+  "version_id_after_asset_upload": "6e9fdf9e-10b9-41f4-bffe-35de91b6ed4a",
+  "wrangler": "4.147.0",
+  "workers_dev": true,
+  "login_shell_only": true,
+  "http_get": {
+    "/": 200,
+    "/index.html": 200,
+    "/config.json": 200
+  },
+  "config_json_ok": true,
+  "not_done_in_this_step": [
+    "Supabase Auth Site URL / Redirect URLs / Email Magic link (U-4a user console)",
+    "invite (U-4b)",
+    "web-ui-bff deploy",
+    "web_asof_writer_enabled remains false",
+    "metric_set_v1_1 CAS not applied"
+  ],
+  "pr-5c": "pending",
+  "pr-5d": "pending",
+  "live_gate_5c": "open",
+  "live_gate_5d": "open",
+  "overall_status": "in_progress"
+}

@@ -61,7 +61,8 @@ Migration staging (this contract):
 - `runs/` — per-run artifact bodies and manifests
 - `cache/` — warm cache zip bodies (Phase 3)
 - `monthly/` — monthly universe snapshots (Phase 4)
-- `derived-snapshots/` / `derived-series/` — Phase 4.5 derived objects
+- `derived-snapshots/` / `derived-series/` — Phase 4.5 derived objects (snapshots = audit parquet; series = writer)
+- `derived-web-asof/` — Phase 5 Track D as-of view bundles (screen; web_asof_bundle_v1). Mapping entry `derived-web-asof-bundle`. Production CHECK accepts `web_asof_bundle` / `web_asof_manifest` after U-3 apply of `020_web_asof_object_kind` (2026-10-02; git SSOT is now `025_web_asof_object_kind.sql`). `web_asof_writer_enabled` is true after payload wiring (2026-10-03). Ops CAS of `metric_set_v1_1` is recorded in `phase5_gate_status.yaml`; this mapping file does not CAS.
 - `derived-inputs/` — ADR-005 planned request manifests and seed/repair deltas（live writer なし）
 
 **Contract:** resolve object keys from deterministic resolver (`run_id` + `run_date`) or workflow manifest outputs. Do not rely on R2 `ListObjects` in the normal consumer path.
@@ -157,7 +158,7 @@ See docs/operations/issue_93_roadmap.md and docs/operations/phase4_cutover.md.
 - Phase 4: monthly_snapshots, publish_status, runs lifecycle, monthly Cron, cache-jpx-url R2 migration（gate CLOSED 2026-07-22）。
 - Phase 4.5: derived indicators warm cache (ADR-004; rollout 4.5c, live_gate closed via waiver 2026-08-29).
 - ADR-005 (Adopted; `live_gate_005` closed 2026-09-01): Monthly new-Core backfill. Live OHLC/index cache uses `immutable_pointer_cas` (`pr-005-daily-cas` merged via PR #159). `planned_scan_workflows` empty after P4 promotion; `monthly_new_core_backfill.yml` is in live `scan_workflows`.
-- Phase 5: tracks A–E（in_progress。5.5a/5.5b live closed。Track B mint マージ済・live_gate_5b は open。Auth/UI 未着手）. Gate SSOT: docs/operations/phase5_gate_status.yaml.
+- Phase 5: tracks A–E（in_progress。5.5a/5.5b/5b live closed。Auth/UI 未着手）. Gate SSOT: docs/operations/phase5_gate_status.yaml.
 
 Live daily/monthly `upload_to_all_targets.py` TARGETS are `r2,dropbox` (optional `drive` when unfrozen). GitHub Release is **not** a live TARGET after Phase 4c. Mapping entry `release-daily-yyyymm` remains a logical published/ key; `cleanup_releases.yml` retains leftover Release assets.
 

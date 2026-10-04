@@ -1,0 +1,10 @@
+{
+  "status": "ok",
+  "set_id": "a2a12909-6079-4762-95a3-75b2914bb6a7",
+  "set_key": "daily_core_v1_1__04f32c67f984",
+  "set_fingerprint": "04f32c67f984ad43776312cf34fc4ef00abb29930334fda02828e53397d234c6",
+  "lifecycle": "active_after_cas",
+  "seeded_as": "shadow",
+  "member_count": 23,
+  "path": "SQL seed then activate_metric_set_cas; REST POST metric_definitions returned 403"
+}

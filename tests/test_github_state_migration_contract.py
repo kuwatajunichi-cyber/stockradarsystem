@@ -189,7 +189,7 @@ def test_mapping_scan_workflows_match_contract() -> None:
 
 def test_workflow_state_covered_by_mapping() -> None:
     mapping = _load_mapping()
-    by_kind: dict[str, list[str]] = {"artifact": [], "cache": [], "release": []}
+    by_kind: dict[str, list[str]] = {"artifact": [], "cache": [], "release": [], "derived": []}
     for entry in mapping["entries"]:
         by_kind[entry["source_kind"]].append(entry["source_name_pattern"])
 
@@ -241,6 +241,15 @@ def test_mapping_entries_exist_in_workflows() -> None:
                 if "monthly_bus_cli.py commit-snapshot" in monthly_wf:
                     continue
             pool = all_releases
+        elif kind == "derived":
+            wf_name = str(entry.get("writer_workflow") or "")
+            writer_job = str(entry.get("writer_job") or "")
+            wf_text = _workflow_text(wf_name) if wf_name in SCAN_WORKFLOWS else ""
+            if writer_job and f"{writer_job}:" in wf_text:
+                continue
+            pytest.fail(
+                f"{entry['id']}: derived writer_job {writer_job!r} not found in {wf_name}"
+            )
         else:
             pytest.fail(f"unknown source_kind: {kind!r}")
 

@@ -1,0 +1,32 @@
+{
+  "status": "ok",
+  "v11_set_key": "daily_core_v1_1__04f32c67f984",
+  "v11_set_fingerprint": "04f32c67f984ad43776312cf34fc4ef00abb29930334fda02828e53397d234c6",
+  "v11_member_count": 23,
+  "v1_member_count": 21,
+  "v1_free_member_count": 13,
+  "inherited_v1_mismatches": [],
+  "inherited_v1_free_mismatches": [],
+  "sma75": {
+    "n_rows": 2190,
+    "topix_non_null_rate": 1.0,
+    "nikkei_non_null_rate": 1.0,
+    "topix_ok": true,
+    "nikkei_ok": true,
+    "min_rate": 0.98
+  },
+  "capacity": {
+    "catalog_versions_planned": 2,
+    "derived_series_backfill": false,
+    "web_asof_60_byte_estimate": 629145600,
+    "r2_warn_bytes": 8589934592,
+    "supabase_warn_bytes": 367001600,
+    "web_asof_60_under_r2_warn": true
+  },
+  "cas_gates": {
+    "inherited_v1_ok": true,
+    "sma75_ok": true,
+    "capacity_ok": true
+  },
+  "cas_allowed": true
+}

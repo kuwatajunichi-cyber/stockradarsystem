@@ -101,7 +101,7 @@
 
 * RS・出来高偏差の算出
 
-* XLSX（上位N）＋ CSV（全件）
+* XLSX（当面の顧客正本）＋ CSV（全件）＋ Phase 5 Web UI（追加閲覧。仕様採用・live 未）
 
 * Google Drive Paid への自動格納
 
@@ -114,8 +114,6 @@
 * MINKABU差分による Pending レーン
 
 * 業界別RS
-
-* Webダッシュボード
 
 * 完全自動課金連動
 

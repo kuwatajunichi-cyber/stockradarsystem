@@ -157,12 +157,13 @@ jobs:
             --object-key "$SNAPSHOT_R2_KEY" \
             --local-path /tmp/derived_backfill_snapshot.json
           LAYER1_FP=$(python -c "import hashlib; from pathlib import Path; print(hashlib.sha256(Path('/tmp/derived_backfill_snapshot.json').read_bytes()).hexdigest())")
+          METRIC_SET_YAML=$(python scripts/storage/resolve_metric_set_yaml.py --metric-set-version-id "${{ github.event.inputs.metric_set_version_id }}")
           python scripts/storage/derived_bus_cli.py put-generation \
             --mode backfill \
             --trade-date "${{ github.event.inputs.trade_date }}" \
             --metric-set-version-id "${{ github.event.inputs.metric_set_version_id }}" \
             --phase4-5-rollout-stage "$STAGE" \
-            --metric-set-yaml config/metrics/metric_set_v1_free.yaml \
+            --metric-set-yaml "$METRIC_SET_YAML" \
             --snapshot-json /tmp/derived_backfill_snapshot.json \
             --layer1-input-fingerprint "$LAYER1_FP" \
             --workflow derived_backfill.yml \

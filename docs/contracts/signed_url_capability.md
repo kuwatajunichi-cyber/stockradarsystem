@@ -2,9 +2,9 @@
 
 Phase 5 トラック B の入出力契約。英語本文が機械検証用の正本（トークン signed_url_capability）である。
 
-Capability SSOT. mint is SignedUrlMintPort (`src/stockradar/storage/signed_url.py`), DDL is `017_download_grants.sql`, internal CLI is `scripts/storage/signed_url_mint_cli.py`. No public endpoint / Auth / Web UI. live_gate_5b is open (docs alone cannot close). Phase 5 overall_status is in_progress. Issue #93 is OPEN. A contract-only **docs only** PR is not capability complete.
+Capability SSOT. mint is SignedUrlMintPort (`src/stockradar/storage/signed_url.py`), DDL is `017_download_grants.sql`, internal CLI is `scripts/storage/signed_url_mint_cli.py`. No public endpoint / Auth / Web UI. live_gate_5b closed with live evidence (docs alone cannot close). Phase 5 overall_status is in_progress. Issue #93 is OPEN. A contract-only **docs only** PR is not capability complete.
 
-要約: private bucket 上の committed blob にだけ短命 GetObject 署名を fail-closed で発行する。orphan 拒否。TTL 60-3600 秒（既定 300）。監査表は download_grants。P0 継承（RLS ON、anon/authenticated REVOKE、user policy ゼロ、service_role のみ）。entitlement 未証明は拒否（allow-stub 禁止）。公開 Worker / 公開 mint は Track C まで禁止。単体テストは Fake。製品ロール・利用者 RLS・画面キーは Out of scope。
+要約: private bucket 上の committed blob にだけ短命 GetObject 署名を fail-closed で発行する。orphan 拒否。TTL 60-3600 秒（既定 300）。監査表は download_grants。P0 継承（RLS ON、anon/authenticated REVOKE、user policy ゼロ、service_role のみ）。entitlement 未証明は拒否（allow-stub 禁止）。**公開 mint＝未認証の署名発行。禁止。** 認証済み BFF（Track C/D）は製品口であり、本トラックの内部 CLI を匿名公開したものではない。単体テストは Fake。製品ロール・利用者 RLS は Out of scope。画面 mint キー（`as_of`+`benchmark`）は Track D。
 
 ---
 
@@ -45,12 +45,12 @@ Define an internal capability to mint short-lived **GetObject** signed URLs for 
 
 - work / paid **product roles**
 - Per-user RLS policies
-- Keys a screen would require; series vs published product API
+- Keys a screen would require (`as_of` + `benchmark`); series vs published product API (Track D)
 - Supabase Auth, billing webhooks, entitlements product (Track C)
-- Web UI (Track D)
+- Web UI pages (Track D)
 - Drive / Dropbox / `published/` customer-canonical cutover (Track E)
-- **public mint** (public Worker / Edge Function / anonymous HTTP)
-- Internal smoke exposed as a public endpoint
+- **public mint** = unauthenticated signing (anonymous HTTP, public Worker without JWT). Authenticated BFF mint is Track C/D, not this track's CLI made public
+- Internal smoke exposed as an unauthenticated endpoint
 - Healthchecks / Watchdog / 5.5b `runs` views (Track A)
 
 ---
@@ -110,6 +110,13 @@ Do not fail silently. Insert `download_grants` with `mint_result=denied` and `re
 3. Sign server-side with AWS Signature V4. Never give R2 secrets to the client.
 4. A presigned URL is a bearer token. Keep TTL short. Share only with the intended recipient.
 5. HEAD before mint is **required** (not optional). Missing blob is `object_missing`. size / sha256 mismatch with the committed row is `checksum_mismatch`. Do not return success without a URL.
+6. **Browser CORS (Track D first live, paid/internal direct read):** the private bucket MUST publish CORS allowing the Pages origin to `GET` / `HEAD` / `OPTIONS` the S3 API host. Do not allow `PUT` / `DELETE`. Do not make the bucket public. Exact Pages origin URL is an implementation PR. Without this rule, T-1 case C browser GetObject fails.
+
+## Public mint (definition)
+
+**Public mint** means issuing a GetObject signature **without authenticating the caller** (anonymous HTTP, Worker with no JWT, stub proven). Forbidden. Track B internal CLI stays `service_role` + explicit fixture.
+
+An **authenticated BFF** (T-1 case C) that verifies Supabase JWT then calls this capability is a Track C/D product path. It is not public mint and is not this CLI published anonymously. Unauthenticated mint on that Worker is still public mint (401 required).
 
 ---
 
@@ -132,6 +139,7 @@ Known prefixes (aligned with [github_state_to_r2_supabase_mapping.md](github_sta
 - `derived-snapshots/`
 - `derived-series/`
 - `derived-inputs/`
+- `derived-web-asof/`
 - `0011_work/`
 - `0012_paid/`
 
@@ -154,7 +162,7 @@ Track B does not implement proof contents (Auth, billing, roles). mint only read
 
 Fake default is `unproven`. Tests inject `proven` explicitly. Production wiring must not treat missing proof as allow.
 
-Until Track C supplies real proof, no production public call path may exist. Internal smoke is `service_role` plus an explicit fixture only.
+Until Track C supplies real proof, the Track B CLI has no unauthenticated HTTP. Authenticated BFF mint waits for Track C proof (T-4 allowlist first). Missing proof remains fail-closed.
 
 ---
 
@@ -256,7 +264,7 @@ Minimum to close:
 - evidence that not-committed / unproven / non-GetObject are refused
 - no public endpoint
 
-Closing `live_gate_5b` leaves Phase 5 `overall_status` `in_progress`. Issue #93 stays OPEN.
+Closed 2026-09-09 with Issue #93 comment `5587796941` (internal CLI issued + refuse; no signed URL body; no public endpoint). Closing `live_gate_5b` leaves Phase 5 `overall_status` `in_progress`. Issue #93 stays OPEN.
 
 ---
 

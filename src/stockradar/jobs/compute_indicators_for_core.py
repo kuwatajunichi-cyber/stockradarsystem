@@ -50,6 +50,7 @@ from stockradar.indicators.rs import (
     compute_rs_acceleration_zscore_from_merged,
     compute_rs_from_merged,
 )
+from stockradar.prototype_web_ui_asof.sma75_rs import compute_rs_sma75_from_closes
 from stockradar.indicators.zscore import (
     compute_turnover_ma_ratio_from_prepared,
     compute_zscore_turnover_from_prepared,
@@ -285,6 +286,15 @@ def _compute_one_code(task: tuple[str, str]) -> dict:
         )
         result_row[f"information_ratio_{bench_name}"] = info_ratio.iloc[0] if not info_ratio.empty else None
         if pd.isna(result_row[f"information_ratio_{bench_name}"]):
+            nan_count += 1
+
+        sma75 = compute_rs_sma75_from_closes(
+            merged["stock_close"],
+            merged["bench_close"],
+            run_date,
+        )
+        result_row[f"rs_sma75_{bench_name}"] = sma75
+        if sma75 is None:
             nan_count += 1
 
     return {"status": "ok", "row": result_row, "nan_count": nan_count}

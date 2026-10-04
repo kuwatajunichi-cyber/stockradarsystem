@@ -2,7 +2,7 @@
 
 ## 状態
 
-採用・設計改訂済み（2026-07-22）。Phase 4.5 実装は **rollout 4.5c・Path B active・`live_gate_45c` closed**（user-authorized waiver 2026-08-29; continuous 3 trading-day Path B soak is **not** claimed）。「実装は未着手」ではない。
+採用・設計改訂済み（2026-07-22）。Phase 4.5 実装は **rollout 4.5c・Path B active・`live_gate_45c` closed**（user-authorized waiver 2026-08-29）。2026-09-22: 画面読み口を `derived-web-asof/` に改訂。`derived-series/` は書き手正本のまま。グラフ窓は 60 営業日。live_gate_5d は open。
 
 [ADR-005](adr-005-monthly-new-core-backfill.md)（Monthly new-Core backfill）は **Adopted**。実装ゲートは `docs/operations/adr005_gate_status.yaml`（`overall_status: closed` / `live_gate_005` closed 2026-09-01）。本 ADR の 4.5c gate CLOSED と混同しない。
 
@@ -23,7 +23,7 @@ RS、出来高 zscore、移動平均比等は `compute_indicators_for_core` が�
 ### 新しい要求
 
 - 75 日移動平均、RS、Perfect Order 維持日数等の指標を継続的に追加・変更・廃止する。
-- RS 等を銘柄別に数百営業日表示するインタラクティブ Web UI を Phase 5 で実装する。
+- RS 等を銘柄別に見るインタラクティブ Web UI を Phase 5 で実装する。グラフの表示窓は **60 営業日**（拡大しない）。数百営業日は **as-of 日付切替**（どの営業日の束を開くか）の保持であり、X 軸を数百日に伸ばすことではない。
 - 指標の式・窓長・欠損規則を変更しても、旧結果を監査できる。
 - 利用者が内部または少数の間は、Supabase / R2 の無料枠を優先し固定費を発生させない。
 - 利用者増加時は、API 契約や指標 ID を変えずに有料構成へ拡張できる。
@@ -46,7 +46,8 @@ RS、出来高 zscore、移動平均比等は `compute_indicators_for_core` が�
 |------|------|
 | 計算の原典 | Layer 1 原材料 + immutable な指標 version |
 | 監査・再構築 | R2 immutable daily snapshot + manifest（当時ユニバース断面の正本）。snapshot に含まれない code×date は [ADR-005](adr-005-monthly-new-core-backfill.md) の committed `series_seed_delta` / `series_repair_delta` を supplementary rebuild source とする |
-| Web 時系列配信 | R2 銘柄×年 projection |
+| 系列の書き手投影 | R2 銘柄×年 `derived-series/`（Web 画面はこれを直接読まない） |
+| Web 画面の読み口 | R2 `derived-web-asof/` の as-of×ベンチ view bundle（T-2 案 C。2026-09-22 改訂） |
 | 指標定義・active set・object metadata | Supabase |
 | 当日横断スクリーニング・配布 | 既存 `indicators_YYYYMMDD.csv` |
 | 無料段階の DB 検索 projection | Supabase の最新断面のみ |
@@ -69,7 +70,7 @@ derived-snapshots/
 - 同じ論理 key に異なる fingerprint を通常処理で上書きしない。
 - 過去訂正は reconcile 操作、式変更は新しい metric set version として分離する。
 
-#### Web API 用銘柄系列 projection
+#### 系列の書き手投影（銘柄×年）
 
 ```text
 derived-series/
@@ -79,10 +80,29 @@ derived-series/
       manifest.json
 ```
 
-- API は銘柄・年単位で必要 object のみ読む。
-- 応答は日付配列と series 列配列の compact JSON とし、行ごとの指標名反復を避ける。
+- 系列の書き手正本。日次は当年 object を再生成する。snapshot は immutable。
+- 画面の GetObject 対象ではない（2026-09-22）。グラフ 60 本は下記 view bundle に投影する。
 - Parquet を zip に入れない。単一巨大 zip の download・再圧縮・競合を回避する。
-- 通常日次更新では当年 object のみ更新する。snapshot は immutable、series projection は再生成可能とする。
+
+`derived-snapshots/` は **監査・再構築用の 1 日×全銘柄 parquet** である。Excel / XLSX 帳票の最適化先ではない。帳票は `indicators_*.csv` とテンプレート（ADR-002）から作り、顧客正本は当面 live TARGETS の XLSX（T-3）。
+
+#### Web 画面用 as-of view bundle（2026-09-22 追加）
+
+```text
+derived-web-asof/
+  metric-set={set_version}/
+    benchmark={topix|nikkei}/
+      as-of={YYYY-MM-DD}/
+        bundle.json.gz
+        manifest.json
+```
+
+- 画面の読み口。**ベンチごとに別オブジェクト**（両ベンチを 1 束にしない。有料の転送を重くしない）。
+- 1 束 = その as-of の横断表 + 表示窓 60 営業日の系列（そのベンチの RS / SMA75 RS / Z）。銘柄切替は束の中。
+- 書き手は `derived-series/` と as-of 再計算から **再生成可能な投影**。部分更新せず、その as-of×ベンチを作り直す。
+- ニュース・リンク・調査ブロックも **同じ as-of 営業日** に揃えて束に入れる。カレンダー日がずれた CSV 行を as-of 表として出さない。
+- mint キーは `as_of` + `benchmark`。クライアントは `object_key` を組み立てない。
+- ListObjects 禁止。通常読取は committed 行解決 + 短命 GetObject。
 
 ### 3. Supabase に保持するもの
 
@@ -154,10 +174,10 @@ Perfect Order 維持日数等は次を version 契約に含める。
 必要な Layer 1 履歴を次で決める。
 
 ```text
-required_history = max_graph_window + max_metric_lookback + buffer
+required_history = graph_window(60) + max_metric_lookback + buffer
 ```
 
-500 営業日の表示、252 営業日の RS、20 日 buffer なら最低 772 営業日が必要であり、現行 730 **暦日**では不足する。初期目標は Layer 1 / derived snapshot とも 5 年とし、データ利用ポリシーと実測容量を確認して確定する。
+グラフ表示窓は 60 営業日で固定する。Layer 1 が必要なのは計算 lookback（例: RS252）であり、X 軸を数百日にすることではない。as-of 切替用に数百営業日分の **view bundle 世代**を残す。初期目標は Layer 1 / derived snapshot とも 5 年とし、データ利用ポリシーと実測容量を確認して確定する。
 
 ### 10. 無料枠ガードと有料移行
 
@@ -218,13 +238,13 @@ required_history = max_graph_window + max_metric_lookback + buffer
 ## ADR-002 との関係
 
 - `indicators_*.csv` の直近 K 営業日ワイド列はレポート・XLSX 向けとして維持する。
-- 本 ADR の系列はグラフ API・多段計算向けとする。
-- 両者の値は同一 pure 関数から生成し、同じ営業日の値が一致することをテストする。
+- `derived-series/` は多段計算と view bundle 再生成の書き手。画面グラフは `derived-web-asof/`。
+- 同一 as-of の CSV / series / bundle 値は同一 pure 関数から生成し、unit test で一致を固定する。
 
 ## 影響範囲
 
 - `src/stockradar/indicators/`: versioned pure 指標関数。
-- `src/stockradar/jobs/`: snapshot、series projection、latest projection の生成。
+- `src/stockradar/jobs/`: snapshot、series projection、latest projection、Web as-of bundle の生成。
 - `src/stockradar/storage/`: immutable commit、CAS、reconcile adapter。
 - `supabase/migrations/`: metric registry / active set / latest projection。
 - `config/github_state_to_r2_supabase_mapping.yaml`: Phase 4.5 object mapping。

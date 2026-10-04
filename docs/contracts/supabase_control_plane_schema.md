@@ -9,7 +9,7 @@ DDL source of truth:
 - Phase 3: `supabase/migrations/001_phase3_control_plane.sql`
 - Phase 4: `supabase/migrations/002_phase4_control_plane.sql`
 
-Phase 4.5 の metric registry / latest projection は `004` / `005` 以降で実装済み。Phase 5 Track B の `download_grants` DDL は `017_download_grants.sql`。正本は `docs/contracts/signed_url_capability.md` である。本ファイルを Track B 契約の代わりにしない。
+Phase 4.5 の metric registry / latest projection は `004` / `005` 以降で実装済み。Phase 5 Track B の `download_grants` DDL は `017_download_grants.sql`。正本は `docs/contracts/signed_url_capability.md` である。本ファイルを Track B 契約の代わりにしない。Track D `derived-web-asof/` object_kind (`web_asof_bundle` / `web_asof_manifest`) is contracted in web_ui_v1.md; git DDL is `025_web_asof_object_kind.sql` (production schema_migrations name remains `020_web_asof_object_kind`). 本ファイルを Track D の代わりにしない。 Track C entitlements/preferences git DDL is `026_entitlements_preferences.sql` (production name remains `021_entitlements_preferences`). 本ファイルを Track C の代わりにしない。
 
 ## Tables
 
@@ -22,6 +22,8 @@ Phase 4.5 の metric registry / latest projection は `004` / `005` 以降で実
 | monthly_snapshots | 4 | Monthly universe snapshot metadata + object_keys JSONB |
 | publish_status | 4 | Daily publish committed rows (DB is source of truth) |
 | download_grants | 5 Track B | Signed GetObject mint audit. DDL: `017_download_grants.sql` plus unique issued `request_id` in `019_download_grants_issued_request_id.sql`. SSOT: `docs/contracts/signed_url_capability.md` |
+| entitlements | 5 Track C | First-live allowlist (`operator` / `internal_beta`). DDL: `026_entitlements_preferences.sql`. Not a user RLS policy. |
+| user_preferences | 5 Track C | T-6 namespaced bag. DDL: `026_entitlements_preferences.sql`. Browser must not touch this table. |
 
 ## Phase 4.5 tables（DDL: 004/005 以降。本節は実装済みレジストリの説明）
 
@@ -42,13 +44,13 @@ DDL source of truth:
 - Phase 4.5: `supabase/migrations/004_phase45_metric_registry.sql`
 - Hardening: `supabase/migrations/005_phase45_metric_registry_hardening.sql`
 
-Phase 4.5 Free stage では全履歴 `derived_observations` を作らない。長期系列は R2 `derived-snapshots/...` / `derived-series/...` に保持し、Supabase database 350 MB warning、400 MB cleanup を契約境界とする。
+Phase 4.5 Free stage では全履歴 `derived_observations` を作らない。長期系列の書き手は R2 `derived-snapshots/...` / `derived-series/...`。画面読み口は `derived-web-asof/...`（ADR-004 2026-09-22）。Supabase database 350 MB warning、400 MB cleanup を契約境界とする。
 
 初期 RLS / privilege:
 
 - write / commit / active CAS は `service_role` のみ。
 - `anon` / `authenticated` への直接 table write policy は付与しない。
-- R2 bucket を直接 public にしない。Track B の mint 契約（private bucket、committed のみ、公開 mint 禁止）は `docs/contracts/signed_url_capability.md` が正本。本ファイルを Track B の代わりにしない。誰がどの series / published blob を見られるかは Track C / D（Web UI 仕様後）。利用者別 RLS は Track C。
+- R2 bucket を直接 public にしない。Track B の mint 契約（private bucket、committed のみ、公開 mint＝未認証禁止）は `docs/contracts/signed_url_capability.md` が正本。`derived-web-asof/` は Track D の画面読み口。利用者別 RLS は Track C。ブラウザから本 schema の表へ直接触れない（BFF + service_role）。
 
 ## runs (Phase 4 terminal)
 

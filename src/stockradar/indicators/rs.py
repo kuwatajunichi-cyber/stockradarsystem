@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from datetime import date
 
+import numpy as np
 import pandas as pd
 
 from stockradar.indicators.date_anchor import (
@@ -17,6 +18,39 @@ from stockradar.indicators.date_anchor import (
     prepare_asof_series,
     resolve_run_anchor_date,
 )
+
+
+def _as_float64(value: object) -> float:
+    if value is None:
+        return float("nan")
+    if isinstance(value, bool):
+        return float("nan")
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, np.generic):
+        try:
+            return float(value.item())
+        except (TypeError, ValueError):
+            return float("nan")
+    return float("nan")
+
+
+def _one_row_frame(values: dict[str, float | None], index_value: object) -> pd.DataFrame:
+    """Build a 1-row frame without list-of-dict Index inference.
+
+    pandas 2.x + numpy 2.4 can raise ``TypeError: set_module() takes 1
+    positional argument but 2 were given`` on ``DataFrame([dict])``.
+    """
+    cols = list(values.keys())
+    arr = np.empty((1, len(cols)), dtype=np.float64)
+    for i, col in enumerate(cols):
+        arr[0, i] = _as_float64(values[col])
+    return pd.DataFrame(arr, index=pd.DatetimeIndex([pd.Timestamp(index_value)]), columns=cols)
+
+
+def _one_row_series(value: object, index_value: object) -> pd.Series:
+    arr = np.array([_as_float64(value)], dtype=np.float64)
+    return pd.Series(arr, index=pd.DatetimeIndex([pd.Timestamp(index_value)]))
 
 
 def compute_rs(
@@ -53,7 +87,7 @@ def compute_rs_from_merged(
     run_anchor = resolve_run_anchor_date(ctx, run_date)
     cols = [f"rs{T}" for T in windows]
     if run_anchor is None:
-        return pd.DataFrame([{c: None for c in cols}], index=[pd.Timestamp(run_date)])
+        return _one_row_frame({c: None for c in cols}, run_date)
     stock_ready = stock_asof or prepare_asof_series(merged["stock_close"])
     bench_ready = bench_asof or prepare_asof_series(merged["bench_close"])
 
@@ -70,7 +104,7 @@ def compute_rs_from_merged(
         else:
             row[f"rs{T}"] = stock_ret - bench_ret
 
-    return pd.DataFrame([row], index=[run_anchor])
+    return _one_row_frame(row, run_anchor)
 
 
 def compute_rs_acceleration(
@@ -115,14 +149,14 @@ def compute_rs_acceleration_from_merged(
     ctx = anchor_ctx or build_anchor_context(merged.index)
     run_anchor = resolve_run_anchor_date(ctx, run_date)
     if run_anchor is None:
-        return pd.Series([None], index=[pd.Timestamp(run_date)])
+        return _one_row_series(None, run_date)
     stock_ready = stock_asof or prepare_asof_series(merged["stock_close"])
     bench_ready = bench_asof or prepare_asof_series(merged["bench_close"])
 
     short_anchor = nth_business_anchor(ctx, run_anchor, short_window)
     long_anchor = nth_business_anchor(ctx, run_anchor, long_window)
     if short_anchor is None or long_anchor is None:
-        return pd.Series([None], index=[run_anchor])
+        return _one_row_series(None, run_anchor)
 
     stock_ret_short = anchored_return(stock_ready, run_anchor, short_anchor)
     bench_ret_short = anchored_return(bench_ready, run_anchor, short_anchor)
@@ -134,11 +168,11 @@ def compute_rs_acceleration_from_merged(
         or stock_ret_long is None
         or bench_ret_long is None
     ):
-        return pd.Series([None], index=[run_anchor])
+        return _one_row_series(None, run_anchor)
 
     rs_short = stock_ret_short - bench_ret_short
     rs_long = stock_ret_long - bench_ret_long
-    return pd.Series([rs_short - rs_long], index=[run_anchor])
+    return _one_row_series(rs_short - rs_long, run_anchor)
 
 
 def compute_rs_acceleration_zscore(
@@ -187,7 +221,7 @@ def compute_rs_acceleration_zscore_from_merged(
     ctx = anchor_ctx or build_anchor_context(merged.index)
     run_anchor = resolve_run_anchor_date(ctx, run_date)
     if run_anchor is None:
-        return pd.Series([None], index=[pd.Timestamp(run_date)])
+        return _one_row_series(None, run_date)
     stock_ready = stock_asof or prepare_asof_series(merged["stock_close"])
     bench_ready = bench_asof or prepare_asof_series(merged["bench_close"])
 
@@ -214,10 +248,10 @@ def compute_rs_acceleration_zscore_from_merged(
 
     min_periods = max(20, int(lookback_days * 0.7))
     if len(values) < min_periods:
-        return pd.Series([None], index=[run_anchor])
-    s = pd.Series(values)
+        return _one_row_series(None, run_anchor)
+    s = pd.Series(values, dtype="float64")
     std = s.std()
     if std == 0 or pd.isna(std):
-        return pd.Series([None], index=[run_anchor])
+        return _one_row_series(None, run_anchor)
     z = (s.iloc[-1] - s.mean()) / std
-    return pd.Series([z], index=[run_anchor])
+    return _one_row_series(z, run_anchor)

@@ -1,0 +1,30 @@
+{
+  "applied_at_utc": "2026-10-02T15:40:55Z",
+  "migration_file": "supabase/migrations/021_entitlements_preferences.sql",
+  "schema_migrations_version": "20261002154055",
+  "schema_migrations_name": "021_entitlements_preferences",
+  "invite": {
+    "email": "kuwata.junichi@gmail.com",
+    "http_status": 422,
+    "error_code": "email_exists",
+    "already_registered": true
+  },
+  "operator_uid": "30573d89-2821-41ce-9fad-a1cc69e81296",
+  "entitlement": {"role": "operator", "status": "proven"},
+  "preferences_row": true,
+  "p0": {
+    "rls": true,
+    "policies": [],
+    "anon_authenticated_grants": []
+  },
+  "not_done_in_this_step": [
+    "web-ui-bff deploy",
+    "web_asof_writer_enabled remains false",
+    "metric_set_v1_1 CAS not applied",
+    "user RLS",
+    "billing webhook"
+  ],
+  "pr-5c": "pending",
+  "live_gate_5c": "open",
+  "overall_status": "in_progress"
+}

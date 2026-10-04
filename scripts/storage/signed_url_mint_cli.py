@@ -14,6 +14,18 @@ if str(_REPO_ROOT / "src") not in sys.path:
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+
+def _load_dotenv() -> None:
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return
+    load_dotenv(_REPO_ROOT / ".env")
+    load_dotenv(_REPO_ROOT / ".env.local")
+
+
+_load_dotenv()
+
 from stockradar.storage.r2_object_store import (  # noqa: E402
     FakeR2ObjectStore,
     S3R2ObjectStore,

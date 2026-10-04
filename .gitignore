@@ -45,3 +45,4 @@ scripts/storage/_ops_*.py
 
 # Cloudflare Wrangler dev/build cache
 workers/**/.wrangler/
+workers/**/.dev.vars

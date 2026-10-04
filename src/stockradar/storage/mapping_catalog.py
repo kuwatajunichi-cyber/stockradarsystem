@@ -64,3 +64,8 @@ def phase3_cache_entry_ids() -> tuple[str, ...]:
         "cache-ohlc-store-zip-v2",
         "cache-universe-patched",
     )
+
+
+def web_asof_writer_enabled(path: Path | None = None) -> bool:
+    mapping = load_mapping(path)
+    return bool(mapping.get("web_asof_writer_enabled"))

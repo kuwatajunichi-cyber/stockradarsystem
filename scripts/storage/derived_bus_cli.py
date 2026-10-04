@@ -172,6 +172,35 @@ def cmd_put_generation(args: argparse.Namespace) -> int:
         return exit_code
 
     metric_spec = load_metric_set_spec(args.metric_set_yaml)
+    row = registry.get_metric_set_version(resolved_id)
+    if row is None:
+        _emit(
+            {"status": "error", "exit_code": 2, "reason": "unknown_metric_set_version"},
+            args.json_output,
+        )
+        return 2
+    try:
+        from stockradar.metrics.catalog_bind import (
+            CatalogYamlMismatchError,
+            require_yaml_matches_registry,
+        )
+
+        require_yaml_matches_registry(
+            metric_spec,
+            row,
+            require_fingerprint=not is_derived_generation_fake(),
+        )
+    except CatalogYamlMismatchError as exc:
+        _emit(
+            {
+                "status": "error",
+                "exit_code": 2,
+                "reason": "metric_set_yaml_mismatch",
+                "detail": str(exc),
+            },
+            args.json_output,
+        )
+        return 2
     metric_types = {member.metric_key: member.value_type for member in metric_spec.members}
     values_by_instrument = _load_snapshot_values(Path(args.snapshot_json))
     snapshot_input = SnapshotInput(
@@ -180,13 +209,6 @@ def cmd_put_generation(args: argparse.Namespace) -> int:
         values_by_instrument=values_by_instrument,
         layer1_input_fingerprint=args.layer1_input_fingerprint,
     )
-    row = registry.get_metric_set_version(resolved_id)
-    if row is None:
-        _emit(
-            {"status": "error", "exit_code": 2, "reason": "unknown_metric_set_version"},
-            args.json_output,
-        )
-        return 2
 
     expected_old_digest = args.expected_old_digest
     if args.mode == "reconcile":

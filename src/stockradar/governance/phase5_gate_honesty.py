@@ -94,6 +94,29 @@ _LIVE_GATE_5B_EVIDENCE_KEYS: tuple[str, ...] = (
 _LIVE_GATE_55B_EVIDENCE_KEYS: tuple[str, ...] = (
     "operator_select_evidence_url",
 )
+_LIVE_GATE_5C_REQUIRED_PR_GATES: tuple[str, ...] = ("pr-5c-auth-entitlements",)
+_LIVE_GATE_5C_EVIDENCE_KEYS: tuple[str, ...] = (
+    "auth_login_evidence_url",
+    "unauthenticated_mint_401_url",
+    "unproven_403_url",
+    "allowlist_proven_mint_url",
+    "preferences_roundtrip_url",
+    "rls_policy_zero_url",
+    "bff_cors_preflight_url",
+)
+_LIVE_GATE_5D_REQUIRED_PR_GATES: tuple[str, ...] = ("pr-5d-web-ui",)
+_LIVE_GATE_5D_EVIDENCE_KEYS: tuple[str, ...] = (
+    "static_origin_login_to_table_url",
+    "browser_getobject_cors_url",
+    "sma75_values_present_url",
+    "asof_switch_url",
+    "bench_split_fetch_url",
+    "news_asof_aligned_url",
+    "t5_api_down_copy_url",
+    "targets_unchanged_url",
+    "bundle_perf_lab_url",
+    "bundle_perf_browser_url",
+)
 
 _SIGNED_URL_REQUIRED_MARKERS: tuple[str, ...] = (
     SIGNED_URL_CAPABILITY_TOKEN,
@@ -202,7 +225,7 @@ def validate_signed_url_capability_contract(contract_text: str) -> list[str]:
         violations.append("signed_url_capability.md must keep an Out of scope section")
     if "public mint" not in contract_text and "\u516c\u958b mint" not in contract_text:
         violations.append(
-            "signed_url_capability.md must forbid public mint until Track C"
+            "signed_url_capability.md must forbid public mint (unauthenticated signing)"
         )
     if "allow-stub forbidden" not in contract_text and "allow-stub" not in contract_text:
         violations.append(
@@ -326,6 +349,10 @@ def validate_gate_status_document(data: dict[str, Any]) -> list[str]:
                 violations.extend(_validate_live_gate_5b_closed(data))
             if live_id == "live_gate_55b":
                 violations.extend(_validate_live_gate_55b_closed(data))
+            if live_id == "live_gate_5c":
+                violations.extend(_validate_live_gate_5c_closed(data))
+            if live_id == "live_gate_5d":
+                violations.extend(_validate_live_gate_5d_closed(data))
 
     all_merged = _all_pr_gates_merged(pr_gates)
     all_live_closed = _all_live_gates_closed(live_gates)
@@ -482,6 +509,59 @@ def _validate_live_gate_55b_closed(data: dict[str, Any]) -> list[str]:
     return violations
 
 
+def _validate_live_gate_pr_and_urls(
+    data: dict[str, Any],
+    *,
+    live_id: str,
+    required_pr_gates: tuple[str, ...],
+    evidence_keys: tuple[str, ...],
+    docs_alone_message: str,
+) -> list[str]:
+    violations: list[str] = []
+    pr_gates = data.get("pr_gates")
+    if not isinstance(pr_gates, dict):
+        violations.append(f"live_gates.{live_id} closed requires pr_gates mapping")
+        return violations
+    for gid in required_pr_gates:
+        gate = pr_gates.get(gid)
+        if not isinstance(gate, dict) or gate.get("status") != "merged_and_verified":
+            violations.append(
+                f"live_gates.{live_id} closed requires pr_gates.{gid} "
+                f"merged_and_verified ({docs_alone_message})"
+            )
+    live_gates = data.get("live_gates")
+    live = live_gates.get(live_id) if isinstance(live_gates, dict) else None
+    if isinstance(live, dict):
+        for key in evidence_keys:
+            value = live.get(key)
+            if not isinstance(value, str) or not _EVIDENCE_URL_RE.match(value.strip()):
+                violations.append(
+                    f"live_gates.{live_id} closed requires URL-shaped {key} "
+                    f"({docs_alone_message})"
+                )
+    return violations
+
+
+def _validate_live_gate_5c_closed(data: dict[str, Any]) -> list[str]:
+    return _validate_live_gate_pr_and_urls(
+        data,
+        live_id="live_gate_5c",
+        required_pr_gates=_LIVE_GATE_5C_REQUIRED_PR_GATES,
+        evidence_keys=_LIVE_GATE_5C_EVIDENCE_KEYS,
+        docs_alone_message="docs and DDL cannot close",
+    )
+
+
+def _validate_live_gate_5d_closed(data: dict[str, Any]) -> list[str]:
+    return _validate_live_gate_pr_and_urls(
+        data,
+        live_id="live_gate_5d",
+        required_pr_gates=_LIVE_GATE_5D_REQUIRED_PR_GATES,
+        evidence_keys=_LIVE_GATE_5D_EVIDENCE_KEYS,
+        docs_alone_message="docs and prototype cannot close",
+    )
+
+
 def validate_ops_runs_views_contract(contract_text: str) -> list[str]:
     violations: list[str] = []
     for marker in (
@@ -495,6 +575,81 @@ def validate_ops_runs_views_contract(contract_text: str) -> list[str]:
             violations.append(f"ops_runs_views.md missing required marker {marker!r}")
     if "user dashboard" not in contract_text.lower() and "Web UI" not in contract_text:
         violations.append("ops_runs_views.md must state it is not a user dashboard / Web UI")
+    return violations
+
+
+def validate_product_spec_requirements(text: str) -> list[str]:
+    """Requirements inventory must not pretend to be adopted Track D/C/E spec."""
+    violations: list[str] = []
+    for marker in (
+        "\u4ed5\u69d8\u6b63\u672c\u3067\u306f\u306a\u3044",
+        "\u8981\u4ef6\u6574\u7406",
+        "in_progress",
+        "OPEN",
+        "Track C",
+        "Track D",
+        "Track E",
+        "\u6295\u8cc7\u52a9\u8a00",
+        "allow-stub",
+        "live_gate_5d",
+    ):
+        if marker not in text:
+            violations.append(
+                "phase5_product_spec_requirements.md missing required marker "
+                f"{marker!r}"
+            )
+    if re.search(r"Web UI \u5b8c\u4e86(?!\u3068\u306f\u66f8\u304b\u306a\u3044)", text):
+        violations.append(
+            "phase5_product_spec_requirements.md must not claim Web UI complete"
+        )
+    if "web_ui_v1.md" not in text:
+        violations.append(
+            "phase5_product_spec_requirements.md must point to web_ui_v1.md"
+        )
+    return violations
+
+
+def validate_web_ui_v1_contract(text: str) -> list[str]:
+    """First-version screen SSOT must not close Track D live or overall."""
+    violations: list[str] = []
+    for marker in (
+        "web_ui_v1",
+        "live_gate_5d",
+        "in_progress",
+        "OPEN",
+        "allow-stub",
+        "rs_sma75",
+        "metric_set_v1_1",
+        "pending",
+        "web_asof_bundle_v1",
+        "Workers Static Assets",
+        "Authorization: Bearer",
+        "bundle_failure_fails_daily",
+        "SMA75_NON_NULL_RATE_MIN",
+    ):
+        if marker not in text:
+            violations.append(f"web_ui_v1.md missing required marker {marker!r}")
+    if "open" not in text.lower():
+        violations.append("web_ui_v1.md must keep live_gate_5d open")
+    if re.search(r"Web UI \u5b8c\u4e86(?!\u3068\u306f\u66f8\u304b\u306a\u3044)", text):
+        violations.append("web_ui_v1.md must not claim Web UI complete")
+    return violations
+
+
+def validate_metric_set_v1_1_contract(text: str) -> list[str]:
+    violations: list[str] = []
+    for marker in (
+        "metric_set_v1_1",
+        "rs_sma75_topix",
+        "rs_sma75_nikkei",
+        "draft",
+        "live_gate_5d",
+        "metric_set_v1.yaml",
+    ):
+        if marker not in text:
+            violations.append(f"metric_set_v1_1.md missing required marker {marker!r}")
+    if re.search(r"Web UI \u5b8c\u4e86(?!\u3068\u306f\u66f8\u304b\u306a\u3044)", text):
+        violations.append("metric_set_v1_1.md must not claim Web UI complete")
     return violations
 
 
