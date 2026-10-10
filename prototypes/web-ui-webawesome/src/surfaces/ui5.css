@@ -1,0 +1,62 @@
+html[data-surface-library="ui5"] {
+  --bg: #12171c;
+  --fg: #f5f6f7;
+  --muted: #a9b4be;
+  --accent: #4db1ff;
+  --border: #3a4654;
+  --hover: #2a3846;
+  --sel: #15384f;
+  --head: #1a232c;
+  --surface-raised: #1d232a;
+  --surface-control: #24303a;
+  --surface-radius: 8px;
+  --surface-font-family: var(--sapFontFamily);
+  --surface-font-family-heading: var(--sapFontHeaderFamily);
+  --surface-font-family-code: var(--sapFontFamily);
+  --surface-font-size: var(--sapFontSmallSize);
+  --surface-chart-font-size: var(--sapFontSmallSize);
+  --chart-bg: var(--sapBackgroundColor, #12171c);
+}
+
+html[data-surface-library="ui5"] #surface-kabutan-tab-group::part(content) {
+  padding: 0;
+  block-size: 0;
+  overflow: hidden;
+}
+
+html[data-surface-library="ui5"] ui5-tab.is-candidate {
+  max-inline-size: 9rem;
+}
+
+html[data-surface-library="ui5"] #grid thead ui5-table-header-cell {
+  display: flex;
+  min-width: 0;
+  min-block-size: 28px;
+  padding-inline: 4px;
+}
+
+html[data-surface-library="ui5"] .banner ui5-title {
+  margin: 0;
+  font-size: 13px;
+}
+
+html[data-surface-library="ui5"] .chart-card ui5-card {
+  width: 100%;
+}
+
+html[data-surface-library="ui5"] .chart-card ui5-card-header::part(title) {
+  color: var(--fg);
+  font-family: var(--surface-font-family);
+  font-size: var(--surface-font-size);
+  font-weight: 400;
+  line-height: var(--surface-line-height, 1.35);
+}
+
+html[data-surface-library="ui5"] .chart-card ui5-card.is-selected,
+html[data-surface-library="ui5"] .chart-card ui5-card.is-hover {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+html[data-surface-library="ui5"] #chart-legend ui5-tag {
+  background: var(--chart-bg);
+}

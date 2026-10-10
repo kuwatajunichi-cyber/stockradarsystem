@@ -1,0 +1,41 @@
+{
+  "name": "stockradar-webawesome-evaluation",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "sync": "node scripts/sync-production.mjs",
+    "dev": "npm run sync && vite --host 127.0.0.1",
+    "build": "npm run sync && vite build",
+    "preview": "vite preview --host 127.0.0.1"
+  },
+  "dependencies": {
+    "@awesome.me/webawesome": "3.14.0",
+    "@lion/ui": "0.21.1",
+    "@spectrum-web-components/action-button": "1.11.2",
+    "@spectrum-web-components/button": "1.11.2",
+    "@spectrum-web-components/card": "1.11.2",
+    "@spectrum-web-components/checkbox": "1.11.2",
+    "@spectrum-web-components/divider": "1.11.2",
+    "@spectrum-web-components/menu": "1.11.2",
+    "@spectrum-web-components/picker": "1.11.2",
+    "@spectrum-web-components/progress-bar": "1.11.2",
+    "@spectrum-web-components/table": "1.11.2",
+    "@spectrum-web-components/tabs": "1.11.2",
+    "@spectrum-web-components/textfield": "1.11.2",
+    "@spectrum-web-components/theme": "1.11.2",
+    "@ui5/webcomponents": "2.26.0",
+    "@vaadin/button": "24.4.0",
+    "@vaadin/checkbox": "24.4.0",
+    "@vaadin/email-field": "24.4.0",
+    "@vaadin/horizontal-layout": "24.4.0",
+    "@vaadin/progress-bar": "24.4.0",
+    "@vaadin/select": "24.4.0",
+    "@vaadin/tabs": "24.4.0",
+    "@vaadin/text-field": "24.4.0",
+    "@vaadin/vaadin-lumo-styles": "24.4.0"
+  },
+  "devDependencies": {
+    "vite": "8.3.2"
+  }
+}
