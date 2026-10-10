@@ -5,7 +5,7 @@
 
 - 実装やテンプレートを変更したら、対応する説明ドキュメントの更新を検討してください。
 - プロダクト設計の意思決定そのものは `docs/MVPdesignDoc_v1.2.md` や ADR 等を参照してください。
-- **ローソク記述子・制限値幅の設計正本**は `docs/` 直下の [OHLC_desripter_v1.2.md](../OHLC_desripter_v1.2.md) と [JPX_limitTable.md](../JPX_limitTable.md)（本ディレクトリには置かない）。
+- **ローソク記述子・制限値幅の設計正本**は `docs/` 直下の [OHLC_desripter_v1.3.md](../OHLC_desripter_v1.3.md) と [JPX_limitTable.md](../JPX_limitTable.md)（本ディレクトリには置かない）。
 
 ## 収録ファイル（例）
 

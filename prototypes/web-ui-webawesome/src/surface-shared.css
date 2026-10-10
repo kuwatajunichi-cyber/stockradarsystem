@@ -1,0 +1,504 @@
+:root {
+  --chart-bg: rgb(9, 7, 32);
+}
+
+#grid tbody tr,
+#grid tbody td {
+  height: 59px;
+}
+
+#grid tbody td {
+  vertical-align: middle;
+}
+
+
+#grid td.surface-cf-number,
+.chart-hover-cell.surface-cf-number {
+  background: hsl(var(--cell-hue) / var(--cell-alpha)) !important;
+  color: color-mix(in srgb, hsl(var(--cell-hue)) 62%, var(--fg)) !important;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+#grid td.surface-cf-number {
+  font-size: var(--surface-font-size);
+}
+
+#grid td.surface-cf-price {
+  background: transparent !important;
+  color: inherit !important;
+}
+
+.surface-price-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 1px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 2%);
+  color: var(--muted);
+  font-size: var(--surface-font-size);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.surface-price-tag[data-tone="positive"] {
+  border-color: hsl(156 58% 48% / 55%);
+  background: hsl(156 58% 48% / 9%);
+  color: color-mix(in srgb, hsl(156 58% 48%) 68%, var(--fg));
+}
+
+.surface-price-tag[data-tone="negative"] {
+  border-color: hsl(346 72% 58% / 55%);
+  background: hsl(346 72% 58% / 9%);
+  color: color-mix(in srgb, hsl(346 72% 58%) 68%, var(--fg));
+}
+
+
+.surface-tab-note {
+  flex: 0 1 auto;
+  overflow: hidden;
+  padding: 0 8px;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+#surface-kabutan-tab-group {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.library-switcher {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.library-switcher select,
+.library-switcher wa-select,
+.library-switcher sp-picker,
+.library-switcher ui5-select,
+.library-switcher vaadin-select,
+.library-switcher lion-select {
+  min-width: 15.5rem;
+}
+
+.surface-chrome-source,
+.surface-header-source {
+  position: fixed !important;
+  left: -200vw !important;
+  top: 0 !important;
+  inline-size: 1px !important;
+  block-size: 1px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  clip-path: inset(50%) !important;
+  border: 0 !important;
+  pointer-events: none !important;
+}
+
+.surface-split-handle {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-size: 0;
+  line-height: 0;
+  color: transparent;
+  pointer-events: none;
+}
+
+#boot-progress.surface-preview,
+#login-shell.surface-preview {
+  z-index: 2000;
+}
+
+#login-shell.surface-preview {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: none;
+  margin: 0;
+  padding: 1.5rem;
+  border: 0;
+  background: rgb(0 0 0 / 48%);
+  box-shadow: none;
+  translate: none;
+}
+
+#login-shell:not(.surface-preview) {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+#login-shell:not(.surface-preview)[hidden] {
+  display: none !important;
+}
+
+#boot-progress [data-surface-boot],
+#login-shell [data-surface-login] {
+  width: min(28rem, 88vw);
+  margin: 0;
+}
+
+.surface-login-card,
+.surface-boot-card {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 16rem;
+  padding: 1.15rem 1.2rem 1.3rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-raised, #15202b);
+  box-shadow: 0 18px 48px rgb(0 0 0 / 45%);
+}
+
+.surface-boot-card {
+  padding: 0.95rem 1.1rem;
+  gap: 0.65rem;
+}
+
+.surface-login-card h1,
+.surface-login-card ui5-title,
+.surface-boot-card p {
+  margin: 0;
+}
+
+.surface-login-card h1,
+.surface-login-card ui5-title,
+#login-shell [data-login-heading] {
+  margin: 0 0 0.15rem;
+  font-size: 1.2rem;
+}
+
+.surface-login-card p,
+.surface-login-card [data-login-note],
+#login-shell [data-login-note] {
+  margin: 0 0 0.65rem;
+  color: var(--muted);
+}
+
+.surface-shell-body,
+#login-shell [data-login-form],
+#login-shell form {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.surface-shell-body {
+  padding: 0.9rem 1rem 1.1rem;
+}
+
+.surface-boot-card sp-progress-bar,
+.surface-boot-card ui5-progress-indicator,
+.surface-boot-card vaadin-progress-bar,
+.surface-boot-card progress,
+#boot-progress wa-progress-bar,
+#boot-progress sp-progress-bar,
+#boot-progress ui5-progress-indicator,
+#boot-progress vaadin-progress-bar,
+#boot-progress progress {
+  width: 100%;
+}
+
+#login-shell wa-input,
+#login-shell sp-textfield,
+#login-shell ui5-input,
+#login-shell vaadin-email-field,
+#login-shell lion-input-email,
+#login-shell lion-input,
+#login-shell wa-button,
+#login-shell sp-button,
+#login-shell ui5-button,
+#login-shell vaadin-button,
+#login-shell lion-button {
+  display: block;
+  width: 100%;
+  margin: 0;
+}
+
+#login-shell #msg {
+  margin: 0;
+  min-height: 1.2em;
+  color: var(--muted);
+}
+
+#grid thead .surface-header-inner,
+#grid thead .surface-vaadin-header,
+#grid thead .surface-lion-header {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  width: 100%;
+}
+
+.banner {
+  align-items: center;
+}
+
+[data-surface-banner] {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.15rem;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+}
+
+[data-surface-banner] [data-banner-title],
+[data-surface-banner] [slot="startContent"] {
+  overflow: hidden;
+  font-weight: 700;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-surface-banner] [data-banner-body] {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.library-switcher {
+  flex: 0 0 auto;
+}
+
+.toolbar wa-select,
+.toolbar sp-picker,
+.toolbar ui5-select,
+.toolbar vaadin-select,
+.toolbar lion-select {
+  min-width: 8.5rem;
+  max-width: 14rem;
+}
+
+.toolbar wa-button,
+.toolbar sp-button,
+.toolbar ui5-button,
+.toolbar vaadin-button,
+.toolbar lion-button,
+.kabutan-tabs wa-button,
+.kabutan-tabs sp-button,
+.kabutan-tabs ui5-button,
+.kabutan-tabs vaadin-button,
+.kabutan-tabs lion-button,
+.library-switcher wa-button,
+.library-switcher sp-button,
+.library-switcher ui5-button,
+.library-switcher vaadin-button,
+.library-switcher lion-button,
+.kabutan-stage wa-button,
+.kabutan-stage sp-button,
+.kabutan-stage ui5-button,
+.kabutan-stage vaadin-button,
+.kabutan-stage lion-button {
+  min-height: 28px;
+  max-height: 32px;
+}
+
+.kabutan-stage :is(wa-button, sp-button, ui5-button, vaadin-button, lion-button).kabutan-open-tab {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
+  z-index: 3;
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.kabutan-overlay :is(wa-button, sp-button, ui5-button, vaadin-button, lion-button).kabutan-blocked-btn {
+  margin-top: 0.35rem;
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+#grid thead [data-surface-header] {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 22px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.main-left {
+  overflow: hidden;
+  min-width: 0;
+}
+
+.layout {
+  min-width: 0;
+}
+
+.table-wrap {
+  overflow: auto;
+  min-width: 0;
+}
+
+html[data-surface-library]:not([data-surface-library="webawesome"]) .banner,
+html[data-surface-library]:not([data-surface-library="webawesome"]) .toolbar,
+html[data-surface-library]:not([data-surface-library="webawesome"]) .modal-dialog,
+html[data-surface-library]:not([data-surface-library="webawesome"]) .col-filter-menu,
+html[data-surface-library]:not([data-surface-library="webawesome"]) .boot-progress-card,
+html[data-surface-library]:not([data-surface-library="webawesome"]) label.filter-switch {
+  background: var(--surface-raised);
+}
+
+html[data-surface-library]:not([data-surface-library="webawesome"]) button:not(.fav-star),
+html[data-surface-library]:not([data-surface-library="webawesome"]) select,
+html[data-surface-library]:not([data-surface-library="webawesome"]) input:not([type="checkbox"]),
+html[data-surface-library]:not([data-surface-library="webawesome"]) .kabutan-blocked-btn {
+  background: var(--surface-control);
+  border-radius: var(--surface-radius);
+  font-family: inherit;
+}
+
+html[data-surface-library]:not([data-surface-library="webawesome"]) .boot-progress-track {
+  background: var(--bg);
+}
+
+html[data-surface-library]:not([data-surface-library="lion"]) body,
+html[data-surface-library]:not([data-surface-library="lion"]) #app-root {
+  font-family: var(--surface-font-family);
+  font-size: var(--surface-font-size);
+  line-height: var(--surface-line-height, 1.35);
+}
+
+html[data-surface-library]:not([data-surface-library="lion"]) #grid,
+html[data-surface-library]:not([data-surface-library="lion"]) .chart-legend,
+html[data-surface-library]:not([data-surface-library="lion"]) .chart-card,
+html[data-surface-library]:not([data-surface-library="lion"]) .banner,
+html[data-surface-library]:not([data-surface-library="lion"]) .toolbar,
+html[data-surface-library]:not([data-surface-library="lion"]) button,
+html[data-surface-library]:not([data-surface-library="lion"]) select,
+html[data-surface-library]:not([data-surface-library="lion"]) input,
+html[data-surface-library]:not([data-surface-library="lion"]) th,
+html[data-surface-library]:not([data-surface-library="lion"]) td {
+  font-family: inherit;
+}
+
+html[data-surface-library]:not([data-surface-library="lion"]) td.num,
+html[data-surface-library]:not([data-surface-library="lion"]) #grid td.surface-cf-number,
+html[data-surface-library]:not([data-surface-library="lion"]) .chart-hover-cell:not(.chart-hover-head) {
+  font-family: var(--surface-font-family-code, var(--surface-font-family));
+}
+
+html[data-surface-library]:not([data-surface-library="lion"]) .banner-title,
+html[data-surface-library]:not([data-surface-library="lion"]) .modal-header h2,
+html[data-surface-library]:not([data-surface-library="lion"]) .kabutan-overlay-title {
+  font-family: var(--surface-font-family-heading, var(--surface-font-family));
+}
+
+html[data-surface-library]:not([data-surface-library="lion"]) .chart-legend,
+html[data-surface-library]:not([data-surface-library="lion"]) .chart-card .hover,
+html[data-surface-library]:not([data-surface-library="lion"]) [data-surface-legend],
+html[data-surface-library]:not([data-surface-library="lion"]) [data-chart-hover] {
+  font-family: var(--surface-font-family);
+  font-size: var(--surface-chart-font-size);
+}
+
+html[data-surface-library] .chart-card h4,
+html[data-surface-library] [data-chart-title] {
+  margin: 0;
+  color: var(--fg);
+  font-family: var(--surface-font-family);
+  font-size: var(--surface-font-size);
+  font-weight: 400;
+  font-style: normal;
+  line-height: var(--surface-line-height, 1.35);
+  letter-spacing: inherit;
+}
+
+html[data-surface-library="spectrum"] #grid tbody tr,
+html[data-surface-library="spectrum"] #grid tbody td,
+html[data-surface-library="ui5"] #grid tbody tr,
+html[data-surface-library="ui5"] #grid tbody td,
+html[data-surface-library="vaadin"] #grid tbody tr,
+html[data-surface-library="vaadin"] #grid tbody td {
+  height: calc(var(--surface-font-size) * 4.2 + 16px);
+}
+
+html[data-surface-library] .side,
+html[data-surface-library] .chart-legend,
+html[data-surface-library] #chart-host {
+  background: var(--surface-raised);
+}
+
+html[data-surface-library] .chart-card[data-surface-wrapped],
+html[data-surface-library] .chart-card[data-surface-wrapped]:hover,
+html[data-surface-library] .chart-card[data-surface-wrapped].is-hover,
+html[data-surface-library] .chart-card[data-surface-wrapped].selected,
+html[data-surface-library] .chart-card[data-surface-wrapped].selected:hover,
+html[data-surface-library] .chart-card[data-surface-wrapped].selected.is-hover {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.chart-card [data-surface-chart-card] {
+  display: block;
+  width: 100%;
+}
+
+.chart-card [data-chart-canvas] canvas,
+.chart-card [data-chart-canvas] .chart-slot {
+  width: 100%;
+  height: 225px;
+  display: block;
+}
+
+.chart-card [data-chart-hover] {
+  color: var(--muted);
+  min-height: 1.2em;
+}
+
+.chart-card [data-chart-hover]:empty {
+  min-height: 0;
+}
+
+#chart-legend [data-surface-legend] {
+  pointer-events: none;
+}
+
+#chart-legend [data-surface-legend] i {
+  width: 12px;
+  height: 3px;
+  display: inline-block;
+  flex: 0 0 auto;
+}
+
+#chart-legend [data-surface-legend] i.rs-swatch {
+  border-radius: 1px;
+}

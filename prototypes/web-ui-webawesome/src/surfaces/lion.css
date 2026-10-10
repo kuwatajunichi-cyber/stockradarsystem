@@ -1,0 +1,76 @@
+html[data-surface-library="lion"] {
+  --bg: #141414;
+  --fg: #f4f1ea;
+  --muted: #b7b1a8;
+  --accent: #ff6200;
+  --border: #3a3a3a;
+  --hover: #242424;
+  --sel: #3a2418;
+  --head: #1c1c1c;
+  --surface-raised: #1c1c1c;
+  --surface-control: #262626;
+  --surface-radius: 0px;
+  --chart-bg: var(--bg);
+}
+
+html[data-surface-library="lion"] #surface-kabutan-tab-group button[slot="tab"] {
+  max-width: 11rem;
+  overflow: hidden;
+  padding: 0.45rem 0.7rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  text-overflow: ellipsis;
+}
+
+html[data-surface-library="lion"] #surface-kabutan-tab-group button[slot="tab"][selected] {
+  border-bottom-color: var(--accent);
+  background: transparent;
+  color: var(--fg);
+  font-weight: 700;
+}
+
+html[data-surface-library="lion"] #grid thead lion-button {
+  min-height: 0;
+  padding: 0.15rem 0.35rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font-weight: 700;
+}
+
+html[data-surface-library="lion"] .toolbar lion-button,
+html[data-surface-library="lion"] .kabutan-tabs lion-button {
+  min-height: 28px;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--border);
+  background: var(--surface-control);
+  color: var(--fg);
+  font-weight: 650;
+}
+
+html[data-surface-library="lion"] .surface-lion-chart-card {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.35rem;
+  border: 1px solid var(--border);
+  background: var(--chart-bg);
+}
+
+html[data-surface-library="lion"] .surface-lion-chart-card.is-selected,
+html[data-surface-library="lion"] .surface-lion-chart-card.is-hover {
+  border-color: var(--accent);
+}
+
+html[data-surface-library="lion"] #chart-legend lion-button {
+  min-height: 22px;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--border);
+  background: var(--chart-bg);
+  color: var(--fg);
+  font-size: var(--surface-chart-font-size, 11px);
+  pointer-events: none;
+}

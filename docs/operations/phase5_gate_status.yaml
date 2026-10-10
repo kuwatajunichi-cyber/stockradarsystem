@@ -1,11 +1,15 @@
 schema_version: 1
 phase: '5'
-last_updated_utc: '2026-10-04T20:50:00+09:00'
+last_updated_utc: '2026-10-10T21:25:00+09:00'
 overall_status: in_progress
 implementation_snapshot:
   local_worktree_has_unmerged_changes: true
-  note: 'v1.1 ops CAS 主張 a2a12909. daily YAML bind 未マージのため月曜 main daily は v1_free を v1.1 UUID に書き得る. ローカル 59 as-of は live 証拠ではない. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
+  note: 'web-ui-static version 8a2c6405-e3bf-4432-8d5f-d88fc041b492 deployed (client price_text from candle_labels, Sakata window labels, chart hover table). BFF/dispatcher unchanged. workers_dev true. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
 correction_log:
+- at_utc: '2026-10-10T21:25:00+09:00'
+  reason: 'Deployed web-ui-static 8a2c6405 (client-composed price_text from candle_labels, GAP_UP/DOWN Sakata mapping, chart hover CF table). BFF and github-cron-dispatcher not deployed. workers_dev true. local unmerged. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
+- at_utc: '2026-10-09T03:04:00+09:00'
+  reason: 'Deployed web-ui-static 307ad29e (favorites lists, wa-dropdown account menu, wa-dialog delete confirm). BFF and github-cron-dispatcher not deployed. workers_dev true. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
 - at_utc: '2026-10-04T20:50:00+09:00'
   reason: 'Opus audit follow-up: T-5 JWKS/entitlements 503, backfill not_met for short lists, csv_source on bundle, BFF npm in CI, prototype isolation no longer blocks pr-5d merge. do not reverse CAS without GO. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
 - at_utc: '2026-10-04T20:40:00+09:00'
@@ -88,7 +92,7 @@ correction_log:
   reason: "Step 5.0: split Phase 5 into tracks A–E. pr_gates include 5.5a and remaining tracks as pending/local_only so 5.5a live close cannot\
     \ force overall closed. Calendar contract revised to closed_day_expected_ping before ping implementation."
 roadmap:
-  phase5_status_phrase: "in_progress（A/B live closed。020/022-024 本番 apply 済。v1.1 CAS 済。Web 束 2026-10-02 を新 UUID で再 commit。writer ゲートオン。U-6 人確認待ち。pr-5c/pr-5d pending。C/D/E pending）"
+  phase5_status_phrase: "in_progress（A/B live closed。020/022-024 本番 apply 済。v1.1 CAS 済。Web 束 2026-10-02 を新 UUID で再 commit。writer ゲートオン。web-ui-static 8a2c6405 deploy。U-6 人確認待ち。pr-5c/pr-5d pending。C/D/E pending）"
 tracks:
   A_observability:
     description: "5.5a Healthchecks + 5.5b runs 集計（ops SQL。画面ではない）"
