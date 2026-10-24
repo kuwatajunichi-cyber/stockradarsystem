@@ -1,0 +1,63 @@
+html[data-surface-library="spectrum"] {
+  --bg: #1d1d1d;
+  --fg: #ebebeb;
+  --muted: #b4b4b4;
+  --accent: #0367e0;
+  --border: #545454;
+  --hover: #323232;
+  --sel: #0d2f5b;
+  --head: #262626;
+  --surface-raised: #262626;
+  --surface-control: #323232;
+  --surface-radius: 4px;
+  --chart-bg: var(--spectrum-background-base-color, var(--spectrum-gray-50, rgb(29, 29, 29)));
+}
+
+html[data-surface-library="spectrum"] #app-root {
+  --surface-font-family: var(--spectrum-cjk-font-family-stack);
+  --surface-font-family-heading: var(--spectrum-heading-cjk-font-family);
+  --surface-font-family-code: var(--spectrum-code-font-family);
+  --surface-font-size: var(--spectrum-font-size-75);
+  --surface-chart-font-size: var(--spectrum-font-size-50);
+}
+
+sp-theme[data-surface-theme] {
+  display: block;
+  min-height: 100%;
+  --chart-bg: var(--spectrum-background-base-color);
+}
+
+html[data-surface-library="spectrum"] sp-tab-panel {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+html[data-surface-library="spectrum"] sp-tab.is-candidate {
+  max-inline-size: 9rem;
+}
+
+html[data-surface-library="spectrum"] #grid thead sp-table-head-cell {
+  display: flex;
+  min-width: 0;
+  min-block-size: 28px;
+  padding-inline: 4px;
+}
+
+html[data-surface-library="spectrum"] #grid thead sp-action-button {
+  flex: 0 0 auto;
+  min-width: 22px;
+  width: 22px;
+}
+
+html[data-surface-library="spectrum"] .chart-card sp-card {
+  width: 100%;
+  max-width: none;
+}
+
+html[data-surface-library="spectrum"] #chart-legend sp-action-button {
+  --spectrum-actionbutton-height: 22px;
+  background: var(--chart-bg);
+}

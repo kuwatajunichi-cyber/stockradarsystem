@@ -32,6 +32,16 @@
     { id: "rs31", label: "RS31", kind: "line", width: 1, alpha: 1.0 },
   ];
 
+  function seriesDisplayMeta() {
+    const head = [];
+    const rs = [];
+    SERIES_META.forEach((s) => {
+      if (s.id === "z_disp") head.push(s);
+      else rs.push(s);
+    });
+    return head.concat(rs.reverse());
+  }
+
   const state = {
     meta: null,
     rows: [],
@@ -46,6 +56,10 @@
     freePreview: false,
     userId: "local",
     favorites: {},
+    favLists: [],
+    favFilterIds: [],
+    favIncludeBlank: true,
+    favModalListId: null,
     favOnly: false,
     excludeAllRsNeg: false,
     sortKey: "z_turnover_60",
@@ -69,6 +83,15 @@
   };
 
   const $ = (id) => document.getElementById(id);
+  const chrome = () => window.StockRadarChrome;
+  const FAV_LIST_MAX = 12;
+  const FAV_CELL_CHIPS = 5;
+  const FAV_NAME_MAX = 20;
+  const FAV_LIST_CAP_PLACEHOLDER = "最大数に達しています";
+  const FAV_CODES_PER_LIST = 500;
+  const FAV_MEMBERSHIP_MAX = 1500;
+  const FAV_DEFAULT_ID = "lst_default";
+  const FAV_HUES = ["#4da5ee", "#e8b44a", "#57bb8a", "#e07a5f", "#9b8cff", "#d47bb0"];
 
   const COPY = {
     login: "ログインしてください",
@@ -87,12 +110,24 @@
     "information_ratio",
   ];
   let prefsTimer = null;
+  let viewRefreshQueued = false;
 
   function liveCtx() {
     return window.__WEB_UI_CTX || null;
   }
 
+  function bootProgress(label, ratio) {
+    const p = window.__webUiProgress;
+    if (p && typeof p.show === "function") p.show(label, ratio);
+  }
+
+  function hideBootProgress() {
+    const p = window.__webUiProgress;
+    if (p && typeof p.hide === "function") p.hide();
+  }
+
   function showT5(kind, text) {
+    hideBootProgress();
     const msg = text || COPY[kind] || COPY.temporary;
     const banner = $("asof-banner");
     if (banner) banner.textContent = msg;
@@ -186,15 +221,41 @@
     };
   }
 
-  async function decodeBundleResponse(res) {
-    const buf = await res.arrayBuffer();
+  async function decodeBundleBuffer(buf) {
     const bytes = new Uint8Array(buf);
     const gzipMagic = bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b;
     if (gzipMagic) return gunzipJson(buf);
     return JSON.parse(new TextDecoder().decode(bytes));
   }
 
+  async function readBodyWithProgress(res, onBytes) {
+    const total = Number(res.headers.get("content-length") || 0);
+    if (!res.body || typeof res.body.getReader !== "function") {
+      const buf = await res.arrayBuffer();
+      if (onBytes) onBytes(buf.byteLength, total || buf.byteLength);
+      return buf;
+    }
+    const reader = res.body.getReader();
+    const chunks = [];
+    let received = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      received += value.byteLength;
+      if (onBytes) onBytes(received, total);
+    }
+    const out = new Uint8Array(received);
+    let offset = 0;
+    for (const chunk of chunks) {
+      out.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return out.buffer;
+  }
+
   async function loadBundle(asOf, bench) {
+    bootProgress("署名付きURLを発行しています", 0.62);
     const minted = await bffFetch("/v1/mint", {
       method: "POST",
       body: JSON.stringify({ as_of: asOf, benchmark: bench }),
@@ -207,6 +268,7 @@
     }
     let res;
     try {
+      bootProgress("束をダウンロードしています", 0.68);
       res = await fetch(url, { cache: "no-store" });
     } catch (_err) {
       const err = new Error("temporary");
@@ -218,7 +280,15 @@
       err.t5 = "temporary";
       throw err;
     }
-    const bundle = await decodeBundleResponse(res);
+    const buf = await readBodyWithProgress(res, (got, total) => {
+      if (total > 0) {
+        bootProgress("束をダウンロードしています", 0.68 + 0.22 * (got / total));
+      } else {
+        bootProgress("束をダウンロードしています", 0.78);
+      }
+    });
+    bootProgress("束を展開しています", 0.92);
+    const bundle = await decodeBundleBuffer(buf);
     return aliasBundle(bundle);
   }
 
@@ -229,10 +299,53 @@
     }, 400);
   }
 
+  function setViewBusy(on) {
+    const el = $("view-busy");
+    const host = $("workspace") || document.querySelector("main.layout");
+    if (el) el.hidden = !on;
+    if (host) {
+      if (on) host.setAttribute("aria-busy", "true");
+      else host.removeAttribute("aria-busy");
+    }
+  }
+
+  function requestViewRefresh(opts) {
+    state.pendingViewRefreshOpts = opts || {};
+    setViewBusy(true);
+    if (viewRefreshQueued) return;
+    viewRefreshQueued = true;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        viewRefreshQueued = false;
+        try {
+          renderTable(state.pendingViewRefreshOpts || {});
+        } finally {
+          if (!viewRefreshQueued) setViewBusy(false);
+        }
+      });
+    });
+  }
+
+  function sameCodeList(a, b) {
+    if (!a || !b || a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) return false;
+    }
+    return true;
+  }
+
   async function pushPrefs() {
     const bag = {
       favorites: {
-        codes: Object.keys(state.favorites).filter((c) => state.favorites[c]).sort(),
+        lists: state.favLists.map((list) => ({
+          id: list.id,
+          name: list.name,
+          hue: list.hue,
+          codes: list.codes.slice().sort(),
+        })),
+        codes: unionFavCodes(),
+        filter_ids: state.favFilterIds.slice(),
+        include_blank: !!state.favIncludeBlank,
       },
       display: {
         bench: state.bench,
@@ -256,15 +369,23 @@
 
   async function applyPrefsBag(bag) {
     const next = bag && typeof bag === "object" ? bag : {};
-    const fav = next.favorites && Array.isArray(next.favorites.codes) ? next.favorites.codes : [];
-    const mapped = {};
-    fav.forEach((c) => {
-      mapped[String(c).padStart(4, "0")] = true;
-    });
-    state.favorites = mapped;
+    state.favLists = normalizeFavLists(next.favorites);
+    rebuildFavIndex();
+    const rawFilter = next.favorites && Array.isArray(next.favorites.filter_ids) ? next.favorites.filter_ids : [];
+    const known = {};
+    state.favLists.forEach((list) => { known[list.id] = true; });
+    state.favFilterIds = rawFilter.map((id) => String(id)).filter((id) => known[id] || id === "__none__");
+    if (!state.favLists.some((list) => list.id === state.favModalListId)) {
+      state.favModalListId = state.favLists[0] ? state.favLists[0].id : null;
+    }
     const display = next.display && typeof next.display === "object" ? next.display : {};
     if (display.bench === "topix" || display.bench === "nikkei") state.bench = display.bench;
     if (typeof display.favOnly === "boolean") state.favOnly = display.favOnly;
+    if (next.favorites && typeof next.favorites.include_blank === "boolean") {
+      state.favIncludeBlank = next.favorites.include_blank;
+    } else {
+      state.favIncludeBlank = !state.favOnly;
+    }
     if (typeof display.excludeAllRsNeg === "boolean") state.excludeAllRsNeg = display.excludeAllRsNeg;
     if (Array.isArray(display.visibleKeys) && display.visibleKeys.length) {
       state.prefsVisibleKeys = display.visibleKeys.slice();
@@ -365,42 +486,416 @@
   ];
 
 
-  function favStorageKey(userId) {
-    return "web_ui_asof_favorites_v1:" + String(userId || "local");
+  function padFavCode(code) {
+    return String(code == null ? "" : code).padStart(4, "0");
   }
 
-  function loadFavorites(userId) {
-    try {
-      const raw = localStorage.getItem(favStorageKey(userId));
-      if (!raw) return {};
-      const arr = JSON.parse(raw);
-      if (!Array.isArray(arr)) return {};
-      const out = {};
-      arr.forEach((c) => {
-        const code = String(c).padStart(4, "0");
-        out[code] = true;
-      });
-      return out;
-    } catch (_) {
-      return {};
+  function uniqueFavCodes(arr) {
+    const out = [];
+    const seen = {};
+    (Array.isArray(arr) ? arr : []).forEach((item) => {
+      const code = padFavCode(item);
+      if (!code || code === "0000" || seen[code]) return;
+      seen[code] = true;
+      out.push(code);
+    });
+    return out.slice(0, FAV_CODES_PER_LIST);
+  }
+
+  function defaultFavList(codes) {
+    return { id: FAV_DEFAULT_ID, name: "お気入り", hue: 0, codes: uniqueFavCodes(codes) };
+  }
+
+  function normalizeFavLists(fav) {
+    const bag = fav && typeof fav === "object" ? fav : {};
+    const rawLists = Array.isArray(bag.lists) ? bag.lists : null;
+    if (!rawLists || !rawLists.length) {
+      return [defaultFavList(Array.isArray(bag.codes) ? bag.codes : [])];
     }
+    const seenId = {};
+    const out = [];
+    rawLists.forEach((raw, index) => {
+      if (!raw || typeof raw !== "object" || out.length >= FAV_LIST_MAX) return;
+      let id = String(raw.id || "").trim();
+      if (!id || seenId[id]) id = "lst_" + String(index + 1).padStart(2, "0");
+      seenId[id] = true;
+      let name = String(raw.name || "").trim().slice(0, FAV_NAME_MAX);
+      if (!name) name = "リスト" + (out.length + 1);
+      let hue = Number(raw.hue);
+      if (!Number.isInteger(hue) || hue < 0 || hue > 5) hue = out.length % 6;
+      out.push({ id, name, hue, codes: uniqueFavCodes(raw.codes) });
+    });
+    return out.length ? out : [defaultFavList([])];
   }
 
-  function saveFavorites() {
-    schedulePrefsSave();
+  function unionFavCodes() {
+    const seen = {};
+    const out = [];
+    state.favLists.forEach((list) => {
+      list.codes.forEach((code) => {
+        if (seen[code]) return;
+        seen[code] = true;
+        out.push(code);
+      });
+    });
+    return out.sort();
+  }
+
+  function rebuildFavIndex() {
+    const mapped = {};
+    unionFavCodes().forEach((code) => { mapped[code] = true; });
+    state.favorites = mapped;
+  }
+
+  function favHueColor(hue) {
+    return FAV_HUES[Math.max(0, Number(hue) || 0) % FAV_HUES.length];
+  }
+
+  function nextFavHue() {
+    const used = {};
+    state.favLists.forEach((list) => { used[list.hue] = true; });
+    for (let i = 0; i < FAV_HUES.length; i++) {
+      if (!used[i]) return i;
+    }
+    return state.favLists.length % FAV_HUES.length;
+  }
+
+  function nextFavListId() {
+    const seen = {};
+    state.favLists.forEach((list) => { seen[list.id] = true; });
+    for (let i = 0; i < 40; i++) {
+      const id = "lst_" + Math.random().toString(36).slice(2, 10);
+      if (!seen[id]) return id;
+    }
+    return "lst_" + String(Date.now()).slice(-8);
+  }
+
+  function findFavList(id) {
+    return state.favLists.find((list) => list.id === id) || null;
   }
 
   function isFavorite(code) {
-    return !!state.favorites[String(code).padStart(4, "0")];
+    return !!state.favorites[padFavCode(code)];
   }
 
-  function toggleFavorite(code) {
+  function codeInFavList(list, code) {
+    return !!(list && list.codes.indexOf(padFavCode(code)) >= 0);
+  }
+
+  function listsForCode(code) {
+    const c = padFavCode(code);
+    return state.favLists.filter((list) => list.codes.indexOf(c) >= 0);
+  }
+
+  function favMembershipCount() {
+    return state.favLists.reduce((n, list) => n + list.codes.length, 0);
+  }
+
+  function persistFavLists(opts) {
+    opts = opts || {};
+    rebuildFavIndex();
+    schedulePrefsSave();
+    if (opts.refresh || state.favOnly) requestViewRefresh();
+    else if (opts.code) patchFavCell(opts.code);
+    const modal = $("fav-lists-modal");
+    if (opts.modal && modal && !modal.classList.contains("hidden")) renderFavListsModal();
+    if (opts.flyoutCode) refreshFavFlyout(opts.flyoutCode);
+  }
+
+  function patchFavCell(code) {
+    const c = padFavCode(code);
+    document.querySelectorAll('button.fav-star[data-fav-code="' + c + '"]').forEach((btn) => {
+      const html = favCellInnerHtml(c);
+      if (btn.innerHTML !== html) btn.innerHTML = html;
+      const on = isFavorite(c);
+      btn.classList.toggle("on", on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  }
+
+  function toggleCodeInFavList(code, listId) {
     if (state.freePreview) return;
-    const c = String(code).padStart(4, "0");
-    if (state.favorites[c]) delete state.favorites[c];
-    else state.favorites[c] = true;
-    saveFavorites();
-    renderTable();
+    const list = findFavList(listId);
+    if (!list) return;
+    const c = padFavCode(code);
+    const at = list.codes.indexOf(c);
+    if (at >= 0) {
+      list.codes.splice(at, 1);
+    } else {
+      if (list.codes.length >= FAV_CODES_PER_LIST) return;
+      if (favMembershipCount() >= FAV_MEMBERSHIP_MAX) return;
+      list.codes.push(c);
+    }
+    persistFavLists({ code: c, flyoutCode: c, modal: true });
+  }
+
+  function favCodeAddAtCap(list) {
+    return !list || list.codes.length >= FAV_CODES_PER_LIST || favMembershipCount() >= FAV_MEMBERSHIP_MAX;
+  }
+
+  function syncFavCreateFields(input, addBtn, idlePlaceholder, atCap) {
+    if (atCap == null) atCap = state.favLists.length >= FAV_LIST_MAX;
+    if (addBtn) addBtn.disabled = atCap;
+    if (!input) return;
+    input.disabled = atCap;
+    if (atCap) input.value = "";
+    input.placeholder = atCap ? FAV_LIST_CAP_PLACEHOLDER : idlePlaceholder;
+    input.title = atCap ? FAV_LIST_CAP_PLACEHOLDER : "";
+  }
+
+  function createFavList(name, initialCode) {
+    if (state.freePreview || state.favLists.length >= FAV_LIST_MAX) return null;
+    const trimmed = String(name || "").trim().slice(0, FAV_NAME_MAX);
+    const list = {
+      id: nextFavListId(),
+      name: trimmed || ("リスト" + (state.favLists.length + 1)),
+      hue: nextFavHue(),
+      codes: initialCode ? uniqueFavCodes([initialCode]) : [],
+    };
+    state.favLists.push(list);
+    if (!state.favModalListId) state.favModalListId = list.id;
+    persistFavLists({ code: initialCode, flyoutCode: initialCode, modal: true, refresh: true });
+    return list;
+  }
+
+  function renameFavList(listId, name) {
+    const list = findFavList(listId);
+    if (!list || state.freePreview) return;
+    const trimmed = String(name || "").trim().slice(0, FAV_NAME_MAX);
+    if (!trimmed) return;
+    list.name = trimmed;
+    persistFavLists({ modal: true });
+  }
+
+  function deleteFavList(listId) {
+    if (state.freePreview || state.favLists.length <= 1) return;
+    state.favLists = state.favLists.filter((list) => list.id !== listId);
+    state.favFilterIds = state.favFilterIds.filter((id) => id !== listId);
+    if (state.favModalListId === listId) {
+      state.favModalListId = state.favLists[0] ? state.favLists[0].id : null;
+    }
+    persistFavLists({ refresh: true, modal: true });
+  }
+
+  function reorderFavLists(ids) {
+    const next = ids.map((id) => findFavList(id)).filter(Boolean);
+    if (next.length !== state.favLists.length) return;
+    let changed = false;
+    for (let i = 0; i < next.length; i++) {
+      if (next[i].id !== state.favLists[i].id) {
+        changed = true;
+        break;
+      }
+    }
+    if (!changed) return;
+    state.favLists = next;
+    persistFavLists({ refresh: true, modal: true });
+  }
+
+  function favRenameFocused() {
+    const el = $("fav-list-rename");
+    if (!el) return false;
+    const active = document.activeElement;
+    return active === el || el.contains(active) || !!(el.shadowRoot && el.shadowRoot.activeElement);
+  }
+
+  function commitFavListRename() {
+    const el = $("fav-list-rename");
+    const list = findFavList(state.favModalListId);
+    if (!el || !list || state.freePreview) return;
+    const next = String(el.value || "").trim().slice(0, FAV_NAME_MAX);
+    if (!next) {
+      el.value = list.name;
+      return;
+    }
+    if (next !== list.name) renameFavList(list.id, next);
+  }
+
+  function placeFavDragRow(nav, moving, clientY) {
+    const rows = [...nav.querySelectorAll(".fav-list-row")].filter((el) => el !== moving);
+    const before = rows.find((el) => {
+      const box = el.getBoundingClientRect();
+      return clientY < box.top + box.height / 2;
+    });
+    if (before) nav.insertBefore(moving, before);
+    else nav.appendChild(moving);
+  }
+
+  function commitFavNavOrder(nav) {
+    if (!nav) return;
+    reorderFavLists([...nav.querySelectorAll(".fav-list-row")].map((el) => el.dataset.listId));
+  }
+
+  let favDragViaHtml5 = false;
+
+  function bindFavListDrag(handle, row, listId) {
+    handle.draggable = true;
+    handle.addEventListener("dragstart", (ev) => {
+      favDragViaHtml5 = true;
+      row.classList.add("is-dragging");
+      ev.dataTransfer.effectAllowed = "move";
+      try {
+        ev.dataTransfer.setData("text/plain", listId);
+      } catch (_) {}
+    });
+    handle.addEventListener("dragend", () => {
+      row.classList.remove("is-dragging");
+      favDragViaHtml5 = false;
+      commitFavNavOrder($("fav-lists-nav"));
+    });
+    handle.addEventListener("pointerdown", (ev) => {
+      if (ev.button !== 0) return;
+      ev.stopPropagation();
+      const nav = $("fav-lists-nav");
+      if (!nav) return;
+      try {
+        handle.setPointerCapture(ev.pointerId);
+      } catch (_) {}
+      let dragging = false;
+      const startY = ev.clientY;
+      const onMove = (moveEv) => {
+        if (Math.abs(moveEv.clientY - startY) < 4 && !dragging) return;
+        dragging = true;
+        row.classList.add("is-dragging");
+        placeFavDragRow(nav, row, moveEv.clientY);
+      };
+      const onUp = () => {
+        try {
+          handle.releasePointerCapture(ev.pointerId);
+        } catch (_) {}
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointercancel", onUp);
+        if (favDragViaHtml5) return;
+        row.classList.remove("is-dragging");
+        if (!dragging) {
+          if (state.favModalListId !== listId) {
+            state.favModalListId = listId;
+            renderFavListsModal();
+          }
+          return;
+        }
+        commitFavNavOrder(nav);
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+      window.addEventListener("pointercancel", onUp);
+    });
+  }
+
+  function addCodeToFavList(listId, code) {
+    const list = findFavList(listId);
+    const c = padFavCode(toHalfWidthCode(code));
+    if (!list || !c || c.length < 4) return false;
+    if (list.codes.indexOf(c) >= 0) return true;
+    if (list.codes.length >= FAV_CODES_PER_LIST || favMembershipCount() >= FAV_MEMBERSHIP_MAX) return false;
+    list.codes.push(c);
+    persistFavLists({ code: c, refresh: true, modal: true });
+    return true;
+  }
+
+  function removeCodeFromFavList(listId, code) {
+    const list = findFavList(listId);
+    if (!list) return;
+    const c = padFavCode(code);
+    list.codes = list.codes.filter((item) => item !== c);
+    persistFavLists({ code: c, refresh: true, modal: true });
+  }
+
+  function favCellInnerHtml(code) {
+    const lists = listsForCode(code);
+    if (!lists.length) return '<span class="fav-empty" aria-hidden="true"></span>';
+    const shown = lists.slice(0, FAV_CELL_CHIPS);
+    const extra = lists.length - shown.length;
+    return (
+      shown
+        .map((list) =>
+          '<span class="fav-chip" style="background:' +
+          favHueColor(list.hue) +
+          '" title="' +
+          escapeHtml(list.name) +
+          '"></span>'
+        )
+        .join("") +
+      (extra > 0 ? '<span class="fav-more">+' + extra + "</span>" : "")
+    );
+  }
+
+  function closeFavFlyout() {
+    document.querySelectorAll(".fav-flyout").forEach((el) => el.remove());
+  }
+
+  function refreshFavFlyout(code) {
+    const menu = document.querySelector(".fav-flyout");
+    if (!menu || menu.dataset.favCode !== padFavCode(code)) return;
+    const anchor = document.querySelector('button.fav-star[data-fav-code="' + padFavCode(code) + '"]');
+    if (anchor) openFavFlyout(anchor, code);
+  }
+
+  function openFavFlyout(anchor, code) {
+    closeFavFlyout();
+    closeFilterMenu();
+    if (state.freePreview || !anchor) return;
+    const c = padFavCode(code);
+    const menu = document.createElement("div");
+    menu.className = "fav-flyout";
+    menu.dataset.favCode = c;
+    menu.addEventListener("click", (ev) => ev.stopPropagation());
+    state.favLists.forEach((list) => {
+      const inList = codeInFavList(list, c);
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = inList ? "in" : "";
+      btn.innerHTML =
+        '<span class="fav-chip" style="background:' +
+        favHueColor(list.hue) +
+        '"></span><span>' +
+        escapeHtml(list.name) +
+        '</span><span class="fav-flyout-check">' +
+        (inList ? "✓" : "") +
+        "</span>";
+      btn.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        toggleCodeInFavList(c, list.id);
+      });
+      menu.appendChild(btn);
+    });
+    const create = document.createElement("div");
+    create.className = "fav-flyout-create";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.maxLength = FAV_NAME_MAX;
+    const addBtn = document.createElement("button");
+    addBtn.type = "button";
+    addBtn.textContent = "追加";
+    syncFavCreateFields(input, addBtn, "新しいリスト");
+    const onCreate = () => {
+      if (addBtn.disabled) return;
+      const created = createFavList(input.value, c);
+      if (created) input.value = "";
+    };
+    addBtn.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      onCreate();
+    });
+    input.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        onCreate();
+      }
+    });
+    create.appendChild(input);
+    create.appendChild(addBtn);
+    menu.appendChild(create);
+    document.body.appendChild(menu);
+    const rect = anchor.getBoundingClientRect();
+    const mw = Math.max(220, menu.offsetWidth);
+    let left = rect.left;
+    if (left + mw > window.innerWidth - 8) left = Math.max(8, window.innerWidth - mw - 8);
+    menu.style.left = left + "px";
+    menu.style.top = Math.min(rect.bottom + 4, window.innerHeight - menu.offsetHeight - 8) + "px";
   }
 
   function setFavoritesUiEnabled(enabled) {
@@ -426,6 +921,17 @@
     return !!(def && (def.kind === "signed1" || def.kind === "int"));
   }
 
+  function isTextFilterCol(key) {
+    return key === "code" || key === "name";
+  }
+
+  function toHalfWidthCode(value) {
+    const half = String(value == null ? "" : value).replace(/[\uFF01-\uFF5E]/g, (ch) =>
+      String.fromCharCode(ch.charCodeAt(0) - 0xFEE0)
+    );
+    return half.replace(/[^0-9A-Za-z]/g, "").toUpperCase();
+  }
+
   function colFilterActive(key) {
     const f = state.colFilters[key];
     return !!(f && f.op && f.op !== "none");
@@ -441,6 +947,17 @@
     if (!filt || !filt.op || filt.op === "none") return true;
     const key = mapKey(baseKey);
     const raw = row[key];
+    if (filt.op === "contains") {
+      const q = String(filt.q == null ? "" : filt.q).trim();
+      if (!q) return true;
+      const cell = raw == null ? "" : String(raw);
+      if (baseKey === "code") {
+        const needle = toHalfWidthCode(q);
+        if (!needle) return true;
+        return toHalfWidthCode(cell).includes(needle);
+      }
+      return cell.toLowerCase().includes(q.toLowerCase());
+    }
     const isNull = raw == null || Number.isNaN(Number(raw));
     if (filt.op === "isnull") return isNull;
     if (filt.op === "notnull") return !isNull;
@@ -470,7 +987,190 @@
 
   function closeFilterMenu() {
     state.filterMenuKey = null;
-    document.querySelectorAll(".col-filter-menu").forEach((el) => el.remove());
+    document.querySelectorAll(".col-filter-menu, .fav-filter-anchor, wa-dropdown.fav-filter-dropdown").forEach((el) => el.remove());
+    closeFavFlyout();
+  }
+
+  function closeAccountMenu() {
+    const dropdown = $("account-dropdown");
+    if (dropdown) dropdown.open = false;
+  }
+
+  let confirmPending = null;
+
+  function confirmDialogReady() {
+    return typeof customElements !== "undefined" && customElements.get("wa-dialog") && $("confirm-dialog");
+  }
+
+  function bindConfirmDialog() {
+    const dialog = $("confirm-dialog");
+    const ok = $("confirm-dialog-ok");
+    const cancel = $("confirm-dialog-cancel");
+    if (!dialog || dialog.dataset.bound === "1") return;
+    dialog.dataset.bound = "1";
+    const settle = (accepted) => {
+      const fn = confirmPending;
+      confirmPending = null;
+      if (dialog.open) dialog.open = false;
+      if (accepted && typeof fn === "function") fn();
+    };
+    if (ok) {
+      ok.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        settle(true);
+      });
+    }
+    if (cancel) {
+      cancel.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        settle(false);
+      });
+    }
+    dialog.addEventListener("wa-hide", () => {
+      confirmPending = null;
+    });
+  }
+
+  function confirmDestructive(message, onOk, okLabel) {
+    bindConfirmDialog();
+    const dialog = $("confirm-dialog");
+    const body = $("confirm-dialog-body");
+    const ok = $("confirm-dialog-ok");
+    if (!confirmDialogReady()) {
+      if (window.confirm(message)) onOk();
+      return;
+    }
+    if (body) body.textContent = message;
+    if (ok) ok.textContent = okLabel || "削除";
+    confirmPending = onOk;
+    dialog.open = true;
+  }
+
+  function bindAccountMenu() {
+    const dropdown = $("account-dropdown");
+    if (!dropdown || dropdown.dataset.bound === "1") return;
+    dropdown.dataset.bound = "1";
+    dropdown.addEventListener("wa-select", (ev) => {
+      const item = ev.detail && ev.detail.item;
+      const value = item ? String(item.value || "") : "";
+      if (value === "lists") openFavListsModal();
+      if (value === "logout" && typeof window.__webUiLogout === "function") window.__webUiLogout();
+    });
+  }
+
+  function openFavListsModal() {
+    if (state.freePreview) return;
+    closeFavFlyout();
+    closeAccountMenu();
+    if (!state.favLists.length) state.favLists = [defaultFavList([])];
+    if (!findFavList(state.favModalListId)) {
+      state.favModalListId = state.favLists[0].id;
+    }
+    renderFavListsModal();
+    const modal = $("fav-lists-modal");
+    if (!modal) return;
+    modal.classList.remove("hidden");
+    modal.setAttribute("aria-hidden", "false");
+  }
+
+  function closeFavListsModal() {
+    const modal = $("fav-lists-modal");
+    if (!modal) return;
+    modal.classList.add("hidden");
+    modal.setAttribute("aria-hidden", "true");
+  }
+
+  function nameLookup(code) {
+    const row = findRowByCode(padFavCode(code));
+    return row && row.name ? String(row.name) : "";
+  }
+
+  function renderFavListsModal() {
+    const nav = $("fav-lists-nav");
+    const members = $("fav-lists-members");
+    const renameEl = $("fav-list-rename");
+    const deleteBtn = $("fav-list-delete");
+    if (!nav || !members) return;
+    if (nav.dataset.favDragBound !== "1") {
+      nav.dataset.favDragBound = "1";
+      nav.addEventListener("dragover", (ev) => {
+        ev.preventDefault();
+        const moving = nav.querySelector(".fav-list-row.is-dragging");
+        if (!moving) return;
+        placeFavDragRow(nav, moving, ev.clientY);
+      });
+    }
+    nav.innerHTML = "";
+    const selected = findFavList(state.favModalListId) || state.favLists[0] || null;
+    state.favLists.forEach((list) => {
+      const row = document.createElement("div");
+      row.className = "fav-list-row" + (selected && selected.id === list.id ? " active" : "");
+      row.dataset.listId = list.id;
+      const handle = document.createElement("button");
+      handle.type = "button";
+      handle.className = "fav-list-drag";
+      handle.title = "ドラッグして並べ替え";
+      handle.setAttribute("aria-label", "ドラッグして並べ替え");
+      handle.innerHTML =
+        '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M5 2.75a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5zm6 0a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5zM5 6.75a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5zm6 0a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5zM5 10.75a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5zm6 0a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5z"/></svg>';
+      bindFavListDrag(handle, row, list.id);
+      const pick = document.createElement("button");
+      pick.type = "button";
+      pick.className = "fav-list-row-name";
+      pick.innerHTML =
+        '<span class="fav-chip" style="background:' +
+        favHueColor(list.hue) +
+        '"></span>' +
+        escapeHtml(list.name) +
+        ' <span class="muted">(' +
+        list.codes.length +
+        ")</span>";
+      pick.addEventListener("click", () => {
+        state.favModalListId = list.id;
+        renderFavListsModal();
+      });
+      row.appendChild(handle);
+      row.appendChild(pick);
+      nav.appendChild(row);
+    });
+    syncFavCreateFields($("fav-list-new-name"), $("fav-list-add"), "新しいリスト名");
+    syncFavCreateFields($("fav-list-add-code"), $("fav-list-add-code-btn"), "7011", favCodeAddAtCap(selected));
+    if (renameEl && !favRenameFocused()) renameEl.value = selected ? selected.name : "";
+    if (deleteBtn) deleteBtn.disabled = !selected || state.favLists.length <= 1;
+    members.innerHTML = "";
+    if (!selected) return;
+    selected.codes.slice().sort().forEach((code) => {
+      const row = document.createElement("div");
+      row.className = "fav-member-row";
+      const codeEl = document.createElement("code");
+      codeEl.textContent = code;
+      const name = document.createElement("span");
+      name.className = "muted";
+      name.textContent = nameLookup(code);
+      const rm = document.createElement("button");
+      rm.type = "button";
+      rm.textContent = "外す";
+      rm.addEventListener("click", () => {
+        const listId = selected.id;
+        const listName = selected.name;
+        const memberCode = code;
+        confirmDestructive(
+          "「" + listName + "」から " + memberCode + " を外しますか？",
+          () => removeCodeFromFavList(listId, memberCode),
+          "外す",
+        );
+      });
+      row.appendChild(codeEl);
+      row.appendChild(name);
+      row.appendChild(rm);
+      members.appendChild(row);
+    });
+    if (!selected.codes.length) {
+      const empty = document.createElement("p");
+      empty.className = "muted";
+      empty.textContent = "このリストに銘柄はありません。";
+      members.appendChild(empty);
+    }
   }
 
   function setSort(key, dir) {
@@ -478,10 +1178,8 @@
     state.sortKey = key;
     state.sortDir = dir;
     closeFilterMenu();
-    state.visibleChartCodes = [];
-    $("chart-host").innerHTML = "";
     schedulePrefsSave();
-    renderTable();
+    requestViewRefresh();
   }
 
   function clearSort() {
@@ -489,10 +1187,8 @@
     state.sortKey = null;
     state.sortDir = "desc";
     closeFilterMenu();
-    state.visibleChartCodes = [];
-    $("chart-host").innerHTML = "";
     schedulePrefsSave();
-    renderTable();
+    requestViewRefresh();
   }
 
   function applyColFilterFromMenu(key) {
@@ -507,69 +1203,361 @@
     if (op === "none") delete state.colFilters[key];
     else state.colFilters[key] = { op, a, b };
     closeFilterMenu();
-    state.visibleChartCodes = [];
-    $("chart-host").innerHTML = "";
     schedulePrefsSave();
-    renderTable();
+    requestViewRefresh();
+  }
+
+  function applyTextFilterFromMenu(key) {
+    if (state.freePreview) return;
+    const qEl = document.getElementById("cfm-q");
+    if (!qEl) return;
+    const raw = String(qEl.value || "");
+    const q = key === "code" ? toHalfWidthCode(raw) : raw.trim();
+    if (!q) delete state.colFilters[key];
+    else state.colFilters[key] = { op: "contains", q };
+    closeFilterMenu();
+    schedulePrefsSave();
+    requestViewRefresh();
+  }
+
+  function bindHalfWidthCodeInput(el) {
+    if (!el) return;
+    el.lang = "en";
+    // url is the alphanumeric sibling of a survey phone field (inputmode=tel):
+    // Chromium reports it as a non-text input type, so Windows IME switches to
+    // direct half-width alphanumeric when the field receives focus.
+    el.inputMode = "url";
+    el.autocapitalize = "off";
+    el.spellcheck = false;
+    el.autocomplete = "off";
+    el.style.imeMode = "disabled";
+    el.classList.add("cfm-code-input");
+    let composing = false;
+    const apply = () => {
+      if (composing) return;
+      const next = toHalfWidthCode(el.value);
+      if (el.value !== next) el.value = next;
+    };
+    el.addEventListener("compositionstart", () => { composing = true; });
+    el.addEventListener("compositionend", () => {
+      composing = false;
+      apply();
+    });
+    el.addEventListener("input", apply);
+  }
+
+  function placeFilterMenu(menu, th) {
+    document.body.appendChild(menu);
+    const rect = th.getBoundingClientRect();
+    const mw = Math.max(240, menu.offsetWidth);
+    let left = rect.left;
+    if (left + mw > window.innerWidth - 8) left = Math.max(8, window.innerWidth - mw - 8);
+    menu.style.left = left + "px";
+    menu.style.top = Math.min(rect.bottom + 4, window.innerHeight - menu.offsetHeight - 8) + "px";
   }
 
   function clearColFilter(key) {
     if (state.freePreview) return;
     delete state.colFilters[key];
     closeFilterMenu();
-    state.visibleChartCodes = [];
-    $("chart-host").innerHTML = "";
     schedulePrefsSave();
-    renderTable();
+    requestViewRefresh();
+  }
+
+  const FAV_FILTER_ALL = "__all__";
+  const FAV_FILTER_BLANK = "__blank__";
+
+  function hasWaDropdown() {
+    return typeof customElements !== "undefined" && !!customElements.get("wa-dropdown");
+  }
+
+  function favFilterableLists() {
+    return state.favLists.filter((list) => list.codes && list.codes.length > 0);
+  }
+
+  function favBlankCount() {
+    return state.rows.filter((row) => !isFavorite(padFavCode(row.code))).length;
+  }
+
+  function favCategorySelection() {
+    const visible = favFilterableLists();
+    const noneOn = state.favFilterIds.indexOf("__none__") >= 0;
+    const allListsOn = !noneOn && (!state.favOnly || !state.favFilterIds.length);
+    const blankOn = !noneOn && (!state.favOnly || !!state.favIncludeBlank);
+    const ids = noneOn
+      ? []
+      : (allListsOn ? visible.map((list) => list.id) : state.favFilterIds.filter((id) => visible.some((list) => list.id === id)));
+    return { blankOn, ids, allOn: blankOn && (allListsOn || !visible.length) };
+  }
+
+  function commitFavCategories(blankOn, ids) {
+    if (state.freePreview) return;
+    const visible = favFilterableLists();
+    const knownIds = ids.filter((id) => visible.some((list) => list.id === id));
+    const allListsOn = !visible.length || knownIds.length === visible.length;
+    if (blankOn && (allListsOn || !state.favLists.length)) {
+      state.favOnly = false;
+      state.favFilterIds = [];
+      state.favIncludeBlank = true;
+    } else if (!blankOn && !knownIds.length) {
+      state.favOnly = true;
+      state.favIncludeBlank = false;
+      state.favFilterIds = ["__none__"];
+    } else {
+      state.favOnly = true;
+      state.favIncludeBlank = !!blankOn;
+      state.favFilterIds = allListsOn ? [] : knownIds;
+    }
+    schedulePrefsSave();
+    requestViewRefresh();
+  }
+
+  function makeFavFilterItem(value, label, checked, locked, hue, count) {
+    const text = count != null ? label + " (" + count + ")" : label;
+    if (hasWaDropdown()) {
+      const item = document.createElement("wa-dropdown-item");
+      item.type = "checkbox";
+      item.value = value;
+      item.checked = !!checked;
+      item.disabled = !!locked;
+      if (hue != null) {
+        const chip = document.createElement("span");
+        chip.slot = "icon";
+        chip.className = "fav-chip";
+        chip.style.background = favHueColor(hue);
+        item.appendChild(chip);
+      }
+      item.appendChild(document.createTextNode(text));
+      return item;
+    }
+    const lab = document.createElement("label");
+    lab.className = "cfm-check";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.value = value;
+    input.checked = !!checked;
+    input.disabled = !!locked;
+    lab.appendChild(input);
+    if (hue != null) {
+      const chip = document.createElement("span");
+      chip.className = "fav-chip";
+      chip.style.background = favHueColor(hue);
+      lab.appendChild(chip);
+    }
+    lab.appendChild(document.createTextNode(" " + text));
+    return lab;
+  }
+
+  function readFavFilterChecks(root) {
+    const items = hasWaDropdown()
+      ? [...root.querySelectorAll("wa-dropdown-item[type='checkbox']")]
+      : [...root.querySelectorAll("input[type=checkbox]")];
+    const byValue = {};
+    items.forEach((el) => {
+      const value = hasWaDropdown() ? String(el.value || "") : String(el.value || "");
+      byValue[value] = !!el.checked;
+    });
+    return { items, byValue };
+  }
+
+  function syncFavFilterMaster(root) {
+    const { items, byValue } = readFavFilterChecks(root);
+    const listIds = favFilterableLists().map((list) => list.id);
+    const allListsOn = listIds.length === 0 || listIds.every((id) => byValue[id]);
+    const blankOn = favBlankCount() === 0 || !!byValue[FAV_FILTER_BLANK];
+    items.forEach((el) => {
+      const value = String(el.value || "");
+      if (value === FAV_FILTER_ALL) el.checked = allListsOn && blankOn;
+    });
+  }
+
+  function applyFavFilterChecks(root, toggledValue) {
+    const { items, byValue } = readFavFilterChecks(root);
+    const visible = favFilterableLists();
+    let blankOn = favBlankCount() === 0 || !!byValue[FAV_FILTER_BLANK];
+    let ids = visible.map((list) => list.id).filter((id) => byValue[id]);
+    if (toggledValue === FAV_FILTER_ALL) {
+      const on = !!byValue[FAV_FILTER_ALL];
+      blankOn = on;
+      ids = on ? visible.map((list) => list.id) : [];
+      items.forEach((el) => {
+        el.checked = on;
+      });
+    }
+    syncFavFilterMaster(root);
+    commitFavCategories(blankOn, ids);
   }
 
   function openFavFilterMenu(th) {
     closeFilterMenu();
+    closeFavFlyout();
     state.filterMenuKey = "favorite";
     const locked = !!state.freePreview;
+    const current = favCategorySelection();
+
+    if (hasWaDropdown()) {
+      const dropdown = document.createElement("wa-dropdown");
+      dropdown.className = "fav-filter-dropdown";
+      dropdown.placement = "bottom-start";
+      dropdown.size = "xs";
+      dropdown.distance = 4;
+      const trigger = document.createElement("button");
+      trigger.type = "button";
+      trigger.slot = "trigger";
+      trigger.className = "fav-filter-dropdown-trigger";
+      trigger.setAttribute("aria-label", "お気入りフィルタ");
+      dropdown.appendChild(trigger);
+      dropdown.appendChild(makeFavFilterItem(FAV_FILTER_ALL, "（すべて）", current.allOn, locked));
+      const split = document.createElement("wa-divider");
+      dropdown.appendChild(split);
+      const blankCount = favBlankCount();
+      if (blankCount > 0) {
+        dropdown.appendChild(makeFavFilterItem(FAV_FILTER_BLANK, "（空白）", current.blankOn, locked, null, blankCount));
+      }
+      favFilterableLists().forEach((list) => {
+        dropdown.appendChild(
+          makeFavFilterItem(list.id, list.name, current.ids.indexOf(list.id) >= 0, locked, list.hue, list.codes.length),
+        );
+      });
+      dropdown.addEventListener("click", (ev) => ev.stopPropagation());
+      dropdown.addEventListener("wa-select", (ev) => {
+        ev.preventDefault();
+        if (locked) return;
+        const item = ev.detail && ev.detail.item;
+        applyFavFilterChecks(dropdown, item ? String(item.value || "") : "");
+      });
+      const anchor = document.createElement("div");
+      anchor.className = "fav-filter-anchor";
+      const rect = th.getBoundingClientRect();
+      anchor.style.left = rect.left + "px";
+      anchor.style.top = rect.top + "px";
+      anchor.style.width = Math.max(8, rect.width) + "px";
+      anchor.style.height = Math.max(8, rect.height) + "px";
+      dropdown.addEventListener("wa-after-hide", () => {
+        if (anchor.parentNode) anchor.remove();
+        if (state.filterMenuKey === "favorite") state.filterMenuKey = null;
+      });
+      anchor.appendChild(dropdown);
+      document.body.appendChild(anchor);
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          dropdown.open = true;
+        });
+      });
+      return;
+    }
+
     const menu = document.createElement("div");
     menu.className = "col-filter-menu" + (locked ? " is-locked" : "");
     menu.addEventListener("click", (ev) => ev.stopPropagation());
-
     if (locked) {
       const note = document.createElement("p");
       note.className = "cfm-note muted";
       note.textContent = "無料プレビュー中はお気入りフィルタを変更できません。";
       menu.appendChild(note);
     }
+    const sec = document.createElement("div");
+    sec.className = "cfm-section";
+    sec.appendChild(makeFavFilterItem(FAV_FILTER_ALL, "（すべて）", current.allOn, locked));
+    const blankCount = favBlankCount();
+    if (blankCount > 0) {
+      sec.appendChild(makeFavFilterItem(FAV_FILTER_BLANK, "（空白）", current.blankOn, locked, null, blankCount));
+    }
+    favFilterableLists().forEach((list) => {
+      sec.appendChild(makeFavFilterItem(list.id, list.name, current.ids.indexOf(list.id) >= 0, locked, list.hue, list.codes.length));
+    });
+    sec.querySelectorAll("input[type=checkbox]").forEach((input) => {
+      input.addEventListener("change", () => {
+        if (locked) return;
+        applyFavFilterChecks(menu, input.value);
+      });
+    });
+    menu.appendChild(sec);
+    placeFilterMenu(menu, th);
+  }
+
+  function openTextFilterMenu(th, key) {
+    closeFilterMenu();
+    if (!isTextFilterCol(key)) return;
+    state.filterMenuKey = key;
+    const locked = !!state.freePreview;
+    const menu = document.createElement("div");
+    menu.className = "col-filter-menu" + (locked ? " is-locked" : "");
+    menu.addEventListener("click", (ev) => ev.stopPropagation());
+    const cur = state.colFilters[key] || {};
+    const currentQ = cur.op === "contains" ? String(cur.q || "") : "";
+
+    if (locked) {
+      const note = document.createElement("p");
+      note.className = "cfm-note muted";
+      note.textContent = "無料プレビュー中はフィルタを変更できません。";
+      menu.appendChild(note);
+    }
 
     const sec = document.createElement("div");
     sec.className = "cfm-section";
     const lab = document.createElement("label");
-    lab.className = "cfm-check";
-    const cb = document.createElement("input");
-    cb.type = "checkbox";
-    cb.checked = !!state.favOnly && !locked;
-    cb.disabled = locked;
-    cb.addEventListener("change", () => {
-      if (locked) {
-        cb.checked = false;
-        return;
-      }
-      state.favOnly = cb.checked;
-      closeFilterMenu();
-      state.visibleChartCodes = [];
-      $("chart-host").innerHTML = "";
-      schedulePrefsSave();
-      renderTable();
+    lab.appendChild(document.createTextNode(key === "code" ? "コード（半角英数字）" : "銘柄名"));
+    const ui = chrome();
+    const qEl = ui && ui.input
+      ? ui.input({
+          type: "text",
+          placeholder: key === "code" ? "含む" : "含む",
+          disabled: locked,
+          value: currentQ,
+          id: "cfm-q",
+        })
+      : document.createElement("input");
+    if (!ui || !ui.input) {
+      qEl.id = "cfm-q";
+      qEl.type = "text";
+      qEl.placeholder = "含む";
+      qEl.disabled = locked;
+      qEl.value = currentQ;
+    }
+    if (key === "code") bindHalfWidthCodeInput(qEl);
+    qEl.addEventListener("keydown", (ev) => {
+      if (ev.key !== "Enter" || locked) return;
+      ev.preventDefault();
+      applyTextFilterFromMenu(key);
     });
-    lab.appendChild(cb);
-    lab.appendChild(document.createTextNode(" お気入りのみ表示"));
+    lab.appendChild(qEl);
     sec.appendChild(lab);
-    menu.appendChild(sec);
 
-    document.body.appendChild(menu);
-    const rect = th.getBoundingClientRect();
-    const mw = Math.max(220, menu.offsetWidth);
-    let left = rect.left;
-    if (left + mw > window.innerWidth - 8) left = Math.max(8, window.innerWidth - mw - 8);
-    menu.style.left = left + "px";
-    menu.style.top = Math.min(rect.bottom + 4, window.innerHeight - menu.offsetHeight - 8) + "px";
+    const actions = document.createElement("div");
+    actions.className = "cfm-actions";
+    const applyBtn = ui && ui.button ? ui.button("適用", { disabled: locked }) : document.createElement("button");
+    const clearBtn = ui && ui.button ? ui.button("フィルタ清除", { disabled: locked }) : document.createElement("button");
+    if (!ui || !ui.button) {
+      applyBtn.type = "button";
+      applyBtn.textContent = "適用";
+      applyBtn.disabled = locked;
+      clearBtn.type = "button";
+      clearBtn.textContent = "フィルタ清除";
+      clearBtn.disabled = locked;
+    }
+    applyBtn.addEventListener("click", () => {
+      if (locked) return;
+      applyTextFilterFromMenu(key);
+    });
+    clearBtn.addEventListener("click", () => {
+      if (locked) return;
+      clearColFilter(key);
+    });
+    actions.appendChild(applyBtn);
+    actions.appendChild(clearBtn);
+    sec.appendChild(actions);
+    menu.appendChild(sec);
+    placeFilterMenu(menu, th);
+    if (!locked) {
+      const focus = async () => {
+        if (key === "code") qEl.inputMode = "url";
+        const done = qEl.updateComplete;
+        if (done && typeof done.then === "function") await done;
+        try { qEl.focus(); } catch (_err) {}
+      };
+      focus();
+    }
   }
 
   function openFilterMenu(th, key) {
@@ -594,10 +1582,13 @@
     const secSort = document.createElement("div");
     secSort.className = "cfm-section";
     function addSortBtn(dir, label) {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.textContent = label;
-      b.disabled = locked;
+      const ui = chrome();
+      const b = ui && ui.button ? ui.button(label, { disabled: locked }) : document.createElement("button");
+      if (!ui || !ui.button) {
+        b.type = "button";
+        b.textContent = label;
+        b.disabled = locked;
+      }
       if (sortedHere && state.sortDir === dir) b.classList.add("active");
       b.addEventListener("click", () => {
         if (locked) return;
@@ -608,10 +1599,13 @@
     addSortBtn("desc", "↓ 降順でソート");
     addSortBtn("asc", "↑ 昇順でソート");
     if (sortedHere) {
-      const clr = document.createElement("button");
-      clr.type = "button";
-      clr.textContent = "ソート解除";
-      clr.disabled = locked;
+      const ui = chrome();
+      const clr = ui && ui.button ? ui.button("ソート解除", { disabled: locked }) : document.createElement("button");
+      if (!ui || !ui.button) {
+        clr.type = "button";
+        clr.textContent = "ソート解除";
+        clr.disabled = locked;
+      }
       clr.addEventListener("click", () => {
         if (locked) return;
         clearSort();
@@ -624,10 +1618,11 @@
     secFilt.className = "cfm-section";
     const lab = document.createElement("label");
     lab.appendChild(document.createTextNode("フィルタ"));
-    const sel = document.createElement("select");
+    const ui = chrome();
+    const sel = ui && ui.select ? ui.select() : document.createElement("select");
     sel.id = "cfm-op";
     sel.disabled = locked;
-    [
+    const opItems = [
       ["none", "（なし）"],
       ["gt", "＞ より大きい"],
       ["gte", "≥ 以上"],
@@ -637,32 +1632,39 @@
       ["between", "範囲（以下〜以上）"],
       ["notnull", "空白でない"],
       ["isnull", "空白"],
-    ].forEach(([v, t]) => {
-      const o = document.createElement("option");
-      o.value = v;
-      o.textContent = t;
-      sel.appendChild(o);
-    });
-    sel.value = cur.op || "none";
+    ];
+    if (ui && ui.fillSelect) {
+      ui.fillSelect(sel, opItems.map(([value, text]) => ({ value, text })), cur.op || "none");
+    } else {
+      opItems.forEach(([v, t]) => {
+        const o = document.createElement("option");
+        o.value = v;
+        o.textContent = t;
+        sel.appendChild(o);
+      });
+      sel.value = cur.op || "none";
+    }
     lab.appendChild(sel);
     secFilt.appendChild(lab);
 
     const vals = document.createElement("div");
     vals.className = "cfm-vals";
-    const aEl = document.createElement("input");
-    aEl.id = "cfm-a";
-    aEl.type = "number";
-    aEl.step = "any";
-    aEl.placeholder = "値";
-    aEl.disabled = locked;
-    if (cur.a != null) aEl.value = String(cur.a);
-    const bEl = document.createElement("input");
-    bEl.id = "cfm-b";
-    bEl.type = "number";
-    bEl.step = "any";
-    bEl.placeholder = "上限";
-    bEl.disabled = locked;
-    if (cur.b != null) bEl.value = String(cur.b);
+    const aEl = ui && ui.input ? ui.input({ type: "number", placeholder: "値", disabled: locked, value: cur.a != null ? String(cur.a) : "", id: "cfm-a" }) : document.createElement("input");
+    const bEl = ui && ui.input ? ui.input({ type: "number", placeholder: "上限", disabled: locked, value: cur.b != null ? String(cur.b) : "", id: "cfm-b" }) : document.createElement("input");
+    if (!ui || !ui.input) {
+      aEl.id = "cfm-a";
+      aEl.type = "number";
+      aEl.step = "any";
+      aEl.placeholder = "値";
+      aEl.disabled = locked;
+      if (cur.a != null) aEl.value = String(cur.a);
+      bEl.id = "cfm-b";
+      bEl.type = "number";
+      bEl.step = "any";
+      bEl.placeholder = "上限";
+      bEl.disabled = locked;
+      if (cur.b != null) bEl.value = String(cur.b);
+    }
     vals.appendChild(aEl);
     vals.appendChild(bEl);
     secFilt.appendChild(vals);
@@ -674,22 +1676,25 @@
       bEl.classList.toggle("hidden", !needB);
     }
     syncValVisibility();
-    sel.addEventListener("change", syncValVisibility);
+    if (ui && ui.onSelectChange) ui.onSelectChange(sel, syncValVisibility);
+    else sel.addEventListener("change", syncValVisibility);
 
     const actions = document.createElement("div");
     actions.className = "cfm-actions";
-    const applyBtn = document.createElement("button");
-    applyBtn.type = "button";
-    applyBtn.textContent = "適用";
-    applyBtn.disabled = locked;
+    const applyBtn = ui && ui.button ? ui.button("適用", { disabled: locked }) : document.createElement("button");
+    const clearBtn = ui && ui.button ? ui.button("フィルタ清除", { disabled: locked }) : document.createElement("button");
+    if (!ui || !ui.button) {
+      applyBtn.type = "button";
+      applyBtn.textContent = "適用";
+      applyBtn.disabled = locked;
+      clearBtn.type = "button";
+      clearBtn.textContent = "フィルタ清除";
+      clearBtn.disabled = locked;
+    }
     applyBtn.addEventListener("click", () => {
       if (locked) return;
       applyColFilterFromMenu(key);
     });
-    const clearBtn = document.createElement("button");
-    clearBtn.type = "button";
-    clearBtn.textContent = "フィルタ清除";
-    clearBtn.disabled = locked;
     clearBtn.addEventListener("click", () => {
       if (locked) return;
       clearColFilter(key);
@@ -698,14 +1703,7 @@
     actions.appendChild(clearBtn);
     secFilt.appendChild(actions);
     menu.appendChild(secFilt);
-
-    document.body.appendChild(menu);
-    const rect = th.getBoundingClientRect();
-    const mw = Math.max(240, menu.offsetWidth);
-    let left = rect.left;
-    if (left + mw > window.innerWidth - 8) left = Math.max(8, window.innerWidth - mw - 8);
-    menu.style.left = left + "px";
-    menu.style.top = Math.min(rect.bottom + 4, window.innerHeight - menu.offsetHeight - 8) + "px";
+    placeFilterMenu(menu, th);
   }
 
   function isAllRsNegative(row) {
@@ -734,12 +1732,11 @@
 
   function syncFilterModalUi() {
     const sw = $("filter-exclude-all-rs-neg");
-    const lab = $("filter-exclude-all-rs-neg-label");
     if (sw) {
       sw.checked = !!state.excludeAllRsNeg && !state.freePreview;
       sw.disabled = !!state.freePreview;
+      sw.classList.toggle("disabled-filter", !!state.freePreview);
     }
-    if (lab) lab.classList.toggle("disabled-filter", !!state.freePreview);
     const note = $("filter-modal-note");
     if (note) {
       note.textContent = state.freePreview
@@ -843,9 +1840,19 @@
     return s.length <= 10 ? s : s.slice(0, 10);
   }
 
+  function displayPriceText(row) {
+    row = row || {};
+    const api = window.StockRadarPriceText;
+    if (api && typeof api.displayText === "function") return api.displayText(row);
+    if (row.candle_labels != null && String(row.candle_labels).trim()) {
+      return api && typeof api.fromLabels === "function" ? api.fromLabels(row.candle_labels) : "";
+    }
+    return row.price_text == null ? "" : String(row.price_text);
+  }
+
   function cellStyle(row, baseKey) {
     if (baseKey === "price_text") {
-      const rule = priceTextCf(row.price_text);
+      const rule = priceTextCf(displayPriceText(row));
       if (!rule) return null;
       return { bg: rule.bg, fg: rule.fg };
     }
@@ -904,7 +1911,16 @@
       rows = rows.filter((_, i) => mask[i]);
     } else {
       if (state.favOnly) {
-        rows = rows.filter((r) => isFavorite(r.code));
+        rows = rows.filter((r) => {
+          if (state.favFilterIds.indexOf("__none__") >= 0) return false;
+          const c = padFavCode(r.code);
+          const blank = !isFavorite(c);
+          if (blank) return !!state.favIncludeBlank;
+          if (!state.favFilterIds.length) return true;
+          return state.favLists.some((list) =>
+            state.favFilterIds.indexOf(list.id) >= 0 && codeInFavList(list, c)
+          );
+        });
       }
       if (state.excludeAllRsNeg) {
         rows = rows.filter((r) => !isAllRsNegative(r));
@@ -1012,25 +2028,36 @@
   function renderColsPanel() {
     const panel = $("cols-panel");
     panel.innerHTML = "";
+    const ui = chrome();
     const keys = [...new Set([...XLSX_DEFAULT.map((c) => c.key), ...state.allKeys])]
       .filter((k) => !omitFromColsPanel(k));
     keys.forEach((k) => {
-      const lab = document.createElement("label");
-      const cb = document.createElement("input");
-      cb.type = "checkbox";
-      cb.checked = state.visibleKeys.includes(k);
-      cb.addEventListener("change", () => {
-        if (cb.checked) {
+      const def = state.colDefs[k];
+      const label = def ? def.label : k;
+      const checked = state.visibleKeys.includes(k);
+      const onToggle = (isOn) => {
+        if (isOn) {
           if (!state.visibleKeys.includes(k)) state.visibleKeys.push(k);
         } else {
           state.visibleKeys = state.visibleKeys.filter((x) => x !== k);
         }
         schedulePrefsSave();
-        renderTable();
-      });
-      const def = state.colDefs[k];
+        requestViewRefresh();
+      };
+      if (ui && ui.checkbox) {
+        const cb = ui.checkbox(label, checked, false);
+        if (ui.onCheck) ui.onCheck(cb, onToggle);
+        else cb.addEventListener("change", () => onToggle(!!cb.checked));
+        panel.appendChild(cb);
+        return;
+      }
+      const lab = document.createElement("label");
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = checked;
+      cb.addEventListener("change", () => onToggle(!!cb.checked));
       lab.appendChild(cb);
-      lab.appendChild(document.createTextNode(" " + (def ? def.label : k)));
+      lab.appendChild(document.createTextNode(" " + label));
       panel.appendChild(lab);
     });
   }
@@ -1038,19 +2065,125 @@
   function renderLegend() {
     const host = $("chart-legend");
     host.innerHTML = "";
-    SERIES_META.forEach((s) => {
-      const el = document.createElement("span");
+    const ui = chrome();
+    seriesDisplayMeta().forEach((s) => {
+      let swatchStyle = "";
+      let swatchClass = "";
       if (s.kind === "bar") {
-        el.innerHTML = '<i style="background:' + s.color + ';height:10px"></i>' + s.label;
+        swatchStyle = "background:" + s.color + ";height:10px";
       } else {
         const a = s.alpha;
-        el.innerHTML =
-          '<i class="rs-swatch" style="' +
+        swatchClass = "rs-swatch";
+        swatchStyle =
           "background:linear-gradient(90deg,rgba(" + RS_NEG + "," + a + ") 50%,rgba(" + RS_POS + "," + a + ") 50%);" +
-          "height:" + Math.max(2, Math.min(10, s.width / 2)) + "px" +
-          '"></i>' + s.label;
+          "height:" + Math.max(2, Math.min(10, s.width / 2)) + "px";
       }
+      if (ui && ui.tag) {
+        host.appendChild(ui.tag(s.label, { swatchStyle, swatchClass }));
+        return;
+      }
+      const el = document.createElement("span");
+      el.innerHTML =
+        '<i class="' +
+        swatchClass +
+        '" style="' +
+        swatchStyle +
+        '"></i>' +
+        s.label;
       host.appendChild(el);
+    });
+  }
+
+  function stickyColClass(k) {
+    if (k === "code") return "sticky-col sticky-col-code";
+    if (k === "name") return "sticky-col sticky-col-name";
+    return "";
+  }
+
+  function syncStickyColOffsets() {
+    const table = $("grid");
+    if (!table) return;
+    const codeCell =
+      table.querySelector("thead th.sticky-col-code") ||
+      table.querySelector("tbody td.sticky-col-code");
+    const width = codeCell ? Math.round(codeCell.getBoundingClientRect().width) : 0;
+    if (width > 0) table.style.setProperty("--sticky-code-w", width + "px");
+  }
+
+  function scheduleStickyColOffsets() {
+    syncStickyColOffsets();
+    requestAnimationFrame(() => {
+      syncStickyColOffsets();
+      requestAnimationFrame(syncStickyColOffsets);
+    });
+  }
+
+  function tdMarkup(row, k) {
+    const def = state.colDefs[k] || { kind: "text" };
+    const classes = [];
+    let extra = "";
+    if (def.kind === "signed1") classes.push("num");
+    if (def.kind === "news_bundle") classes.push("news-bundle");
+    if (def.kind === "favorite") classes.push("fav-cell");
+    let inner = cellHtml(row, k);
+    if (def.kind === "signed1" && inner) {
+      const ui = chrome();
+      const range = ui && ui.cfRangeForLabel ? ui.cfRangeForLabel(def.label) : 1;
+      const fmt = ui && ui.numberCellFormat ? ui.numberCellFormat(inner, range) : null;
+      if (fmt) {
+        classes.push("surface-cf-number");
+        extra = ' style="--cell-hue:' + fmt.hue + ";--cell-alpha:" + fmt.alpha + '"';
+      }
+    }
+    if (k === "price_text") {
+      classes.push("surface-cf-price");
+      if (inner) {
+        const ui = chrome();
+        const tone = ui && ui.priceTone ? ui.priceTone(displayPriceText(row)) : "neutral";
+        inner = '<span class="surface-price-tag" data-tone="' + escapeHtml(tone) + '">' + inner + "</span>";
+      }
+    }
+    const sticky = stickyColClass(k);
+    if (sticky) classes.push.apply(classes, sticky.split(" "));
+    const cls = classes.length ? ' class="' + classes.join(" ") + '"' : "";
+    return "<td" + cls + extra + ">" + inner + "</td>";
+  }
+
+  function bindGridEvents() {
+    const table = $("grid");
+    if (!table || table.dataset.bound === "1") return;
+    table.dataset.bound = "1";
+    window.addEventListener("resize", scheduleStickyColOffsets);
+    const tbody = table.tBodies[0];
+    if (!tbody) return;
+    tbody.addEventListener("click", (ev) => {
+      const star = ev.target.closest("button.fav-star, td.fav-cell");
+      if (star) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (state.freePreview) return;
+        const btn = star.closest ? (star.matches("button.fav-star") ? star : star.querySelector("button.fav-star")) : star;
+        const code = btn && btn.dataset ? btn.dataset.favCode : null;
+        if (code) openFavFlyout(btn, code);
+        return;
+      }
+      if (ev.target.closest("a")) return;
+      const tr = ev.target.closest("tr[data-code]");
+      if (tr) selectCode(tr.dataset.code, { scrollChart: true, toggle: true });
+    });
+    tbody.addEventListener("mouseover", (ev) => {
+      const tr = ev.target.closest("tr[data-code]");
+      if (!tr || !tbody.contains(tr)) return;
+      const related = ev.relatedTarget;
+      if (related && tr.contains(related)) return;
+      setHoveredCode(tr.dataset.code, { from: "table" });
+    });
+    tbody.addEventListener("mouseout", (ev) => {
+      const tr = ev.target.closest("tr[data-code]");
+      if (!tr || !tbody.contains(tr)) return;
+      const related = ev.relatedTarget;
+      if (related && (related === tr || tr.contains(related))) return;
+      if (state.hovered === tr.dataset.code) setHoveredCode(null);
     });
   }
 
@@ -1062,7 +2195,6 @@
       const on = isFavorite(code);
       const disabled = state.freePreview ? " disabled" : "";
       const cls = "fav-star" + (on ? " on" : "") + (state.freePreview ? " disabled" : "");
-      const label = on ? "★" : "☆";
       return (
         '<button type="button" class="' +
         cls +
@@ -1070,10 +2202,10 @@
         code +
         '" aria-pressed="' +
         (on ? "true" : "false") +
-        '" aria-label="favorite"' +
+        '" aria-label="favorite lists"' +
         disabled +
         ">" +
-        label +
+        favCellInnerHtml(code) +
         "</button>"
       );
     }
@@ -1097,6 +2229,7 @@
         })
         .join("");
     }
+    if (baseKey === "price_text") return escapeHtml(displayPriceText(row));
     const v = row[key];
     if (def.kind === "link") {
       const href = safeHttpUrl(v);
@@ -1112,49 +2245,52 @@
     return v == null ? "" : escapeHtml(String(v));
   }
 
-  function renderTable() {
+  function renderTable(opts) {
+    opts = opts || {};
+    bindGridEvents();
     const rows = displayRows();
     $("row-count").textContent = "表示 " + rows.length + " / 全 " + state.rows.length + " 銘柄";
+    const wrap = $("table-wrap");
+    const prevTop = wrap ? wrap.scrollTop : 0;
+    const prevLeft = wrap ? wrap.scrollLeft : 0;
     const thead = document.querySelector("#grid thead");
     const tbody = document.querySelector("#grid tbody");
     thead.innerHTML = "";
-    tbody.innerHTML = "";
     const trh = document.createElement("tr");
     state.visibleKeys.forEach((k) => {
       const th = document.createElement("th");
+      const sticky = stickyColClass(k);
+      if (sticky) th.className = sticky;
       const def = state.colDefs[k];
       const label = def ? def.label : mapKey(k);
-      if (isNumericCol(k) || k === "favorite") {
-        th.classList.add("th-numeric");
+      if (isNumericCol(k) || k === "favorite" || isTextFilterCol(k)) {
+        th.classList.add("th-filterable");
+        if (isNumericCol(k) || k === "favorite") th.classList.add("th-numeric");
         if (k !== "favorite" && state.sortKey === k) th.classList.add("th-sorted");
         if (k === "favorite" ? state.favOnly : colFilterActive(k)) th.classList.add("th-filtered");
-        const inner = document.createElement("div");
-        inner.className = "th-inner";
-        const lab = document.createElement("span");
-        lab.className = "th-label";
-        lab.textContent = label;
-        const mark = document.createElement("span");
-        mark.className = "th-sort-mark";
-        if (k !== "favorite" && state.sortKey === k) {
-          mark.textContent = state.sortDir === "desc" ? "↓" : "↑";
+        const ui = chrome();
+        const btn = ui && ui.headerButton
+          ? ui.headerButton({
+              caption: label,
+              title: k === "favorite" ? "お気入りフィルタ" : (isTextFilterCol(k) ? "文字列フィルタ" : "ソート / フィルタ"),
+              sorted: k !== "favorite" && state.sortKey === k,
+              filtered: k === "favorite" ? state.favOnly : colFilterActive(k),
+            })
+          : document.createElement("button");
+        if (!ui || !ui.headerButton) {
+          btn.type = "button";
+          btn.textContent = label;
+          btn.title = k === "favorite" ? "お気入りフィルタ" : (isTextFilterCol(k) ? "文字列フィルタ" : "ソート / フィルタ");
         }
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "th-filter-btn";
-        btn.title = k === "favorite"
-          ? "お気入りフィルタ"
-          : "ソート / フィルタ";
-        btn.textContent = "▼";
+        btn.classList.add("th-filter-btn");
         btn.addEventListener("click", (ev) => {
           ev.preventDefault();
           ev.stopPropagation();
           if (k === "favorite") openFavFilterMenu(th);
+          else if (isTextFilterCol(k)) openTextFilterMenu(th, k);
           else openFilterMenu(th, k);
         });
-        inner.appendChild(lab);
-        inner.appendChild(mark);
-        inner.appendChild(btn);
-        th.appendChild(inner);
+        th.appendChild(btn);
       } else {
         th.textContent = label;
       }
@@ -1162,44 +2298,31 @@
     });
     thead.appendChild(trh);
 
-    rows.forEach((row) => {
+    const keys = state.visibleKeys;
+    const parts = new Array(rows.length);
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
       const code = String(row.code).padStart(4, "0");
-      const tr = document.createElement("tr");
-      tr.dataset.code = code;
-      if (state.selected === code) tr.classList.add("selected");
-      if (state.hovered === code && state.selected !== code) tr.classList.add("is-hover");
-      state.visibleKeys.forEach((k) => {
-        const td = document.createElement("td");
-        const def = state.colDefs[k] || { kind: "text" };
-        if (def.kind === "signed1") td.classList.add("num");
-        if (def.kind === "news_bundle") td.classList.add("news-bundle");
-        if (def.kind === "favorite") td.classList.add("fav-cell");
-        td.innerHTML = cellHtml(row, k);
-        const st = cellStyle(row, k);
-        if (st) {
-          if (st.bg) td.style.backgroundColor = st.bg;
-          if (st.fg) td.style.color = st.fg;
-        }
-        tr.appendChild(td);
-      });
-      tr.querySelectorAll("button.fav-star").forEach((btn) => {
-        btn.addEventListener("click", (ev) => {
-          ev.preventDefault();
-          ev.stopPropagation();
-          if (state.freePreview) return;
-          toggleFavorite(btn.dataset.favCode || code);
-        });
-      });
-      tr.addEventListener("mouseenter", () => setHoveredCode(code, { from: "table" }));
-      tr.addEventListener("mouseleave", () => {
-        if (state.hovered === code) setHoveredCode(null);
-      });
-      tr.addEventListener("click", () => {
-        selectCode(code, { scrollChart: true });
-      });
-      tbody.appendChild(tr);
-    });
-    syncChartsFromTable(rows);
+      const codeEsc = escapeHtml(code);
+      let cls = "";
+      if (state.selected === code) cls = " selected";
+      else if (state.hovered === code) cls = " is-hover";
+      let tds = "";
+      for (let j = 0; j < keys.length; j++) tds += tdMarkup(row, keys[j]);
+      parts[i] = "<tr data-code=\"" + codeEsc + "\"" + (cls ? " class=\"" + cls.trim() + "\"" : "") + ">" + tds + "</tr>";
+    }
+    tbody.innerHTML = parts.join("");
+    if (wrap) {
+      wrap.scrollTop = prevTop;
+      wrap.scrollLeft = prevLeft;
+    }
+    scheduleStickyColOffsets();
+
+    const codes = rows.map((r) => String(r.code).padStart(4, "0"));
+    if (opts.charts === "skip") return;
+    if (opts.charts !== "force" && sameCodeList(state.visibleChartCodes, codes)) return;
+    state.visibleChartCodes = codes;
+    refreshCharts(codes);
   }
 
   function yZ(z) {
@@ -1396,6 +2519,10 @@
         strokeSignedLine(ctx, arr, xAt, yAt, s.width, s.alpha, dpr);
       }
     });
+    const hoverIndex =
+      canvas._hoverIndex == null ? n - 1 : Math.max(0, Math.min(n - 1, canvas._hoverIndex));
+    const colW = n <= 1 ? zBarW : Math.max(zBarW, xSpan / (n - 1));
+    drawChartHoverMarker(ctx, xAt, padT, plotH, hoverIndex, colW, dpr);
     ctx.restore();
 
     // Overflow edge markers. Width = RS31. Color = RS green/red, or Z color if only Z overflows.
@@ -1457,6 +2584,88 @@
     };
   }
 
+  function drawChartHoverMarker(ctx, xAt, padT, plotH, index, colW, dpr) {
+    const x = xAt(index);
+    const hw = Math.max(colW, 1 * dpr);
+    ctx.save();
+    ctx.fillStyle = "rgba(110,168,254,0.16)";
+    ctx.fillRect(x - hw / 2, padT, hw, plotH);
+    ctx.strokeStyle = "rgba(110,168,254,0.85)";
+    ctx.lineWidth = Math.max(1, dpr);
+    ctx.beginPath();
+    ctx.moveTo(x, padT);
+    ctx.lineTo(x, padT + plotH);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function latestChartIndex(dates) {
+    return Math.max(0, (dates || []).length - 1);
+  }
+
+  function chartHoverCellHtml(label, text, raw) {
+    const n = raw == null ? NaN : Number(raw);
+    const ui = chrome();
+    const range = ui && ui.cfRangeForLabel ? ui.cfRangeForLabel(label) : 1;
+    const fmt =
+      Number.isFinite(n) && ui && ui.numberCellFormat
+        ? ui.numberCellFormat(fmtSigned1(n), range)
+        : null;
+    let extra = "";
+    const classes = ["chart-hover-cell"];
+    if (fmt) {
+      classes.push("surface-cf-number");
+      extra = ' style="--cell-hue:' + fmt.hue + ";--cell-alpha:" + fmt.alpha + '"';
+    }
+    return (
+      '<span class="' + classes.join(" ") + '"' + extra + ">" + escapeHtml(text) + "</span>"
+    );
+  }
+
+  function fillChartHoverTable(hoverEl, dates, seriesMap, index) {
+    if (!hoverEl) return;
+    const n = (dates || []).length;
+    if (!n) {
+      hoverEl.innerHTML = "";
+      return;
+    }
+    const idx = Math.max(0, Math.min(n - 1, index));
+    const series = seriesDisplayMeta();
+    const colCount = 1 + series.length;
+    const head = ['<span class="chart-hover-date chart-hover-head"></span>'];
+    series.forEach((s) => {
+      head.push(
+        '<span class="chart-hover-cell chart-hover-head">' + escapeHtml(s.label) + "</span>"
+      );
+    });
+    const values = [
+      '<span class="chart-hover-date">' + escapeHtml(dates[idx] || "") + "</span>",
+    ];
+    series.forEach((s) => {
+      const raw = (seriesMap[s.id] || [])[idx];
+      const text = raw == null || Number.isNaN(Number(raw)) ? "null" : fmtSigned1(raw);
+      values.push(chartHoverCellHtml(s.label, text, raw));
+    });
+    hoverEl.innerHTML =
+      '<div class="chart-hover-table" style="--chart-hover-cols:' +
+      colCount +
+      '">' +
+      head.join("") +
+      values.join("") +
+      "</div>";
+  }
+
+  function setChartHoverIndex(canvas, dates, seriesMap, hoverEl, index) {
+    if (!canvas) return;
+    const idx = Math.max(0, Math.min(latestChartIndex(dates), index));
+    const prev = canvas._hoverIndex;
+    canvas._hoverIndex = idx;
+    fillChartHoverTable(hoverEl, dates, seriesMap, idx);
+    if (prev !== idx) {
+      drawChart(canvas, dates, seriesMap, hoverEl, canvas._chartYShift || 0);
+    }
+  }
+
   function updateChartHover(canvas, dates, seriesMap, hoverEl, clientX) {
     const geom = canvas._chartGeom;
     if (!geom || !hoverEl) return;
@@ -1467,18 +2676,7 @@
       const d = Math.abs(geom.xAt(i) - x);
       if (d < bestDist) { bestDist = d; best = i; }
     }
-    const parts = [dates[best]];
-    SERIES_META.forEach((s) => {
-      const raw = (seriesMap[s.id] || [])[best];
-      if (raw == null || Number.isNaN(Number(raw))) {
-        parts.push(s.label + "=null");
-      } else if (s.id === "z_disp") {
-        parts.push(s.label + "=" + fmtSigned1(raw) + " (disp=" + fmtSigned1(Number(raw) / 5) + ")");
-      } else {
-        parts.push(s.label + "=" + fmtSigned1(raw));
-      }
-    });
-    hoverEl.textContent = parts.join(" | ");
+    setChartHoverIndex(canvas, dates, seriesMap, hoverEl, best);
   }
 
   function bindChartPan(canvas, dates, seriesMap, hoverEl) {
@@ -1504,6 +2702,9 @@
       canvas.classList.remove("is-panning");
       // Release -> snap back to 0-centered default view.
       redraw(0);
+      if (!canvas.matches(":hover")) {
+        setChartHoverIndex(canvas, dates, seriesMap, hoverEl, latestChartIndex(dates));
+      }
     };
 
     canvas.addEventListener("pointerdown", (ev) => {
@@ -1547,6 +2748,10 @@
       if (canvas._chartPan) return;
       updateChartHover(canvas, dates, seriesMap, hoverEl, ev.clientX);
     });
+    canvas.addEventListener("pointerleave", () => {
+      if (canvas._chartPan) return;
+      setChartHoverIndex(canvas, dates, seriesMap, hoverEl, latestChartIndex(dates));
+    });
   }
 
 
@@ -1576,6 +2781,14 @@
     if (card) card.scrollIntoView({ block: "nearest", inline: "nearest" });
   }
 
+  function applyChartCardChrome(shell, selected, hovered) {
+    if (!shell) return;
+    shell.classList.toggle("is-selected", !!selected);
+    shell.classList.toggle("is-hover", !!hovered);
+    const appearance = selected ? "accent" : hovered ? "filled-outlined" : "outlined";
+    if (shell.appearance !== appearance) shell.appearance = appearance;
+  }
+
   function syncHighlightClasses() {
     const sel = state.selected;
     const hov = state.hovered;
@@ -1586,8 +2799,11 @@
     });
     document.querySelectorAll("#chart-host .chart-card[data-code]").forEach((card) => {
       const c = card.dataset.code;
-      card.classList.toggle("selected", !!sel && c === sel);
-      card.classList.toggle("is-hover", !!hov && c === hov && c !== sel);
+      const selected = !!sel && c === sel;
+      const hovered = !!hov && c === hov && c !== sel;
+      card.classList.toggle("selected", selected);
+      card.classList.toggle("is-hover", hovered);
+      applyChartCardChrome(card.querySelector("wa-card"), selected, hovered);
     });
   }
 
@@ -1599,13 +2815,22 @@
     if (changed) syncHighlightClasses();
     if (!next) return;
     // Keep counterpart in view while hovering (nearest = no-op if already visible).
-    if (opts.from === "table") scrollChartCardIntoView(next);
-    else if (opts.from === "chart") scrollTableRowIntoView(next);
+    if (opts.from === "table") {
+      if (!state.selected) scrollChartCardIntoView(next);
+    } else if (opts.from === "chart") {
+      scrollTableRowIntoView(next);
+    }
   }
 
   function selectCode(code, opts) {
     opts = opts || {};
     const next = code ? String(code).padStart(4, "0") : null;
+    if (opts.toggle && next && state.selected === next) {
+      state.selected = null;
+      syncHighlightClasses();
+      showWebEmpty();
+      return;
+    }
     const row = findRowByCode(next);
     state.selected = next;
     if (next) state.hovered = next;
@@ -1619,6 +2844,7 @@
   function syncChartsFromTable(rows) {
     const list = rows || displayRows();
     const codes = list.map((r) => String(r.code).padStart(4, "0"));
+    if (sameCodeList(state.visibleChartCodes, codes)) return;
     state.visibleChartCodes = codes;
     refreshCharts(codes);
   }
@@ -1633,8 +2859,8 @@
     let canvas = card.querySelector("canvas");
     if (!canvas) {
       canvas = document.createElement("canvas");
-      const slot = card.querySelector(".chart-slot");
-      if (slot) slot.replaceWith(canvas);
+      const slot = card.querySelector(".chart-slot, [data-chart-canvas]");
+      if (slot) slot.replaceChildren(canvas);
       else card.appendChild(canvas);
     }
     const metrics = state.seriesCache[code];
@@ -1650,16 +2876,66 @@
       rs_sma75: values["rs_sma75_" + b] || [],
       z_disp: values.z_turnover_60 || [],
     };
-    const hoverEl = card.querySelector(".hover");
+    const hoverEl = card.querySelector(".hover, [data-chart-hover]");
+    canvas._hoverIndex = latestChartIndex(dates);
+    fillChartHoverTable(hoverEl, dates, seriesMap, canvas._hoverIndex);
     drawChart(canvas, dates, seriesMap, hoverEl, 0);
     bindChartPan(canvas, dates, seriesMap, hoverEl);
     card.dataset.drawn = "1";
   }
 
+  function makeChartCard(code) {
+    const row = findRowByCode(code) || {};
+    const ui = chrome();
+    const card = document.createElement("div");
+    card.className = "chart-card";
+    card.dataset.code = code;
+    const selected = state.selected === code;
+    const hovered = state.hovered === code && !selected;
+    if (selected) card.classList.add("selected");
+    if (hovered) card.classList.add("is-hover");
+    const shell = ui && ui.chartCard ? ui.chartCard() : null;
+    if (shell) {
+      const heading = shell.querySelector("[data-chart-title]");
+      if (heading) heading.textContent = code + " " + (row.name || "");
+      applyChartCardChrome(shell, selected, hovered);
+      card.appendChild(shell);
+    } else {
+      card.innerHTML =
+        "<h4>" + escapeHtml(code) + " " + escapeHtml(row.name || "") + "</h4>" +
+        "<div class=\"hover\"></div>" +
+        "<div class=\"chart-slot\" aria-hidden=\"true\"></div>";
+    }
+    card.addEventListener("mouseenter", () => setHoveredCode(code, { from: "chart" }));
+    card.addEventListener("mouseleave", () => {
+      if (state.hovered === code) setHoveredCode(null);
+    });
+    card.addEventListener("click", (ev) => {
+      const canvas = card.querySelector("canvas");
+      if (canvas && canvas._suppressClick) {
+        canvas._suppressClick = false;
+        ev.preventDefault();
+        ev.stopPropagation();
+        return;
+      }
+      selectCode(code, { scrollTable: true, toggle: true });
+    });
+    return card;
+  }
+
+  function ensureChartObserver(host) {
+    if (state.chartObserver) return state.chartObserver;
+    state.chartObserver = new IntersectionObserver((entries) => {
+      entries.forEach((en) => {
+        if (en.isIntersecting) paintChartCard(en.target);
+      });
+    }, { root: host, rootMargin: "160px 0px", threshold: 0.01 });
+    return state.chartObserver;
+  }
+
   function refreshCharts(codes) {
     const host = $("chart-host");
     if (!host) return;
-    // Preserve table order exactly (codes already ordered). Dedupe while keeping first index.
     const seen = new Set();
     const ordered = [];
     (codes || []).forEach((c) => {
@@ -1669,55 +2945,35 @@
       ordered.push(code);
     });
 
-    state.chartBuildId = (state.chartBuildId || 0) + 1;
-    if (state.chartObserver) {
-      state.chartObserver.disconnect();
-      state.chartObserver = null;
-    }
-
     const prevScroll = host.scrollTop;
-    host.innerHTML = "";
+    const existing = new Map();
+    host.querySelectorAll(".chart-card[data-code]").forEach((card) => {
+      existing.set(card.dataset.code, card);
+    });
+    const observer = ensureChartObserver(host);
+    const keep = new Set(ordered);
+    existing.forEach((card, code) => {
+      if (keep.has(code)) return;
+      observer.unobserve(card);
+      card.remove();
+    });
     const frag = document.createDocumentFragment();
-    const cards = [];
     ordered.forEach((code) => {
-      const row = findRowByCode(code) || {};
-      const card = document.createElement("div");
-      card.className = "chart-card";
-      card.dataset.code = code;
-      if (state.selected === code) card.classList.add("selected");
-      if (state.hovered === code && state.selected !== code) card.classList.add("is-hover");
-      card.innerHTML =
-        "<h4>" + escapeHtml(code) + " " + escapeHtml(row.name || "") + "</h4>" +
-        "<div class=\"hover\"></div>" +
-        "<div class=\"chart-slot\" aria-hidden=\"true\"></div>";
-      card.addEventListener("mouseenter", () => setHoveredCode(code, { from: "chart" }));
-      card.addEventListener("mouseleave", () => {
-        if (state.hovered === code) setHoveredCode(null);
-      });
-      card.addEventListener("click", (ev) => {
-        const canvas = card.querySelector("canvas");
-        if (canvas && canvas._suppressClick) {
-          canvas._suppressClick = false;
-          ev.preventDefault();
-          ev.stopPropagation();
-          return;
-        }
-        selectCode(code, { scrollTable: true });
-      });
+      let card = existing.get(code);
+      if (!card) {
+        card = makeChartCard(code);
+        observer.observe(card);
+      } else {
+        const selected = state.selected === code;
+        const hovered = state.hovered === code && !selected;
+        card.classList.toggle("selected", selected);
+        card.classList.toggle("is-hover", hovered);
+        applyChartCardChrome(card.querySelector("wa-card"), selected, hovered);
+      }
       frag.appendChild(card);
-      cards.push(card);
     });
     host.appendChild(frag);
 
-    state.chartObserver = new IntersectionObserver((entries) => {
-      entries.forEach((en) => {
-        if (en.isIntersecting) paintChartCard(en.target);
-      });
-    }, { root: host, rootMargin: "160px 0px", threshold: 0.01 });
-
-    cards.forEach((card) => state.chartObserver.observe(card));
-
-    // Restore scroll if list length similar; otherwise keep top / focus selection.
     host.scrollTop = prevScroll;
     if (state.selected) scrollChartCardIntoView(state.selected);
     else if (state.hovered) scrollChartCardIntoView(state.hovered);
@@ -1778,19 +3034,28 @@
     const panel = $("tab-settings-panel");
     if (!panel) return;
     panel.innerHTML = "";
+    const ui = chrome();
     TAB_SETTINGS_META.forEach((meta) => {
-      const lab = document.createElement("label");
-      const cb = document.createElement("input");
-      cb.type = "checkbox";
-      cb.checked = !!state.tabSettings[meta.key];
-      cb.addEventListener("change", () => {
-        state.tabSettings[meta.key] = cb.checked;
+      const onToggle = (isOn) => {
+        state.tabSettings[meta.key] = !!isOn;
         saveTabSettings();
         const row = state.rows.find((r) => String(r.code).padStart(4, "0") === state.selected) || null;
         renderKabutanTabBar(row);
         if (row) applyKabutanUrl(row, state.kabutanMode);
         else showWebEmpty();
-      });
+      };
+      if (ui && ui.checkbox) {
+        const cb = ui.checkbox(meta.label, !!state.tabSettings[meta.key], false);
+        if (ui.onCheck) ui.onCheck(cb, onToggle);
+        else cb.addEventListener("change", () => onToggle(!!cb.checked));
+        panel.appendChild(cb);
+        return;
+      }
+      const lab = document.createElement("label");
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = !!state.tabSettings[meta.key];
+      cb.addEventListener("change", () => onToggle(!!cb.checked));
       lab.appendChild(cb);
       lab.appendChild(document.createTextNode(" " + meta.label));
       panel.appendChild(lab);
@@ -1834,61 +3099,92 @@
     const main = $("kabutan-tabs-main");
     if (!main) return;
     if (!state.tabSettings) loadTabSettings();
-    main.innerHTML = "";
+    const ui = chrome();
+    const children = [];
+    let panelIndex = 0;
+    let unknownNote = "";
+
+    function addTab(id, label, opts) {
+      const options = opts || {};
+      const panel = "kabutan-panel-" + panelIndex;
+      panelIndex += 1;
+      const active = state.kabutanMode === id;
+      if (ui && ui.tab) {
+        const t = ui.tab({
+          panel,
+          label,
+          title: options.title,
+          disabled: options.disabled,
+          active,
+          candidate: options.candidate,
+        });
+        t.dataset.kab = id;
+        if (options.cand) t.dataset.cand = options.cand;
+        children.push(t);
+        if (ui.tabPanel) children.push(ui.tabPanel(panel, active));
+        return;
+      }
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.dataset.kab = id;
+      btn.textContent = label;
+      if (options.disabled) btn.disabled = true;
+      if (options.title) btn.title = options.title;
+      if (options.cand) btn.dataset.cand = options.cand;
+      if (options.candidate) btn.classList.add("is-candidate");
+      children.push(btn);
+    }
 
     const baseLabels = { overview: "\u6982\u8981", chart: "\u30c1\u30e3\u30fc\u30c8", news: "\u30cb\u30e5\u30fc\u30b9" };
     ["overview", "chart", "news"].forEach((id) => {
       if (!state.tabSettings[id]) return;
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.dataset.kab = id;
-      btn.textContent = baseLabels[id];
-      main.appendChild(btn);
+      addTab(id, baseLabels[id]);
     });
 
     ["link_buffett", "link_minkabu", "link_yahoo"].forEach((id) => {
       if (!state.tabSettings[id]) return;
       const meta = TAB_SETTINGS_META.find((x) => x.key === id);
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.dataset.kab = id;
-      btn.textContent = meta ? meta.label : id;
-      if (row && !row[id]) {
-        btn.disabled = true;
-        btn.title = "URL\u306a\u3057";
-      }
-      main.appendChild(btn);
+      addTab(id, meta ? meta.label : id, {
+        disabled: !!(row && !row[id]),
+        title: row && !row[id] ? "URL\u306a\u3057" : "",
+      });
     });
 
     if (state.tabSettings.news_candidates && row) {
       if (isUnknownMaterialRow(row)) {
-        const span = document.createElement("span");
-        span.className = "kabutan-unknown-material";
-        span.textContent = UNKNOWN_MATERIAL_TEXT;
-        main.appendChild(span);
+        unknownNote = UNKNOWN_MATERIAL_TEXT;
       } else {
         const items = eventNewsItems(row).filter((it) => it.title !== UNKNOWN_MATERIAL_TEXT);
         items.forEach((it) => {
-          const btn = document.createElement("button");
-          btn.type = "button";
-          btn.dataset.cand = String(it.n);
-          btn.dataset.kab = "cand:" + it.n;
-          btn.textContent = tabLabel10(it.title);
-          btn.title = it.title + (it.url ? ("\n" + it.url) : "");
-          btn.addEventListener("click", (ev) => {
-            ev.preventDefault();
-            ev.stopPropagation();
-            state.kabutanMode = "cand:" + it.n;
-            setKabutanActive(state.kabutanMode);
-            applyKabutanUrl(row, state.kabutanMode);
+          addTab("cand:" + it.n, tabLabel10(it.title), {
+            title: it.title + (it.url ? ("\n" + it.url) : ""),
+            cand: String(it.n),
+            candidate: true,
           });
-          main.appendChild(btn);
         });
       }
     }
 
+    main.dataset.syncing = "true";
+    main.replaceChildren(...children);
+    const noteClass = "surface-tab-note";
+    const tabsBar = main.parentElement;
+    if (tabsBar) {
+      tabsBar.querySelectorAll("." + noteClass + ", .kabutan-unknown-material").forEach((el) => el.remove());
+      if (unknownNote) {
+        const span = document.createElement("span");
+        span.className = noteClass + " kabutan-unknown-material";
+        span.textContent = unknownNote;
+        main.insertAdjacentElement("afterend", span);
+      }
+    }
     ensureValidKabutanMode(row);
     setKabutanActive(state.kabutanMode);
+    Promise.resolve(main.updateComplete).then(() => {
+      requestAnimationFrame(() => {
+        delete main.dataset.syncing;
+      });
+    });
   }
 
   function isLikelyUnframeable(url) {
@@ -1983,9 +3279,20 @@
   function setKabutanActive(mode) {
     const host = $("kabutan-tabs-main") || document.querySelector(".kabutan-tabs");
     if (!host) return;
+    let activePanel = "";
     host.querySelectorAll("[data-kab]").forEach((b) => {
-      b.classList.toggle("active", b.dataset.kab === mode);
+      const on = b.dataset.kab === mode;
+      b.classList.toggle("active", on);
+      if (b.tagName === "WA-TAB") {
+        if (on) {
+          b.setAttribute("active", "");
+          activePanel = b.getAttribute("panel") || "";
+        } else {
+          b.removeAttribute("active");
+        }
+      }
     });
+    if (activePanel) host.setAttribute("active", activePanel);
   }
 
   function applyKabutanUrl(row, mode) {
@@ -2046,6 +3353,12 @@
 
   function fillAsOfSelect() {
     const sel = $("asof-mode");
+    const ui = chrome();
+    const items = (state.availableDates || []).map((d) => ({ value: d, text: d }));
+    if (ui && ui.fillSelect) {
+      ui.fillSelect(sel, items, state.asOf);
+      return;
+    }
     sel.innerHTML = "";
     state.availableDates.forEach((d) => {
       const opt = document.createElement("option");
@@ -2068,11 +3381,16 @@
       " | 内部向け初回ライブ。投資助言ではありません。";
   }
 
+  function priceTextAvailable() {
+    return state.allKeys.includes("price_text") || state.allKeys.includes("candle_labels");
+  }
+
   function computeDefaultVisibleKeys() {
     return XLSX_DEFAULT.map((c) => c.key).filter((k) => {
       if (k === "date" || HIDDEN_COL_KEYS.has(k)) return false;
       if (LINK_KEYS_OPTIONAL.has(k)) return false;
       if (k === "favorite") return true;
+      if (k === "price_text") return priceTextAvailable();
       if (k === "event_news_bundle") {
         return (
           state.allKeys.includes("event_news_bundle") ||
@@ -2091,7 +3409,26 @@
 
   function keyAvailable(k) {
     if (k === "favorite") return true;
+    if (k === "price_text") return priceTextAvailable();
     return state.allKeys.includes(k) || state.allKeys.includes(mapKey(k));
+  }
+
+  function orderVisibleKeys(keys, defaults) {
+    const have = new Set(keys);
+    const ordered = [];
+    (defaults || []).forEach((k) => {
+      if (have.has(k)) {
+        ordered.push(k);
+        have.delete(k);
+      }
+    });
+    keys.forEach((k) => {
+      if (have.has(k)) {
+        ordered.push(k);
+        have.delete(k);
+      }
+    });
+    return ordered;
   }
 
   function reconcileVisibleKeys(defaults) {
@@ -2109,7 +3446,7 @@
         const newly = defaults.filter(
           (k) => !snapshot.includes(k) && !kept.includes(k) && keyAvailable(k)
         );
-        state.visibleKeys = [...new Set([...kept, ...newly])];
+        state.visibleKeys = orderVisibleKeys([...kept, ...newly], defaults);
       }
       state.visibleKeysReady = true;
     } else {
@@ -2117,18 +3454,23 @@
       const add = defaults.filter(
         (k) => newlyInBundle.has(k) && !kept.includes(k) && keyAvailable(k)
       );
-      state.visibleKeys = [...new Set([...kept, ...add])];
+      state.visibleKeys = orderVisibleKeys([...kept, ...add], defaults);
     }
     state.prevAllKeys = state.allKeys.slice();
     state.prefsDefaultKeysSnapshot = defaults.slice();
   }
 
   async function loadSnapshot(asOf) {
+    bootProgress("データを読み込んでいます", 0.58);
     state.asOf = asOf;
     state.seriesCache = {};
     state.visibleChartCodes = [];
     state.selected = null;
     state.hovered = null;
+    if (state.chartObserver) {
+      state.chartObserver.disconnect();
+      state.chartObserver = null;
+    }
     $("chart-host").innerHTML = "";
     showWebEmpty();
     state.kabutanMode = "overview";
@@ -2150,13 +3492,18 @@
     ensureColDefs();
     reconcileVisibleKeys(computeDefaultVisibleKeys());
 
+    bootProgress("画面を描画しています", 0.96);
     updateBanner();
     fillAsOfSelect();
     renderColsPanel();
     renderTable();
+    const app = $("app-root");
+    if (app) app.hidden = false;
+    hideBootProgress();
   }
 
   async function boot() {
+    bootProgress("日付一覧を取得しています", 0.42);
     const datesPayload = await bffFetch("/v1/dates");
     state.availableDates = datesPayload.dates || [];
     state.asOf = datesPayload.default || (state.availableDates[0] || null);
@@ -2166,22 +3513,32 @@
       return;
     }
 
-    $("asof-mode").addEventListener("change", (e) => {
-      loadSnapshot(e.target.value).catch((err) => {
+    const uiBoot = chrome();
+    const onAsof = (value) => {
+      loadSnapshot(value).catch((err) => {
+        hideBootProgress();
         $("asof-banner").textContent = "as-of switch failed: " + err;
       });
-    });
-    $("bench-mode").addEventListener("change", (e) => {
-      state.bench = e.target.value;
+    };
+    const onBench = (value) => {
+      state.bench = value;
       schedulePrefsSave();
       loadSnapshot(state.asOf).catch((err) => {
         showT5(err && err.t5 ? err.t5 : "temporary");
       });
-    });
+    };
+    if (uiBoot && uiBoot.onSelectChange) {
+      uiBoot.onSelectChange($("asof-mode"), onAsof);
+      uiBoot.onSelectChange($("bench-mode"), onBench);
+    } else {
+      $("asof-mode").addEventListener("change", (e) => onAsof(e.target.value));
+      $("bench-mode").addEventListener("change", (e) => onBench(e.target.value));
+    }
     const ctx = liveCtx();
     state.userId = (ctx && ctx.uid) || "operator";
     state.freePreview = false;
     try {
+      bootProgress("表示設定を読み込んでいます", 0.52);
       const prefs = await bffFetch("/v1/preferences");
       await applyPrefsBag(prefs.bag || {});
     } catch (err) {
@@ -2198,6 +3555,63 @@
     }
     setFavoritesUiEnabled(!state.freePreview);
     syncFilterModalUi();
+    bindAccountMenu();
+    bindConfirmDialog();
+    bindHalfWidthCodeInput($("fav-list-add-code"));
+    const favAdd = $("fav-list-add");
+    if (favAdd) {
+      favAdd.addEventListener("click", () => {
+        const nameEl = $("fav-list-new-name");
+        const created = createFavList(nameEl ? nameEl.value : "");
+        if (created && nameEl) nameEl.value = "";
+        if (created) {
+          state.favModalListId = created.id;
+          renderFavListsModal();
+        }
+      });
+    }
+    const favRename = $("fav-list-rename");
+    if (favRename) {
+      favRename.addEventListener("change", () => commitFavListRename());
+      favRename.addEventListener("wa-change", () => commitFavListRename());
+      favRename.addEventListener("wa-blur", () => commitFavListRename());
+      favRename.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter") {
+          ev.preventDefault();
+          commitFavListRename();
+          favRename.blur();
+        }
+      });
+    }
+    const favDelete = $("fav-list-delete");
+    if (favDelete) {
+      favDelete.addEventListener("click", () => {
+        const list = findFavList(state.favModalListId);
+        if (!list || state.favLists.length <= 1) return;
+        confirmDestructive("「" + list.name + "」を削除しますか？", () => deleteFavList(list.id));
+      });
+    }
+    const favCodeForm = $("fav-lists-add-code-form");
+    if (favCodeForm) {
+      favCodeForm.addEventListener("submit", (ev) => {
+        ev.preventDefault();
+        const input = $("fav-list-add-code");
+        const btn = $("fav-list-add-code-btn");
+        if ((input && input.disabled) || (btn && btn.disabled)) return;
+        const ok = addCodeToFavList(state.favModalListId, input ? input.value : "");
+        if (ok && input) input.value = "";
+      });
+    }
+    const favClose = $("fav-lists-close");
+    const favDone = $("fav-lists-done");
+    const favModal = $("fav-lists-modal");
+    if (favClose) favClose.addEventListener("click", () => closeFavListsModal());
+    if (favDone) favDone.addEventListener("click", () => closeFavListsModal());
+    if (favModal) {
+      favModal.addEventListener("click", (ev) => {
+        if (ev.target && ev.target.getAttribute("data-fav-lists-close") === "1") closeFavListsModal();
+      });
+    }
     $("cols-toggle").addEventListener("click", () => openColsModal());
     $("cols-modal-close").addEventListener("click", () => closeColsModal());
     $("cols-modal-done").addEventListener("click", () => closeColsModal());
@@ -2218,37 +3632,63 @@
     $("filter-modal").addEventListener("click", (ev) => {
       if (ev.target && ev.target.getAttribute("data-filter-close") === "1") closeFilterModal();
     });
-    $("filter-exclude-all-rs-neg").addEventListener("change", (e) => {
+    const excludeCb = $("filter-exclude-all-rs-neg");
+    const onExclude = (checked) => {
       if (state.freePreview) {
-        e.target.checked = false;
+        excludeCb.checked = false;
         state.excludeAllRsNeg = false;
         syncFilterModalUi();
         return;
       }
-      state.excludeAllRsNeg = e.target.checked;
+      state.excludeAllRsNeg = !!checked;
       schedulePrefsSave();
-      state.visibleChartCodes = [];
-      $("chart-host").innerHTML = "";
-      renderTable();
-    });
+      requestViewRefresh();
+    };
+    if (uiBoot && uiBoot.onCheck) uiBoot.onCheck(excludeCb, onExclude);
+    else excludeCb.addEventListener("change", (e) => onExclude(e.target.checked));
     document.addEventListener("keydown", (ev) => {
       if (ev.key !== "Escape") return;
+      if ($("confirm-dialog") && $("confirm-dialog").open) return;
+      if ($("fav-lists-modal") && !$("fav-lists-modal").classList.contains("hidden")) closeFavListsModal();
       if (!$("cols-modal").classList.contains("hidden")) closeColsModal();
       if (!$("filter-modal").classList.contains("hidden")) closeFilterModal();
       if (!$("tab-settings-modal").classList.contains("hidden")) closeTabSettingsModal();
       closeFilterMenu();
+      closeAccountMenu();
+      closeFavFlyout();
     });
-    document.addEventListener("click", () => closeFilterMenu());
-    $("kabutan-tabs-main").addEventListener("click", (ev) => {
-      const btn = ev.target.closest("[data-kab]");
-      if (!btn || !ev.currentTarget.contains(btn)) return;
-      if (btn.hasAttribute("data-cand")) return;
-      if (btn.disabled) return;
-      ev.preventDefault();
-      state.kabutanMode = btn.dataset.kab;
+    document.addEventListener("click", (ev) => {
+      const t = ev.target;
+      if (t && t.closest && t.closest(".col-filter-menu, .fav-filter-anchor, .fav-flyout, .account-menu, .th-filter-btn, [data-surface-header], wa-dropdown")) {
+        return;
+      }
+      closeFilterMenu();
+      closeAccountMenu();
+      closeFavFlyout();
+    });
+    const tabHost = $("kabutan-tabs-main");
+    function applyKabutanFromTab(tab) {
+      if (!tab || tab.disabled) return;
+      const mode = tab.dataset.kab;
+      if (!mode) return;
+      state.kabutanMode = mode;
       setKabutanActive(state.kabutanMode);
       const row = state.rows.find((r) => String(r.code).padStart(4, "0") === state.selected);
       if (row) applyKabutanUrl(row, state.kabutanMode);
+    }
+    tabHost.addEventListener("wa-tab-show", (ev) => {
+      if (tabHost.dataset.syncing === "true") return;
+      const name = ev.detail && ev.detail.name;
+      const tab = [...tabHost.querySelectorAll("wa-tab")].find((el) => el.getAttribute("panel") === name);
+      applyKabutanFromTab(tab);
+    });
+    tabHost.addEventListener("click", (ev) => {
+      const btn = ev.target.closest("[data-kab]");
+      if (!btn || !tabHost.contains(btn)) return;
+      if (btn.tagName === "WA-TAB") return;
+      if (btn.disabled) return;
+      ev.preventDefault();
+      applyKabutanFromTab(btn);
     });
 
     ensureColDefs();

@@ -283,7 +283,9 @@ Track B の `EntitlementProofPort` は内部 fixture で live 確認しただけ
 
 - `schema_version`（整数。未知の新バージョンはクライアントが読めるキーだけ使い、未知キーは **round-trip で保持**）
 - `bag`（JSON）。名前空間を足すだけで項目を増やせる。初回の名前空間例:
-  - `favorites.codes` — 銘柄コード配列
+  - `favorites.lists` — 名前付きリスト配列（id / name / hue / codes）。最大 12。SSOT
+  - `favorites.codes` — 全リストの和集合（旧クライアント互換。新クライアントは lists から再計算）
+  - `favorites.filter_ids` — 列ヘッダで選んだリスト id（和集合フィルタ）
   - `table.visible_keys` / `table.sort` / `table.col_filters` / `table.fav_only` / `table.exclude_all_rs_neg`
   - `tabs.settings` — WEB タブの出し隠し
   - `ui.bench` — TOPIX / 日経

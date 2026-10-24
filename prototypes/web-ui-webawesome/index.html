@@ -1,0 +1,204 @@
+<!-- Generated from workers/web-ui-static/assets/index.html. Do not hand-edit. -->
+<!DOCTYPE html>
+<html lang="ja" class="wa-dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Stock Radar (internal)</title>
+  <script type="module" src="/src/theme.js"></script>
+  <link rel="stylesheet" href="/chrome.css" />
+  <script src="/chrome.js"></script>
+  <style>
+    .t5-overlay { padding: 0.8rem 1rem; }
+    .t5-login { color: #d7e4f5; }
+    .t5-unavailable { color: #ffb4b4; }
+    .t5-temporary { color: #ffd089; }
+    .hidden { display: none !important; }
+    #boot-progress {
+      position: fixed; inset: 0; z-index: 900;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--bg, #0f1419); color: var(--fg, #e8eef4);
+    }
+    #boot-progress[hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <div id="boot-progress" role="status" aria-live="polite" aria-busy="true">
+    <wa-card class="boot-progress-card">
+      <div slot="header" id="boot-progress-label">読み込み中…</div>
+      <wa-progress-bar id="boot-progress-bar" class="boot-progress-bar"></wa-progress-bar>
+    </wa-card>
+  </div>
+  <div id="t5-overlay" class="t5-overlay t5-login" hidden></div>
+  <div id="login-shell" hidden>
+    <wa-card>
+      <div slot="header" class="banner-title">内部向けの初回ライブです。投資助言ではありません。</div>
+      <h1>Stock Radar</h1>
+      <p id="t5-login">ログインしてください</p>
+      <p id="t5-unavailable" hidden>利用できません</p>
+      <p id="t5-temporary" hidden>一時的に利用できません</p>
+      <form id="form">
+        <label for="email">メール</label>
+        <wa-input id="email" name="email" type="email" size="m" autocomplete="username" required></wa-input>
+        <wa-button type="submit" id="send" size="m" variant="brand" appearance="accent">Magic link を送る</wa-button>
+      </form>
+      <p class="msg" id="msg"></p>
+    </wa-card>
+  </div>
+  <div id="app-root" hidden>
+  <header class="banner">
+    <div class="banner-main">
+      <div class="banner-title">内部向け初回ライブ / 投資助言ではありません / live_gate_5d は開いたまま</div>
+      <div id="asof-banner">loading…</div>
+    </div>
+  </header>
+  <section class="toolbar">
+    <label>日付
+      <wa-select id="asof-mode" size="xs"></wa-select>
+    </label>
+    <label>ベンチ
+      <wa-select id="bench-mode" size="xs">
+        <wa-option value="topix">TOPIX</wa-option>
+        <wa-option value="nikkei">日経</wa-option>
+      </wa-select>
+    </label>
+    <wa-button type="button" id="filter-toggle" size="xs" appearance="filled-outlined" variant="neutral">特殊フィルタ</wa-button>
+    <wa-button type="button" id="cols-toggle" size="xs" appearance="filled-outlined" variant="neutral">列の出し隠し</wa-button>
+    <span id="row-count" class="muted"></span>
+    <div class="account-menu" id="account-menu">
+      <wa-dropdown id="account-dropdown" placement="bottom-end" distance="4" size="s">
+        <wa-button slot="trigger" type="button" id="account-toggle" size="xs" appearance="filled-outlined" variant="neutral" aria-label="アカウント設定" title="アカウント設定">
+          <svg class="account-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <path fill="currentColor" d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-4.42 0-8 2.14-8 4.78V20h16v-1.22C20 16.14 16.42 14 12 14z"/>
+          </svg>
+        </wa-button>
+        <wa-dropdown-item id="account-fav-lists" value="lists">お気入りリスト</wa-dropdown-item>
+        <wa-dropdown-item id="account-logout" value="logout" variant="danger">ログアウト</wa-dropdown-item>
+      </wa-dropdown>
+    </div>
+  </section>
+  <div class="workspace" id="workspace">
+  <div id="view-busy" class="view-busy" hidden role="status" aria-live="polite">
+    <div class="view-busy-bar" aria-hidden="true"></div>
+    <span class="view-busy-label">表示を更新しています</span>
+  </div>
+  <main class="layout">
+    <div class="main-left" id="main-left">
+      <div class="table-wrap" id="table-wrap">
+        <table id="grid"><thead></thead><tbody></tbody></table>
+      </div>
+      <div class="v-split" id="kabutan-split" role="separator" aria-orientation="horizontal" title="ドラッグで高さ変更"></div>
+      <div class="kabutan" id="kabutan-pane">
+        <div class="kabutan-tabs" id="kabutan-tabs">
+          <wa-tab-group id="kabutan-tabs-main"></wa-tab-group>
+          <wa-button type="button" id="tab-settings-toggle" class="tab-settings-btn" size="xs" appearance="filled-outlined" variant="neutral" title="タブ表示設定">表示設定</wa-button>
+        </div>
+        <div class="kabutan-stage" id="kabutan-stage">
+          <iframe id="kabutan-frame" title="web-preview" sandbox="allow-scripts allow-same-origin allow-popups" class="is-empty"></iframe>
+          <wa-button id="kabutan-blank" class="kabutan-open-tab hidden" href="#" target="_blank" rel="noopener" size="xs">別タブで開く</wa-button>
+          <div id="kabutan-empty" class="kabutan-overlay">
+            <p class="kabutan-overlay-title">銘柄が選択されていません</p>
+            <p class="kabutan-overlay-body">左の表から銘柄行を選択すると、ここに関連ページを表示します。</p>
+          </div>
+          <div id="kabutan-blocked" class="kabutan-overlay hidden">
+            <p class="kabutan-overlay-title">このページは埋め込み表示できません</p>
+            <p id="kabutan-blocked-reason" class="kabutan-overlay-body"></p>
+            <wa-button id="kabutan-blocked-open" class="kabutan-blocked-btn" href="#" target="_blank" rel="noopener" size="xs">別タブで開く</wa-button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <aside class="side">
+      <div class="chart-legend" id="chart-legend"></div>
+      <div id="chart-host"></div>
+    </aside>
+  </main>
+  </div>
+  <div id="filter-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" data-filter-close="1"></div>
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="filter-modal-title">
+      <div class="modal-header">
+        <h2 id="filter-modal-title">特殊フィルタ</h2>
+        <wa-button type="button" id="filter-modal-close" class="modal-close" appearance="plain" size="xs" aria-label="close">×</wa-button>
+      </div>
+      <div class="modal-body filter-modal-body">
+        <p id="filter-modal-note" class="muted filter-modal-note"></p>
+        <wa-checkbox id="filter-exclude-all-rs-neg" class="filter-switch">RS系が全てマイナスの銘柄を除外（RS31/63/126/252/SMA75）</wa-checkbox>
+      </div>
+      <div class="modal-footer">
+        <wa-button type="button" id="filter-modal-done" size="xs" appearance="filled-outlined">閉じる</wa-button>
+      </div>
+    </div>
+  </div>
+  <div id="tab-settings-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" data-tab-settings-close="1"></div>
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="tab-settings-title">
+      <div class="modal-header">
+        <h2 id="tab-settings-title">タブ表示設定</h2>
+        <wa-button type="button" id="tab-settings-close" class="modal-close" appearance="plain" size="xs" aria-label="close">×</wa-button>
+      </div>
+      <div id="tab-settings-panel" class="modal-body"></div>
+      <div class="modal-footer">
+        <wa-button type="button" id="tab-settings-done" size="xs" appearance="filled-outlined">閉じる</wa-button>
+      </div>
+    </div>
+  </div>
+  <div id="fav-lists-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" data-fav-lists-close="1"></div>
+    <div class="modal-dialog fav-lists-dialog" role="dialog" aria-modal="true" aria-labelledby="fav-lists-title">
+      <div class="modal-header">
+        <h2 id="fav-lists-title">お気入りリスト</h2>
+        <wa-button type="button" id="fav-lists-close" class="modal-close" appearance="plain" size="xs" aria-label="close">×</wa-button>
+      </div>
+      <div class="modal-body fav-lists-body">
+        <div class="fav-lists-nav">
+          <div id="fav-lists-nav"></div>
+          <div class="fav-lists-nav-actions">
+            <input id="fav-list-new-name" type="text" maxlength="20" placeholder="新しいリスト名" />
+            <wa-button type="button" id="fav-list-add" size="xs" appearance="filled-outlined">追加</wa-button>
+          </div>
+        </div>
+        <div class="fav-lists-members">
+          <div class="fav-lists-members-toolbar">
+            <wa-input id="fav-list-rename" class="fav-lists-members-head" size="s" maxlength="20" aria-label="リスト名"></wa-input>
+            <wa-button type="button" id="fav-list-delete" class="fav-list-delete" appearance="plain" size="s" variant="danger" aria-label="リストを削除" title="リストを削除">
+              <svg class="fav-icon" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M6.5 1h3l.4 1H14v1.5H2V2h4.1L6.5 1zM3.5 5h9v9.2c0 .7-.6 1.3-1.3 1.3H4.8c-.7 0-1.3-.6-1.3-1.3V5zm2 .8v7h1.2v-7H5.5zm3.4 0v7h1.2v-7H8.9z"/></svg>
+            </wa-button>
+          </div>
+          <div id="fav-lists-members"></div>
+          <form id="fav-lists-add-code-form" class="fav-lists-add-code">
+            <label for="fav-list-add-code">コードを追加</label>
+            <input id="fav-list-add-code" type="text" maxlength="4" placeholder="7011" />
+            <wa-button type="submit" id="fav-list-add-code-btn" size="xs" appearance="filled-outlined">追加</wa-button>
+          </form>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <wa-button type="button" id="fav-lists-done" size="xs" appearance="filled-outlined">閉じる</wa-button>
+      </div>
+    </div>
+  </div>
+  <wa-dialog id="confirm-dialog" label="削除の確認" light-dismiss>
+    <p id="confirm-dialog-body"></p>
+    <wa-button slot="footer" type="button" id="confirm-dialog-cancel" appearance="plain" size="s">キャンセル</wa-button>
+    <wa-button slot="footer" type="button" id="confirm-dialog-ok" variant="danger" appearance="accent" size="s">削除</wa-button>
+  </wa-dialog>
+  <div id="cols-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" data-cols-close="1"></div>
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="cols-modal-title">
+      <div class="modal-header">
+        <h2 id="cols-modal-title">列の出し隠し</h2>
+        <wa-button type="button" id="cols-modal-close" class="modal-close" appearance="plain" size="xs" aria-label="close">×</wa-button>
+      </div>
+      <div id="cols-panel" class="modal-body"></div>
+      <div class="modal-footer">
+        <wa-button type="button" id="cols-modal-done" size="xs" appearance="filled-outlined">閉じる</wa-button>
+      </div>
+    </div>
+  </div>
+  </div>
+  <script src="/price-text.js"></script>
+  <script src="/production-app.js"></script>
+  <script type="module" src="/src/mock-live.js"></script>
+</body>
+</html>

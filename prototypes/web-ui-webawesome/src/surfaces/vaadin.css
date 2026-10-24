@@ -1,0 +1,66 @@
+html[data-surface-library="vaadin"] {
+  --bg: var(--lumo-base-color);
+  --fg: var(--lumo-body-text-color);
+  --muted: var(--lumo-secondary-text-color);
+  --accent: var(--lumo-primary-color);
+  --border: var(--lumo-contrast-20pct);
+  --hover: var(--lumo-primary-color-10pct);
+  --sel: var(--lumo-primary-color-10pct);
+  --head: var(--lumo-base-color);
+  --surface-raised: var(--lumo-base-color);
+  --surface-control: var(--lumo-contrast-5pct);
+  --surface-radius: var(--lumo-border-radius-m, 0.25em);
+  --surface-font-family: var(--lumo-font-family);
+  --surface-font-family-heading: var(--lumo-font-family);
+  --surface-font-family-code: var(--lumo-font-family);
+  --surface-font-size: var(--lumo-font-size-xs);
+  --surface-chart-font-size: var(--lumo-font-size-xxs);
+  --surface-line-height: var(--lumo-line-height-xs);
+  --chart-bg: var(--lumo-shade);
+}
+
+html[data-surface-library="vaadin"] vaadin-tab.is-candidate {
+  max-inline-size: 9rem;
+}
+
+html[data-surface-library="vaadin"] .table-wrap {
+  overflow: auto;
+}
+
+html[data-surface-library="vaadin"] #grid thead vaadin-button {
+  min-width: 0 !important;
+  max-width: 100%;
+  padding: 0 2px;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+html[data-surface-library="vaadin"] #grid thead .surface-vaadin-header {
+  min-width: 0;
+  overflow: hidden;
+}
+
+html[data-surface-library="vaadin"] .toolbar vaadin-select,
+html[data-surface-library="vaadin"] .toolbar vaadin-text-field {
+  min-width: 8.5rem;
+}
+
+html[data-surface-library="vaadin"] .surface-vaadin-chart-card {
+  display: grid;
+  gap: 0.2rem;
+  padding: var(--lumo-space-xs, 0.35rem);
+  border: 1px solid var(--lumo-contrast-20pct);
+  border-radius: var(--lumo-border-radius-m);
+  background: var(--chart-bg);
+  box-shadow: var(--lumo-box-shadow-xs);
+}
+
+html[data-surface-library="vaadin"] .surface-vaadin-chart-card.is-selected,
+html[data-surface-library="vaadin"] .surface-vaadin-chart-card.is-hover {
+  border-color: var(--lumo-primary-color);
+}
+
+html[data-surface-library="vaadin"] #chart-legend vaadin-button {
+  pointer-events: none;
+  background: var(--chart-bg);
+}
