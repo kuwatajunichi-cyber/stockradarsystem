@@ -961,6 +961,7 @@ aliases_by_code:
   - 日本甜菜製糖
   - Nippon Beet Sugar Manufacturing Co Ltd
   - Nippon Beet Sugar Manufacturing
+  - ニッテン
   '2109':
   - DM三井製糖
   - Mitsui DM Sugar Co Ltd
@@ -2002,6 +2003,8 @@ aliases_by_code:
   - ゲオHD
   - Geo Holdings Corp
   - Geo
+  - セカンドリテイリング
+  - セカリテ
   '2683':
   - Uoki Co Ltd
   - Uoki
@@ -2947,6 +2950,8 @@ aliases_by_code:
   - 富士紡HD
   - Fujibo Holdings Inc
   - Fujibo
+  - フジボウホールディングス
+  - フジボウHD
   '3105':
   - 日清紡ホールディングス
   - 日清紡HD
@@ -3438,6 +3443,9 @@ aliases_by_code:
   - Nihon Seima
   - 日製麻
   - 日本製麻
+  - SEIMAホールディングス
+  - SEIMAH
+  - SEIMAHD
   330A:
   - TalentX
   - タレントX
@@ -4319,6 +4327,9 @@ aliases_by_code:
   - AltPlus Inc
   - AltPlus
   - オルトプラス
+  - オルトプラスホールディングス
+  - オルトプラスHD
+  - オルトPHD
   '3673':
   - ブロドリーフ
   - Broadleaf Co Ltd
@@ -4735,6 +4746,8 @@ aliases_by_code:
   - NTT Data Intramart
   - NTTDIM
   - NTTデータ・イントラマート
+  - イントラマート
+  - イントラマト
   '3851':
   - 日本一ソフト
   - Nippon Ichi Software Inc
@@ -4904,6 +4917,8 @@ aliases_by_code:
   - PCIHD
   - PCI Holdings Inc
   - PCI
+  - PCIソリューションズ
+  - PCIソリューション
   '3920':
   - Internetworking and Broadband Consulting Co Ltd
   - Internetworking and Broadband Consulting
@@ -6524,6 +6539,8 @@ aliases_by_code:
   - InfoNet
   - G-インフォネット
   - インフォネット
+  - インフォネットグループ
+  - インフォネG
   '4445':
   - リビンT
   - Living Technologies Inc
@@ -6644,6 +6661,7 @@ aliases_by_code:
   - Unite and Grow Inc
   - Unite and Grow
   - ユナイトアンドグロウ
+  - ユナイト&グロウ
   '4487':
   - スペースマ
   - Spacemarket Inc
@@ -9103,6 +9121,8 @@ aliases_by_code:
   - Integral
   - G-インテグラル
   - インテグラル
+  - インテグラル・グループ
+  - インテグラルG
   '5843':
   - インシュア
   - Nippon Insure Co Ltd
@@ -9210,6 +9230,7 @@ aliases_by_code:
   - ホッカンHD
   - Hokkan Holdings Ltd
   - Hokkan
+  - ホッカン
   '5903':
   - SHINPO
   - Shinpo Co Ltd
@@ -9670,6 +9691,8 @@ aliases_by_code:
   - 地盤ネットHD
   - 地盤ネットホールディングス
   - 地盤HD
+  - ERTH Group
+  - ERTH
   '6073':
   - Asante Inc
   - Asante
@@ -10631,6 +10654,8 @@ aliases_by_code:
   - Heiwa Corp
   - Heiwa
   - 平和
+  - 平和ホールディングス
+  - 平和HD
   '6413':
   - Riso Kagaku Corp
   - Riso Kagaku
@@ -13640,6 +13665,9 @@ aliases_by_code:
   - United Arrows Ltd
   - United Arrows
   - ユナイテッドアローズ
+  - TABAYAホールディングス
+  - TABAYA HD
+  - TABAYA
   '7607':
   - Shinwa Co Ltd
   - Shinwa
@@ -13825,6 +13853,9 @@ aliases_by_code:
   - Koukandekirukun
   - G-交換できるくん
   - 交換できるくん
+  - リフォームテクノロジー
+  - リフォームT
+  - リフォームテクノ
   '7698':
   - Iceco Inc
   - Iceco
@@ -16545,6 +16576,7 @@ aliases_by_code:
   - Microwave Chemical
   - G-マイクロ波化学
   - マイクロ波化学
+  - MWCC
   '9229':
   - Sunwels Co Ltd
   - Sunwels
@@ -17936,6 +17968,8 @@ aliases_by_code:
   - Fujii Sangyo Corp
   - Fujii Sangyo
   - 藤井産業
+  - 藤井産業ホールディングス
+  - 藤井産業HD
   '9908':
   - Denkei
   - Nihon Denkei Co Ltd
