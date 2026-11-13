@@ -181,9 +181,20 @@ def test_label_catalog_markdown_copy_mirrors_yaml() -> None:
     assert _squash(data["note"]) in squashed
     for hist in data["revision_history"]:
         assert _squash(hist["summary"]) in squashed
+    # 表の正式名列は表示用に短くしてよい。YAML の長い formal_name を表へ戻さない。
+    short_formal = {
+        "z_turnover_60": "売買代金Zscore",
+        "rs_acceleration_zscore": "指数比の加速のZscore（直近60営業日基準）",
+        "rs31": "31日 指数比リターン",
+        "rs63": "63日 指数比リターン",
+        "rs126": "126日 指数比リターン",
+        "rs252": "252日 指数比リターン",
+        "rs_sma75": "75日移動平均線 指数比傾き",
+    }
     for entry in data["entries"]:
         assert entry["proposed"]["table"] in md, entry["id"]
-        assert entry["formal_name"] in md, entry["id"]
+        shown = short_formal.get(entry["id"], entry["formal_name"])
+        assert shown in md, entry["id"]
         assert entry["internal_name"] in md, entry["id"]
         assert _squash(entry["explanation"]) in squashed, entry["id"]
         for note in entry["spec_notes"]:

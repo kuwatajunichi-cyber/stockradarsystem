@@ -82,14 +82,14 @@ Web UI の表ヘッダー・グラフ凡例・ホバー見出し・ツールチ�
 | name                   | 銘柄名             | —       | 銘柄名             | 銘柄名                                | name                                                                                |
 | favorite               | お気入り            | —       | お気に入り           | お気に入りリストへの登録                       | favorite（favorites.lists / favorites.codes）                                         |
 | price_text             | (当日の価格挙動)       | —       | 当日の値動き          | 当日の値動きの形（ローソク足の形状の説明文）             | price_text / candle_labels（当日価格挙動）                                                  |
-| z_turnover_60          | Zscore          | Zscore  | 売買代金異常          | 売買代金の普段とのズレ（Z、直近60営業日基準）          | z_turnover_60（売買代金 z スコア。log1p(終値×出来高) を60営業日で標準化）                                  |
-| rs_acceleration_zscore | 加速Z             | —       | RSの加速Z          | 指数比の加速の普段とのズレ（Z、直近60営業日基準）        | rs_acceleration_zscore（短期RS加速の z スコア、標準化窓60）。rs_acceleration_zscore_topix / _nikkei |
+| z_turnover_60          | Zscore          | Zscore  | 売買代金異常          | 売買代金Zscore                         | z_turnover_60（売買代金 z スコア。log1p(終値×出来高) を60営業日で標準化）                                  |
+| rs_acceleration_zscore | 加速Z             | —       | RSの加速Z          | 指数比の加速のZscore（直近60営業日基準）           | rs_acceleration_zscore（短期RS加速の z スコア、標準化窓60）。rs_acceleration_zscore_topix / _nikkei |
 | rs_acceleration        | 加速              | —       | RSの加速           | 指数比の加速（指数比 31日リターン − 指数比 252日リターン） | rs_acceleration（短期RS加速 = RS31 − RS252）。rs_acceleration_topix / _nikkei              |
-| rs31                   | 31日             | RS31    | 31日RS           | 指数比 31日リターン（31営業日・約1か月半のリターンの差）    | rs31（RS31、相対力 B方式＝期間リターン差）。rs31_topix / rs31_nikkei                                 |
-| rs63                   | 63日             | RS63    | 63日RS           | 指数比 63日リターン（63営業日・約3か月のリターンの差）     | rs63（RS63、相対力 B方式）。rs63_topix / rs63_nikkei                                         |
-| rs126                  | 126日            | RS126   | 126日RS          | 指数比 126日リターン（126営業日・約半年のリターンの差）    | rs126（RS126、相対力 B方式）。rs126_topix / rs126_nikkei                                     |
-| rs252                  | 252日            | RS252   | 252日RS          | 指数比 252日リターン（252営業日・約1年のリターンの差）    | rs252（RS252、相対力 B方式）。rs252_topix / rs252_nikkei                                     |
-| rs_sma75               | SMA75 RS        | SMA75RS | 75移動平均RS        | 指数比 75日線の傾き（75日線が31営業日でどれだけ上がったかの割合を、銘柄と比較指数で引いた差） | rs_sma75（SMA75系列の31日 B方式 RS。終値の RS75 ではない）。rs_sma75_topix / rs_sma75_nikkei         |
+| rs31                   | 31日             | RS31    | 31日RS           | 31日 指数比リターン                        | rs31（RS31、相対力 B方式＝期間リターン差）。rs31_topix / rs31_nikkei                                 |
+| rs63                   | 63日             | RS63    | 63日RS           | 63日 指数比リターン                        | rs63（RS63、相対力 B方式）。rs63_topix / rs63_nikkei                                         |
+| rs126                  | 126日            | RS126   | 126日RS          | 126日 指数比リターン                       | rs126（RS126、相対力 B方式）。rs126_topix / rs126_nikkei                                     |
+| rs252                  | 252日            | RS252   | 252日RS          | 252日 指数比リターン                       | rs252（RS252、相対力 B方式）。rs252_topix / rs252_nikkei                                     |
+| rs_sma75               | SMA75 RS        | SMA75RS | 75移動平均RS        | 75日移動平均線 指数比傾き                     | rs_sma75（SMA75系列の31日 B方式 RS。終値の RS75 ではない）。rs_sma75_topix / rs_sma75_nikkei         |
 | event_news_bundle      | 売買代金急増 要因ニュース候補 | —       | 売買代金異常 要因ニュース候補 | 売買代金が急増した日の関連ニュース候補（最大3件）          | event_news_bundle（event_news_1〜3_title / _url を束ねたもの）                               |
 | research_prompt_block  | 調査ブロック          | —       | 調査用まとめ          | 調査用の指標まとめ（コピーして使う1行テキスト）           | research_prompt_block（research_prompt_frame v1.0 の観測データ抜粋）                          |
 
