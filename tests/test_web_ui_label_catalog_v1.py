@@ -165,8 +165,12 @@ def _squash(text: str) -> str:
 
 
 @pytest.mark.unit
-def test_label_catalog_markdown_copy_mirrors_yaml() -> None:
-    """Review copy must contain every canonical field from the YAML SSOT."""
+def test_label_catalog_yaml_follows_markdown() -> None:
+    """Markdown is the display source. YAML names follow it.
+
+    This check fails when YAML still has a string the markdown table no longer
+    shows. Update YAML. Do not restore the markdown to the longer YAML wording.
+    """
     data = yaml.safe_load(_CATALOG.read_text(encoding="utf-8"))
     md = _MD.read_text(encoding="utf-8")
     squashed = _squash(md)

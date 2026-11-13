@@ -7,7 +7,7 @@ replaces_web_ui_v1: false
 applied_to_screen: true
 closes_live_gate_5d: false
 note: >
-  Web UI の表ヘッダー・グラフ凡例・ホバー見出し・ツールチップの第一版（改訂2）。 改訂2の短い理想案をデプロイ済み画面の表示名と解説ツールチップに適用した。 web_ui_v1 の置換ではない。XLSX の列名は変えない。 live_gate_5d は open のまま。Phase 5 overall は in_progress。Issue #93 は OPEN。
+  Web UI の表ヘッダー・グラフ凡例・ホバー見出し・ツールチップの第一版（改訂2）。 改訂2の短い理想案をデプロイ済み画面の表示名と解説ツールチップに適用した。 表示名の正本は Markdown。YAML の proposed と formal_name は Markdown に合わせ、Markdown を YAML の文言へ戻さない。 web_ui_v1 の置換ではない。XLSX の列名は変えない。 live_gate_5d は open のまま。Phase 5 overall は in_progress。Issue #93 は OPEN。
 revision_history:
   - revision: 1
     summary: 現行名・理想案・正式名・解説を1行に揃えた初版。理想案は「相対31」「平滑相対31」「断面日」など専門語寄り。
