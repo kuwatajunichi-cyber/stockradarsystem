@@ -12,8 +12,10 @@ from __future__ import annotations
 
 import os
 import sys
+import time
 import uuid
 import importlib.util
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -125,29 +127,120 @@ def build_service(credentials: Any) -> Any:
     return build("drive", "v3", credentials=credentials, cache_discovery=False)
 
 
-def get_or_create_folder(service: Any, parent_id: str, name: str) -> str:
-    """
-    親フォルダ直下に name のフォルダを取得する。存在しなければ作成する。
-    戻り値: フォルダの file id。
-    """
-    # クエリ内のシングルクォートは '' でエスケープ（Drive API）
-    name_esc = name.replace("'", "''")
-    q = f"'{parent_id}' in parents and name = '{name_esc}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+# Google の 502 ページは「30 秒後に再試行」と案内する。初回は短く、最後はそれに合わせる。
+_DRIVE_RETRY_BACKOFF_SECONDS: tuple[float, ...] = (5.0, 15.0, 30.0)
+_DRIVE_RETRY_MAX_ATTEMPTS = 4
+_RETRYABLE_HTTP_STATUS = frozenset({429, 500, 502, 503, 504})
+
+
+def _http_status(exc: BaseException) -> int | None:
+    resp = getattr(exc, "resp", None)
+    status = getattr(resp, "status", None)
+    if status is None:
+        status = getattr(exc, "status_code", None)
+    try:
+        return int(status) if status is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _is_retryable_drive_error(exc: BaseException) -> bool:
+    """502 などの一時障害と接続断だけを再試行する。認証エラーは再試行しない。"""
+    if isinstance(exc, (SystemExit, KeyboardInterrupt)):
+        return False
+    if _http_status(exc) in _RETRYABLE_HTTP_STATUS:
+        return True
+    if isinstance(exc, (TimeoutError, ConnectionError)):
+        return True
+    module = type(exc).__module__
+    name = type(exc).__name__
+    return name in {"TransportError", "Timeout", "IncompleteRead"} and (
+        module.startswith("google.")
+        or module.startswith("httplib2")
+        or module.startswith("urllib")
+        or module.startswith("http.")
+    )
+
+
+def _call_with_retry(operation: Callable[[], Any], *, what: str) -> Any:
+    """一時的な Drive API 失敗をバックオフして再実行する。"""
+    last: BaseException | None = None
+    attempts = _DRIVE_RETRY_MAX_ATTEMPTS
+    for attempt in range(1, attempts + 1):
+        try:
+            return operation()
+        except Exception as exc:
+            if not _is_retryable_drive_error(exc) or attempt >= attempts:
+                raise
+            delay = _DRIVE_RETRY_BACKOFF_SECONDS[
+                min(attempt - 1, len(_DRIVE_RETRY_BACKOFF_SECONDS) - 1)
+            ]
+            status = _http_status(exc)
+            status_text = f"HTTP {status}" if status is not None else type(exc).__name__
+            print(
+                f"[Drive] {what} 一時エラー {status_text}。"
+                f"{delay:.0f}s 後に再試行 ({attempt}/{attempts})",
+                file=sys.stderr,
+            )
+            time.sleep(delay)
+            last = exc
+    assert last is not None
+    raise last
+
+
+def _escape_drive_query(value: str) -> str:
+    return value.replace("'", "''")
+
+
+def _list_child_id(service: Any, parent_id: str, name: str, *, folder: bool) -> str | None:
+    """親直下の同名アイテム ID。フォルダかファイルかを mimeType で分ける。"""
+    name_esc = _escape_drive_query(name)
+    mime_clause = (
+        "mimeType = 'application/vnd.google-apps.folder'"
+        if folder
+        else "mimeType != 'application/vnd.google-apps.folder'"
+    )
+    query = (
+        f"'{parent_id}' in parents and name = '{name_esc}' "
+        f"and {mime_clause} and trashed = false"
+    )
+
     resp = (
         service.files()
-        .list(q=q, spaces="drive", fields="files(id, name)", pageSize=2)
+        .list(q=query, spaces="drive", fields="files(id, name)", pageSize=2)
         .execute()
     )
     files = resp.get("files", [])
-    if files:
-        return files[0]["id"]
-    body = {
-        "name": name,
-        "mimeType": "application/vnd.google-apps.folder",
-        "parents": [parent_id],
-    }
-    created = service.files().create(body=body, fields="id").execute()
-    return created["id"]
+    if len(files) > 1:
+        print(
+            f"[Drive] 同名が複数あります。先頭を使います: {name}",
+            file=sys.stderr,
+        )
+    if not files:
+        return None
+    return str(files[0]["id"])
+
+
+def get_or_create_folder(service: Any, parent_id: str, name: str) -> str:
+    """
+    親フォルダ直下に name のフォルダを取得する。存在しなければ作成する。
+    一時的な 5xx / 429 は再試行し、作成成功後に応答だけ失った場合は再検索する。
+    戻り値: フォルダの file id。
+    """
+
+    def _once() -> str:
+        existing = _list_child_id(service, parent_id, name, folder=True)
+        if existing:
+            return existing
+        body = {
+            "name": name,
+            "mimeType": "application/vnd.google-apps.folder",
+            "parents": [parent_id],
+        }
+        created = service.files().create(body=body, fields="id").execute()
+        return str(created["id"])
+
+    return str(_call_with_retry(_once, what=f"folder {name}"))
 
 
 def upload_file(
@@ -159,6 +252,8 @@ def upload_file(
 ) -> tuple[str, str | None]:
     """
     指定親フォルダにファイルをアップロードする。
+    同名ファイルがあれば内容を上書きし、無ければ作成する。
+    一時的な 5xx / 429 は再試行する。再試行前に同名を探し直す。
     戻り値: (file_id, web_view_link or None)
     """
     _ensure_deps()
@@ -166,15 +261,31 @@ def upload_file(
     from googleapiclient.http import MediaIoBaseUpload
 
     if isinstance(content, str):
-        content = content.encode("utf-8")
-    body = {"name": name, "parents": [parent_id]}
-    media = MediaIoBaseUpload(BytesIO(content), mimetype=mime_type, resumable=False)
-    created = (
-        service.files()
-        .create(body=body, media_body=media, fields="id,webViewLink")
-        .execute()
-    )
-    return created["id"], created.get("webViewLink")
+        payload = content.encode("utf-8")
+    else:
+        payload = content
+
+    def _once() -> tuple[str, str | None]:
+        existing = _list_child_id(service, parent_id, name, folder=False)
+        media = MediaIoBaseUpload(BytesIO(payload), mimetype=mime_type, resumable=False)
+        files_api = service.files()
+        if existing:
+            created = files_api.update(
+                fileId=existing,
+                media_body=media,
+                fields="id,webViewLink",
+            ).execute()
+        else:
+            body = {"name": name, "parents": [parent_id]}
+            created = files_api.create(
+                body=body,
+                media_body=media,
+                fields="id,webViewLink",
+            ).execute()
+        return str(created["id"]), created.get("webViewLink")
+
+    file_id, link = _call_with_retry(_once, what=f"upload {name}")
+    return file_id, link
 
 
 def get_file_content(service: Any, file_id: str) -> bytes:
