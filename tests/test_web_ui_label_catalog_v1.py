@@ -69,11 +69,11 @@ def test_label_catalog_unifies_chart_names_and_keeps_explanations() -> None:
 
 @pytest.mark.unit
 def test_label_catalog_proposed_names_avoid_glossary_jargon() -> None:
-    """Revision 2: display names and formal names use everyday words.
+    """Revision 2: proposed labels use everyday words.
 
     Jargon such as 相対力 / RS / ベンチ / 断面 lives only in ``internal_name``
-    and in explanations, never in the proposed table/legend/hover labels or
-    in the formal name shown as the tooltip heading.
+    and in explanations, never in the proposed table/legend/hover labels.
+    ``formal_name`` follows the short review-table column, which keeps Zscore.
     """
     data = yaml.safe_load(_CATALOG.read_text(encoding="utf-8"))
     assert data["revision"] >= 2
@@ -87,7 +87,7 @@ def test_label_catalog_proposed_names_avoid_glossary_jargon() -> None:
     assert "ベンチ" in avoid_terms
     for entry in data["entries"]:
         assert entry["internal_name"].strip(), entry["id"]
-        surfaces = [entry["formal_name"]] + [
+        surfaces = [
             entry["proposed"][key]
             for key in ("table", "chart_legend", "chart_hover")
             if entry["proposed"][key] is not None
@@ -181,20 +181,9 @@ def test_label_catalog_markdown_copy_mirrors_yaml() -> None:
     assert _squash(data["note"]) in squashed
     for hist in data["revision_history"]:
         assert _squash(hist["summary"]) in squashed
-    # 表の正式名列は表示用に短くしてよい。YAML の長い formal_name を表へ戻さない。
-    short_formal = {
-        "z_turnover_60": "売買代金Zscore",
-        "rs_acceleration_zscore": "指数比の加速のZscore（直近60営業日基準）",
-        "rs31": "31日 指数比リターン",
-        "rs63": "63日 指数比リターン",
-        "rs126": "126日 指数比リターン",
-        "rs252": "252日 指数比リターン",
-        "rs_sma75": "75日移動平均線 指数比傾き",
-    }
     for entry in data["entries"]:
         assert entry["proposed"]["table"] in md, entry["id"]
-        shown = short_formal.get(entry["id"], entry["formal_name"])
-        assert shown in md, entry["id"]
+        assert entry["formal_name"] in md, entry["id"]
         assert entry["internal_name"] in md, entry["id"]
         assert _squash(entry["explanation"]) in squashed, entry["id"]
         for note in entry["spec_notes"]:

@@ -170,7 +170,7 @@ entries:
   - id: z_turnover_60
     group: metric
     surface: table_column_and_chart
-    formal_name: 売買代金の普段とのズレ（Z、直近60営業日基準）
+    formal_name: 売買代金Zscore
     internal_name: z_turnover_60（売買代金 z スコア。log1p(終値×出来高) を60営業日で標準化）
     field_keys: [z_turnover_60]
     chart_series_id: z_disp
@@ -190,7 +190,7 @@ entries:
   - id: rs_acceleration_zscore
     group: metric
     surface: table_column
-    formal_name: 指数比の加速の普段とのズレ（Z、直近60営業日基準）
+    formal_name: 指数比の加速のZscore（直近60営業日基準）
     internal_name: rs_acceleration_zscore（短期RS加速の z スコア、標準化窓60）。rs_acceleration_zscore_topix / _nikkei
     field_keys: [rs_acceleration_zscore_topix, rs_acceleration_zscore_nikkei]
     on_chart: false
@@ -226,7 +226,7 @@ entries:
     group: metric
     surface: table_column_and_chart
     family: index_relative
-    formal_name: 指数比 31日リターン（31営業日・約1か月半のリターンの差）
+    formal_name: 31日 指数比リターン
     internal_name: rs31（RS31、相対力 B方式＝期間リターン差）。rs31_topix / rs31_nikkei
     field_keys: [rs31_topix, rs31_nikkei]
     chart_series_id: rs31
@@ -242,7 +242,7 @@ entries:
     group: metric
     surface: table_column_and_chart
     family: index_relative
-    formal_name: 指数比 63日リターン（63営業日・約3か月のリターンの差）
+    formal_name: 63日 指数比リターン
     internal_name: rs63（RS63、相対力 B方式）。rs63_topix / rs63_nikkei
     field_keys: [rs63_topix, rs63_nikkei]
     chart_series_id: rs63
@@ -257,7 +257,7 @@ entries:
     group: metric
     surface: table_column_and_chart
     family: index_relative
-    formal_name: 指数比 126日リターン（126営業日・約半年のリターンの差）
+    formal_name: 126日 指数比リターン
     internal_name: rs126（RS126、相対力 B方式）。rs126_topix / rs126_nikkei
     field_keys: [rs126_topix, rs126_nikkei]
     chart_series_id: rs126
@@ -272,7 +272,7 @@ entries:
     group: metric
     surface: table_column_and_chart
     family: index_relative
-    formal_name: 指数比 252日リターン（252営業日・約1年のリターンの差）
+    formal_name: 252日 指数比リターン
     internal_name: rs252（RS252、相対力 B方式）。rs252_topix / rs252_nikkei
     field_keys: [rs252_topix, rs252_nikkei]
     chart_series_id: rs252
@@ -287,7 +287,7 @@ entries:
     group: metric
     surface: table_column_and_chart
     family: index_relative
-    formal_name: 指数比 75日線の傾き（75日線が31営業日でどれだけ上がったかの割合を、銘柄と比較指数で引いた差）
+    formal_name: 75日移動平均線 指数比傾き
     internal_name: rs_sma75（SMA75系列の31日 B方式 RS。終値の RS75 ではない）。rs_sma75_topix / rs_sma75_nikkei
     field_keys: [rs_sma75_topix, rs_sma75_nikkei]
     chart_series_id: rs_sma75
