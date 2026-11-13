@@ -71,9 +71,10 @@ def test_label_catalog_unifies_chart_names_and_keeps_explanations() -> None:
 def test_label_catalog_proposed_names_avoid_glossary_jargon() -> None:
     """Revision 2: proposed labels use everyday words.
 
-    Jargon such as 相対力 / RS / ベンチ / 断面 lives only in ``internal_name``
+    Jargon such as 相対力 / ベンチ / 断面 lives only in ``internal_name``
     and in explanations, never in the proposed table/legend/hover labels.
-    ``formal_name`` follows the short review-table column, which keeps Zscore.
+    The short ideal names keep ``RS``. ``formal_name`` follows the short
+    review-table column, which keeps Zscore.
     """
     data = yaml.safe_load(_CATALOG.read_text(encoding="utf-8"))
     assert data["revision"] >= 2
@@ -94,6 +95,8 @@ def test_label_catalog_proposed_names_avoid_glossary_jargon() -> None:
         ]
         for text in surfaces:
             for term in avoid_terms:
+                if term == "RS":
+                    continue
                 assert term not in text, (entry["id"], term, text)
 
 
@@ -112,11 +115,11 @@ def test_label_catalog_index_relative_family_is_single_sourced() -> None:
     members = family["applies_to"]
     assert set(members) == {"rs31", "rs63", "rs126", "rs252", "rs_sma75"}
     expected_labels = {
-        "rs31": "指数比 31日リターン",
-        "rs63": "指数比 63日リターン",
-        "rs126": "指数比 126日リターン",
-        "rs252": "指数比 252日リターン",
-        "rs_sma75": "指数比 75日線の傾き",
+        "rs31": "31日RS",
+        "rs63": "63日RS",
+        "rs126": "126日RS",
+        "rs252": "252日RS",
+        "rs_sma75": "75移動平均RS",
     }
     for entry_id in members:
         entry = by_id[entry_id]
@@ -197,7 +200,6 @@ def test_screen_uses_catalog_labels_without_spec_notes() -> None:
     html = (_REPO / "workers" / "web-ui-static" / "assets" / "index.html").read_text(encoding="utf-8")
     data = yaml.safe_load(_CATALOG.read_text(encoding="utf-8"))
     blob = app + "\n" + html
-    # 表示名は Markdown の理想案。YAML proposed は改訂2の長い名のままなので、ここは理想案を正にする。
     ideal_labels = {
         "z_turnover_60": "売買代金異常",
         "rs_acceleration_zscore": "RSの加速Z",
@@ -214,6 +216,7 @@ def test_screen_uses_catalog_labels_without_spec_notes() -> None:
     }
     for entry in data["entries"]:
         if entry["id"] in ideal_labels:
+            assert entry["proposed"]["table"] == ideal_labels[entry["id"]], entry["id"]
             assert f'label: "{ideal_labels[entry["id"]]}"' in app.replace(
                 f'label: "{ideal_labels[entry["id"]]}Z"', ""
             ), entry["id"]

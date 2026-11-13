@@ -94,7 +94,7 @@ implementation_notes:
   - conditional-format.js は列キー（z_turnover_60 と rs_acceleration_zscore）でレンジ5を判定する。ヘッダー文字列には依存しない。
   - 保存済みお気に入りリスト名「お気入り」はユーザーデータ。表示ラベルの変更と保存名の移行は別作業。
   - 特殊フィルタのデプロイ済み文言は「指数比がすべてマイナスの銘柄を除外（31・63・126・252日リターンと75日線の傾き）」。
-  - デプロイ済みの凡例は短い理想案（最長は「75移動平均RS」）。YAML の長い提案名「指数比 252日リターン」は画面に出ていない。
+  - デプロイ済みの凡例と YAML の proposed は短い理想案（31日RS、売買代金異常、最長は「75移動平均RS」）である。
   - リターンは % 表示が通例だが、本画面の指数比は小数（+0.1 ＝ 10%分）で、1桁表示では約10%分刻みにしかならない。%ポイント表示（+3.4）に変える場合は、web_ui_v1 の数値表示・グラフ軸 [-1,+1]・条件付き書式レンジ 1・XLSX との単位整合を同時に決める。本カタログでは未決。
   - 売買代金倍率に 1 倍超で正符号が付く現行表示は「+2.3倍増」と誤読されうる。ラベル適用時に倍率は符号なし表示にする候補。
   - 検索の注記はデプロイ済みで「存在しないか、この画面の対象銘柄に含まれません」。用語ボタンの表示は対象銘柄。
@@ -177,7 +177,7 @@ entries:
     on_chart: true
     default_visible: true
     current: {table: Zscore, chart_legend: Zscore, chart_hover: Zscore}
-    proposed: {table: 売買代金Z, chart_legend: 売買代金Z, chart_hover: 売買代金Z}
+    proposed: {table: 売買代金異常, chart_legend: 売買代金異常, chart_hover: 売買代金異常}
     explanation: >
       基準日の売買代金（終値×出来高）が、この銘柄の普段（直近60営業日）と比べてどれだけ珍しい多さかを表す値。
       ズレは標準偏差を1として測る。学校の偏差値と同じ考え方で、偏差値＝50＋10×Z。
@@ -196,7 +196,7 @@ entries:
     on_chart: false
     default_visible: true
     current: {table: 加速Z, chart_legend: null, chart_hover: null}
-    proposed: {table: 指数比の加速Z, chart_legend: null, chart_hover: null}
+    proposed: {table: RSの加速Z, chart_legend: null, chart_hover: null}
     explanation: >
       「指数比の加速」が、この銘柄の普段（直近60営業日）と比べてどれだけ珍しい大きさかを表す値。
       売買代金Zと同じ物差しで、0 が普段どおり、+2 以上は普段ほとんど見ない強い加速、−2 以下はその逆（偏差値＝50＋10×Z）。
@@ -214,7 +214,7 @@ entries:
     on_chart: false
     default_visible: true
     current: {table: 加速, chart_legend: null, chart_hover: null}
-    proposed: {table: 指数比の加速, chart_legend: null, chart_hover: null}
+    proposed: {table: RSの加速, chart_legend: null, chart_hover: null}
     explanation: >
       「指数比 31日リターン」−「指数比 252日リターン」。直近約1か月半の指数比が、過去1年の指数比よりどれだけ高いか。
       正なら、最近のほうが指数に対して勢いがある（例: 1年では指数に負けていたが、直近は勝っている）。負ならその逆。
@@ -233,7 +233,7 @@ entries:
     on_chart: true
     default_visible: true
     current: {table: 31日, chart_legend: RS31, chart_hover: RS31}
-    proposed: {table: 指数比 31日リターン, chart_legend: 指数比 31日リターン, chart_hover: 指数比 31日リターン}
+    proposed: {table: 31日RS, chart_legend: 31日RS, chart_hover: 31日RS}
     explanation: 31営業日（約1か月半）のリターンの指数比。
     spec_notes:
       - グラフの線の高さはこの値そのもの。
@@ -249,7 +249,7 @@ entries:
     on_chart: true
     default_visible: true
     current: {table: 63日, chart_legend: RS63, chart_hover: RS63}
-    proposed: {table: 指数比 63日リターン, chart_legend: 指数比 63日リターン, chart_hover: 指数比 63日リターン}
+    proposed: {table: 63日RS, chart_legend: 63日RS, chart_hover: 63日RS}
     explanation: 63営業日（約3か月）のリターンの指数比。
     spec_notes:
       - 表の「63日」、凡例の「RS63」、XLSX の「63日」と同じ値。
@@ -264,7 +264,7 @@ entries:
     on_chart: true
     default_visible: true
     current: {table: 126日, chart_legend: RS126, chart_hover: RS126}
-    proposed: {table: 指数比 126日リターン, chart_legend: 指数比 126日リターン, chart_hover: 指数比 126日リターン}
+    proposed: {table: 126日RS, chart_legend: 126日RS, chart_hover: 126日RS}
     explanation: 126営業日（約半年）のリターンの指数比。
     spec_notes:
       - 表の「126日」、凡例の「RS126」、XLSX の「126日」と同じ値。
@@ -279,7 +279,7 @@ entries:
     on_chart: true
     default_visible: true
     current: {table: 252日, chart_legend: RS252, chart_hover: RS252}
-    proposed: {table: 指数比 252日リターン, chart_legend: 指数比 252日リターン, chart_hover: 指数比 252日リターン}
+    proposed: {table: 252日RS, chart_legend: 252日RS, chart_hover: 252日RS}
     explanation: 252営業日（約1年）のリターンの指数比。「指数比の加速」は、指数比 31日リターンからこの値を引いた差。
     spec_notes:
       - 表の「252日」、凡例の「RS252」、XLSX の「252日」と同じ値。
@@ -294,7 +294,7 @@ entries:
     on_chart: true
     default_visible: true
     current: {table: SMA75 RS, chart_legend: SMA75RS, chart_hover: SMA75RS}
-    proposed: {table: 指数比 75日線の傾き, chart_legend: 指数比 75日線の傾き, chart_hover: 指数比 75日線の傾き}
+    proposed: {table: 75移動平均RS, chart_legend: 75移動平均RS, chart_hover: 75移動平均RS}
     explanation: >
       この銘柄と比較指数それぞれの「75日線」（直近75営業日の終値の平均をつないだ線）が、31営業日でどれだけ上がったかの割合の差。
       終値の代わりに、日々の上下をならした線で比べるので、流れとしてどちらが強いかが出る。
@@ -312,7 +312,7 @@ entries:
     on_chart: false
     default_visible: true
     current: {table: 売買代金急増 要因ニュース候補, chart_legend: null, chart_hover: null}
-    proposed: {table: ニュース候補, chart_legend: null, chart_hover: null}
+    proposed: {table: 売買代金異常 要因ニュース候補, chart_legend: null, chart_hover: null}
     explanation: >
       売買代金が急増した日に関係しそうなニュースの候補（最大3件）。原因と断定したものではない。
       材料が見つからないときは「材料不明・需給起因疑い」などの文になる。
@@ -344,7 +344,7 @@ entries:
     on_chart: false
     default_visible: false
     current: {table: β調整RS, chart_legend: null, chart_hover: null}
-    proposed: {table: 連動分を除く指数比 252日リターン, chart_legend: null, chart_hover: null}
+    proposed: {table: 除β 252日RS, chart_legend: null, chart_hover: null}
     explanation: >
       1年（252営業日）のリターンから、「この銘柄が指数にどれだけ連動して動くか」（β、ベータ）×「指数のリターン」を引いた値。
       βが1.5なら、指数が1%動くとこの銘柄は平均1.5%動くという意味。
@@ -362,7 +362,7 @@ entries:
     on_chart: false
     default_visible: false
     current: {table: 情報比率, chart_legend: null, chart_hover: null}
-    proposed: {table: 指数比の安定度, chart_legend: null, chart_hover: null}
+    proposed: {table: RSの安定度, chart_legend: null, chart_hover: null}
     explanation: >
       直近63営業日（約3か月）について、毎日の「この銘柄の前日比 − 比較指数の前日比」の平均を、そのばらつき（標準偏差）で割った値。
       指数を上回る日が安定して続くほど正に大きく、下回る日が続くほど負に大きい。
@@ -379,7 +379,7 @@ entries:
     on_chart: false
     default_visible: false
     current: {table: パーフェクトオーダー日数, chart_legend: null, chart_hover: null}
-    proposed: {table: パーフェクトオーダー日数, chart_legend: null, chart_hover: null}
+    proposed: {table: ﾊﾟｰﾌｪｸﾄｵｰﾀﾞｰ日数, chart_legend: null, chart_hover: null}
     explanation: >
       終値の25日・75日・200日移動平均線が、短い線ほど上に並んだ状態（25日線 > 75日線 > 200日線）が、基準日まで何営業日続いているか。
       上昇の並びだけ数え、逆の並び（下降パーフェクトオーダー）は数えない。0 はその並びではない。
