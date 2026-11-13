@@ -32,6 +32,26 @@ async function sb(env, path, init) {
   return fetch(url, { ...(init || {}), headers });
 }
 
+function latestWebAsOfCommits(rows) {
+  const byKey = new Map();
+  for (const row of rows || []) {
+    const tradeDate = String(row.trade_date || "");
+    const benchmark = String(row.benchmark || "");
+    if (!tradeDate || (benchmark !== "topix" && benchmark !== "nikkei")) continue;
+    const committedAt = row.committed_at_utc || null;
+    const key = tradeDate + "\n" + benchmark;
+    const prev = byKey.get(key);
+    if (!prev || String(committedAt || "") > String(prev.committed_at_utc || "")) {
+      byKey.set(key, {
+        trade_date: tradeDate,
+        benchmark,
+        committed_at_utc: committedAt,
+      });
+    }
+  }
+  return [...byKey.values()];
+}
+
 async function activeMetricSetId(env) {
   const res = await sb(
     env,
@@ -199,12 +219,13 @@ export default {
           env,
           "/rest/v1/derived_object_index?object_kind=eq.web_asof_bundle&status=eq.committed" +
             `&metric_set_version_id=eq.${encodeURIComponent(setId)}` +
-            "&select=trade_date,benchmark&order=trade_date.desc",
+            "&select=trade_date,benchmark,committed_at_utc&order=trade_date.desc",
         );
         if (!res.ok) throw new Error("dates");
         const rows = await res.json();
         const dates = [...new Set(rows.map((r) => r.trade_date).filter(Boolean))];
-        return json({ ok: true, dates, default: dates[0] || null }, 200, cors);
+        const commits = latestWebAsOfCommits(rows);
+        return json({ ok: true, dates, default: dates[0] || null, commits }, 200, cors);
       }
       if (url.pathname === "/v1/mint" && request.method === "POST") {
         const session = await requireSession(request, env);
@@ -224,7 +245,7 @@ export default {
           "/rest/v1/derived_object_index?object_kind=eq.web_asof_bundle&status=eq.committed" +
           `&metric_set_version_id=eq.${encodeURIComponent(setId)}` +
           `&benchmark=eq.${encodeURIComponent(bench)}&trade_date=eq.${encodeURIComponent(asOf)}` +
-          "&select=id,object_key,byte_sha256,size_bytes,status&order=committed_at_utc.desc&limit=1";
+          "&select=id,object_key,byte_sha256,size_bytes,status,committed_at_utc&order=committed_at_utc.desc&limit=1";
         const found = await sb(env, q);
         if (!found.ok) throw new Error("resolve");
         const rows = await found.json();
@@ -286,6 +307,7 @@ export default {
             grant_id: out.grant_id,
             expires_at_utc: out.expires_at_utc,
             signed_url: out.signed_url,
+            committed_at_utc: row.committed_at_utc || null,
           },
           200,
           cors,

@@ -4,7 +4,15 @@
   --surface-font-family-heading: var(--wa-font-family-heading), "Yu Gothic UI", Meiryo, sans-serif;
   --surface-font-family-code: var(--wa-font-family-code);
   --surface-font-size: var(--wa-font-size-xs);
+  --surface-header-font-size: var(--wa-font-size-2xs);
+  --surface-label-compact-font-family: var(--surface-font-family);
+  --surface-label-compact-font-size: 11px;
+  --surface-label-compact-font-weight: 400;
+  --surface-label-compact-scale-x: 0.75;
+  --surface-label-compact-color: var(--wa-color-text-normal);
   --surface-chart-font-size: var(--wa-font-size-3xs);
+  --surface-number-font-family: Consolas, "Courier New", monospace;
+  --surface-number-font-size: 14px;
   --surface-line-height: 1.35;
   --wa-space-scale: 0.92;
   --wa-border-radius-scale: 1.1;
@@ -224,18 +232,41 @@ th {
   font-weight: 650;
 }
 
+#grid thead th {
+  font-size: var(--surface-header-font-size);
+  white-space: normal;
+}
+
+#grid thead .th-label,
+#grid thead [data-header-label] {
+  display: inline-block;
+  white-space: pre-line;
+  word-break: keep-all;
+  line-break: strict;
+  line-height: 1.2;
+  text-align: start;
+}
+
+#grid thead wa-button[data-surface-header] {
+  font-size: var(--surface-header-font-size);
+  height: auto;
+}
+
 #grid thead wa-button[data-surface-header]::part(button) {
   min-height: 22px;
+  height: auto;
   width: 100%;
   justify-content: space-between;
   padding: 0 4px;
-  font-size: var(--wa-font-size-xs);
+  font-size: var(--surface-header-font-size);
   font-weight: 650;
+  white-space: pre-line;
 }
 
 #grid thead wa-button[data-surface-header]::part(label) {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
+  text-overflow: unset;
+  white-space: pre-line;
 }
 
 .toolbar wa-button,
@@ -301,10 +332,6 @@ tbody tr.selected.is-hover {
   box-shadow: inset 3px 0 0 var(--accent);
 }
 
-td.num {
-  font-family: var(--wa-font-family-code);
-}
-
 #grid td.surface-cf-number,
 .chart-hover-cell.surface-cf-number {
   background: hsl(var(--cell-hue) / var(--cell-alpha)) !important;
@@ -314,7 +341,8 @@ td.num {
 }
 
 #grid td.surface-cf-number {
-  font-size: var(--surface-font-size);
+  font-family: var(--surface-number-font-family);
+  font-size: var(--surface-number-font-size);
 }
 
 #grid td.surface-cf-price {
@@ -337,15 +365,15 @@ td.num {
 }
 
 .surface-price-tag[data-tone="positive"] {
-  border-color: hsl(156 58% 48% / 55%);
-  background: hsl(156 58% 48% / 9%);
-  color: color-mix(in srgb, hsl(156 58% 48%) 68%, var(--fg));
+  border-color: hsl(150 48% 37% / 55%);
+  background: hsl(150 48% 37% / 9%);
+  color: color-mix(in srgb, hsl(150 48% 37%) 68%, var(--fg));
 }
 
 .surface-price-tag[data-tone="negative"] {
-  border-color: hsl(346 72% 58% / 55%);
-  background: hsl(346 72% 58% / 9%);
-  color: color-mix(in srgb, hsl(346 72% 58%) 68%, var(--fg));
+  border-color: hsl(6 70% 54% / 55%);
+  background: hsl(6 70% 54% / 9%);
+  color: color-mix(in srgb, hsl(6 70% 54%) 68%, var(--fg));
 }
 
 td a {
@@ -400,8 +428,25 @@ td a {
   padding: 12px;
 }
 
+.chart-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
 .chart-card [data-chart-title] {
   color: var(--fg);
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chart-card-head .fav-star {
+  flex: 0 0 auto;
 }
 
 .chart-card wa-card[appearance="filled-outlined"],
@@ -423,7 +468,7 @@ td a {
 }
 
 #chart-legend wa-tag {
-  pointer-events: none;
+  pointer-events: auto;
   background-color: var(--chart-bg);
   color: #bcd0df;
   font-family: var(--surface-font-family);
@@ -648,10 +693,9 @@ wa-checkbox.filter-switch {
   font-size: var(--surface-chart-font-size);
 }
 
-td.num,
-#grid td.surface-cf-number,
 .chart-hover-cell:not(.chart-hover-head) {
-  font-family: var(--surface-font-family-code, var(--surface-font-family));
+  font-family: var(--surface-number-font-family);
+  font-size: var(--surface-number-font-size);
 }
 
 #grid tbody tr,

@@ -207,6 +207,7 @@ function wrapCheckbox(source, kit) {
   const labelText = String(host.textContent || "").trim();
   const lib = kit.checkbox(labelText, source.checked, source.disabled);
   host.insertAdjacentElement("afterend", lib);
+  if (host.dataset.labelTip) lib.dataset.labelTip = host.dataset.labelTip;
   kit.onCheck(lib, (checked) => {
     if (source.checked === checked) return;
     source.checked = checked;

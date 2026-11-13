@@ -1,7 +1,13 @@
-const POSITIVE_HUE = "156 58% 48%";
-const NEGATIVE_HUE = "346 72% 58%";
-const Z_RANGE_LABELS = new Set(["Zscore", "加速Z"]);
-const PRICE_LABEL = "(当日の価格挙動)";
+const POSITIVE_HUE = "150 48% 37%";
+const NEGATIVE_HUE = "6 70% 54%";
+const Z_RANGE_KEYS = new Set([
+  "z_turnover_60",
+  "rs_acceleration_zscore",
+  "rs_acceleration_zscore_topix",
+  "rs_acceleration_zscore_nikkei",
+  "z_disp",
+]);
+const PRICE_KEY = "price_text";
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -16,27 +22,34 @@ function parseSignedValue(text) {
 }
 
 function headerLabel(header) {
-  const label = header && header.querySelector(".th-label");
+  const label =
+    header &&
+    (header.querySelector(".th-label") ||
+      header.querySelector("[data-header-label]") ||
+      header.querySelector(".th-filter-btn"));
   return String(label ? label.textContent : header?.textContent || "").trim();
 }
 
-export function numberCellFormat(text, range) {
-  const value = parseSignedValue(text);
-  if (value == null) return null;
+export function numberCellFormat(value, range) {
+  const n = typeof value === "number" ? value : parseSignedValue(value);
+  if (n == null || !Number.isFinite(n)) return null;
   const span = Number(range) > 0 ? Number(range) : 1;
-  const intensity = clamp(Math.abs(value) / span, 0, 1);
+  const intensity = clamp(Math.abs(n) / span, 0, 1);
   return {
-    hue: value >= 0 ? POSITIVE_HUE : NEGATIVE_HUE,
-    alpha: (0.08 + intensity * 0.2).toFixed(3),
+    hue: n >= 0 ? POSITIVE_HUE : NEGATIVE_HUE,
+    alpha: (0.02 + intensity * 0.40).toFixed(3),
   };
 }
 
-export function cfRangeForLabel(label) {
-  return Z_RANGE_LABELS.has(String(label || "").trim()) ? 5 : 1;
+export function cfRangeForLabel(key) {
+  const text = String(key || "").trim();
+  if (Z_RANGE_KEYS.has(text)) return 5;
+  const base = text.replace(/_(topix|nikkei)$/, "");
+  return Z_RANGE_KEYS.has(base) ? 5 : 1;
 }
 
 function applyNumberFormat(cell, value, range) {
-  const fmt = numberCellFormat(value === 0 ? "±0" : String(value), range);
+  const fmt = numberCellFormat(value, range);
   if (!fmt) return;
   cell.classList.add("surface-cf-number");
   cell.style.setProperty("--cell-hue", fmt.hue);
@@ -50,6 +63,7 @@ export function priceTone(text) {
 }
 
 function applyPriceFormat(cell) {
+  if (cell.querySelector(".price-parts")) return;
   const text = String(cell.textContent || "").trim();
   if (!text) return;
 
@@ -67,15 +81,18 @@ function applyPriceFormat(cell) {
 export function applyConditionalFormatting() {
   const headers = [...document.querySelectorAll("#grid thead th")];
   if (!headers.length) return;
-  const labels = headers.map(headerLabel);
-  const priceIndex = labels.indexOf(PRICE_LABEL);
+  const keys = headers.map((header) => header.dataset.col || "");
+  const priceIndex = keys.indexOf(PRICE_KEY);
 
   document.querySelectorAll("#grid tbody tr").forEach((row) => {
     [...row.cells].forEach((cell, index) => {
       if (cell.classList.contains("num")) {
-        const value = parseSignedValue(cell.textContent);
-        if (value != null) {
-          applyNumberFormat(cell, value, Z_RANGE_LABELS.has(labels[index]) ? 5 : 1);
+        const rawAttr = cell.dataset.cfValue;
+        const value = rawAttr != null && rawAttr !== ""
+          ? Number(rawAttr)
+          : parseSignedValue(cell.textContent);
+        if (value != null && Number.isFinite(value)) {
+          applyNumberFormat(cell, value, cfRangeForLabel(keys[index]));
         }
       }
       if (index === priceIndex) applyPriceFormat(cell);

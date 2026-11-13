@@ -62,7 +62,8 @@ installHeaderHost({
     if (label) {
       if (label.getAttribute("theme") !== theme) label.setAttribute("theme", theme);
       if (label.textContent !== meta.caption) label.textContent = meta.caption;
-      label.title = meta.title;
+      if (meta.title) label.title = meta.title;
+      else label.removeAttribute("title");
     }
     let filter = cell.querySelector("[data-header-filter]");
     if ((meta.filterable || meta.numeric) && !filter) {
@@ -195,7 +196,10 @@ installChartPaneHost({
   legendItem({ label, swatchStyle, swatchClass }) {
     const el = document.createElement("vaadin-button");
     el.setAttribute("theme", "tertiary-inline small");
-    el.append(chartSwatch({ swatchStyle, swatchClass }), document.createTextNode(label));
+    const text = document.createElement("span");
+    text.className = "surface-label-compact";
+    text.textContent = label;
+    el.append(chartSwatch({ swatchStyle, swatchClass }), text);
     return el;
   },
   chartCard() {

@@ -2,35 +2,276 @@
   const XLSX_DEFAULT = [
     { key: "code", label: "コード", kind: "text" },
     { key: "name", label: "銘柄名", kind: "text" },
-    { key: "favorite", label: "お気入り", kind: "favorite" },
-    { key: "link_kabutan", label: "概要", kind: "link", linkText: "株探" },
-    { key: "link_kabutan_chart", label: "チャート", kind: "link", linkText: "チャート" },
-    { key: "link_kabutan_news", label: "ニュース", kind: "link", linkText: "ニュース" },
-    { key: "price_text", label: "(当日の価格挙動)", kind: "text" },
-    { key: "z_turnover_60", label: "Zscore", kind: "signed1" },
-    { key: "rs_acceleration_zscore_topix", label: "加速Z", kind: "signed1", bench: true },
-    { key: "rs_acceleration_topix", label: "加速", kind: "signed1", bench: true },
-    { key: "rs31_topix", label: "31日", kind: "signed1", bench: true },
-    { key: "rs63_topix", label: "63日", kind: "signed1", bench: true },
-    { key: "rs126_topix", label: "126日", kind: "signed1", bench: true },
-    { key: "rs252_topix", label: "252日", kind: "signed1", bench: true },
-    { key: "rs_sma75_topix", label: "SMA75 RS", kind: "signed1", bench: true },
-    { key: "event_news_bundle", label: "売買代金急増 要因ニュース候補", kind: "news_bundle" },
-    { key: "research_prompt_block", label: "調査ブロック", kind: "text" },
+    { key: "favorite", label: "お気に入り", kind: "favorite" },
+    { key: "link_kabutan", label: "概要（株探）", kind: "link", linkText: "株探" },
+    { key: "link_kabutan_chart", label: "チャート（株探）", kind: "link", linkText: "チャート" },
+    { key: "link_kabutan_news", label: "ニュース（株探）", kind: "link", linkText: "ニュース" },
+    { key: "price_text", label: "当日の値動き", kind: "text" },
+    { key: "z_turnover_60", label: "売買代金異常", kind: "signed1" },
+    { key: "rs_acceleration_zscore_topix", label: "RSの加速Z", kind: "signed1", bench: true },
+    { key: "rs_acceleration_topix", label: "RSの加速", kind: "signed1", bench: true },
+    { key: "rs31_topix", label: "31日RS", kind: "signed1", bench: true },
+    { key: "rs63_topix", label: "63日RS", kind: "signed1", bench: true },
+    { key: "rs126_topix", label: "126日RS", kind: "signed1", bench: true },
+    { key: "rs252_topix", label: "252日RS", kind: "signed1", bench: true },
+    { key: "rs_sma75_topix", label: "75移動平均RS", kind: "signed1", bench: true },
+    { key: "event_news_bundle", label: "売買代金異常 要因ニュース候補", kind: "news_bundle" },
+    { key: "research_prompt_block", label: "調査用まとめ", kind: "text" },
   ];
 
   // Draw order = array order (back → front). Z bars first; RS lines by thickness.
   const CHART_BG = "rgb(9,7,32)";
-  const RS_POS = "39,255,104";
-  const RS_NEG = "255,39,115";
+  const RS_POS = "82,255,134";
+  const RS_NEG = "255,65,0";
   const SERIES_META = [
-    { id: "z_disp", label: "Zscore", kind: "bar", color: "rgba(196,192,242,0.34)" },
-    { id: "rs_sma75", label: "SMA75RS", kind: "line", width: 16, alpha: 0.1 },
-    { id: "rs252", label: "RS252", kind: "line", width: 8, alpha: 0.2 },
-    { id: "rs126", label: "RS126", kind: "line", width: 6, alpha: 0.4 },
-    { id: "rs63", label: "RS63", kind: "line", width: 4, alpha: 0.6 },
-    { id: "rs31", label: "RS31", kind: "line", width: 1, alpha: 1.0 },
+    { id: "z_disp", label: "売買代金異常", kind: "bar", color: "rgba(196,192,242,0.34)" },
+    { id: "rs_sma75", label: "75移動平均RS", kind: "line", width: 16, alpha: 0.1 },
+    { id: "rs252", label: "252日RS", kind: "line", width: 8, alpha: 0.2 },
+    { id: "rs126", label: "126日RS", kind: "line", width: 6, alpha: 0.4 },
+    { id: "rs63", label: "63日RS", kind: "line", width: 4, alpha: 0.6 },
+    { id: "rs31", label: "31日RS", kind: "line", width: 1, alpha: 1.0 },
   ];
+
+  const LABEL_FAMILY_INDEX = "指数比 ＝ この銘柄のリターン − 比較指数のリターン（同じ期間、終値どうし）。 リターンは、その期間にどれだけ上がったかの割合で、下がればマイナス。 市場全体の動きを基準に、この銘柄の成績を比べる値。正なら指数より良く、負なら悪く、0 なら同じ。 割り算ではなく引き算なので、指数が下がった期間でも符号の意味は変わらない。 株価が下がっていても、指数より下げ幅が小さければ正になる。 +0.1 は10%分の差（指数 +5%・銘柄 +15% → +0.10。指数 −10%・銘柄 −4% → +0.06）。%表示ではない。";
+  const LABEL_TIPS = {
+  "code": {
+    "text": "東証の4桁の証券コード。",
+    "family": false
+  },
+  "name": {
+    "text": "銘柄の名称。",
+    "family": false
+  },
+  "favorite": {
+    "text": "自分で保存したお気に入りリストに、この銘柄が入っているかどうか。 チップはリストの印で、強い・弱いを表す指標ではない。",
+    "family": false
+  },
+  "price_text": {
+    "text": "基準日の始値・高値・安値・終値から、その日の値動きの形を短い言葉で表したもの。 陽線（終値が始値より高い）、陰線（その逆）、上ヒゲ・下ヒゲ（一時的に大きく動いて戻した）、 上窓・下窓（前日の値幅から離れて始まった）、S高・S安（ストップ高・ストップ安。1日の値幅制限に達した疑い）など。",
+    "family": false
+  },
+  "z_turnover_60": {
+    "text": "基準日の売買代金（終値×出来高）が、この銘柄の普段（直近60営業日）と比べてどれだけ珍しい多さかを表す値。 ズレは標準偏差を1として測る。学校の偏差値と同じ考え方で、偏差値＝50＋10×Z。 0 が普段どおり、+1 でやや多め、+2 以上は普段ほとんど見ない多さ、負は普段より少ない。 株価ではなく売買代金のZ。「売買代金倍率」（普段の何倍か）とは別。",
+    "family": false
+  },
+  "rs_acceleration_zscore": {
+    "text": "「指数比の加速」が、この銘柄の普段（直近60営業日）と比べてどれだけ珍しい大きさかを表す値。 売買代金Zと同じ物差しで、0 が普段どおり、+2 以上は普段ほとんど見ない強い加速、−2 以下はその逆（偏差値＝50＋10×Z）。 加速そのものの大きさではないので、加速が小さくても、この銘柄の普段がもっと小さければ大きな値になる。",
+    "family": false
+  },
+  "rs_acceleration": {
+    "text": "「指数比 31日リターン」−「指数比 252日リターン」。直近約1か月半の指数比が、過去1年の指数比よりどれだけ高いか。 正なら、最近のほうが指数に対して勢いがある（例: 1年では指数に負けていたが、直近は勝っている）。負ならその逆。 グラフの線の傾きのことではない。「指数比の加速Z」（普段と比べた珍しさ）とも別。",
+    "family": false
+  },
+  "rs31": {
+    "text": "31営業日（約1か月半）のリターンの指数比。",
+    "family": true
+  },
+  "rs63": {
+    "text": "63営業日（約3か月）のリターンの指数比。",
+    "family": true
+  },
+  "rs126": {
+    "text": "126営業日（約半年）のリターンの指数比。",
+    "family": true
+  },
+  "rs252": {
+    "text": "252営業日（約1年）のリターンの指数比。「指数比の加速」は、指数比 31日リターンからこの値を引いた差。",
+    "family": true
+  },
+  "rs_sma75": {
+    "text": "この銘柄と比較指数それぞれの「75日線」（直近75営業日の終値の平均をつないだ線）が、31営業日でどれだけ上がったかの割合の差。 終値の代わりに、日々の上下をならした線で比べるので、流れとしてどちらが強いかが出る。 単位は指数比 31日リターンと同じで、1日あたりの傾きではない。指数比を75日で平均した線でも、75日リターンでもない。",
+    "family": true
+  },
+  "event_news_bundle": {
+    "text": "売買代金が急増した日に関係しそうなニュースの候補（最大3件）。原因と断定したものではない。 材料が見つからないときは「材料不明・需給起因疑い」などの文になる。",
+    "family": false
+  },
+  "research_prompt_block": {
+    "text": "この銘柄の基本情報（基準日・コード・銘柄名）と、当日の売買代金・値動きの指標を1行のテキストにまとめたもの。 自分で調べるときや AI に質問するときに、そのまま貼り付けて使える。結論は含まない。",
+    "family": false
+  },
+  "beta_adjusted_rs": {
+    "text": "1年（252営業日）のリターンから、「この銘柄が指数にどれだけ連動して動くか」（β、ベータ）×「指数のリターン」を引いた値。 βが1.5なら、指数が1%動くとこの銘柄は平均1.5%動くという意味。 指数比 252日リターンは連動の強さを1とみなして引くのに対し、こちらは銘柄ごとの連動の強さを考慮する。 正なら、指数に連動して動いた分を除いても上がっている。",
+    "family": false
+  },
+  "information_ratio": {
+    "text": "直近63営業日（約3か月）について、毎日の「この銘柄の前日比 − 比較指数の前日比」の平均を、そのばらつき（標準偏差）で割った値。 指数を上回る日が安定して続くほど正に大きく、下回る日が続くほど負に大きい。 日によってまちまちだと、平均が同じでも絶対値は小さくなる。 %でも倍率でもなく、指数比 63日リターンとは別の量。専門用語では情報比率。",
+    "family": false
+  },
+  "perfect_order_days": {
+    "text": "終値の25日・75日・200日移動平均線が、短い線ほど上に並んだ状態（25日線 > 75日線 > 200日線）が、基準日まで何営業日続いているか。 上昇の並びだけ数え、逆の並び（下降パーフェクトオーダー）は数えない。0 はその並びではない。 220営業日分（1年弱）の株価がない銘柄は空欄。",
+    "family": false
+  },
+  "price_change_pct": {
+    "text": "前営業日の終値に対する基準日終値の変化率。+3.0 なら前営業日より 3% 高い。 この列だけ値が%で、指数比の小数（0.1＝10%分）とは単位が違う。指数との比較は含まない。",
+    "family": false
+  },
+  "turnover_ma_ratio_60": {
+    "text": "基準日の売買代金が、この銘柄の直近60営業日平均の何倍か。1.0 が普段どおり、3.0 なら普段の3倍、0.5 なら半分。 「売買代金Z」と同じく普段と比べる値だが、こちらは倍率で、Zは珍しさの度合い。",
+    "family": false
+  },
+  "as_of": {
+    "text": "表とグラフがそろえている営業日。画面のすべての数値は、この日の終値までのデータで計算している。 「最終更新」はデータが確定した時刻で、基準日とは別。",
+    "family": false
+  },
+  "benchmark": {
+    "text": "「指数比〜」が比べる相手。TOPIX（東証の幅広い銘柄の指数）か日経平均（代表的な225銘柄の指数）。 切り替えると指数比の列とグラフが入れ替わる。 売買代金Z、当日の値動き、前日比(%)、売買代金倍率、パーフェクトオーダー日数は変わらない。",
+    "family": false
+  },
+  "committed_at": {
+    "text": "いま見ているデータが確定した時刻（日本時間）。基準日そのものではない。",
+    "family": false
+  },
+  "exclude_all_rs_negative": {
+    "text": "指数比 31日・63日・126日・252日リターンと、指数比 75日線の傾きがすべてマイナスの銘柄を一覧から外す。 下げ相場でも、指数より下げ幅が小さい銘柄は残る。指数比の加速と売買代金Zは見ない。",
+    "family": false
+  },
+  "core_universe": {
+    "text": "この画面が扱う銘柄の範囲。国内株式のうち、上場して間もない銘柄（約1年分の株価がまだない）と、 売買代金が少なく取引が薄い銘柄を除いたもの。画面の数値はすべてこの範囲の中で計算している。",
+    "family": false
+  },
+  "web_overview": {
+    "text": "株探（かぶたん）の銘柄概要ページを開く。",
+    "family": false
+  },
+  "web_chart": {
+    "text": "株探のチャートページを開く。この画面の指数比グラフとは別。",
+    "family": false
+  },
+  "web_news": {
+    "text": "株探のニュース一覧を開く。表の「ニュース候補」（売買代金が急増した日の候補）とは別。",
+    "family": false
+  },
+  "web_news_candidates": {
+    "text": "表の「ニュース候補」と同じ内容を、下段のタブで開く。",
+    "family": false
+  },
+  "web_buffett": {
+    "text": "バフェットコードの銘柄ページを開く。この画面のグラフや、表のニュース候補とは別のサイト。",
+    "family": false
+  },
+  "web_minkabu": {
+    "text": "みんかぶの銘柄ページを開く。この画面のグラフや、表のニュース候補とは別のサイト。",
+    "family": false
+  },
+  "web_yahoo": {
+    "text": "Yahoo!ファイナンスの銘柄ページを開く。この画面のグラフや、表のニュース候補とは別のサイト。",
+    "family": false
+  }
+};
+  const COLUMN_LABEL_IDS = {
+  "code": "code",
+  "name": "name",
+  "favorite": "favorite",
+  "price_text": "price_text",
+  "candle_labels": "price_text",
+  "z_turnover_60": "z_turnover_60",
+  "rs_acceleration_zscore_topix": "rs_acceleration_zscore",
+  "rs_acceleration_zscore_nikkei": "rs_acceleration_zscore",
+  "rs_acceleration_topix": "rs_acceleration",
+  "rs_acceleration_nikkei": "rs_acceleration",
+  "rs31_topix": "rs31",
+  "rs31_nikkei": "rs31",
+  "rs63_topix": "rs63",
+  "rs63_nikkei": "rs63",
+  "rs126_topix": "rs126",
+  "rs126_nikkei": "rs126",
+  "rs252_topix": "rs252",
+  "rs252_nikkei": "rs252",
+  "rs_sma75_topix": "rs_sma75",
+  "rs_sma75_nikkei": "rs_sma75",
+  "event_news_bundle": "event_news_bundle",
+  "research_prompt_block": "research_prompt_block",
+  "beta_adjusted_rs_topix": "beta_adjusted_rs",
+  "beta_adjusted_rs_nikkei": "beta_adjusted_rs",
+  "information_ratio_topix": "information_ratio",
+  "information_ratio_nikkei": "information_ratio",
+  "perfect_order_days": "perfect_order_days",
+  "price_change_pct": "price_change_pct",
+  "turnover_ma_ratio_60": "turnover_ma_ratio_60",
+  "committed_at_utc": "committed_at",
+  "link_kabutan": "web_overview",
+  "link_kabutan_chart": "web_chart",
+  "link_kabutan_news": "web_news"
+};
+  const SERIES_LABEL_IDS = {
+  "z_disp": "z_turnover_60",
+  "rs31": "rs31",
+  "rs63": "rs63",
+  "rs126": "rs126",
+  "rs252": "rs252",
+  "rs_sma75": "rs_sma75"
+};
+
+  function columnLabelId(key) {
+    if (COLUMN_LABEL_IDS[key]) return COLUMN_LABEL_IDS[key];
+    const base = String(key || "").replace(/_(topix|nikkei)$/, "");
+    return COLUMN_LABEL_IDS[base] || "";
+  }
+
+  function attachLabelTip(el, id) {
+    if (el && id && LABEL_TIPS[id]) el.dataset.labelTip = id;
+  }
+
+  function labelTipText(id) {
+    const entry = LABEL_TIPS[id];
+    if (!entry) return "";
+    const parts = [];
+    if (entry.family) parts.push(LABEL_FAMILY_INDEX);
+    if (entry.text) parts.push(entry.text);
+    return parts.join("\n\n");
+  }
+
+  function bindLabelTips() {
+    if (document.getElementById("label-tip")) return;
+    const tip = document.createElement("div");
+    tip.id = "label-tip";
+    tip.hidden = true;
+    tip.setAttribute("role", "tooltip");
+    document.body.appendChild(tip);
+    let current = null;
+    function hide() {
+      current = null;
+      tip.hidden = true;
+    }
+    function show(host) {
+      if (!host || host.closest(".surface-chrome-source, .surface-header-source")) return;
+      const text = labelTipText(host.dataset.labelTip || "");
+      if (!text) return;
+      current = host;
+      tip.textContent = text;
+      tip.hidden = false;
+      const rect = host.getBoundingClientRect();
+      const width = tip.offsetWidth;
+      const height = tip.offsetHeight;
+      let left = Math.min(rect.left, window.innerWidth - width - 8);
+      left = Math.max(8, left);
+      let top = rect.bottom + 8;
+      if (top + height > window.innerHeight - 8) top = Math.max(8, rect.top - height - 8);
+      tip.style.left = left + "px";
+      tip.style.top = top + "px";
+    }
+    document.addEventListener("mouseover", (ev) => {
+      const host = ev.target.closest ? ev.target.closest("[data-label-tip]") : null;
+      if (!host) return;
+      show(host);
+    });
+    document.addEventListener("mouseout", (ev) => {
+      const host = ev.target.closest ? ev.target.closest("[data-label-tip]") : null;
+      if (!host || host !== current) return;
+      const next = ev.relatedTarget;
+      if (next && host.contains(next)) return;
+      hide();
+    });
+    document.addEventListener("focusin", (ev) => {
+      const host = ev.target.closest ? ev.target.closest("[data-label-tip]") : null;
+      if (host) show(host);
+    });
+    document.addEventListener("focusout", (ev) => {
+      const host = ev.target.closest ? ev.target.closest("[data-label-tip]") : null;
+      if (host) hide();
+    });
+  }
 
   function seriesDisplayMeta() {
     const head = [];
@@ -80,10 +321,14 @@
     kabutanMode: "overview",
     kabutanTimer: null,
     rowObserver: null,
+    dataUpdatedAt: null,
+    seenBundleKey: "",
+    bundleNotice: null,
   };
 
   const $ = (id) => document.getElementById(id);
   const chrome = () => window.StockRadarChrome;
+  let lastFavAnchor = null;
   const FAV_LIST_MAX = 12;
   const FAV_CELL_CHIPS = 5;
   const FAV_NAME_MAX = 20;
@@ -145,27 +390,63 @@
     }
   }
 
-  async function bffFetch(path, init) {
-    const ctx = liveCtx();
-    if (!ctx || !ctx.bffOrigin || !ctx.accessToken) {
-      const err = new Error("login");
-      err.t5 = "login";
-      throw err;
-    }
-    let res;
+  async function bffSend(origin, path, init, token) {
     try {
-      res = await fetch(String(ctx.bffOrigin).replace(/\/$/, "") + path, {
+      return await fetch(String(origin).replace(/\/$/, "") + path, {
         ...(init || {}),
         headers: {
-          Authorization: "Bearer " + ctx.accessToken,
+          Authorization: "Bearer " + token,
           "Content-Type": "application/json",
           ...((init && init.headers) || {}),
         },
       });
     } catch (_err) {
+      return null;
+    }
+  }
+
+  async function bffFetch(path, init) {
+    const ctx = liveCtx();
+    if (!ctx || !ctx.bffOrigin) {
+      const err = new Error("login");
+      err.t5 = "login";
+      throw err;
+    }
+    let token = ctx.accessToken || "";
+    if (typeof window.__webUiFreshAccessToken === "function") {
+      try {
+        const fresh = await window.__webUiFreshAccessToken();
+        if (fresh) token = fresh;
+      } catch (_err) {
+        /* use the snapshot already copied into the session */
+      }
+    }
+    if (!token) {
+      const err = new Error("login");
+      err.t5 = "login";
+      throw err;
+    }
+    let res = await bffSend(ctx.bffOrigin, path, init, token);
+    if (!res) {
       const err = new Error("temporary");
       err.t5 = "temporary";
       throw err;
+    }
+    if (res.status === 401 && typeof window.__webUiFreshAccessToken === "function") {
+      let fresh = null;
+      try {
+        fresh = await window.__webUiFreshAccessToken(true);
+      } catch (_err) {
+        fresh = null;
+      }
+      if (fresh && fresh !== token) {
+        res = await bffSend(ctx.bffOrigin, path, init, fresh);
+        if (!res) {
+          const err = new Error("temporary");
+          err.t5 = "temporary";
+          throw err;
+        }
+      }
     }
     if (res.status === 401) {
       const err = new Error("login");
@@ -280,6 +561,7 @@
       err.t5 = "temporary";
       throw err;
     }
+    state.dataUpdatedAt = minted.committed_at_utc || res.headers.get("last-modified") || null;
     const buf = await readBodyWithProgress(res, (got, total) => {
       if (total > 0) {
         bootProgress("束をダウンロードしています", 0.68 + 0.22 * (got / total));
@@ -425,11 +707,11 @@
 
 
   const EXTRA_COL_DEFS = {
-    beta_adjusted_rs_topix: { key: "beta_adjusted_rs_topix", label: "β調整RS", kind: "signed1", bench: true },
-    information_ratio_topix: { key: "information_ratio_topix", label: "情報比率", kind: "signed1", bench: true },
-    perfect_order_days: { key: "perfect_order_days", label: "パーフェクトオーダー日数", kind: "int" },
-    price_change_pct: { key: "price_change_pct", label: "騰落率(%)", kind: "signed1" },
-    turnover_ma_ratio_60: { key: "turnover_ma_ratio_60", label: "売買代金MA比", kind: "signed1" },
+    beta_adjusted_rs_topix: { key: "beta_adjusted_rs_topix", label: "除β 252日RS", kind: "signed1", bench: true },
+    information_ratio_topix: { key: "information_ratio_topix", label: "RSの安定度", kind: "signed1", bench: true },
+    perfect_order_days: { key: "perfect_order_days", label: "ﾊﾟｰﾌｪｸﾄｵｰﾀﾞｰ日数", kind: "int" },
+    price_change_pct: { key: "price_change_pct", label: "前日比(%)", kind: "signed1" },
+    turnover_ma_ratio_60: { key: "turnover_ma_ratio_60", label: "売買代金倍率", kind: "signed1" },
   };
 
   const COLS_PANEL_OMIT_KEYS = new Set([
@@ -595,16 +877,21 @@
     opts = opts || {};
     rebuildFavIndex();
     schedulePrefsSave();
+    // Table rows are rebuilt by requestViewRefresh. Chart cards keep their
+    // fav-star nodes, so the same patch has to run either way.
     if (opts.refresh || state.favOnly) requestViewRefresh();
-    else if (opts.code) patchFavCell(opts.code);
+    patchFavCell(opts.code);
     const modal = $("fav-lists-modal");
     if (opts.modal && modal && !modal.classList.contains("hidden")) renderFavListsModal();
     if (opts.flyoutCode) refreshFavFlyout(opts.flyoutCode);
   }
 
   function patchFavCell(code) {
-    const c = padFavCode(code);
-    document.querySelectorAll('button.fav-star[data-fav-code="' + c + '"]').forEach((btn) => {
+    const sel = code
+      ? 'button.fav-star[data-fav-code="' + padFavCode(code) + '"]'
+      : "button.fav-star";
+    document.querySelectorAll(sel).forEach((btn) => {
+      const c = btn.dataset.favCode;
       const html = favCellInnerHtml(c);
       if (btn.innerHTML !== html) btn.innerHTML = html;
       const on = isFavorite(c);
@@ -822,13 +1109,18 @@
   }
 
   function closeFavFlyout() {
+    blurTextFieldInside(".fav-flyout");
     document.querySelectorAll(".fav-flyout").forEach((el) => el.remove());
   }
 
   function refreshFavFlyout(code) {
     const menu = document.querySelector(".fav-flyout");
     if (!menu || menu.dataset.favCode !== padFavCode(code)) return;
-    const anchor = document.querySelector('button.fav-star[data-fav-code="' + padFavCode(code) + '"]');
+    const c = padFavCode(code);
+    let anchor = lastFavAnchor;
+    if (!anchor || !anchor.isConnected || !anchor.dataset || anchor.dataset.favCode !== c) {
+      anchor = document.querySelector('button.fav-star[data-fav-code="' + c + '"]');
+    }
     if (anchor) openFavFlyout(anchor, code);
   }
 
@@ -837,6 +1129,7 @@
     closeFilterMenu();
     if (state.freePreview || !anchor) return;
     const c = padFavCode(code);
+    lastFavAnchor = anchor;
     const menu = document.createElement("div");
     menu.className = "fav-flyout";
     menu.dataset.favCode = c;
@@ -866,6 +1159,7 @@
     const input = document.createElement("input");
     input.type = "text";
     input.maxLength = FAV_NAME_MAX;
+    markNonCredentialInput(input, "list-label");
     const addBtn = document.createElement("button");
     addBtn.type = "button";
     addBtn.textContent = "追加";
@@ -932,6 +1226,80 @@
     return half.replace(/[^0-9A-Za-z]/g, "").toUpperCase();
   }
 
+  const CORE_UNIVERSE_TIP = "この画面が扱う銘柄の範囲。国内株式のうち、上場して間もない銘柄（約1年分の株価がまだない）と、 売買代金が少なく取引が薄い銘柄を除いたもの。画面の数値はすべてこの範囲の中で計算している。";
+
+  function coreUniverseTermHtml() {
+    return (
+      '<button type="button" class="core-universe-term" aria-label="対象銘柄の説明">' +
+      "対象銘柄" +
+      '<span class="core-universe-tip" role="tooltip">' +
+      escapeHtml(CORE_UNIVERSE_TIP) +
+      "</span>" +
+      "</button>"
+    );
+  }
+
+  function unknownTickerHtml() {
+    return "存在しないか、この画面の" + coreUniverseTermHtml() + "に含まれません";
+  }
+
+  function coreHasCodeQuery(q) {
+    const needle = toHalfWidthCode(q);
+    if (!needle) return false;
+    return state.rows.some((row) => toHalfWidthCode(row.code).includes(needle));
+  }
+
+  function coreHasNameQuery(q) {
+    const needle = String(q || "").trim().toLowerCase();
+    if (!needle) return false;
+    return state.rows.some((row) => String(row.name || "").toLowerCase().includes(needle));
+  }
+
+  function describeCodeMiss(raw) {
+    const needle = toHalfWidthCode(raw);
+    if (!needle) return "";
+    if (coreHasCodeQuery(needle)) return coreUniverseTermHtml() + "にありますが、他のフィルタで表示されていません。";
+    return unknownTickerHtml();
+  }
+
+  function searchMissMessage() {
+    const codeFilt = state.colFilters.code;
+    const nameFilt = state.colFilters.name;
+    const codeQ = codeFilt && codeFilt.op === "contains" ? String(codeFilt.q || "") : "";
+    const nameQ = nameFilt && nameFilt.op === "contains" ? String(nameFilt.q || "").trim() : "";
+    if (!codeQ && !nameQ) return "";
+    if (codeQ) return describeCodeMiss(codeQ);
+    if (coreHasNameQuery(nameQ)) return coreUniverseTermHtml() + "にありますが、他のフィルタで表示されていません。";
+    return unknownTickerHtml();
+  }
+
+  function favAddCodeHint(raw) {
+    const needle = toHalfWidthCode(raw);
+    if (!needle || needle.length < 4) return "";
+    if (findRowByCode(padFavCode(needle))) return "";
+    return describeCodeMiss(needle);
+  }
+
+  function writeMissHtml(el, html) {
+    if (!el) return;
+    el.innerHTML = html || "";
+    el.hidden = !html;
+  }
+
+  function updateSearchMiss(rowCount) {
+    const el = $("search-miss");
+    if (!el) return;
+    writeMissHtml(el, rowCount === 0 ? searchMissMessage() : "");
+  }
+
+  function updateFavAddCodeHint() {
+    const el = $("fav-list-add-code-hint");
+    const input = $("fav-list-add-code");
+    if (!el) return;
+    const html = input && !input.disabled ? favAddCodeHint(input.value) : "";
+    writeMissHtml(el, html);
+  }
+
   function colFilterActive(key) {
     const f = state.colFilters[key];
     return !!(f && f.op && f.op !== "none");
@@ -986,6 +1354,7 @@
   }
 
   function closeFilterMenu() {
+    blurTextFieldInside(".col-filter-menu, .fav-filter-anchor, wa-dropdown.fav-filter-dropdown");
     state.filterMenuKey = null;
     document.querySelectorAll(".col-filter-menu, .fav-filter-anchor, wa-dropdown.fav-filter-dropdown").forEach((el) => el.remove());
     closeFavFlyout();
@@ -1074,6 +1443,7 @@
   }
 
   function closeFavListsModal() {
+    blurTextFieldInside("#fav-lists-modal");
     const modal = $("fav-lists-modal");
     if (!modal) return;
     modal.classList.add("hidden");
@@ -1135,6 +1505,7 @@
     });
     syncFavCreateFields($("fav-list-new-name"), $("fav-list-add"), "新しいリスト名");
     syncFavCreateFields($("fav-list-add-code"), $("fav-list-add-code-btn"), "7011", favCodeAddAtCap(selected));
+    updateFavAddCodeHint();
     if (renameEl && !favRenameFocused()) renameEl.value = selected ? selected.name : "";
     if (deleteBtn) deleteBtn.disabled = !selected || state.favLists.length <= 1;
     members.innerHTML = "";
@@ -1220,18 +1591,160 @@
     requestViewRefresh();
   }
 
-  function bindHalfWidthCodeInput(el) {
+  // Chrome-family password extensions treat autocomplete=off as "use heuristics"
+  // and then match id/name substrings such as "name". A neutral name plus off
+  // keeps filter and favorite text fields out of that heuristic. inputmode=url
+  // stays on stock-code fields only; Japanese names still need the IME.
+  function markNonCredentialInput(el, fieldName) {
     if (!el) return;
+    const apply = (node) => {
+      if (!node || !node.setAttribute) return;
+      if (node.getAttribute("autocomplete") !== "off") {
+        node.autocomplete = "off";
+        node.setAttribute("autocomplete", "off");
+      }
+      if (fieldName && node.getAttribute("name") !== fieldName) {
+        node.name = fieldName;
+        node.setAttribute("name", fieldName);
+      }
+      if (node.getAttribute("data-form-type") !== "other") node.setAttribute("data-form-type", "other");
+    };
+    apply(el);
+    const syncInner = () => {
+      const inner = el.shadowRoot && el.shadowRoot.querySelector("input, textarea");
+      apply(inner);
+    };
+    syncInner();
+    const ready = el.updateComplete;
+    if (ready && typeof ready.then === "function") ready.then(syncInner);
+    if (el.dataset && el.dataset.nonCredentialBound !== "1") {
+      el.dataset.nonCredentialBound = "1";
+      el.addEventListener("focusin", syncInner);
+    }
+  }
+
+  const PASSWORD_MANAGER_FRAME_IDS = [
+    "pejdijmoenmkgeppbflobdenhhabjlaj",
+    "aeblfdkhhhdcdjpifhhbdiojplfjncoa",
+    "nngceckbapebfimnlniiiahkandclblb",
+    "hdokiejnpimakedhajhdlcegeplioahd",
+  ];
+
+  function focusedTextControl() {
+    let node = document.activeElement;
+    if (!node || node === document.body || node === document.documentElement) return null;
+    let host = null;
+    if (node.shadowRoot && node.shadowRoot.activeElement) host = node;
+    while (node.shadowRoot && node.shadowRoot.activeElement) node = node.shadowRoot.activeElement;
+    if (!node || (node.localName !== "input" && node.localName !== "textarea")) return null;
+    const type = String(node.type || "text").toLowerCase();
+    if (["checkbox", "radio", "button", "submit", "file", "hidden", "range", "color"].indexOf(type) >= 0) return null;
+    return { control: node, host: host };
+  }
+
+  function isLoginEmail(found) {
+    if (!found) return false;
+    if (found.control && found.control.id === "email") return true;
+    return !!(found.host && found.host.id === "email");
+  }
+
+  function blurTextControl(found) {
+    if (!found) return;
+    if (typeof found.control.blur === "function") found.control.blur();
+    if (found.host && found.host !== found.control && typeof found.host.blur === "function") found.host.blur();
+  }
+
+  function removeStuckPasswordFrames() {
+    if (isLoginEmail(focusedTextControl())) return;
+    const frames = [];
+    document.querySelectorAll("iframe").forEach((frame) => frames.push(frame));
+    document.querySelectorAll("wa-input, wa-select").forEach((el) => {
+      if (!el.shadowRoot) return;
+      el.shadowRoot.querySelectorAll("iframe").forEach((frame) => frames.push(frame));
+    });
+    frames.forEach((frame) => {
+      const src = String(frame.getAttribute("src") || "");
+      const matched = PASSWORD_MANAGER_FRAME_IDS.some((id) => src.indexOf("chrome-extension://" + id + "/") === 0);
+      if (!matched) return;
+      const parent = frame.parentElement;
+      frame.remove();
+      if (parent && parent.childElementCount === 0 && parent !== document.body && parent !== document.documentElement) parent.remove();
+    });
+  }
+
+  function blurTextFieldInside(selector) {
+    const found = focusedTextControl();
+    if (!found) return;
+    const field = found.host || found.control;
+    if (!(field.closest && field.closest(selector))) return;
+    blurTextControl(found);
+    removeStuckPasswordFrames();
+  }
+
+  function pointerDownKeepsTextControl(ev, found) {
+    const path = typeof ev.composedPath === "function" ? ev.composedPath() : [];
+    if (path.indexOf(found.control) >= 0) return true;
+    if (found.host && path.indexOf(found.host) >= 0) return true;
+    const field = found.host || found.control;
+    const label = field.closest && field.closest("label");
+    return !!(label && path.indexOf(label) >= 0);
+  }
+
+  // Clicks on non-focusable surface, and controls that cancel mousedown, leave
+  // the inner input focused. Password UI then stays up because it never sees blur.
+  function scheduleReleaseTextFieldFocus(ev) {
+    const found = focusedTextControl();
+    if (!found || pointerDownKeepsTextControl(ev, found)) return;
+    const control = found.control;
+    const host = found.host;
+    setTimeout(() => {
+      const now = focusedTextControl();
+      if (now && now.control !== control) {
+        if (!isLoginEmail(now)) removeStuckPasswordFrames();
+        return;
+      }
+      blurTextControl({ control: control, host: host });
+      removeStuckPasswordFrames();
+    }, 0);
+  }
+
+  document.addEventListener("pointerdown", scheduleReleaseTextFieldFocus, true);
+
+  function applyHalfWidthCodeAttrs(node) {
+    if (!node) return;
+    node.lang = "en";
+    node.inputMode = "url";
+    node.autocapitalize = "off";
+    node.spellcheck = false;
+    node.autocomplete = "off";
+    if (node.style) node.style.imeMode = "disabled";
+    if (node.classList) node.classList.add("cfm-code-input");
+    if (node.setAttribute) {
+      node.setAttribute("lang", "en");
+      node.setAttribute("inputmode", "url");
+      node.setAttribute("autocapitalize", "off");
+      node.setAttribute("spellcheck", "false");
+      node.setAttribute("autocomplete", "off");
+    }
+  }
+
+  function bindHalfWidthCodeInput(el) {
+    if (!el || el.dataset.halfWidthBound === "1") return;
+    el.dataset.halfWidthBound = "1";
     el.lang = "en";
     // url is the alphanumeric sibling of a survey phone field (inputmode=tel):
     // Chromium reports it as a non-text input type, so Windows IME switches to
     // direct half-width alphanumeric when the field receives focus.
     el.inputMode = "url";
-    el.autocapitalize = "off";
-    el.spellcheck = false;
-    el.autocomplete = "off";
-    el.style.imeMode = "disabled";
-    el.classList.add("cfm-code-input");
+    applyHalfWidthCodeAttrs(el);
+    const syncInner = () => {
+      const inner = el.shadowRoot && el.shadowRoot.querySelector("input");
+      applyHalfWidthCodeAttrs(inner);
+    };
+    syncInner();
+    const ready = el.updateComplete;
+    if (ready && typeof ready.then === "function") ready.then(syncInner);
+    el.addEventListener("focus", syncInner, true);
     let composing = false;
     const apply = () => {
       if (composing) return;
@@ -1244,6 +1757,7 @@
       apply();
     });
     el.addEventListener("input", apply);
+    el.addEventListener("wa-input", apply);
   }
 
   function placeFilterMenu(menu, th) {
@@ -1282,7 +1796,9 @@
   function favCategorySelection() {
     const visible = favFilterableLists();
     const noneOn = state.favFilterIds.indexOf("__none__") >= 0;
-    const allListsOn = !noneOn && (!state.favOnly || !state.favFilterIds.length);
+    const emptyIds = !noneOn && !state.favFilterIds.length;
+    // empty filter_ids + favOnly + include_blank means blank-only, not "all lists".
+    const allListsOn = !noneOn && (!state.favOnly || (emptyIds && !state.favIncludeBlank));
     const blankOn = !noneOn && (!state.favOnly || !!state.favIncludeBlank);
     const ids = noneOn
       ? []
@@ -1360,32 +1876,38 @@
     return { items, byValue };
   }
 
-  function syncFavFilterMaster(root) {
-    const { items, byValue } = readFavFilterChecks(root);
-    const listIds = favFilterableLists().map((list) => list.id);
-    const allListsOn = listIds.length === 0 || listIds.every((id) => byValue[id]);
-    const blankOn = favBlankCount() === 0 || !!byValue[FAV_FILTER_BLANK];
+  function writeFavFilterChecks(root, selection) {
+    const { items } = readFavFilterChecks(root);
+    const idSet = {};
+    (selection.ids || []).forEach((id) => { idSet[id] = true; });
     items.forEach((el) => {
       const value = String(el.value || "");
-      if (value === FAV_FILTER_ALL) el.checked = allListsOn && blankOn;
+      if (value === FAV_FILTER_ALL) el.checked = !!selection.allOn;
+      else if (value === FAV_FILTER_BLANK) el.checked = !!selection.blankOn;
+      else el.checked = !!idSet[value];
     });
   }
 
   function applyFavFilterChecks(root, toggledValue) {
-    const { items, byValue } = readFavFilterChecks(root);
+    const { byValue } = readFavFilterChecks(root);
     const visible = favFilterableLists();
-    let blankOn = favBlankCount() === 0 || !!byValue[FAV_FILTER_BLANK];
-    let ids = visible.map((list) => list.id).filter((id) => byValue[id]);
+    const blankShown = favBlankCount() > 0;
+    let blankOn;
+    let ids;
     if (toggledValue === FAV_FILTER_ALL) {
       const on = !!byValue[FAV_FILTER_ALL];
-      blankOn = on;
+      blankOn = on && blankShown;
       ids = on ? visible.map((list) => list.id) : [];
-      items.forEach((el) => {
-        el.checked = on;
-      });
+    } else {
+      blankOn = blankShown && !!byValue[FAV_FILTER_BLANK];
+      ids = visible.map((list) => list.id).filter((id) => byValue[id]);
     }
-    syncFavFilterMaster(root);
     commitFavCategories(blankOn, ids);
+    writeFavFilterChecks(root, favCategorySelection());
+    requestAnimationFrame(() => {
+      if (!root.isConnected) return;
+      writeFavFilterChecks(root, favCategorySelection());
+    });
   }
 
   function openFavFilterMenu(th) {
@@ -1405,7 +1927,7 @@
       trigger.type = "button";
       trigger.slot = "trigger";
       trigger.className = "fav-filter-dropdown-trigger";
-      trigger.setAttribute("aria-label", "お気入りフィルタ");
+      trigger.setAttribute("aria-label", "お気に入りフィルタ");
       dropdown.appendChild(trigger);
       dropdown.appendChild(makeFavFilterItem(FAV_FILTER_ALL, "（すべて）", current.allOn, locked));
       const split = document.createElement("wa-divider");
@@ -1453,7 +1975,7 @@
     if (locked) {
       const note = document.createElement("p");
       note.className = "cfm-note muted";
-      note.textContent = "無料プレビュー中はお気入りフィルタを変更できません。";
+      note.textContent = "無料プレビュー中はお気に入りフィルタを変更できません。";
       menu.appendChild(note);
     }
     const sec = document.createElement("div");
@@ -1516,6 +2038,7 @@
       qEl.value = currentQ;
     }
     if (key === "code") bindHalfWidthCodeInput(qEl);
+    else markNonCredentialInput(qEl, "column-filter");
     qEl.addEventListener("keydown", (ev) => {
       if (ev.key !== "Enter" || locked) return;
       ev.preventDefault();
@@ -1665,6 +2188,8 @@
       bEl.disabled = locked;
       if (cur.b != null) bEl.value = String(cur.b);
     }
+    markNonCredentialInput(aEl, "filter-value");
+    markNonCredentialInput(bEl, "filter-value");
     vals.appendChild(aEl);
     vals.appendChild(bEl);
     secFilt.appendChild(vals);
@@ -1916,7 +2441,7 @@
           const c = padFavCode(r.code);
           const blank = !isFavorite(c);
           if (blank) return !!state.favIncludeBlank;
-          if (!state.favFilterIds.length) return true;
+          if (!state.favFilterIds.length) return !state.favIncludeBlank;
           return state.favLists.some((list) =>
             state.favFilterIds.indexOf(list.id) >= 0 && codeInFavList(list, c)
           );
@@ -2044,8 +2569,10 @@
         schedulePrefsSave();
         requestViewRefresh();
       };
+      const tipId = columnLabelId(k);
       if (ui && ui.checkbox) {
         const cb = ui.checkbox(label, checked, false);
+        attachLabelTip(cb, tipId);
         if (ui.onCheck) ui.onCheck(cb, onToggle);
         else cb.addEventListener("change", () => onToggle(!!cb.checked));
         panel.appendChild(cb);
@@ -2058,6 +2585,7 @@
       cb.addEventListener("change", () => onToggle(!!cb.checked));
       lab.appendChild(cb);
       lab.appendChild(document.createTextNode(" " + label));
+      attachLabelTip(lab, tipId);
       panel.appendChild(lab);
     });
   }
@@ -2078,19 +2606,24 @@
           "background:linear-gradient(90deg,rgba(" + RS_NEG + "," + a + ") 50%,rgba(" + RS_POS + "," + a + ") 50%);" +
           "height:" + Math.max(2, Math.min(10, s.width / 2)) + "px";
       }
+      const wrap = document.createElement("span");
+      wrap.className = "legend-tip";
+      const tipId = SERIES_LABEL_IDS[s.id] || "";
+      if (tipId) wrap.dataset.labelTip = tipId;
       if (ui && ui.tag) {
-        host.appendChild(ui.tag(s.label, { swatchStyle, swatchClass }));
-        return;
+        wrap.appendChild(ui.tag(s.label, { swatchStyle, swatchClass }));
+      } else {
+        const el = document.createElement("span");
+        el.innerHTML =
+          '<i class="' +
+          swatchClass +
+          '" style="' +
+          swatchStyle +
+          '"></i>' +
+          s.label;
+        wrap.appendChild(el);
       }
-      const el = document.createElement("span");
-      el.innerHTML =
-        '<i class="' +
-        swatchClass +
-        '" style="' +
-        swatchStyle +
-        '"></i>' +
-        s.label;
-      host.appendChild(el);
+      host.appendChild(wrap);
     });
   }
 
@@ -2122,22 +2655,29 @@
     const def = state.colDefs[k] || { kind: "text" };
     const classes = [];
     let extra = "";
-    if (def.kind === "signed1") classes.push("num");
+    if (def.kind === "signed1" || def.kind === "int") classes.push("num");
     if (def.kind === "news_bundle") classes.push("news-bundle");
     if (def.kind === "favorite") classes.push("fav-cell");
     let inner = cellHtml(row, k);
     if (def.kind === "signed1" && inner) {
+      const raw = row[mapKey(k)];
       const ui = chrome();
-      const range = ui && ui.cfRangeForLabel ? ui.cfRangeForLabel(def.label) : 1;
-      const fmt = ui && ui.numberCellFormat ? ui.numberCellFormat(inner, range) : null;
+      const range = ui && ui.cfRangeForLabel ? ui.cfRangeForLabel(k) : 1;
+      const fmt = ui && ui.numberCellFormat ? ui.numberCellFormat(raw, range) : null;
       if (fmt) {
         classes.push("surface-cf-number");
         extra = ' style="--cell-hue:' + fmt.hue + ";--cell-alpha:" + fmt.alpha + '"';
       }
+      if (raw != null && raw !== "" && Number.isFinite(Number(raw))) {
+        extra += ' data-cf-value="' + escapeHtml(String(Number(raw))) + '"';
+      }
     }
     if (k === "price_text") {
       classes.push("surface-cf-price");
-      if (inner) {
+      const priceApi = window.StockRadarPriceText;
+      if (priceApi && priceApi.cellHtml) {
+        inner = priceApi.cellHtml(row);
+      } else if (inner) {
         const ui = chrome();
         const tone = ui && ui.priceTone ? ui.priceTone(displayPriceText(row)) : "neutral";
         inner = '<span class="surface-price-tag" data-tone="' + escapeHtml(tone) + '">' + inner + "</span>";
@@ -2187,6 +2727,58 @@
     });
   }
 
+  // Trailing halfwidth katakana is the monthly shortener's suffix
+  // (ホールディングス / グループ / インターナショナル / コーポレーション).
+  // Names still wider than that wrapped line break once at an existing
+  // delimiter (・, space, hyphen), choosing the split with the shorter long line.
+  const NAME_BREAK_MIN_PX = 142;
+  const NAME_BREAK_SEPS = /[\u30FB\s\u3000\uFF0D-]/;
+  let nameWidthCtx = null;
+
+  function nameTextWidth(text) {
+    if (!nameWidthCtx) {
+      const probe = document.createElement("span");
+      const grid = document.getElementById("grid");
+      probe.style.cssText = "position:absolute;visibility:hidden;white-space:nowrap";
+      (grid || document.body).appendChild(probe);
+      const cs = getComputedStyle(probe);
+      probe.remove();
+      nameWidthCtx = document.createElement("canvas").getContext("2d");
+      nameWidthCtx.font = cs.fontWeight + " " + cs.fontSize + " " + cs.fontFamily;
+      if ("letterSpacing" in nameWidthCtx) nameWidthCtx.letterSpacing = cs.letterSpacing;
+    }
+    return nameWidthCtx.measureText(text).width;
+  }
+
+  function nameDelimiterBreak(text) {
+    if (nameTextWidth(text) <= NAME_BREAK_MIN_PX) return null;
+    let best = null;
+    for (let i = 0; i < text.length; i++) {
+      if (!NAME_BREAK_SEPS.test(text.charAt(i))) continue;
+      const left = text.slice(0, i).replace(/[\s\u3000]+$/, "");
+      const right = text.slice(i + 1).replace(/^[\s\u3000]+/, "");
+      if (!left || !right) continue;
+      const width = Math.max(nameTextWidth(left), nameTextWidth(right));
+      if (!best || width < best.width) best = { width: width, left: left, right: right };
+    }
+    if (!best || best.width >= nameTextWidth(text)) return null;
+    return best;
+  }
+
+  function nameCellHtml(name) {
+    const text = String(name);
+    const match = /^(.*?)([\uFF61-\uFF9F]+)$/.exec(text);
+    if (match) {
+      const prefix = match[1].replace(/[\s\u3000]+$/, "");
+      if (prefix) {
+        return escapeHtml(prefix) + '<span class="name-hankaku">' + escapeHtml(match[2]) + "</span>";
+      }
+    }
+    const split = nameDelimiterBreak(text);
+    if (!split) return escapeHtml(text);
+    return escapeHtml(split.left) + '<span class="name-break">' + escapeHtml(split.right) + "</span>";
+  }
+
   function cellHtml(row, baseKey) {
     const key = mapKey(baseKey);
     const def = state.colDefs[baseKey] || { kind: "text" };
@@ -2231,6 +2823,7 @@
     }
     if (baseKey === "price_text") return escapeHtml(displayPriceText(row));
     const v = row[key];
+    if (baseKey === "name") return v == null ? "" : nameCellHtml(v);
     if (def.kind === "link") {
       const href = safeHttpUrl(v);
       if (!href) return "";
@@ -2243,6 +2836,17 @@
       return escapeHtml(String(Math.round(Number(v))));
     }
     return v == null ? "" : escapeHtml(String(v));
+  }
+
+  function headerCaption(label) {
+    const text = String(label || "");
+    if (text.indexOf("連動分を除く") === 0) return "連動分を除く\n" + text.slice("連動分を除く".length).trim();
+    if (text.indexOf("パーフェクトオーダー") === 0 && text.length > "パーフェクトオーダー".length) {
+      return "パーフェクトオーダー\n" + text.slice("パーフェクトオーダー".length);
+    }
+    if (text.indexOf("指数比の") === 0) return "指数比の\n" + text.slice("指数比の".length);
+    if (text.indexOf("指数比 ") === 0) return "指数比\n" + text.slice("指数比 ".length);
+    return text;
   }
 
   function renderTable(opts) {
@@ -2259,10 +2863,14 @@
     const trh = document.createElement("tr");
     state.visibleKeys.forEach((k) => {
       const th = document.createElement("th");
+      th.dataset.col = k;
+      const tipId = columnLabelId(k);
+      if (tipId) th.dataset.labelTip = tipId;
       const sticky = stickyColClass(k);
       if (sticky) th.className = sticky;
       const def = state.colDefs[k];
       const label = def ? def.label : mapKey(k);
+      const caption = headerCaption(label);
       if (isNumericCol(k) || k === "favorite" || isTextFilterCol(k)) {
         th.classList.add("th-filterable");
         if (isNumericCol(k) || k === "favorite") th.classList.add("th-numeric");
@@ -2271,16 +2879,16 @@
         const ui = chrome();
         const btn = ui && ui.headerButton
           ? ui.headerButton({
-              caption: label,
-              title: k === "favorite" ? "お気入りフィルタ" : (isTextFilterCol(k) ? "文字列フィルタ" : "ソート / フィルタ"),
+              caption: caption,
+              title: k === "favorite" ? "お気に入りフィルタ" : (isTextFilterCol(k) ? "文字列フィルタ" : "ソート / フィルタ"),
               sorted: k !== "favorite" && state.sortKey === k,
               filtered: k === "favorite" ? state.favOnly : colFilterActive(k),
             })
           : document.createElement("button");
         if (!ui || !ui.headerButton) {
           btn.type = "button";
-          btn.textContent = label;
-          btn.title = k === "favorite" ? "お気入りフィルタ" : (isTextFilterCol(k) ? "文字列フィルタ" : "ソート / フィルタ");
+          btn.textContent = caption;
+          btn.title = k === "favorite" ? "お気に入りフィルタ" : (isTextFilterCol(k) ? "文字列フィルタ" : "ソート / フィルタ");
         }
         btn.classList.add("th-filter-btn");
         btn.addEventListener("click", (ev) => {
@@ -2292,7 +2900,7 @@
         });
         th.appendChild(btn);
       } else {
-        th.textContent = label;
+        th.textContent = caption;
       }
       trh.appendChild(th);
     });
@@ -2312,6 +2920,7 @@
       parts[i] = "<tr data-code=\"" + codeEsc + "\"" + (cls ? " class=\"" + cls.trim() + "\"" : "") + ">" + tds + "</tr>";
     }
     tbody.innerHTML = parts.join("");
+    updateSearchMiss(rows.length);
     if (wrap) {
       wrap.scrollTop = prevTop;
       wrap.scrollLeft = prevLeft;
@@ -2603,16 +3212,17 @@
     return Math.max(0, (dates || []).length - 1);
   }
 
-  function chartHoverCellHtml(label, text, raw) {
+  function chartHoverCellHtml(seriesId, text, raw, fit) {
     const n = raw == null ? NaN : Number(raw);
     const ui = chrome();
-    const range = ui && ui.cfRangeForLabel ? ui.cfRangeForLabel(label) : 1;
+    const range = ui && ui.cfRangeForLabel ? ui.cfRangeForLabel(seriesId) : 1;
     const fmt =
       Number.isFinite(n) && ui && ui.numberCellFormat
-        ? ui.numberCellFormat(fmtSigned1(n), range)
+        ? ui.numberCellFormat(n, range)
         : null;
     let extra = "";
     const classes = ["chart-hover-cell"];
+    if (fit) classes.push("chart-hover-fit");
     if (fmt) {
       classes.push("surface-cf-number");
       extra = ' style="--cell-hue:' + fmt.hue + ";--cell-alpha:" + fmt.alpha + '"';
@@ -2634,8 +3244,14 @@
     const colCount = 1 + series.length;
     const head = ['<span class="chart-hover-date chart-hover-head"></span>'];
     series.forEach((s) => {
+      const tipId = SERIES_LABEL_IDS[s.id] || "";
+      const fit = s.id === "z_disp" ? " chart-hover-fit" : "";
       head.push(
-        '<span class="chart-hover-cell chart-hover-head">' + escapeHtml(s.label) + "</span>"
+        '<span class="chart-hover-cell chart-hover-head' + fit + '"' +
+          (tipId ? ' data-label-tip="' + tipId + '"' : "") +
+          ">" +
+          '<span class="surface-label-compact"><span class="surface-label-compact-text">' + escapeHtml(s.label) + "</span></span>" +
+          "</span>"
       );
     });
     const values = [
@@ -2644,7 +3260,7 @@
     series.forEach((s) => {
       const raw = (seriesMap[s.id] || [])[idx];
       const text = raw == null || Number.isNaN(Number(raw)) ? "null" : fmtSigned1(raw);
-      values.push(chartHoverCellHtml(s.label, text, raw));
+      values.push(chartHoverCellHtml(s.id, text, raw, s.id === "z_disp"));
     });
     hoverEl.innerHTML =
       '<div class="chart-hover-table" style="--chart-hover-cols:' +
@@ -2884,6 +3500,26 @@
     card.dataset.drawn = "1";
   }
 
+  function makeFavStarButton(code) {
+    const c = padFavCode(code);
+    const on = isFavorite(c);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "fav-star" + (on ? " on" : "") + (state.freePreview ? " disabled" : "");
+    btn.dataset.favCode = c;
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+    btn.setAttribute("aria-label", "favorite lists");
+    if (state.freePreview) btn.disabled = true;
+    btn.innerHTML = favCellInnerHtml(c);
+    btn.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (state.freePreview) return;
+      openFavFlyout(btn, c);
+    });
+    return btn;
+  }
+
   function makeChartCard(code) {
     const row = findRowByCode(code) || {};
     const ui = chrome();
@@ -2898,19 +3534,28 @@
     if (shell) {
       const heading = shell.querySelector("[data-chart-title]");
       if (heading) heading.textContent = code + " " + (row.name || "");
+      const favHost = shell.querySelector("[data-chart-fav]");
+      if (favHost) favHost.replaceChildren(makeFavStarButton(code));
       applyChartCardChrome(shell, selected, hovered);
       card.appendChild(shell);
     } else {
       card.innerHTML =
-        "<h4>" + escapeHtml(code) + " " + escapeHtml(row.name || "") + "</h4>" +
+        "<div class=\"chart-card-head\"><h4>" + escapeHtml(code) + " " + escapeHtml(row.name || "") + "</h4></div>" +
         "<div class=\"hover\"></div>" +
         "<div class=\"chart-slot\" aria-hidden=\"true\"></div>";
+      const head = card.querySelector(".chart-card-head");
+      if (head) head.appendChild(makeFavStarButton(code));
     }
     card.addEventListener("mouseenter", () => setHoveredCode(code, { from: "chart" }));
     card.addEventListener("mouseleave", () => {
       if (state.hovered === code) setHoveredCode(null);
     });
     card.addEventListener("click", (ev) => {
+      if (ev.target.closest("button.fav-star, .fav-flyout")) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        return;
+      }
       const canvas = card.querySelector("canvas");
       if (canvas && canvas._suppressClick) {
         canvas._suppressClick = false;
@@ -3000,6 +3645,15 @@
     { key: "link_minkabu", label: "\u307f\u3093\u304b\u3076" },
     { key: "link_yahoo", label: "Yahoo!\u30d5\u30a1\u30a4\u30ca\u30f3\u30b9" },
   ];
+  const TAB_TIP_IDS = {
+    overview: "web_overview",
+    chart: "web_chart",
+    news: "web_news",
+    news_candidates: "web_news_candidates",
+    link_buffett: "web_buffett",
+    link_minkabu: "web_minkabu",
+    link_yahoo: "web_yahoo",
+  };
   const TAB_SETTINGS_KEY = "web_ui_asof_tab_settings_v1";
 
   function loadTabSettings() {
@@ -3044,8 +3698,10 @@
         if (row) applyKabutanUrl(row, state.kabutanMode);
         else showWebEmpty();
       };
+      const tipId = TAB_TIP_IDS[meta.key] || "";
       if (ui && ui.checkbox) {
         const cb = ui.checkbox(meta.label, !!state.tabSettings[meta.key], false);
+        attachLabelTip(cb, tipId);
         if (ui.onCheck) ui.onCheck(cb, onToggle);
         else cb.addEventListener("change", () => onToggle(!!cb.checked));
         panel.appendChild(cb);
@@ -3058,6 +3714,7 @@
       cb.addEventListener("change", () => onToggle(!!cb.checked));
       lab.appendChild(cb);
       lab.appendChild(document.createTextNode(" " + meta.label));
+      attachLabelTip(lab, tipId);
       panel.appendChild(lab);
     });
   }
@@ -3119,6 +3776,7 @@
           candidate: options.candidate,
         });
         t.dataset.kab = id;
+        if (options.labelTip) t.dataset.labelTip = options.labelTip;
         if (options.cand) t.dataset.cand = options.cand;
         children.push(t);
         if (ui.tabPanel) children.push(ui.tabPanel(panel, active));
@@ -3130,15 +3788,16 @@
       btn.textContent = label;
       if (options.disabled) btn.disabled = true;
       if (options.title) btn.title = options.title;
+      if (options.labelTip) btn.dataset.labelTip = options.labelTip;
       if (options.cand) btn.dataset.cand = options.cand;
       if (options.candidate) btn.classList.add("is-candidate");
       children.push(btn);
     }
 
-    const baseLabels = { overview: "\u6982\u8981", chart: "\u30c1\u30e3\u30fc\u30c8", news: "\u30cb\u30e5\u30fc\u30b9" };
     ["overview", "chart", "news"].forEach((id) => {
       if (!state.tabSettings[id]) return;
-      addTab(id, baseLabels[id]);
+      const meta = TAB_SETTINGS_META.find((x) => x.key === id);
+      addTab(id, meta ? meta.label : id, { labelTip: TAB_TIP_IDS[id] });
     });
 
     ["link_buffett", "link_minkabu", "link_yahoo"].forEach((id) => {
@@ -3147,6 +3806,7 @@
       addTab(id, meta ? meta.label : id, {
         disabled: !!(row && !row[id]),
         title: row && !row[id] ? "URL\u306a\u3057" : "",
+        labelTip: TAB_TIP_IDS[id],
       });
     });
 
@@ -3160,6 +3820,7 @@
             title: it.title + (it.url ? ("\n" + it.url) : ""),
             cand: String(it.n),
             candidate: true,
+            labelTip: "event_news_bundle",
           });
         });
       }
@@ -3264,8 +3925,9 @@
   function kabutanUrl(row, mode) {
     const code = String(row.code).padStart(4, "0");
     if (mode && String(mode).startsWith("cand:")) {
-      const n = String(mode).slice(5);
-      const url = row["event_news_" + n + "_url"];
+      const n = Number(String(mode).slice(5));
+      const item = eventNewsItems(row).find((it) => it.n === n);
+      const url = item && item.url;
       return url ? String(url) : null;
     }
     if (mode === "link_buffett" || mode === "link_minkabu" || mode === "link_yahoo") {
@@ -3293,6 +3955,21 @@
       }
     });
     if (activePanel) host.setAttribute("active", activePanel);
+  }
+
+  // 株探のページ先頭はバナー広告とパンくず。本文の #container はその直下。
+  // 別オリジンのため iframe の scrollTop は触れない。フラグメントで初期位置だけ合わせる。
+  function kabutanEmbedUrl(url) {
+    try {
+      const parsed = new URL(url);
+      const host = parsed.hostname.toLowerCase();
+      if (host !== "kabutan.jp" && host !== "www.kabutan.jp") return url;
+      if (parsed.hash) return url;
+      parsed.hash = "container";
+      return parsed.toString();
+    } catch (err) {
+      return url;
+    }
   }
 
   function applyKabutanUrl(row, mode) {
@@ -3335,7 +4012,7 @@
     if (state.kabutanTimer) clearTimeout(state.kabutanTimer);
     frame.src = "about:blank";
     setTimeout(() => {
-      frame.src = url;
+      frame.src = kabutanEmbedUrl(url);
     }, 0);
   }
 
@@ -3355,30 +4032,72 @@
     const sel = $("asof-mode");
     const ui = chrome();
     const items = (state.availableDates || []).map((d) => ({ value: d, text: d }));
-    if (ui && ui.fillSelect) {
-      ui.fillSelect(sel, items, state.asOf);
-      return;
+    if (ui && ui.fillSelect) ui.fillSelect(sel, items, state.asOf);
+    else {
+      sel.replaceChildren();
+      state.availableDates.forEach((d) => {
+        const opt = document.createElement("option");
+        opt.value = d;
+        opt.textContent = d;
+        sel.appendChild(opt);
+      });
     }
-    sel.innerHTML = "";
-    state.availableDates.forEach((d) => {
-      const opt = document.createElement("option");
-      opt.value = d;
-      opt.textContent = d;
-      if (d === state.asOf) opt.selected = true;
-      sel.appendChild(opt);
+    if (!state.asOf) return;
+    sel.value = state.asOf;
+    [...sel.querySelectorAll("wa-option, option")].forEach((opt) => {
+      if (opt.value === state.asOf) opt.setAttribute("selected", "");
+      else opt.removeAttribute("selected");
     });
+  }
+
+  function formatJstStamp(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    const parts = new Intl.DateTimeFormat("sv-SE", {
+      timeZone: "Asia/Tokyo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(d);
+    const get = (type) => {
+      const part = parts.find((item) => item.type === type);
+      return part ? part.value : "";
+    };
+    const stamp = get("year") + "-" + get("month") + "-" + get("day") + " " + get("hour") + ":" + get("minute");
+    return stamp.trim() === "-" ? "" : stamp + " JST";
+  }
+
+  function updateDataStamp() {
+    const el = $("data-updated");
+    if (!el) return;
+    const stamp = formatJstStamp(state.dataUpdatedAt);
+    el.textContent = stamp ? ("最終更新 " + stamp) : "";
   }
 
   function updateBanner() {
     const source = state.meta.csv_source === "ohlc_universe"
-      ? " | csv_source=ohlc_universe（ニュース/銘柄名は空。現行OHLCユニバース）"
+      ? " / ニュースと銘柄名は空です（現行のOHLCユニバース）"
       : "";
     $("asof-banner").textContent =
-      "as-of=" + state.meta.as_of +
-      " rows=" + state.meta.n_rows +
-      " axis=" + ((state.meta.axis_dates || []).length) +
+      "基準日 " + state.meta.as_of +
+      " / " + state.meta.n_rows + "銘柄" +
+      " / " + ((state.meta.axis_dates || []).length) + "営業日" +
       source +
       " | 内部向け初回ライブ。投資助言ではありません。";
+    updateDataStamp();
+    if (
+      state.bundleNotice &&
+      state.bundleNotice.trade_date === state.asOf &&
+      state.bundleNotice.committed_at_utc === state.dataUpdatedAt
+    ) {
+      const notice = $("bundle-notice");
+      if (notice) notice.hidden = true;
+      state.bundleNotice = null;
+    }
   }
 
   function priceTextAvailable() {
@@ -3414,9 +4133,11 @@
   }
 
   function orderVisibleKeys(keys, defaults) {
+    const preferred = window.__WEB_UI_VISIBLE_ORDER;
+    const basis = Array.isArray(preferred) && preferred.length ? preferred : (defaults || []);
     const have = new Set(keys);
     const ordered = [];
-    (defaults || []).forEach((k) => {
+    basis.forEach((k) => {
       if (have.has(k)) {
         ordered.push(k);
         have.delete(k);
@@ -3502,9 +4223,135 @@
     hideBootProgress();
   }
 
+  const BUNDLE_WATCH_MS = 300000;
+  let bundleWatchTimer = null;
+
+  function latestBundleCommit(commits, bench) {
+    let best = null;
+    for (const row of commits || []) {
+      if (!row || row.benchmark !== bench || !row.trade_date) continue;
+      const at = String(row.committed_at_utc || "");
+      if (
+        !best ||
+        row.trade_date > best.trade_date ||
+        (row.trade_date === best.trade_date && at > String(best.committed_at_utc || ""))
+      ) {
+        best = row;
+      }
+    }
+    return best;
+  }
+
+  function bundleCommitKey(row) {
+    if (!row) return "";
+    return String(row.trade_date || "") + "|" + String(row.committed_at_utc || "");
+  }
+
+  function hideBundleNotice() {
+    const notice = $("bundle-notice");
+    if (notice) notice.hidden = true;
+    state.bundleNotice = null;
+  }
+
+  function showBundleNotice(commit, datesBefore) {
+    const el = $("bundle-notice");
+    const text = $("bundle-notice-text");
+    if (!el || !text || !commit) return;
+    const date = String(commit.trade_date);
+    const known = (datesBefore || []).indexOf(date) >= 0;
+    state.bundleNotice = {
+      trade_date: date,
+      committed_at_utc: commit.committed_at_utc || null,
+    };
+    text.textContent = known && date === state.asOf
+      ? "基準日 " + date + " の束が更新されました。最終更新を反映しました。表示中の数値は、読み込み直すまでそのままです。"
+      : "基準日 " + date + " の束が配信されました。基準日の選択肢に追加しました。表示中の数値は、その基準日を選ぶまでそのままです。";
+    el.hidden = false;
+  }
+
+  function applyBundleIndex(payload, announce) {
+    const commits = Array.isArray(payload && payload.commits) ? payload.commits : null;
+    const incoming = Array.isArray(payload && payload.dates) ? payload.dates.filter(Boolean) : [];
+    const datesBefore = (state.availableDates || []).slice();
+    if (incoming.length) {
+      const merged = incoming.slice();
+      if (state.asOf && merged.indexOf(state.asOf) < 0) merged.push(state.asOf);
+      merged.sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
+      const changed = merged.join("\n") !== datesBefore.join("\n");
+      state.availableDates = merged;
+      if (changed) fillAsOfSelect();
+    }
+    if (!commits) return;
+    const current = commits.find((row) => row.trade_date === state.asOf && row.benchmark === state.bench);
+    if (current && current.committed_at_utc && current.committed_at_utc !== state.dataUpdatedAt) {
+      state.dataUpdatedAt = current.committed_at_utc;
+      updateDataStamp();
+    }
+    const latest = latestBundleCommit(commits, state.bench);
+    const key = bundleCommitKey(latest);
+    if (!announce) {
+      state.seenBundleKey = key;
+      return;
+    }
+    if (key && key !== state.seenBundleKey) {
+      showBundleNotice(latest, datesBefore);
+      state.seenBundleKey = key;
+    }
+  }
+
+  function bundleWatchOpen(now) {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Tokyo",
+      weekday: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(now || new Date());
+    const get = (type) => {
+      const part = parts.find((item) => item.type === type);
+      return part ? part.value : "";
+    };
+    const weekday = get("weekday");
+    if (weekday === "Sat" || weekday === "Sun") return false;
+    const minutes = Number(get("hour")) * 60 + Number(get("minute"));
+    return minutes >= 16 * 60 && minutes < 22 * 60;
+  }
+
+  async function refreshBundleIndex() {
+    if (document.visibilityState === "hidden") return;
+    if (!bundleWatchOpen()) return;
+    let payload;
+    try {
+      payload = await bffFetch("/v1/dates");
+    } catch (err) {
+      if (err && err.t5 === "login" && !liveCtx() && bundleWatchTimer) {
+        clearInterval(bundleWatchTimer);
+        bundleWatchTimer = null;
+      }
+      return;
+    }
+    applyBundleIndex(payload, true);
+  }
+
+  function startBundleWatch(initialPayload) {
+    applyBundleIndex(initialPayload, false);
+    const dismiss = $("bundle-notice-dismiss");
+    if (dismiss && dismiss.dataset.bound !== "1") {
+      dismiss.dataset.bound = "1";
+      dismiss.addEventListener("click", hideBundleNotice);
+    }
+    if (bundleWatchTimer) return;
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") refreshBundleIndex();
+    });
+    bundleWatchTimer = setInterval(refreshBundleIndex, BUNDLE_WATCH_MS);
+  }
+
   async function boot() {
-    bootProgress("日付一覧を取得しています", 0.42);
+    bindLabelTips();
+    bootProgress("基準日の一覧を取得しています", 0.42);
     const datesPayload = await bffFetch("/v1/dates");
+    state.bundleIndex = datesPayload;
     state.availableDates = datesPayload.dates || [];
     state.asOf = datesPayload.default || (state.availableDates[0] || null);
     if (!state.asOf) {
@@ -3517,7 +4364,7 @@
     const onAsof = (value) => {
       loadSnapshot(value).catch((err) => {
         hideBootProgress();
-        $("asof-banner").textContent = "as-of switch failed: " + err;
+        $("asof-banner").textContent = "基準日の切り替えに失敗しました。 " + err;
       });
     };
     const onBench = (value) => {
@@ -3557,7 +4404,14 @@
     syncFilterModalUi();
     bindAccountMenu();
     bindConfirmDialog();
+    markNonCredentialInput($("fav-list-new-name"), "list-label");
+    markNonCredentialInput($("fav-list-rename"), "list-label");
     bindHalfWidthCodeInput($("fav-list-add-code"));
+    const favAddCode = $("fav-list-add-code");
+    if (favAddCode) {
+      favAddCode.addEventListener("input", updateFavAddCodeHint);
+      favAddCode.addEventListener("wa-input", updateFavAddCodeHint);
+    }
     const favAdd = $("fav-list-add");
     if (favAdd) {
       favAdd.addEventListener("click", () => {
@@ -3600,6 +4454,7 @@
         if ((input && input.disabled) || (btn && btn.disabled)) return;
         const ok = addCodeToFavList(state.favModalListId, input ? input.value : "");
         if (ok && input) input.value = "";
+        updateFavAddCodeHint();
       });
     }
     const favClose = $("fav-lists-close");
@@ -3696,6 +4551,7 @@
     initKabutanSplitter();
     renderLegend();
     await loadSnapshot(state.asOf);
+    startBundleWatch(datesPayload);
   }
 
   window.__webUiBoot = function webUiBoot() {

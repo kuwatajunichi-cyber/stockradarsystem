@@ -55,7 +55,8 @@ installHeaderHost({
   sync(cell, meta) {
     const label = cell.querySelector("[data-header-label]");
     if (label && label.textContent !== meta.caption) label.textContent = meta.caption;
-    if (label) label.title = meta.title;
+    if (label) if (meta.title) label.title = meta.title;
+      else label.removeAttribute("title");
     let filter = cell.querySelector("[data-header-filter]");
     if ((meta.filterable || meta.numeric) && !filter) {
       filter = document.createElement("lion-button");
@@ -194,7 +195,10 @@ installChartPaneHost({
   legendItem({ label, swatchStyle, swatchClass }) {
     const el = document.createElement("lion-button");
     el.type = "button";
-    el.append(chartSwatch({ swatchStyle, swatchClass }), document.createTextNode(label));
+    const text = document.createElement("span");
+    text.className = "surface-label-compact";
+    text.textContent = label;
+    el.append(chartSwatch({ swatchStyle, swatchClass }), text);
     return el;
   },
   chartCard() {

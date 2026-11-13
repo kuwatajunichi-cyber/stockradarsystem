@@ -65,7 +65,8 @@ installHeaderHost({
         : "Descending"
       : "None";
     cell.horizontalAlign = meta.numeric ? "End" : "Start";
-    cell.title = meta.title;
+    if (meta.title) cell.title = meta.title;
+    else cell.removeAttribute("title");
     let label = cell.querySelector("[data-header-label]");
     if (!label) {
       label = document.createElement("span");
@@ -214,7 +215,10 @@ installChartPaneHost({
     const el = document.createElement("ui5-tag");
     el.design = "Neutral";
     el.hideStateIcon = true;
-    el.append(chartSwatch({ swatchStyle, swatchClass }), document.createTextNode(label));
+    const text = document.createElement("span");
+    text.className = "surface-label-compact";
+    text.textContent = label;
+    el.append(chartSwatch({ swatchStyle, swatchClass }), text);
     return el;
   },
   chartCard() {

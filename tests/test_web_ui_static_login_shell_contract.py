@@ -82,6 +82,88 @@ def test_app_js_reads_event_news_bundle() -> None:
     assert 'state.allKeys.includes("event_news_bundle")' in app
 
 
+@pytest.mark.unit
+def test_bundle_commit_watch_updates_stamp_dates_and_notice() -> None:
+    app = (_STATIC / "assets" / "app.js").read_text(encoding="utf-8")
+    live = (_STATIC / "assets" / "live.js").read_text(encoding="utf-8")
+    html = _HTML.read_text(encoding="utf-8")
+    css = (_STATIC / "assets" / "styles.css").read_text(encoding="utf-8")
+    watch = app.split("async function refreshBundleIndex", 1)[1].split("function startBundleWatch", 1)[0]
+    fetch = app.split("async function bffFetch", 1)[1].split("async function gunzipJson", 1)[0]
+    assert 'bffFetch("/v1/dates")' in watch
+    assert "/v1/mint" not in watch
+    assert "BUNDLE_WATCH_MS = 300000" in app
+    assert 'err.t5 === "login" && !liveCtx()' in watch
+    assert "__webUiFreshAccessToken" in fetch
+    assert "refreshSession" in live
+    assert "onAuthStateChange" in live
+    assert "ACCESS_TOKEN_REFRESH_MS = 330000" in live
+    assert "window.__webUiFreshAccessToken" in live
+    assert "function bundleWatchOpen" in app
+    assert 'timeZone: "Asia/Tokyo"' in app
+    assert "weekday === \"Sat\" || weekday === \"Sun\"" in app
+    assert "minutes >= 16 * 60 && minutes < 22 * 60" in app
+    assert "if (!bundleWatchOpen()) return;" in watch
+    assert "function applyBundleIndex" in app
+    assert "startBundleWatch(datesPayload)" in app
+    assert 'id="bundle-notice"' in html
+    assert 'id="bundle-notice-dismiss"' in html
+    assert ".bundle-notice[hidden]" in css
+
+
+def test_signed_cf_uses_value_before_display_rounding() -> None:
+    app = (_STATIC / "assets" / "app.js").read_text(encoding="utf-8")
+    formatter = (_STATIC / "ui" / "conditional-format.js").read_text(encoding="utf-8")
+    proto = (
+        _REPO / "prototypes" / "web-ui-webawesome" / "src" / "conditional-format.js"
+    ).read_text(encoding="utf-8")
+    td = app.split("function tdMarkup", 1)[1].split("function bindGridEvents", 1)[0]
+    hover = app.split("function chartHoverCellHtml", 1)[1].split("function fillChartHoverTable", 1)[0]
+    assert "numberCellFormat(raw, range)" in td
+    assert "data-cf-value" in td
+    assert "numberCellFormat(inner" not in td
+    assert "numberCellFormat(n, range)" in hover
+    assert "numberCellFormat(fmtSigned1" not in hover
+    for source in (formatter, proto):
+        assert "typeof value === \"number\"" in source
+        assert "dataset.cfValue" in source
+        assert 'value === 0 ? "±0"' not in source
+
+
+@pytest.mark.unit
+def test_kabutan_embed_scrolls_below_banner_and_breadcrumb() -> None:
+    app = (_STATIC / "assets" / "app.js").read_text(encoding="utf-8")
+    fn = app.split("function kabutanEmbedUrl", 1)[1].split("function applyKabutanUrl", 1)[0]
+    assert 'host !== "kabutan.jp" && host !== "www.kabutan.jp"' in fn
+    assert "if (parsed.hash) return url;" in fn
+    assert 'parsed.hash = "container"' in fn
+    assert "frame.src = kabutanEmbedUrl(url)" in app
+    show = app.split("function showWebFrame", 1)[1].split("function kabutanUrl", 1)[0]
+    assert "setOpenTabVisible(url)" in show
+
+
+def test_news_tab_open_button_uses_bundle_url() -> None:
+    app = (_STATIC / "assets" / "app.js").read_text(encoding="utf-8")
+    fn = app.split("function kabutanUrl", 1)[1].split("function setKabutanActive", 1)[0]
+    assert "eventNewsItems(row)" in fn
+    assert 'row["event_news_"' not in fn
+    assert 'openBtn.classList.toggle("hidden", !url)' in app
+
+
+def test_name_cell_breaks_before_halfwidth_katakana_suffix() -> None:
+    app = (_STATIC / "assets" / "app.js").read_text(encoding="utf-8")
+    css = (_STATIC / "assets" / "styles.css").read_text(encoding="utf-8")
+    assert "function nameCellHtml" in app
+    assert r"/^(.*?)([\uFF61-\uFF9F]+)$/" in app
+    assert 'baseKey === "name"' in app
+    assert 'class="name-hankaku"' in app
+    assert "function nameDelimiterBreak" in app
+    assert "NAME_BREAK_MIN_PX = 142" in app
+    assert 'class="name-break"' in app
+    assert "#grid td.sticky-col-name .name-hankaku," in css
+    assert "#grid td.sticky-col-name .name-break { display:block; }" in css
+
+
 def test_app_js_escapes_bundle_html() -> None:
     app = (_STATIC / "assets" / "app.js").read_text(encoding="utf-8")
     proto = (_REPO / "prototypes" / "web-ui-asof" / "web" / "app.js").read_text(encoding="utf-8")
@@ -97,6 +179,7 @@ def test_app_js_escapes_bundle_html() -> None:
 
 def test_app_js_accel_cf_pm1_and_extra_last_bar() -> None:
     app = (_STATIC / "assets" / "app.js").read_text(encoding="utf-8")
+    html = _HTML.read_text(encoding="utf-8")
     pm5, _, rest = app.partition("const CF_PM5")
     pm1_src, _, pm1_rest = rest.partition("const CF_PM1")
     assert "rs_acceleration_topix" not in pm1_src.split("];")[0]
@@ -115,6 +198,20 @@ def test_app_js_accel_cf_pm1_and_extra_last_bar() -> None:
     assert "imeMode = \"disabled\"" in app
     assert "el.inputMode = \"url\"" in app
     assert "function bindHalfWidthCodeInput" in app
+    assert "function applyHalfWidthCodeAttrs" in app
+    assert "shadowRoot.querySelector(\"input\")" in app
+    assert "function searchMissMessage" in app
+    assert "function describeCodeMiss" in app
+    assert "存在しないか、" in app
+    assert "function coreUniverseTermHtml" in app
+    assert "core-universe-term" in app
+    assert "function updateSearchMiss" in app
+    assert "universeHitsForCode" not in app
+    assert "universe_index" not in app
+    assert "function updateDataStamp" in app
+    assert "committed_at_utc" in app
+    assert "function makeFavStarButton" in app
+    assert 'data-chart-fav' in app
     assert "schedulePrefsSave();" in app.split("function renderColsPanel")[1].split("function renderLegend")[0]
     assert "requestViewRefresh();" in app.split("function renderColsPanel")[1].split("function renderLegend")[0]
     assert "schedulePrefsSave();" in app.split("function saveTabSettings")[1].split("function openTabSettingsModal")[0]
@@ -137,10 +234,22 @@ def test_app_js_accel_cf_pm1_and_extra_last_bar() -> None:
     assert 'if (!state.selected) scrollChartCardIntoView(next);' in app
     assert "function sameCodeList" in app
     assert "function makeChartCard" in app
+    assert 'id="data-updated"' in html
+    assert 'id="fav-list-add-code-hint"' in html
+    assert '<aside id="search-miss"' in html
+    assert '<span id="fav-list-add-code-hint"' in html
+    assert 'id="fav-list-add-code"' in html
+    assert "<wa-input id=\"fav-list-add-code\"" in html
+    assert 'inputmode="url"' in html
     assert "function bindGridEvents" in app
     assert 'btn.classList.add("th-filter-btn")' in app
     assert 'th.classList.add("th-filterable")' in app
     assert 'const FAV_FILTER_BLANK = "__blank__"' in app
+    assert "empty filter_ids + favOnly + include_blank means blank-only" in app
+    assert "emptyIds && !state.favIncludeBlank" in app
+    assert "if (!state.favFilterIds.length) return !state.favIncludeBlank;" in app
+    assert "function writeFavFilterChecks" in app
+    assert "blankShown && !!byValue[FAV_FILTER_BLANK]" in app
     assert 'createElement("wa-dropdown")' in app
     assert 'item.type = "checkbox"' in app
     assert "function favFilterableLists" in app
@@ -190,6 +299,10 @@ def test_web_ui_static_boot_progress_hides_login_until_session() -> None:
     assert "function reorderFavLists" in app
     assert 'window.prompt("リスト名"' not in app
     assert "fav-flyout" in css
+    assert ".search-miss {" in css
+    assert ".search-miss td" not in css
+    assert ".core-universe-term" in css
+    assert ".core-universe-tip" in css
     assert ".chart-hover-table" in css
     assert ".chart-hover-head" in css
     assert ".chart-hover-cell" in css
@@ -267,9 +380,9 @@ def test_web_ui_static_bundles_webawesome_only() -> None:
     assert "Yu Gothic UI" in theme
     assert "color-mix(in oklab, var(--wa-color-gray-05), black 20%)" in theme
     assert "--surface-raised: #0d1924" in theme
-    assert 'const POSITIVE_HUE = "156 58% 48%"' in formatter
-    assert 'const NEGATIVE_HUE = "346 72% 58%"' in formatter
-    assert "0.08 + intensity * 0.2" in formatter
+    assert 'const POSITIVE_HUE = "150 48% 37%"' in formatter
+    assert 'const NEGATIVE_HUE = "6 70% 54%"' in formatter
+    assert "0.02 + intensity * 0.40" in formatter
     assert "MutationObserver" not in formatter
     assert "MutationObserver" not in ui_chrome
     assert "export function numberCellFormat" in formatter
@@ -306,6 +419,8 @@ def test_web_ui_static_bundles_webawesome_only() -> None:
     assert ".chart-hover-cell.surface-cf-number" in theme
     assert "hsl(var(--cell-hue)/var(--cell-alpha))" in chrome_css.replace(" ", "")
     assert ".chart-card [data-chart-title]" in chrome_css
+    assert "dataset.chartFav" in ui_chrome
+    assert "chart-card-head" in theme
     assert "font-weight:400" in chrome_css.replace(" ", "")
     assert ".chart-card wa-card::part(header)" in theme
     assert ".chart-card wa-card::part(body)" in theme
@@ -344,13 +459,97 @@ def test_app_js_composes_price_text_from_candle_labels() -> None:
     assert "function orderVisibleKeys" in app
     assert 'state.allKeys.includes("candle_labels")' in app
     assert "window.StockRadarPriceText" in dictionary
-    assert '["GAP_UP", "\u4e0a\u7a93\uff0b"]' in dictionary
-    assert '["GAP_DOWN", "\u4e0b\u7a93\uff0b"]' in dictionary
+    assert '["GAP_UP", "\u4e0b\u7a93\uff0b"]' in dictionary
+    assert '["GAP_DOWN", "\u4e0a\u7a93\uff0b"]' in dictionary
     assert "function fromLabels" in dictionary
     assert "function hasCandleLabels" in dictionary
     assert "if (hasCandleLabels(row)) return fromLabels(row.candle_labels);" in dictionary
+    assert "function partsHtml" in dictionary
+    assert "function cellHtml" in dictionary
+    assert 'partSpan("a"' in dictionary
+    assert 'body === "丸坊主"' in dictionary
+    assert "price-part-span" in dictionary
+    css = (_STATIC / "assets" / "styles.css").read_text(encoding="utf-8")
+    assert "width: calc(3em + 106px);" in css
+    assert "width: 62px;" in css
+    assert "width: 44px;" in css
+    assert "width: 106px;" in css
+    assert "--surface-label-compact-font-family: var(--surface-font-family);" in css
+    assert "--surface-label-compact-font-size: 11px;" in css
+    assert "--surface-label-compact-font-weight: 400;" in css
+    assert "--surface-label-compact-scale-x: 0.75;" in css
+    assert "--surface-label-compact-color: var(--wa-color-text-normal);" in css
+    assert "--surface-number-font-family: Consolas, \"Courier New\", monospace;" in css
+    assert "--surface-number-font-size: 14px;" in css
+    assert "font-family: var(--surface-number-font-family);" in css
+    assert "font-size: var(--surface-number-font-size);" in css
+    assert "#grid thead th.th-sorted::after" in css
+    assert "#grid thead th.th-filtered::after" in css
+    assert "#grid thead th.th-sorted.th-filtered::after" in css
+    assert "width: calc-size(max-content, var(--surface-label-compact-scale-x) * size);" in css
+    assert "#chart-legend .surface-label-compact" in css
+    assert ".chart-hover-cell.chart-hover-head > .surface-label-compact" in css
+    assert ".surface-label-compact-text" in css
+    assert "#grid thead .th-label" in css
+    assert 'class="surface-label-compact"' in app
+    assert "surface-label-compact-text" in app
+    assert "height: 100%;" in css
+    assert "#grid td.surface-cf-price > .surface-price-tag" in css
+    assert "transform: translate(-50%, -50%);" in css
+    assert "padding: 4px;" in css
+    assert ".price-part-b { align-items: flex-end; }" in css
+    assert ".price-part-c,\n.price-part-d { align-items: flex-start; }" in css
+    assert "PLAIN_EXCLUSIVE" in dictionary
+    assert '["INVALID_TR0", "レンジ0"]' not in dictionary.split("PLAIN_EXCLUSIVE")[1].split("function escapeHtml")[0]
+    assert "priceApi.cellHtml" in app
     assert "row.candle_labels" in dictionary
     display_fn = app.split("function displayPriceText")[1].split("function cellStyle")[0]
     assert "api.displayText" in display_fn
     assert "row.candle_labels" in display_fn
+
+
+@pytest.mark.unit
+def test_filter_and_favorite_fields_opt_out_of_password_ui() -> None:
+    app = (_STATIC / "assets" / "app.js").read_text(encoding="utf-8")
+    live = (_STATIC / "assets" / "live.js").read_text(encoding="utf-8")
+    assert "function markNonCredentialInput" in app
+    assert 'node.autocomplete = "off"' in app
+    assert 'node.setAttribute("data-form-type", "other")' in app
+    text_menu = app.split("function openTextFilterMenu")[1].split("function openFilterMenu")[0]
+    assert 'if (key === "code") bindHalfWidthCodeInput(qEl);' in text_menu
+    assert 'else markNonCredentialInput(qEl, "column-filter");' in text_menu
+    assert 'markNonCredentialInput(aEl, "filter-value")' in app
+    assert 'markNonCredentialInput(bEl, "filter-value")' in app
+    assert 'markNonCredentialInput(input, "list-label")' in app
+    assert 'markNonCredentialInput($("fav-list-new-name"), "list-label")' in app
+    assert 'markNonCredentialInput($("fav-list-rename"), "list-label")' in app
+    half = app.split("function bindHalfWidthCodeInput")[1].split("function placeFilterMenu")[0]
+    assert "markNonCredentialInput" not in half
+    assert 'el.inputMode = "url"' in half
+    assert "function scheduleReleaseTextFieldFocus" in app
+    assert "function blurTextFieldInside" in app
+    assert 'addEventListener("pointerdown", scheduleReleaseTextFieldFocus, true)' in app
+    assert "pejdijmoenmkgeppbflobdenhhabjlaj" in app
+    assert 'blurTextFieldInside(".fav-flyout")' in app
+    assert 'blurTextFieldInside("#fav-lists-modal")' in app
+    assert "function setLoginCredentialArmed" in live
+    assert "loginCredentialGeneration" in live
+    reveal = live.split("function revealLoginForm")[1].split("function showTemporary")[0]
+    assert "setLoginCredentialArmed(true)" in reveal
+    enter = live.split("function enterApp")[1].split("async function boot")[0]
+    assert "setLoginCredentialArmed(false)" in enter
+    boot = live.split("async function boot")[1]
+    assert boot.index("setLoginCredentialArmed(false)") < boot.index("revealLoginForm()")
+
+
+@pytest.mark.unit
+def test_fav_membership_patches_table_and_chart_stars() -> None:
+    app = (_STATIC / "assets" / "app.js").read_text(encoding="utf-8")
+    persist = app.split("function persistFavLists")[1].split("function patchFavCell")[0]
+    assert "if (opts.refresh || state.favOnly) requestViewRefresh();" in persist
+    assert "else if (opts.code) patchFavCell" not in persist
+    assert "patchFavCell(opts.code);" in persist
+    patch = app.split("function patchFavCell")[1].split("function toggleCodeInFavList")[0]
+    assert ': "button.fav-star"' in patch
+    assert "btn.dataset.favCode" in patch
 

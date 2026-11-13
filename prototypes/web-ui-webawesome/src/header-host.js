@@ -26,7 +26,7 @@ export function installHeaderHost(adapter) {
     return {
       label,
       caption: sortMark ? `${label} ${sortMark}` : label,
-      title: filterBtn?.title || label,
+      title: th.dataset.labelTip ? "" : (filterBtn?.title || label),
       numeric: th.classList.contains("th-numeric"),
       filterable: th.classList.contains("th-filterable") || !!th.querySelector(".th-filter-btn"),
       sorted: th.classList.contains("th-sorted"),
@@ -80,6 +80,13 @@ export function installHeaderHost(adapter) {
       cell.classList.toggle("is-filtered", meta.filtered);
       cell.classList.toggle("is-numeric", meta.numeric);
       adapter.sync(cell, meta);
+      cell.querySelectorAll("[data-header-label], .th-label").forEach((node) => {
+        if (node.querySelector(":scope > .surface-label-compact-text")) return;
+        const glyph = document.createElement("span");
+        glyph.className = "surface-label-compact-text";
+        glyph.textContent = node.textContent;
+        node.replaceChildren(glyph);
+      });
     });
     observe(grid);
   }

@@ -109,23 +109,34 @@ function tag(label, { swatchStyle, swatchClass } = {}) {
   swatch.setAttribute("aria-hidden", "true");
   if (swatchClass) swatch.className = swatchClass;
   if (swatchStyle) swatch.setAttribute("style", swatchStyle);
-  el.append(swatch, document.createTextNode(label));
+  const text = document.createElement("span");
+  text.className = "surface-label-compact";
+  const glyph = document.createElement("span");
+  glyph.className = "surface-label-compact-text";
+  glyph.textContent = label;
+  text.append(glyph);
+  el.append(swatch, text);
   return el;
 }
 
 function chartCard() {
   const el = document.createElement("wa-card");
   el.appearance = "outlined";
+  const head = document.createElement("div");
+  head.slot = "header";
+  head.className = "chart-card-head";
   const title = document.createElement("div");
-  title.slot = "header";
   title.dataset.chartTitle = "";
+  const fav = document.createElement("div");
+  fav.dataset.chartFav = "";
+  head.append(title, fav);
   const hover = document.createElement("div");
   hover.className = "hover";
   hover.dataset.chartHover = "";
   const media = document.createElement("div");
   media.className = "chart-slot";
   media.dataset.chartCanvas = "";
-  el.append(title, hover, media);
+  el.append(head, hover, media);
   return el;
 }
 
@@ -141,7 +152,10 @@ function headerButton({ caption, title, sorted, filtered }) {
   const label = document.createElement("span");
   label.className = "th-label";
   label.dataset.headerLabel = "";
-  label.textContent = caption;
+  const glyph = document.createElement("span");
+  glyph.className = "surface-label-compact-text";
+  glyph.textContent = caption;
+  label.append(glyph);
   el.prepend(label);
   return el;
 }

@@ -192,9 +192,9 @@ def test_conditional_format_restores_prior_surface_formula_only() -> None:
     formatter = _text(_PROTOTYPE / "src" / "conditional-format.js")
     surface = _text(_PROTOTYPE / "src" / "surface.css")
 
-    assert 'const POSITIVE_HUE = "156 58% 48%"' in formatter
-    assert 'const NEGATIVE_HUE = "346 72% 58%"' in formatter
-    assert "0.08 + intensity * 0.2" in formatter
+    assert 'const POSITIVE_HUE = "150 48% 37%"' in formatter
+    assert 'const NEGATIVE_HUE = "6 70% 54%"' in formatter
+    assert "0.02 + intensity * 0.40" in formatter
     assert 'new MutationObserver(applyConditionalFormatting)' in formatter
     assert 'observer.observe(grid, { childList: true, subtree: true })' in formatter
     assert "surface-cf-number" in surface
@@ -217,14 +217,18 @@ def test_table_rows_fit_three_news_lines_and_price_text_uses_real_grammar() -> N
 
     assert "#grid tbody tr,\n#grid tbody td {\n  height: 59px;" in surface
     assert '["防衛関連の大型案件報道", "受注残の更新", "海外事業の進捗観測"]' in adapter
+    assert '["CF01", "書式 緑端"' in adapter
+    assert '["CF03", "書式 0.0"' in adapter
+    assert '["CF05", "書式 赤端"' in adapter
+    assert '["CF06", "書式 同列比較"' in adapter
     assert "`event_news_${position}_url`" in adapter
     assert "candle_labels: candleLabels" in adapter
     assert 'price_text: "BUNDLE_PRICE_TEXT_UNUSED"' in adapter
     for labels in (
         "RANGE_LARGE,BODY_MARUBOZU_LIKE,DIR_BULL",
-        "GAP_UP,RANGE_VERY_LARGE,WICK_UPPER_LONG,BODY_LONG,DIR_BULL",
+        "GAP_DOWN,RANGE_VERY_LARGE,WICK_UPPER_LONG,BODY_LONG,DIR_BULL",
         "RANGE_SMALL,WICK_BOTH_PRESENT,DOJI",
-        "GAP_DOWN,RANGE_VERY_LARGE,BODY_LONG,DIR_BEAR",
+        "GAP_UP,RANGE_VERY_LARGE,BODY_LONG,DIR_BEAR",
     ):
         assert labels in adapter
     for leftover_server_copy in (
@@ -419,7 +423,7 @@ def test_library_font_tokens_cover_surface_text_and_chart_labels() -> None:
     assert '"--chart-bg"' in bridge
     assert "var(--surface-font-family)" in shared
     assert ".chart-card h4" in shared
-    assert "td.num" in shared
+    assert "td:not(.num):not(.surface-cf-number)" in shared
     assert "var(--wa-font-family-body)" in webawesome
     assert "var(--wa-font-family-code)" in webawesome
     assert "var(--wa-font-size-xs)" in webawesome
@@ -452,7 +456,7 @@ def test_graph_keeps_production_series_math() -> None:
 
     for blob in (production_app, generated_app):
         assert 'const CHART_BG = "rgb(9,7,32)"' in blob
-        assert 'const RS_POS = "39,255,104"' in blob
-        assert 'const RS_NEG = "255,39,115"' in blob
+        assert 'const RS_POS = "82,255,134"' in blob
+        assert 'const RS_NEG = "255,65,0"' in blob
         assert "function drawChart" in blob
     assert generated_app == production_app

@@ -42,6 +42,40 @@ window.__webUiProgress = {
 };
 
 let supabaseClient = null;
+const ACCESS_TOKEN_REFRESH_MS = 330000;
+
+function publishAccessToken(session) {
+  if (!window.__WEB_UI_CTX || !session || !session.access_token) return;
+  window.__WEB_UI_CTX.accessToken = session.access_token;
+}
+
+function accessTokenExpiresSoon(session, withinMs) {
+  if (!session || !session.access_token || !session.expires_at) return true;
+  return session.expires_at * 1000 - Date.now() <= withinMs;
+}
+
+window.__webUiFreshAccessToken = async function webUiFreshAccessToken(force) {
+  if (!supabaseClient) return null;
+  let session = null;
+  try {
+    const out = await supabaseClient.auth.getSession();
+    session = out && out.data ? out.data.session : null;
+  } catch (_err) {
+    session = null;
+  }
+  if (force || accessTokenExpiresSoon(session, ACCESS_TOKEN_REFRESH_MS)) {
+    try {
+      const refreshed = await supabaseClient.auth.refreshSession();
+      const next = refreshed && refreshed.data ? refreshed.data.session : null;
+      if (next && next.access_token) session = next;
+    } catch (_err) {
+      /* keep a stored session that has not expired */
+    }
+  }
+  if (!session || !session.access_token || accessTokenExpiresSoon(session, 0)) return null;
+  publishAccessToken(session);
+  return session.access_token;
+};
 
 window.__webUiLogout = async function webUiLogout() {
   try {
@@ -55,8 +89,35 @@ window.__webUiLogout = async function webUiLogout() {
   revealLoginForm();
 };
 
+let loginCredentialGeneration = 0;
+
+function setLoginCredentialArmed(armed) {
+  const email = $("email");
+  if (!email) return;
+  const generation = ++loginCredentialGeneration;
+  email.disabled = !armed;
+  email.autocomplete = armed ? "username" : "off";
+  email.name = armed ? "email" : "";
+  if (armed) email.setAttribute("name", "email");
+  else email.removeAttribute("name");
+  const sync = () => {
+    if (generation !== loginCredentialGeneration) return;
+    const inner = email.shadowRoot && email.shadowRoot.querySelector("input");
+    if (!inner) return;
+    inner.disabled = !armed;
+    inner.autocomplete = armed ? "username" : "off";
+    inner.setAttribute("autocomplete", armed ? "username" : "off");
+    if (armed) inner.setAttribute("name", "email");
+    else inner.removeAttribute("name");
+  };
+  sync();
+  const ready = email.updateComplete;
+  if (ready && typeof ready.then === "function") ready.then(sync);
+}
+
 function revealLoginForm() {
   hideBootProgress();
+  setLoginCredentialArmed(true);
   const shell = $("login-shell");
   const app = $("app-root");
   if (shell) shell.hidden = false;
@@ -73,6 +134,7 @@ function revealLoginForm() {
 
 function showTemporary(text) {
   hideBootProgress();
+  setLoginCredentialArmed(false);
   $("login-shell").hidden = false;
   $("app-root").hidden = true;
   $("t5-temporary").hidden = false;
@@ -83,6 +145,7 @@ function showTemporary(text) {
 
 function showUnavailable(text) {
   hideBootProgress();
+  setLoginCredentialArmed(false);
   $("login-shell").hidden = false;
   $("app-root").hidden = true;
   $("t5-unavailable").hidden = false;
@@ -152,6 +215,7 @@ async function enterApp(cfg, session) {
     role: body.role,
   };
   $("login-shell").hidden = true;
+  setLoginCredentialArmed(false);
   showBootProgress("データを読み込んでいます", 0.4);
   if (typeof window.__webUiBoot === "function") {
     await window.__webUiBoot();
@@ -161,6 +225,7 @@ async function enterApp(cfg, session) {
 }
 
 async function boot() {
+  setLoginCredentialArmed(false);
   showBootProgress("設定を読み込んでいます", 0.08);
   let cfg;
   try {
@@ -195,9 +260,18 @@ async function boot() {
   }
   if (session) {
     await enterApp(cfg, session);
-    return;
+  } else {
+    revealLoginForm();
   }
-  revealLoginForm();
+  supabase.auth.onAuthStateChange((event, session) => {
+    if (event === "SIGNED_OUT") {
+      window.__WEB_UI_CTX = null;
+      const app = $("app-root");
+      if (app && !app.hidden) revealLoginForm();
+      return;
+    }
+    publishAccessToken(session);
+  });
 }
 
 boot();

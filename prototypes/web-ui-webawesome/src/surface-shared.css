@@ -44,15 +44,15 @@
 }
 
 .surface-price-tag[data-tone="positive"] {
-  border-color: hsl(156 58% 48% / 55%);
-  background: hsl(156 58% 48% / 9%);
-  color: color-mix(in srgb, hsl(156 58% 48%) 68%, var(--fg));
+  border-color: hsl(150 48% 37% / 55%);
+  background: hsl(150 48% 37% / 9%);
+  color: color-mix(in srgb, hsl(150 48% 37%) 68%, var(--fg));
 }
 
 .surface-price-tag[data-tone="negative"] {
-  border-color: hsl(346 72% 58% / 55%);
-  background: hsl(346 72% 58% / 9%);
-  color: color-mix(in srgb, hsl(346 72% 58%) 68%, var(--fg));
+  border-color: hsl(6 70% 54% / 55%);
+  background: hsl(6 70% 54% / 9%);
+  color: color-mix(in srgb, hsl(6 70% 54%) 68%, var(--fg));
 }
 
 
@@ -404,14 +404,13 @@ html[data-surface-library]:not([data-surface-library="lion"]) button,
 html[data-surface-library]:not([data-surface-library="lion"]) select,
 html[data-surface-library]:not([data-surface-library="lion"]) input,
 html[data-surface-library]:not([data-surface-library="lion"]) th,
-html[data-surface-library]:not([data-surface-library="lion"]) td {
+html[data-surface-library]:not([data-surface-library="lion"]) td:not(.num):not(.surface-cf-number) {
   font-family: inherit;
 }
 
-html[data-surface-library]:not([data-surface-library="lion"]) td.num,
-html[data-surface-library]:not([data-surface-library="lion"]) #grid td.surface-cf-number,
 html[data-surface-library]:not([data-surface-library="lion"]) .chart-hover-cell:not(.chart-hover-head) {
-  font-family: var(--surface-font-family-code, var(--surface-font-family));
+  font-family: var(--surface-number-font-family);
+  font-size: var(--surface-number-font-size);
 }
 
 html[data-surface-library]:not([data-surface-library="lion"]) .banner-title,
@@ -489,7 +488,8 @@ html[data-surface-library] .chart-card[data-surface-wrapped].selected.is-hover {
 }
 
 #chart-legend [data-surface-legend] {
-  pointer-events: none;
+  pointer-events: auto;
+  cursor: help;
 }
 
 #chart-legend [data-surface-legend] i {

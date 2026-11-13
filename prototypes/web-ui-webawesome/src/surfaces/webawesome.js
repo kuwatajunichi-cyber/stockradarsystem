@@ -28,7 +28,8 @@ installHeaderHost({
     cell.appearance = meta.filtered ? "filled-outlined" : "plain";
     cell.variant = meta.sorted || meta.filtered ? "brand" : "neutral";
     cell.withCaret = !!(meta.filterable || meta.numeric);
-    cell.title = meta.title;
+    if (meta.title) cell.title = meta.title;
+    else cell.removeAttribute("title");
     let label = cell.querySelector("[data-header-label]");
     if (!label) {
       label = document.createElement("span");
@@ -168,20 +169,28 @@ installChartPaneHost({
     el.size = "xs";
     el.variant = "neutral";
     el.appearance = "outlined";
-    el.append(chartSwatch({ swatchStyle, swatchClass }), document.createTextNode(label));
+    const text = document.createElement("span");
+    text.className = "surface-label-compact";
+    text.textContent = label;
+    el.append(chartSwatch({ swatchStyle, swatchClass }), text);
     return el;
   },
   chartCard() {
     const el = document.createElement("wa-card");
     el.appearance = "outlined";
+    const head = document.createElement("div");
+    head.slot = "header";
+    head.className = "chart-card-head";
     const title = document.createElement("div");
-    title.slot = "header";
     title.dataset.chartTitle = "";
+    const fav = document.createElement("div");
+    fav.dataset.chartFav = "";
+    head.append(title, fav);
     const hover = document.createElement("div");
     hover.dataset.chartHover = "";
     const media = document.createElement("div");
     media.dataset.chartCanvas = "";
-    el.append(title, hover, media);
+    el.append(head, hover, media);
     return el;
   },
   setChartCard(el, { title, hover, selected, hovered }) {

@@ -87,7 +87,8 @@ installHeaderHost({
   sync(cell, meta) {
     cell.sortable = meta.numeric;
     cell.sortDirection = meta.sortDirection || undefined;
-    cell.title = meta.title;
+    if (meta.title) cell.title = meta.title;
+    else cell.removeAttribute("title");
     let label = cell.querySelector("[data-header-label]");
     if (!label) {
       label = document.createElement("span");
@@ -230,7 +231,10 @@ installChartPaneHost({
     const el = document.createElement("sp-action-button");
     el.quiet = true;
     el.size = "s";
-    el.append(chartSwatch({ swatchStyle, swatchClass }), document.createTextNode(label));
+    const text = document.createElement("span");
+    text.className = "surface-label-compact";
+    text.textContent = label;
+    el.append(chartSwatch({ swatchStyle, swatchClass }), text);
     return el;
   },
   chartCard() {

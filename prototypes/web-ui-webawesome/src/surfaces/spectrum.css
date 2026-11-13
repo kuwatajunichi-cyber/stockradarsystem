@@ -18,6 +18,7 @@ html[data-surface-library="spectrum"] #app-root {
   --surface-font-family-heading: var(--spectrum-heading-cjk-font-family);
   --surface-font-family-code: var(--spectrum-code-font-family);
   --surface-font-size: var(--spectrum-font-size-75);
+  --surface-header-font-size: var(--spectrum-font-size-50);
   --surface-chart-font-size: var(--spectrum-font-size-50);
 }
 

@@ -25,6 +25,7 @@ function createTab(sourceButton, panelName, active) {
   tab.setAttribute("panel", panelName);
   tab.textContent = sourceButton.textContent;
   tab.title = sourceButton.title;
+  if (sourceButton.dataset.labelTip) tab.dataset.labelTip = sourceButton.dataset.labelTip;
   tab.disabled = sourceButton.disabled;
   if (active) tab.setAttribute("active", "");
   if (sourceButton.hasAttribute("data-cand")) tab.classList.add("is-candidate");

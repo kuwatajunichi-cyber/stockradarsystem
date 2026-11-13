@@ -46,7 +46,15 @@ function wrapLegendItem(source, kit) {
     swatchStyle: swatch?.getAttribute("style") || "",
     swatchClass: swatch?.className || "",
   });
+  lib.querySelectorAll(".surface-label-compact").forEach((node) => {
+    if (node.querySelector(":scope > .surface-label-compact-text")) return;
+    const glyph = document.createElement("span");
+    glyph.className = "surface-label-compact-text";
+    glyph.textContent = node.textContent;
+    node.replaceChildren(glyph);
+  });
   lib.setAttribute("data-surface-legend", "");
+  if (source.dataset.labelTip) lib.dataset.labelTip = source.dataset.labelTip;
   source.insertAdjacentElement("afterend", lib);
 }
 
@@ -60,14 +68,21 @@ function wrapLegend(kit) {
 
 function wrapChartCard(card, kit) {
   if (!card || alreadyWrapped(card) || !kit.chartCard) return;
+  if (card.querySelector("wa-card")) {
+    markWrapped(card);
+    return;
+  }
   markWrapped(card);
   const heading = card.querySelector("h4");
   const hover = card.querySelector(".hover");
+  const existingStar = card.querySelector("button.fav-star");
   if (heading) markSource(heading);
   if (hover) markSource(hover);
   const lib = kit.chartCard();
   lib.setAttribute("data-surface-chart-card", "");
   card.insertAdjacentElement("afterbegin", lib);
+  const favHost = lib.querySelector("[data-chart-fav]");
+  if (favHost && existingStar) favHost.appendChild(existingStar);
 
   const sync = () => {
     const liveHover = card.querySelector("[data-chart-hover]") || hover;
