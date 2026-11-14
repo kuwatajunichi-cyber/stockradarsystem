@@ -15,7 +15,7 @@ GitHub Issue: [#93](https://github.com/kuwatajunichi-cyber/stockradarsystem/issu
 | 3c | warm cache + Supabase | **gate CLOSED** (2026-07-10) |
 | 4 | 月次 + publish + runs + Cron | **gate CLOSED** (2026-07-22) |
 | 4.5 | 派生指標時系列基盤 | **PR-45-1..4 merged・rollout 4.5c・Path B active・live_gate closed (user-authorized waiver 2026-08-29)・capacity_gate closed** |
-| 5 | entitlements + observability | **in_progress（A/B live closed。020/022-024 本番 apply 済。v1.1 CAS 済。Web 束 2026-10-02 を新 UUID で再 commit。writer ゲートオン。U-6 人確認待ち。pr-5c/pr-5d pending。C/D/E pending）** |
+| 5 | entitlements + observability | **in_progress（A/B live closed。020/022-024 本番 apply 済。v1.1 CAS 済。Web 束 2026-10-02 を新 UUID で再 commit。writer ゲートオン。web-ui-static c81b8171 / web-ui-bff 38f19b12 deploy。U-6 人確認待ち。pr-5c/pr-5d pending。C/D/E pending）** |
 
 Phase 3c gate CLOSED（runbook 記録済）。Issue #93 は Phase 5 が残るため **OPEN** 維持。Phase 4.5 gate は CLOSED（soak は waiver。連続 3 営業日達成とは書かない）。ADR-005 `live_gate_005` は CLOSED（2026-09-01）。
 
@@ -108,6 +108,21 @@ AC-1,5,6,7,10 完了。AC-9→Phase5。AC-2,3,4,8 部分。Phase 4 後監査の 
 Worker deploy gate, migration 記録, artifact_index.created_at_utc, contract stage dict。
 
 ## 改訂履歴
+2026-11-12 web-ui-static を deploy（株探埋め込みの初期位置をバナーとパンくずの下にする）。Version c81b8171。secret put 後の現行デプロイは 0fc7b2ff。BFF 38f19b12 と dispatcher は未変更。pr-5c/5d pending。live_gate_5c/5d open。Issue #93 は OPEN。
+2026-11-11 web-ui-static を deploy（ポーリングがアクセストークン更新後も平日 16:00-22:00 JST を 5 分間隔で続ける）。Version 0272425c。live.js と app.js のみ。BFF 38f19b12 と dispatcher は未変更。pr-5c/5d pending。live_gate_5c/5d open。Issue #93 は OPEN。
+2026-11-11 web-ui-static を deploy（保存済み GAP_DOWN を上窓＋、GAP_UP を下窓＋と表示）。Version a87fe3a9。price-text.js のみ。BFF 38f19b12 と dispatcher は未変更。pr-5c/5d pending。live_gate_5c/5d open。Issue #93 は OPEN。
+2026-11-11 web-ui-static を deploy（142px超の銘柄名を区切りで改行）。Version b4303c02。app.js と styles.css のみ。BFF 38f19b12 と dispatcher は未変更。pr-5c/5d pending。live_gate_5c/5d open。Issue #93 は OPEN。
+2026-11-11 web-ui-static を deploy（S高タッチ疑いなどの全文をセル中央へ）。Version 537f5f79。styles.css のみ。BFF 38f19b12 と dispatcher は未変更。pr-5c/5d pending。live_gate_5c/5d open。Issue #93 は OPEN。
+2026-11-11 web-ui-static を deploy（共通ラベル、理想案の表示名、ソート・フィルタの下線、数値 14px、値動きセル）。Version 22d7652f。BFF 38f19b12 と dispatcher は未変更。pr-5c/5d pending。live_gate_5c/5d open。Issue #93 は OPEN。
+2026-11-09 web-ui-static を deploy（丸める前の色、束 commit の最終更新・基準日・バナー、平日 16:00-22:00 JST を 5 分間隔）。Version a7f27f2d。web-ui-bff を deploy（dates の commits）。Version 38f19b12。dispatcher 未変更。pr-5c/5d pending。live_gate_5c/5d open。Issue #93 は OPEN。
+2026-10-25 web-ui-static を deploy（ニュース記事の別タブボタンが束の URL を見る）。Version 3c165a6e。BFF / dispatcher 未変更。pr-5c/5d pending。live_gate_5c/5d open。Issue #93 は OPEN。
+2026-10-25 web-ui-static を deploy（銘柄名の末尾半角カナを改行）。Version 28bd444b。BFF / dispatcher 未変更。pr-5c/5d pending。live_gate_5c/5d open。Issue #93 は OPEN。
+2026-10-25 web-ui-static を deploy（表示名、解説ツールチップ、見出し二行、未選択案内）。Version 1c77aa0d。BFF / dispatcher 未変更。pr-5c/5d pending。live_gate_5c/5d open。Issue #93 は OPEN。
+2026-10-24 web-ui-static を deploy（CF 最大 alpha 1.5倍、RS緑 Y0.75 / 赤 Y0.25）。Version 3cbaba83。BFF / dispatcher 未変更。pr-5c/5d pending。live_gate_5c/5d open。Issue #93 は OPEN。
+2026-10-24 web-ui-static を deploy（最終更新・CF色・検索ミス統一・グラフお気に入り・半角入力）。Version 826b4997。web-ui-bff を deploy（mint committed_at_utc）。Version 58b3aeb1。dispatcher 未変更。pr-5c/5d pending。live_gate_5c/5d open。Issue #93 は OPEN。
+2026-10-23 web-ui-static を deploy（favorites 空白のみフィルタ）。Version 0800710d。BFF / dispatcher 未変更。pr-5c/5d pending。live_gate_5d open。Issue #93 は OPEN。
+2026-10-10 web-ui-static を deploy（client price_text / 酒田窓 / chart hover）。Version 8a2c6405。BFF / dispatcher 未変更。pr-5c/5d pending。live_gate_5d open。Issue #93 は OPEN。
+2026-10-09 web-ui-static を deploy（favorites 複数リスト UI）。Version 307ad29e。BFF / dispatcher 未変更。pr-5c/5d pending。live_gate_5c/5d open。Issue #93 は OPEN。
 2026-10-03 v1.1 ops CAS（a2a12909 active、13209d23 retired）。2026-10-02 束を新 UUID で再 commit（generation e31b9be8）。daily YAML bind はローカル未マージ。60 as-of backfill 開始。pr-5c/5d pending。live_gate_5c/5d open。Issue #93 は OPEN。
 2026-10-03 計画/gate 整合監査: v1.1 CAS 未（プラン slice-3 completed は虚偽だったので pending に戻した）。60 as-of backfill・browser 20 回計測・pr-5c/5d merge 未。束 generation 17050a14。Issue #93 は OPEN。
 2026-10-03 U-6 手前: 2026-10-02 topix/nikkei 束 commit、BFF dates/mint 200、writer オン、CAS 未。人の画面確認待ち。Issue #93 は OPEN。

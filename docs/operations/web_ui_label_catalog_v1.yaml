@@ -1,0 +1,601 @@
+schema_version: 1
+catalog_id: web_ui_label_catalog_v1
+status: draft_first
+revision: 3
+adopted: false
+replaces_web_ui_v1: false
+applied_to_screen: true
+closes_live_gate_5d: false
+note: >
+  Web UI の表ヘッダー・グラフ凡例・ホバー見出し・ツールチップの第一版（改訂2）。 改訂2の短い理想案をデプロイ済み画面の表示名と解説ツールチップに適用した。 表示名の正本は Markdown。YAML の proposed と formal_name は Markdown に合わせ、Markdown を YAML の文言へ戻さない。 web_ui_v1 の置換ではない。XLSX の列名は変えない。 live_gate_5d は open のまま。Phase 5 overall は in_progress。Issue #93 は OPEN。
+revision_history:
+  - revision: 1
+    summary: 現行名・理想案・正式名・解説を1行に揃えた初版。理想案は「相対31」「平滑相対31」「断面日」など専門語寄り。
+  - revision: 2
+    summary: >
+      初学者向けに理想案・正式名・解説を書き直した。表示名と正式名から
+      「相対力 / RS / ベンチ / 断面 / 平滑 / zスコア / B方式 / 均線 / 情報比率 / β調整 / コアユニバース」を外し、
+      「指数比 / 比較指数 / 基準日 / 75日線 / 普段とのズレ / パーフェクトオーダー（現行名のまま） / 指数比の安定度 / 連動分を除く / 対象銘柄」に言い換えた。
+      コードや契約文書との対応は internal_name に分離した。解説は
+      「何を、何と比べて、どう測るか → 0・正・負の読み方 → 似た指標との違い → 注意」の順に統一した。
+      指数比の定義・符号・単位（指数が下がった期間の読み方を含む）は families.index_relative の共通文に一本化した。
+      ラベルに比べている量を入れ、指数比の列は「指数比 31日リターン」の形（比べ方＋期間＋量）にした。
+      75日線の列は「指数比 75日線の傾き」にし、31日窓は正式名と解説に置いた。「の」と空白の使い分けを規則にした。
+      解説から製品・仕組みの事実（XLSX 対応、描画縮尺、既定表示、現行名対応）を spec_notes に分け、ツールチップ文を利用者向けの読み方だけにした。
+      既定で隠れている列と、表・凡例に出ない語（対象銘柄）も同じ形式にし、表示場所を surface に書いた。
+  - revision: 3
+    summary: バフェットコード・みんかぶ・Yahoo!ファイナンスのタブに、株探と同じ形式の解説を足した。ニュース候補の記事タブは、表のニュース候補と同じ解説を出す。
+reading_rules:
+  - 表・凡例・ホバーは同じ指標を同じ短い名で呼ぶ。
+  - "短い名は、何をどう比べた量かが分かる語で組む（例: 指数比 31日リターン ＝ 比べ方＋期間＋量、売買代金Z ＝ 量＋比べ方）。窓の数字だけ、または Z だけにしない。"
+  - リターンは「その期間にどれだけ上がったかの割合。下がればマイナス」の意味で使い、共通文で定義する。値上がり率・騰落率は表示名に使わない。
+  - 指数比の後ろは、指数比の値から作った量（加速・加速Z・安定度）だけ「の」で受ける。価格側で作ってから指数と比べる量（31日リターン、75日線の傾き）は「指数比 ＋ 空白 ＋ 量」にする。「指数比の75日線」と書くと、指数比を平均した線と読まれる。
+  - 表示名と正式名に専門語・内部語を使わない。避ける語と言い換えは glossary に従う。専門語は解説の末尾に「専門用語では〜」として残す。
+  - 正式名は、それだけ読めば意味が取れる日常語の完全な名前にする。コードや契約文書の呼び名は internal_name に書く。
+  - ベンチ名は列に入れない。指数比の系列は、ツールバーの比較指数（TOPIX / 日経平均）に追従する。
+  - 期間は営業日数で書き、解説に暦のおおよその長さを添える（31営業日≈1か月半、63≈3か月、126≈半年、252≈1年）。
+  - 解説は「何を、何と比べて、どう測るか」→「0・正・負の読み方」→「似た指標との違い」→「注意」の順に書く。読み方であり、売買の指示を書かない。
+  - 解説（explanation）は利用者向けの読み方だけを書く。製品や仕組みの事実（XLSX との対応、描画の縮尺、既定の表示有無、データの組み立て方、現行名との対応）は spec_notes に分け、ツールチップには出さない。
+  - "既定で隠れている列（default_visible: false）も、列パネルで表示したときは同じ形式のツールチップを出す。表や凡例に出ない語（対象銘柄など）も同じ形式で理想案・正式名・解説を持つ。表示場所は surface に書く。"
+  - 数値の多くは小数1桁。正は +、ほぼゼロは ±0。
+  - 指数比の定義・符号・単位は families.index_relative に一度だけ書く。指数比の列のツールチップは、その共通文を先に出し、各列の個別文を続ける。%表記は前日比(%) だけ。
+  - Z は「普段とのズレを標準偏差で測った値」。偏差値に直すと 50＋10×Z。
+  - 売買代金Zの棒だけ高さは Z÷5。表とホバーの数字は生のZ。
+glossary:
+  - avoid: [相対力, 相対, RS]
+    use: 指数比
+    why: relative strength の直訳で、何と何を比べた何の量か伝わらない。「前日比」と同じ型にすると、比較指数との差だと読める。
+  - avoid: [ベンチ, ベンチマーク]
+    use: 比較指数
+    why: ベンチは一般には座席。比較指数なら「指数比」の相手だと一語でつながる。
+  - avoid: [断面日, 断面, as-of]
+    use: 基準日
+    why: 断面は内部用語。基準日は「この日時点の数値」という日常の理解に合う。
+  - avoid: [SMA75, SMA, 平滑]
+    use: 75日線
+    why: 75日線は国内の個人投資家に最も浸透した呼び方。平滑は信号処理の語。
+  - avoid: [zスコア, z スコア, Zスコア, Zscore, 標準化]
+    use: Z（普段とのズレ）
+    why: 短い名には Z を残し、解説で「普段との差を標準偏差で測った値。偏差値と同じ考え方」と言い換える。
+  - avoid: [B方式, 期間リターン差]
+    use: リターンの差
+    why: B方式は実装上の区別名。利用者には「同じ期間のリターンの引き算」で足りる。
+  - avoid: [均線並び]
+    use: パーフェクトオーダー
+    why: 「均線」は中国語圏の略称で日本では通じない。パーフェクトオーダーは国内の個人投資家向けのチャート用語として定着しているので、言い換えずに使い、解説で並びを説明する。
+  - avoid: [情報比率, インフォメーション・レシオ]
+    use: 指数比の安定度
+    why: 「情報」が何を指すか伝わらない。測っているのは指数を上回る日の安定さ。
+  - avoid: [β調整]
+    use: 連動分を除く
+    why: 表示名は日常語にし、β（ベータ）は解説で説明する。
+  - avoid: [コアユニバース]
+    use: 対象銘柄
+    why: 表示語は対象銘柄にし、システム内の呼び名コアユニバースは spec_notes と internal_name に残す。
+  - avoid: [騰落率, 値上がり率, 上昇率]
+    use: 前日比(%)（1日）／リターン（期間）
+    why: 1日の変化は株価アプリで最も見慣れた前日比。期間の変化は、下がれば負になり単位を名乗らないリターンに揃える。値上がり率・上昇率は下落を言えない。
+  - avoid: [価格挙動, 日足]
+    use: 当日の値動き
+    why: 日足はチャートの時間軸の名前で、文言列の名前としては誤解される。
+families:
+  index_relative:
+    label: 指数比
+    applies_to: [rs31, rs63, rs126, rs252, rs_sma75]
+    display: 対象列のツールチップは、この共通文を先に出し、続けて各列の個別文（explanation）を出す。
+    explanation: >
+      指数比 ＝ この銘柄のリターン − 比較指数のリターン（同じ期間、終値どうし）。
+      リターンは、その期間にどれだけ上がったかの割合で、下がればマイナス。
+      市場全体の動きを基準に、この銘柄の成績を比べる値。正なら指数より良く、負なら悪く、0 なら同じ。
+      割り算ではなく引き算なので、指数が下がった期間でも符号の意味は変わらない。
+      株価が下がっていても、指数より下げ幅が小さければ正になる。
+      +0.1 は10%分の差（指数 +5%・銘柄 +15% → +0.10。指数 −10%・銘柄 −4% → +0.06）。%表示ではない。
+implementation_notes:
+  - conditional-format.js は列キー（z_turnover_60 と rs_acceleration_zscore）でレンジ5を判定する。ヘッダー文字列には依存しない。
+  - 保存済みお気に入りリスト名「お気入り」はユーザーデータ。表示ラベルの変更と保存名の移行は別作業。
+  - 特殊フィルタのデプロイ済み文言は「指数比がすべてマイナスの銘柄を除外（31・63・126・252日リターンと75日線の傾き）」。
+  - デプロイ済みの凡例と YAML の proposed は短い理想案（31日RS、売買代金異常、最長は「75移動平均RS」）である。
+  - リターンは % 表示が通例だが、本画面の指数比は小数（+0.1 ＝ 10%分）で、1桁表示では約10%分刻みにしかならない。%ポイント表示（+3.4）に変える場合は、web_ui_v1 の数値表示・グラフ軸 [-1,+1]・条件付き書式レンジ 1・XLSX との単位整合を同時に決める。本カタログでは未決。
+  - 売買代金倍率に 1 倍超で正符号が付く現行表示は「+2.3倍増」と誤読されうる。ラベル適用時に倍率は符号なし表示にする候補。
+  - 検索の注記はデプロイ済みで「存在しないか、この画面の対象銘柄に含まれません」。用語ボタンの表示は対象銘柄。
+  - 現行名（31日、RS31、SMA75 RS、Zscore、加速Z）や XLSX 列との対応は spec_notes に書き、解説（ツールチップ）には出さない。
+  - "列パネルで追加した列（default_visible: false）のヘッダーにも、既定列と同じ仕組みでツールチップを付ける。"
+entries:
+  - id: code
+    group: identity
+    surface: table_column
+    formal_name: 銘柄コード（証券コード）
+    internal_name: code
+    field_keys: [code]
+    on_chart: false
+    default_visible: true
+    current: {table: コード, chart_legend: null, chart_hover: null}
+    proposed: {table: コード, chart_legend: null, chart_hover: null}
+    explanation: 東証の4桁の証券コード。
+    spec_notes:
+      - 見出しの検索欄は、全角入力を半角英数に直して照合する。
+  - id: name
+    group: identity
+    surface: table_column
+    formal_name: 銘柄名
+    internal_name: name
+    field_keys: [name]
+    on_chart: false
+    default_visible: true
+    current: {table: 銘柄名, chart_legend: null, chart_hover: null}
+    proposed: {table: 銘柄名, chart_legend: null, chart_hover: null}
+    explanation: 銘柄の名称。
+    spec_notes: []
+  - id: favorite
+    group: identity
+    surface: table_column
+    formal_name: お気に入りリストへの登録
+    internal_name: favorite（favorites.lists / favorites.codes）
+    field_keys: [favorite]
+    on_chart: false
+    default_visible: true
+    current:
+      table: お気入り
+      chart_legend: null
+      chart_hover: null
+      also: [お気入りリスト, お気入りフィルタ]
+    proposed:
+      table: お気に入り
+      chart_legend: null
+      chart_hover: null
+      also: [お気に入りリスト, お気に入りフィルタ]
+    explanation: >
+      自分で保存したお気に入りリストに、この銘柄が入っているかどうか。
+      チップはリストの印で、強い・弱いを表す指標ではない。
+    spec_notes:
+      - 列の絞り込み、リスト管理、アカウントメニューの「お気入り」も同じ語に揃える。
+      - 保存済みリスト名「お気入り」はユーザーデータ。表示ラベルの変更と保存名の移行は別作業。
+  - id: price_text
+    group: price
+    surface: table_column
+    formal_name: 当日の値動きの形（ローソク足の形状の説明文）
+    internal_name: price_text / candle_labels（当日価格挙動）
+    field_keys: [price_text, candle_labels]
+    on_chart: false
+    default_visible: true
+    current: {table: "(当日の価格挙動)", chart_legend: null, chart_hover: null}
+    proposed: {table: 当日の値動き, chart_legend: null, chart_hover: null}
+    explanation: >
+      基準日の始値・高値・安値・終値から、その日の値動きの形を短い言葉で表したもの。
+      陽線（終値が始値より高い）、陰線（その逆）、上ヒゲ・下ヒゲ（一時的に大きく動いて戻した）、
+      上窓・下窓（前日の値幅から離れて始まった）、S高・S安（ストップ高・ストップ安。1日の値幅制限に達した疑い）など。
+    spec_notes:
+      - クライアントが candle_labels から組み立てる。price_text はラベル欠落時のフォールバック。
+      - XLSX の日足形状の列と同じ書き方。
+  - id: z_turnover_60
+    group: metric
+    surface: table_column_and_chart
+    formal_name: 売買代金Zscore
+    internal_name: z_turnover_60（売買代金 z スコア。log1p(終値×出来高) を60営業日で標準化）
+    field_keys: [z_turnover_60]
+    chart_series_id: z_disp
+    on_chart: true
+    default_visible: true
+    current: {table: Zscore, chart_legend: Zscore, chart_hover: Zscore}
+    proposed: {table: 売買代金異常, chart_legend: 売買代金異常, chart_hover: 売買代金異常}
+    explanation: >
+      基準日の売買代金（終値×出来高）が、この銘柄の普段（直近60営業日）と比べてどれだけ珍しい多さかを表す値。
+      ズレは標準偏差を1として測る。学校の偏差値と同じ考え方で、偏差値＝50＋10×Z。
+      0 が普段どおり、+1 でやや多め、+2 以上は普段ほとんど見ない多さ、負は普段より少ない。
+      株価ではなく売買代金のZ。「売買代金倍率」（普段の何倍か）とは別。
+    spec_notes:
+      - 計算は売買代金を対数にしてから、直近60営業日の平均と標準偏差で標準化する。
+      - グラフの棒だけ高さを Z÷5 に縮めて描く。表とホバーの数字は生のZ。
+      - XLSX の「Zscore」と同じ値。
+  - id: rs_acceleration_zscore
+    group: metric
+    surface: table_column
+    formal_name: 指数比の加速のZscore（直近60営業日基準）
+    internal_name: rs_acceleration_zscore（短期RS加速の z スコア、標準化窓60）。rs_acceleration_zscore_topix / _nikkei
+    field_keys: [rs_acceleration_zscore_topix, rs_acceleration_zscore_nikkei]
+    on_chart: false
+    default_visible: true
+    current: {table: 加速Z, chart_legend: null, chart_hover: null}
+    proposed: {table: RSの加速Z, chart_legend: null, chart_hover: null}
+    explanation: >
+      「指数比の加速」が、この銘柄の普段（直近60営業日）と比べてどれだけ珍しい大きさかを表す値。
+      売買代金Zと同じ物差しで、0 が普段どおり、+2 以上は普段ほとんど見ない強い加速、−2 以下はその逆（偏差値＝50＋10×Z）。
+      加速そのものの大きさではないので、加速が小さくても、この銘柄の普段がもっと小さければ大きな値になる。
+    spec_notes:
+      - 標準化窓は売買代金Zと同じ60営業日。
+      - グラフには描かない。
+      - XLSX の「加速Z」と同じ値。
+  - id: rs_acceleration
+    group: metric
+    surface: table_column
+    formal_name: 指数比の加速（指数比 31日リターン − 指数比 252日リターン）
+    internal_name: rs_acceleration（短期RS加速 = RS31 − RS252）。rs_acceleration_topix / _nikkei
+    field_keys: [rs_acceleration_topix, rs_acceleration_nikkei]
+    on_chart: false
+    default_visible: true
+    current: {table: 加速, chart_legend: null, chart_hover: null}
+    proposed: {table: RSの加速, chart_legend: null, chart_hover: null}
+    explanation: >
+      「指数比 31日リターン」−「指数比 252日リターン」。直近約1か月半の指数比が、過去1年の指数比よりどれだけ高いか。
+      正なら、最近のほうが指数に対して勢いがある（例: 1年では指数に負けていたが、直近は勝っている）。負ならその逆。
+      グラフの線の傾きのことではない。「指数比の加速Z」（普段と比べた珍しさ）とも別。
+    spec_notes:
+      - グラフには描かない。
+      - XLSX の「加速」と同じ値。
+  - id: rs31
+    group: metric
+    surface: table_column_and_chart
+    family: index_relative
+    formal_name: 31日 指数比リターン
+    internal_name: rs31（RS31、相対力 B方式＝期間リターン差）。rs31_topix / rs31_nikkei
+    field_keys: [rs31_topix, rs31_nikkei]
+    chart_series_id: rs31
+    on_chart: true
+    default_visible: true
+    current: {table: 31日, chart_legend: RS31, chart_hover: RS31}
+    proposed: {table: 31日RS, chart_legend: 31日RS, chart_hover: 31日RS}
+    explanation: 31営業日（約1か月半）のリターンの指数比。
+    spec_notes:
+      - グラフの線の高さはこの値そのもの。
+      - 表の「31日」、凡例の「RS31」、XLSX の「31日」と同じ値。
+  - id: rs63
+    group: metric
+    surface: table_column_and_chart
+    family: index_relative
+    formal_name: 63日 指数比リターン
+    internal_name: rs63（RS63、相対力 B方式）。rs63_topix / rs63_nikkei
+    field_keys: [rs63_topix, rs63_nikkei]
+    chart_series_id: rs63
+    on_chart: true
+    default_visible: true
+    current: {table: 63日, chart_legend: RS63, chart_hover: RS63}
+    proposed: {table: 63日RS, chart_legend: 63日RS, chart_hover: 63日RS}
+    explanation: 63営業日（約3か月）のリターンの指数比。
+    spec_notes:
+      - 表の「63日」、凡例の「RS63」、XLSX の「63日」と同じ値。
+  - id: rs126
+    group: metric
+    surface: table_column_and_chart
+    family: index_relative
+    formal_name: 126日 指数比リターン
+    internal_name: rs126（RS126、相対力 B方式）。rs126_topix / rs126_nikkei
+    field_keys: [rs126_topix, rs126_nikkei]
+    chart_series_id: rs126
+    on_chart: true
+    default_visible: true
+    current: {table: 126日, chart_legend: RS126, chart_hover: RS126}
+    proposed: {table: 126日RS, chart_legend: 126日RS, chart_hover: 126日RS}
+    explanation: 126営業日（約半年）のリターンの指数比。
+    spec_notes:
+      - 表の「126日」、凡例の「RS126」、XLSX の「126日」と同じ値。
+  - id: rs252
+    group: metric
+    surface: table_column_and_chart
+    family: index_relative
+    formal_name: 252日 指数比リターン
+    internal_name: rs252（RS252、相対力 B方式）。rs252_topix / rs252_nikkei
+    field_keys: [rs252_topix, rs252_nikkei]
+    chart_series_id: rs252
+    on_chart: true
+    default_visible: true
+    current: {table: 252日, chart_legend: RS252, chart_hover: RS252}
+    proposed: {table: 252日RS, chart_legend: 252日RS, chart_hover: 252日RS}
+    explanation: 252営業日（約1年）のリターンの指数比。「指数比の加速」は、指数比 31日リターンからこの値を引いた差。
+    spec_notes:
+      - 表の「252日」、凡例の「RS252」、XLSX の「252日」と同じ値。
+  - id: rs_sma75
+    group: metric
+    surface: table_column_and_chart
+    family: index_relative
+    formal_name: 75日移動平均線 指数比傾き
+    internal_name: rs_sma75（SMA75系列の31日 B方式 RS。終値の RS75 ではない）。rs_sma75_topix / rs_sma75_nikkei
+    field_keys: [rs_sma75_topix, rs_sma75_nikkei]
+    chart_series_id: rs_sma75
+    on_chart: true
+    default_visible: true
+    current: {table: SMA75 RS, chart_legend: SMA75RS, chart_hover: SMA75RS}
+    proposed: {table: 75移動平均RS, chart_legend: 75移動平均RS, chart_hover: 75移動平均RS}
+    explanation: >
+      この銘柄と比較指数それぞれの「75日線」（直近75営業日の終値の平均をつないだ線）が、31営業日でどれだけ上がったかの割合の差。
+      終値の代わりに、日々の上下をならした線で比べるので、流れとしてどちらが強いかが出る。
+      単位は指数比 31日リターンと同じで、1日あたりの傾きではない。指数比を75日で平均した線でも、75日リターンでもない。
+    spec_notes:
+      - 計算は 75日単純移動平均の系列に 31営業日の B方式 RS を当てる（平均が先、比較が後）。
+      - グラフの軸は指数比 31日リターンと共有する。グラフに描いた線の傾きのことではない。
+      - 表の「SMA75 RS」、凡例の「SMA75RS」と同じ値。XLSX には列がない。
+  - id: event_news_bundle
+    group: context
+    surface: table_column
+    formal_name: 売買代金が急増した日の関連ニュース候補（最大3件）
+    internal_name: event_news_bundle（event_news_1〜3_title / _url を束ねたもの）
+    field_keys: [event_news_bundle]
+    on_chart: false
+    default_visible: true
+    current: {table: 売買代金急増 要因ニュース候補, chart_legend: null, chart_hover: null}
+    proposed: {table: 売買代金異常 要因ニュース候補, chart_legend: null, chart_hover: null}
+    explanation: >
+      売買代金が急増した日に関係しそうなニュースの候補（最大3件）。原因と断定したものではない。
+      材料が見つからないときは「材料不明・需給起因疑い」などの文になる。
+    spec_notes:
+      - 下段の「ニュース候補」タブと同じ内容。株探のニュース一覧とは別。
+      - XLSX の「第一候補〜第三候補」と同じ。
+  - id: research_prompt_block
+    group: context
+    surface: table_column
+    formal_name: 調査用の指標まとめ（コピーして使う1行テキスト）
+    internal_name: research_prompt_block（research_prompt_frame v1.0 の観測データ抜粋）
+    field_keys: [research_prompt_block]
+    on_chart: false
+    default_visible: true
+    current: {table: 調査ブロック, chart_legend: null, chart_hover: null}
+    proposed: {table: 調査用まとめ, chart_legend: null, chart_hover: null}
+    explanation: >
+      この銘柄の基本情報（基準日・コード・銘柄名）と、当日の売買代金・値動きの指標を1行のテキストにまとめたもの。
+      自分で調べるときや AI に質問するときに、そのまま貼り付けて使える。結論は含まない。
+    spec_notes:
+      - 改行なしの JSON 1行。
+      - XLSX には列がない。
+  - id: beta_adjusted_rs
+    group: optional_metric
+    surface: table_column_optional
+    formal_name: 連動分を除く指数比 252日リターン（1年のリターン − β×指数のリターン）
+    internal_name: beta_adjusted_rs（β調整RS、累積窓252、β推定窓126）。beta_adjusted_rs_topix / _nikkei
+    field_keys: [beta_adjusted_rs_topix, beta_adjusted_rs_nikkei]
+    on_chart: false
+    default_visible: false
+    current: {table: β調整RS, chart_legend: null, chart_hover: null}
+    proposed: {table: 除β 252日RS, chart_legend: null, chart_hover: null}
+    explanation: >
+      1年（252営業日）のリターンから、「この銘柄が指数にどれだけ連動して動くか」（β、ベータ）×「指数のリターン」を引いた値。
+      βが1.5なら、指数が1%動くとこの銘柄は平均1.5%動くという意味。
+      指数比 252日リターンは連動の強さを1とみなして引くのに対し、こちらは銘柄ごとの連動の強さを考慮する。
+      正なら、指数に連動して動いた分を除いても上がっている。
+    spec_notes:
+      - βは、リターン期間（252営業日）の直前126営業日の日次リターンで推定する。
+      - 既定では隠れている列。列パネルで追加すると同じツールチップを出す。
+  - id: information_ratio
+    group: optional_metric
+    surface: table_column_optional
+    formal_name: 指数比の安定度（63営業日。日々のリターンの差の平均 ÷ ばらつき）
+    internal_name: information_ratio（情報比率、窓63）。information_ratio_topix / _nikkei
+    field_keys: [information_ratio_topix, information_ratio_nikkei]
+    on_chart: false
+    default_visible: false
+    current: {table: 情報比率, chart_legend: null, chart_hover: null}
+    proposed: {table: RSの安定度, chart_legend: null, chart_hover: null}
+    explanation: >
+      直近63営業日（約3か月）について、毎日の「この銘柄の前日比 − 比較指数の前日比」の平均を、そのばらつき（標準偏差）で割った値。
+      指数を上回る日が安定して続くほど正に大きく、下回る日が続くほど負に大きい。
+      日によってまちまちだと、平均が同じでも絶対値は小さくなる。
+      %でも倍率でもなく、指数比 63日リターンとは別の量。専門用語では情報比率。
+    spec_notes:
+      - 既定では隠れている列。列パネルで追加すると同じツールチップを出す。
+  - id: perfect_order_days
+    group: optional_metric
+    surface: table_column_optional
+    formal_name: パーフェクトオーダー（25日線 > 75日線 > 200日線）の継続日数
+    internal_name: perfect_order_days（SMA25>SMA75>SMA200、最小履歴220営業日）
+    field_keys: [perfect_order_days]
+    on_chart: false
+    default_visible: false
+    current: {table: パーフェクトオーダー日数, chart_legend: null, chart_hover: null}
+    proposed: {table: ﾊﾟｰﾌｪｸﾄｵｰﾀﾞｰ日数, chart_legend: null, chart_hover: null}
+    explanation: >
+      終値の25日・75日・200日移動平均線が、短い線ほど上に並んだ状態（25日線 > 75日線 > 200日線）が、基準日まで何営業日続いているか。
+      上昇の並びだけ数え、逆の並び（下降パーフェクトオーダー）は数えない。0 はその並びではない。
+      220営業日分（1年弱）の株価がない銘柄は空欄。
+    spec_notes:
+      - 既定では隠れている列。列パネルで追加すると同じツールチップを出す。
+  - id: price_change_pct
+    group: optional_metric
+    surface: table_column_optional
+    formal_name: 前日比(%)（前営業日終値に対する基準日終値の変化率）
+    internal_name: price_change_pct（当日騰落率）
+    field_keys: [price_change_pct]
+    on_chart: false
+    default_visible: false
+    current: {table: "騰落率(%)", chart_legend: null, chart_hover: null}
+    proposed: {table: "前日比(%)", chart_legend: null, chart_hover: null}
+    explanation: >
+      前営業日の終値に対する基準日終値の変化率。+3.0 なら前営業日より 3% 高い。
+      この列だけ値が%で、指数比の小数（0.1＝10%分）とは単位が違う。指数との比較は含まない。
+    spec_notes:
+      - 表示は小数1桁。
+      - 既定では隠れている列。列パネルで追加すると同じツールチップを出す。
+  - id: turnover_ma_ratio_60
+    group: optional_metric
+    surface: table_column_optional
+    formal_name: 売買代金倍率（直近60営業日平均の何倍か）
+    internal_name: turnover_ma_ratio_60（売買代金の60営業日移動平均比）
+    field_keys: [turnover_ma_ratio_60]
+    on_chart: false
+    default_visible: false
+    current: {table: 売買代金MA比, chart_legend: null, chart_hover: null}
+    proposed: {table: 売買代金倍率, chart_legend: null, chart_hover: null}
+    explanation: >
+      基準日の売買代金が、この銘柄の直近60営業日平均の何倍か。1.0 が普段どおり、3.0 なら普段の3倍、0.5 なら半分。
+      「売買代金Z」と同じく普段と比べる値だが、こちらは倍率で、Zは珍しさの度合い。
+    spec_notes:
+      - 表示は小数1桁。現行表示では 1 倍超にも正符号が付くが、増分ではなく倍率。
+      - 既定では隠れている列。列パネルで追加すると同じツールチップを出す。
+  - id: as_of
+    group: chrome
+    surface: toolbar
+    formal_name: 基準日（表とグラフがそろえている営業日）
+    internal_name: as_of
+    field_keys: []
+    on_chart: false
+    default_visible: true
+    current: {table: 日付, chart_legend: null, chart_hover: null}
+    proposed: {table: 基準日, chart_legend: null, chart_hover: null}
+    explanation: >
+      表とグラフがそろえている営業日。画面のすべての数値は、この日の終値までのデータで計算している。
+      「最終更新」はデータが確定した時刻で、基準日とは別。
+    spec_notes:
+      - 日付プルダウン。date 列は表に出さない。
+  - id: benchmark
+    group: chrome
+    surface: toolbar
+    formal_name: 比較指数（指数比の比較相手。TOPIX または日経平均）
+    internal_name: benchmark（topix / nikkei）
+    field_keys: []
+    on_chart: false
+    default_visible: true
+    current: {table: ベンチ, chart_legend: null, chart_hover: null}
+    proposed: {table: 比較指数, chart_legend: null, chart_hover: null}
+    explanation: >
+      「指数比〜」が比べる相手。TOPIX（東証の幅広い銘柄の指数）か日経平均（代表的な225銘柄の指数）。
+      切り替えると指数比の列とグラフが入れ替わる。
+      売買代金Z、当日の値動き、前日比(%)、売買代金倍率、パーフェクトオーダー日数は変わらない。
+    spec_notes:
+      - 束は比較指数ごとに別オブジェクト。同時表示はしない。
+  - id: committed_at
+    group: chrome
+    surface: toolbar
+    formal_name: 最終更新（データが確定した時刻、日本時間）
+    internal_name: committed_at_utc
+    field_keys: [committed_at_utc]
+    on_chart: false
+    default_visible: true
+    current: {table: 最終更新, chart_legend: null, chart_hover: null}
+    proposed: {table: 最終更新, chart_legend: null, chart_hover: null}
+    explanation: いま見ているデータが確定した時刻（日本時間）。基準日そのものではない。
+    spec_notes:
+      - BFF が返す committed_at_utc を JST に直して表示する。
+  - id: exclude_all_rs_negative
+    group: chrome
+    surface: filter_switch
+    formal_name: 指数比がすべてマイナスの銘柄を除外
+    internal_name: exclude_all_rs_negative（RS31 / RS63 / RS126 / RS252 / SMA75 RS がすべて負）
+    field_keys: []
+    on_chart: false
+    default_visible: true
+    current:
+      table: RS系が全てマイナスの銘柄を除外（RS31/63/126/252/SMA75）
+      chart_legend: null
+      chart_hover: null
+    proposed:
+      table: 指数比がすべてマイナスの銘柄を除外（31・63・126・252日リターンと75日線の傾き）
+      chart_legend: null
+      chart_hover: null
+    explanation: >
+      指数比 31日・63日・126日・252日リターンと、指数比 75日線の傾きがすべてマイナスの銘柄を一覧から外す。
+      下げ相場でも、指数より下げ幅が小さい銘柄は残る。指数比の加速と売買代金Zは見ない。
+    spec_notes:
+      - 無料ロールでは無効。
+  - id: core_universe
+    group: chrome
+    surface: term_button
+    formal_name: 対象銘柄（この画面が扱う銘柄の範囲）
+    internal_name: core_universe（コアユニバース、equity_domestic_core）
+    field_keys: []
+    on_chart: false
+    default_visible: true
+    current:
+      table: コアユニバース
+      chart_legend: null
+      chart_hover: null
+      also: [存在しないか、コアユニバース外の銘柄です]
+    proposed:
+      table: 対象銘柄
+      chart_legend: null
+      chart_hover: null
+      also: [存在しないか、この画面の対象銘柄に含まれません]
+    explanation: >
+      この画面が扱う銘柄の範囲。国内株式のうち、上場して間もない銘柄（約1年分の株価がまだない）と、
+      売買代金が少なく取引が薄い銘柄を除いたもの。画面の数値はすべてこの範囲の中で計算している。
+    spec_notes:
+      - 表にも凡例にも出ない。検索で見つからないときの注記の中の用語ボタンで、ホバーすると解説を出す。
+      - 注記の文は「存在しないか、この画面の対象銘柄に含まれません」。
+      - システム内の呼び名はコアユニバース（equity_domestic_core）。README や契約文書ではこの名で参照する。
+  - id: web_overview
+    group: web_tab
+    surface: web_pane_tab
+    formal_name: 株探の銘柄概要ページへのリンク
+    internal_name: link_kabutan
+    field_keys: [link_kabutan]
+    on_chart: false
+    default_visible: true
+    current: {table: 概要, chart_legend: null, chart_hover: null, also: ["概要（株探）"]}
+    proposed: {table: 概要（株探）, chart_legend: null, chart_hover: null}
+    explanation: 株探（かぶたん）の銘柄概要ページを開く。
+    spec_notes:
+      - 指標ではない。iframe が拒否されたら新しいタブで開く。
+  - id: web_chart
+    group: web_tab
+    surface: web_pane_tab
+    formal_name: 株探のチャートページへのリンク
+    internal_name: link_kabutan_chart
+    field_keys: [link_kabutan_chart]
+    on_chart: false
+    default_visible: true
+    current: {table: チャート, chart_legend: null, chart_hover: null, also: ["チャート（株探）"]}
+    proposed: {table: チャート（株探）, chart_legend: null, chart_hover: null}
+    explanation: 株探のチャートページを開く。この画面の指数比グラフとは別。
+    spec_notes: []
+  - id: web_news
+    group: web_tab
+    surface: web_pane_tab
+    formal_name: 株探のニュース一覧へのリンク
+    internal_name: link_kabutan_news
+    field_keys: [link_kabutan_news]
+    on_chart: false
+    default_visible: true
+    current: {table: ニュース, chart_legend: null, chart_hover: null, also: ["ニュース（株探）"]}
+    proposed: {table: ニュース（株探）, chart_legend: null, chart_hover: null}
+    explanation: 株探のニュース一覧を開く。表の「ニュース候補」（売買代金が急増した日の候補）とは別。
+    spec_notes: []
+  - id: web_news_candidates
+    group: web_tab
+    surface: web_pane_tab
+    formal_name: ニュース候補タブ
+    internal_name: event_news_bundle（下段タブ）
+    field_keys: [event_news_bundle]
+    on_chart: false
+    default_visible: true
+    current: {table: ニュース候補, chart_legend: null, chart_hover: null}
+    proposed: {table: ニュース候補, chart_legend: null, chart_hover: null}
+    explanation: 表の「ニュース候補」と同じ内容を、下段のタブで開く。
+    spec_notes:
+      - 見出しを10字に縮めた記事タブにも、表のニュース候補と同じ解説（event_news_bundle）を出す。
+
+
+  - id: web_buffett
+    group: web_tab
+    surface: web_pane_tab
+    formal_name: バフェットコードの銘柄ページへのリンク
+    internal_name: link_buffett
+    field_keys: [link_buffett]
+    on_chart: false
+    default_visible: false
+    current: {table: バフェットコード, chart_legend: null, chart_hover: null}
+    proposed: {table: バフェットコード, chart_legend: null, chart_hover: null}
+    explanation: バフェットコードの銘柄ページを開く。この画面のグラフや、表のニュース候補とは別のサイト。
+    spec_notes:
+      - 指標ではない。タブは既定でオフ。表示設定でオンにすると、タブのホバーでこの解説を出す。 iframe が拒否されたら新しいタブで開く。
+  - id: web_minkabu
+    group: web_tab
+    surface: web_pane_tab
+    formal_name: みんかぶの銘柄ページへのリンク
+    internal_name: link_minkabu
+    field_keys: [link_minkabu]
+    on_chart: false
+    default_visible: false
+    current: {table: みんかぶ, chart_legend: null, chart_hover: null}
+    proposed: {table: みんかぶ, chart_legend: null, chart_hover: null}
+    explanation: みんかぶの銘柄ページを開く。この画面のグラフや、表のニュース候補とは別のサイト。
+    spec_notes:
+      - 指標ではない。タブは既定でオフ。表示設定でオンにすると、タブのホバーでこの解説を出す。 iframe が拒否されたら新しいタブで開く。
+  - id: web_yahoo
+    group: web_tab
+    surface: web_pane_tab
+    formal_name: Yahoo!ファイナンスの銘柄ページへのリンク
+    internal_name: link_yahoo
+    field_keys: [link_yahoo]
+    on_chart: false
+    default_visible: false
+    current: {table: Yahoo!ファイナンス, chart_legend: null, chart_hover: null}
+    proposed: {table: Yahoo!ファイナンス, chart_legend: null, chart_hover: null}
+    explanation: Yahoo!ファイナンスの銘柄ページを開く。この画面のグラフや、表のニュース候補とは別のサイト。
+    spec_notes:
+      - 指標ではない。タブは既定でオフ。表示設定でオンにすると、タブのホバーでこの解説を出す。 iframe が拒否されたら新しいタブで開く。

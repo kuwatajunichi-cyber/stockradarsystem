@@ -2,35 +2,286 @@
   const XLSX_DEFAULT = [
     { key: "code", label: "コード", kind: "text" },
     { key: "name", label: "銘柄名", kind: "text" },
-    { key: "favorite", label: "お気入り", kind: "favorite" },
-    { key: "link_kabutan", label: "概要", kind: "link", linkText: "株探" },
-    { key: "link_kabutan_chart", label: "チャート", kind: "link", linkText: "チャート" },
-    { key: "link_kabutan_news", label: "ニュース", kind: "link", linkText: "ニュース" },
-    { key: "price_text", label: "(当日の価格挙動)", kind: "text" },
-    { key: "z_turnover_60", label: "Zscore", kind: "signed1" },
-    { key: "rs_acceleration_zscore_topix", label: "加速Z", kind: "signed1", bench: true },
-    { key: "rs_acceleration_topix", label: "加速", kind: "signed1", bench: true },
-    { key: "rs31_topix", label: "31日", kind: "signed1", bench: true },
-    { key: "rs63_topix", label: "63日", kind: "signed1", bench: true },
-    { key: "rs126_topix", label: "126日", kind: "signed1", bench: true },
-    { key: "rs252_topix", label: "252日", kind: "signed1", bench: true },
-    { key: "rs_sma75_topix", label: "SMA75 RS", kind: "signed1", bench: true },
-    { key: "event_news_bundle", label: "売買代金急増 要因ニュース候補", kind: "news_bundle" },
-    { key: "research_prompt_block", label: "調査ブロック", kind: "text" },
+    { key: "favorite", label: "お気に入り", kind: "favorite" },
+    { key: "link_kabutan", label: "概要（株探）", kind: "link", linkText: "株探" },
+    { key: "link_kabutan_chart", label: "チャート（株探）", kind: "link", linkText: "チャート" },
+    { key: "link_kabutan_news", label: "ニュース（株探）", kind: "link", linkText: "ニュース" },
+    { key: "price_text", label: "当日の値動き", kind: "text" },
+    { key: "z_turnover_60", label: "売買代金異常", kind: "signed1" },
+    { key: "rs_acceleration_zscore_topix", label: "RSの加速Z", kind: "signed1", bench: true },
+    { key: "rs_acceleration_topix", label: "RSの加速", kind: "signed1", bench: true },
+    { key: "rs31_topix", label: "31日RS", kind: "signed1", bench: true },
+    { key: "rs63_topix", label: "63日RS", kind: "signed1", bench: true },
+    { key: "rs126_topix", label: "126日RS", kind: "signed1", bench: true },
+    { key: "rs252_topix", label: "252日RS", kind: "signed1", bench: true },
+    { key: "rs_sma75_topix", label: "75移動平均RS", kind: "signed1", bench: true },
+    { key: "event_news_bundle", label: "売買代金異常 要因ニュース候補", kind: "news_bundle" },
+    { key: "research_prompt_block", label: "調査用まとめ", kind: "text" },
   ];
 
   // Draw order = array order (back → front). Z bars first; RS lines by thickness.
   const CHART_BG = "rgb(9,7,32)";
-  const RS_POS = "39,255,104";
-  const RS_NEG = "255,39,115";
+  const RS_POS = "82,255,134";
+  const RS_NEG = "255,65,0";
   const SERIES_META = [
-    { id: "z_disp", label: "Zscore", kind: "bar", color: "rgba(196,192,242,0.34)" },
-    { id: "rs_sma75", label: "SMA75RS", kind: "line", width: 16, alpha: 0.1 },
-    { id: "rs252", label: "RS252", kind: "line", width: 8, alpha: 0.2 },
-    { id: "rs126", label: "RS126", kind: "line", width: 6, alpha: 0.4 },
-    { id: "rs63", label: "RS63", kind: "line", width: 4, alpha: 0.6 },
-    { id: "rs31", label: "RS31", kind: "line", width: 1, alpha: 1.0 },
+    { id: "z_disp", label: "売買代金異常", kind: "bar", color: "rgba(196,192,242,0.34)" },
+    { id: "rs_sma75", label: "75移動平均RS", kind: "line", width: 16, alpha: 0.1 },
+    { id: "rs252", label: "252日RS", kind: "line", width: 8, alpha: 0.2 },
+    { id: "rs126", label: "126日RS", kind: "line", width: 6, alpha: 0.4 },
+    { id: "rs63", label: "63日RS", kind: "line", width: 4, alpha: 0.6 },
+    { id: "rs31", label: "31日RS", kind: "line", width: 1, alpha: 1.0 },
   ];
+
+  const LABEL_FAMILY_INDEX = "指数比 ＝ この銘柄のリターン − 比較指数のリターン（同じ期間、終値どうし）。 リターンは、その期間にどれだけ上がったかの割合で、下がればマイナス。 市場全体の動きを基準に、この銘柄の成績を比べる値。正なら指数より良く、負なら悪く、0 なら同じ。 割り算ではなく引き算なので、指数が下がった期間でも符号の意味は変わらない。 株価が下がっていても、指数より下げ幅が小さければ正になる。 +0.1 は10%分の差（指数 +5%・銘柄 +15% → +0.10。指数 −10%・銘柄 −4% → +0.06）。%表示ではない。";
+  const LABEL_TIPS = {
+  "code": {
+    "text": "東証の4桁の証券コード。",
+    "family": false
+  },
+  "name": {
+    "text": "銘柄の名称。",
+    "family": false
+  },
+  "favorite": {
+    "text": "自分で保存したお気に入りリストに、この銘柄が入っているかどうか。 チップはリストの印で、強い・弱いを表す指標ではない。",
+    "family": false
+  },
+  "price_text": {
+    "text": "基準日の始値・高値・安値・終値から、その日の値動きの形を短い言葉で表したもの。 陽線（終値が始値より高い）、陰線（その逆）、上ヒゲ・下ヒゲ（一時的に大きく動いて戻した）、 上窓・下窓（前日の値幅から離れて始まった）、S高・S安（ストップ高・ストップ安。1日の値幅制限に達した疑い）など。",
+    "family": false
+  },
+  "z_turnover_60": {
+    "text": "基準日の売買代金（終値×出来高）が、この銘柄の普段（直近60営業日）と比べてどれだけ珍しい多さかを表す値。 ズレは標準偏差を1として測る。学校の偏差値と同じ考え方で、偏差値＝50＋10×Z。 0 が普段どおり、+1 でやや多め、+2 以上は普段ほとんど見ない多さ、負は普段より少ない。 株価ではなく売買代金のZ。「売買代金倍率」（普段の何倍か）とは別。",
+    "family": false
+  },
+  "rs_acceleration_zscore": {
+    "text": "「指数比の加速」が、この銘柄の普段（直近60営業日）と比べてどれだけ珍しい大きさかを表す値。 売買代金Zと同じ物差しで、0 が普段どおり、+2 以上は普段ほとんど見ない強い加速、−2 以下はその逆（偏差値＝50＋10×Z）。 加速そのものの大きさではないので、加速が小さくても、この銘柄の普段がもっと小さければ大きな値になる。",
+    "family": false
+  },
+  "rs_acceleration": {
+    "text": "「指数比 31日リターン」−「指数比 252日リターン」。直近約1か月半の指数比が、過去1年の指数比よりどれだけ高いか。 正なら、最近のほうが指数に対して勢いがある（例: 1年では指数に負けていたが、直近は勝っている）。負ならその逆。 グラフの線の傾きのことではない。「指数比の加速Z」（普段と比べた珍しさ）とも別。",
+    "family": false
+  },
+  "rs31": {
+    "text": "31営業日（約1か月半）のリターンの指数比。",
+    "family": true
+  },
+  "rs63": {
+    "text": "63営業日（約3か月）のリターンの指数比。",
+    "family": true
+  },
+  "rs126": {
+    "text": "126営業日（約半年）のリターンの指数比。",
+    "family": true
+  },
+  "rs252": {
+    "text": "252営業日（約1年）のリターンの指数比。「指数比の加速」は、指数比 31日リターンからこの値を引いた差。",
+    "family": true
+  },
+  "rs_sma75": {
+    "text": "この銘柄と比較指数それぞれの「75日線」（直近75営業日の終値の平均をつないだ線）が、31営業日でどれだけ上がったかの割合の差。 終値の代わりに、日々の上下をならした線で比べるので、流れとしてどちらが強いかが出る。 単位は指数比 31日リターンと同じで、1日あたりの傾きではない。指数比を75日で平均した線でも、75日リターンでもない。",
+    "family": true
+  },
+  "event_news_bundle": {
+    "text": "売買代金が急増した日に関係しそうなニュースの候補（最大3件）。原因と断定したものではない。 材料が見つからないときは「材料不明・需給起因疑い」などの文になる。",
+    "family": false
+  },
+  "research_prompt_block": {
+    "text": "この銘柄の基本情報（基準日・コード・銘柄名）と、当日の売買代金・値動きの指標を1行のテキストにまとめたもの。 自分で調べるときや AI に質問するときに、そのまま貼り付けて使える。結論は含まない。",
+    "family": false
+  },
+  "beta_adjusted_rs": {
+    "text": "1年（252営業日）のリターンから、「この銘柄が指数にどれだけ連動して動くか」（β、ベータ）×「指数のリターン」を引いた値。 βが1.5なら、指数が1%動くとこの銘柄は平均1.5%動くという意味。 指数比 252日リターンは連動の強さを1とみなして引くのに対し、こちらは銘柄ごとの連動の強さを考慮する。 正なら、指数に連動して動いた分を除いても上がっている。",
+    "family": false
+  },
+  "information_ratio": {
+    "text": "直近63営業日（約3か月）について、毎日の「この銘柄の前日比 − 比較指数の前日比」の平均を、そのばらつき（標準偏差）で割った値。 指数を上回る日が安定して続くほど正に大きく、下回る日が続くほど負に大きい。 日によってまちまちだと、平均が同じでも絶対値は小さくなる。 %でも倍率でもなく、指数比 63日リターンとは別の量。専門用語では情報比率。",
+    "family": false
+  },
+  "perfect_order_days": {
+    "text": "終値の25日・75日・200日移動平均線が、短い線ほど上に並んだ状態（25日線 > 75日線 > 200日線）が、基準日まで何営業日続いているか。 上昇の並びだけ数え、逆の並び（下降パーフェクトオーダー）は数えない。0 はその並びではない。 220営業日分（1年弱）の株価がない銘柄は空欄。",
+    "family": false
+  },
+  "price_change_pct": {
+    "text": "前営業日の終値に対する基準日終値の変化率。+3.0 なら前営業日より 3% 高い。 この列だけ値が%で、指数比の小数（0.1＝10%分）とは単位が違う。指数との比較は含まない。",
+    "family": false
+  },
+  "turnover_ma_ratio_60": {
+    "text": "基準日の売買代金が、この銘柄の直近60営業日平均の何倍か。1.0 が普段どおり、3.0 なら普段の3倍、0.5 なら半分。 「売買代金Z」と同じく普段と比べる値だが、こちらは倍率で、Zは珍しさの度合い。",
+    "family": false
+  },
+  "as_of": {
+    "text": "表とグラフがそろえている営業日。画面のすべての数値は、この日の終値までのデータで計算している。 「最終更新」はデータが確定した時刻で、基準日とは別。",
+    "family": false
+  },
+  "benchmark": {
+    "text": "「指数比〜」が比べる相手。TOPIX（東証の幅広い銘柄の指数）か日経平均（代表的な225銘柄の指数）。 切り替えると指数比の列とグラフが入れ替わる。 売買代金Z、当日の値動き、前日比(%)、売買代金倍率、パーフェクトオーダー日数は変わらない。",
+    "family": false
+  },
+  "committed_at": {
+    "text": "いま見ているデータが確定した時刻（日本時間）。基準日そのものではない。",
+    "family": false
+  },
+  "exclude_all_rs_negative": {
+    "text": "指数比 31日・63日・126日・252日リターンと、指数比 75日線の傾きがすべてマイナスの銘柄を一覧から外す。 下げ相場でも、指数より下げ幅が小さい銘柄は残る。指数比の加速と売買代金Zは見ない。",
+    "family": false
+  },
+  "core_universe": {
+    "text": "この画面が扱う銘柄の範囲。国内株式のうち、上場して間もない銘柄（約1年分の株価がまだない）と、 売買代金が少なく取引が薄い銘柄を除いたもの。画面の数値はすべてこの範囲の中で計算している。",
+    "family": false
+  },
+  "web_overview": {
+    "text": "株探（かぶたん）の銘柄概要ページを開く。",
+    "family": false
+  },
+  "web_chart": {
+    "text": "株探のチャートページを開く。この画面の指数比グラフとは別。",
+    "family": false
+  },
+  "web_news": {
+    "text": "株探のニュース一覧を開く。表の「ニュース候補」（売買代金が急増した日の候補）とは別。",
+    "family": false
+  },
+  "web_news_candidates": {
+    "text": "表の「ニュース候補」と同じ内容を、下段のタブで開く。",
+    "family": false
+  },
+  "web_buffett": {
+    "text": "バフェットコードの銘柄ページを開く。この画面のグラフや、表のニュース候補とは別のサイト。",
+    "family": false
+  },
+  "web_minkabu": {
+    "text": "みんかぶの銘柄ページを開く。この画面のグラフや、表のニュース候補とは別のサイト。",
+    "family": false
+  },
+  "web_yahoo": {
+    "text": "Yahoo!ファイナンスの銘柄ページを開く。この画面のグラフや、表のニュース候補とは別のサイト。",
+    "family": false
+  }
+};
+  const COLUMN_LABEL_IDS = {
+  "code": "code",
+  "name": "name",
+  "favorite": "favorite",
+  "price_text": "price_text",
+  "candle_labels": "price_text",
+  "z_turnover_60": "z_turnover_60",
+  "rs_acceleration_zscore_topix": "rs_acceleration_zscore",
+  "rs_acceleration_zscore_nikkei": "rs_acceleration_zscore",
+  "rs_acceleration_topix": "rs_acceleration",
+  "rs_acceleration_nikkei": "rs_acceleration",
+  "rs31_topix": "rs31",
+  "rs31_nikkei": "rs31",
+  "rs63_topix": "rs63",
+  "rs63_nikkei": "rs63",
+  "rs126_topix": "rs126",
+  "rs126_nikkei": "rs126",
+  "rs252_topix": "rs252",
+  "rs252_nikkei": "rs252",
+  "rs_sma75_topix": "rs_sma75",
+  "rs_sma75_nikkei": "rs_sma75",
+  "event_news_bundle": "event_news_bundle",
+  "research_prompt_block": "research_prompt_block",
+  "beta_adjusted_rs_topix": "beta_adjusted_rs",
+  "beta_adjusted_rs_nikkei": "beta_adjusted_rs",
+  "information_ratio_topix": "information_ratio",
+  "information_ratio_nikkei": "information_ratio",
+  "perfect_order_days": "perfect_order_days",
+  "price_change_pct": "price_change_pct",
+  "turnover_ma_ratio_60": "turnover_ma_ratio_60",
+  "committed_at_utc": "committed_at",
+  "link_kabutan": "web_overview",
+  "link_kabutan_chart": "web_chart",
+  "link_kabutan_news": "web_news"
+};
+  const SERIES_LABEL_IDS = {
+  "z_disp": "z_turnover_60",
+  "rs31": "rs31",
+  "rs63": "rs63",
+  "rs126": "rs126",
+  "rs252": "rs252",
+  "rs_sma75": "rs_sma75"
+};
+
+  function columnLabelId(key) {
+    if (COLUMN_LABEL_IDS[key]) return COLUMN_LABEL_IDS[key];
+    const base = String(key || "").replace(/_(topix|nikkei)$/, "");
+    return COLUMN_LABEL_IDS[base] || "";
+  }
+
+  function attachLabelTip(el, id) {
+    if (el && id && LABEL_TIPS[id]) el.dataset.labelTip = id;
+  }
+
+  function labelTipText(id) {
+    const entry = LABEL_TIPS[id];
+    if (!entry) return "";
+    const parts = [];
+    if (entry.family) parts.push(LABEL_FAMILY_INDEX);
+    if (entry.text) parts.push(entry.text);
+    return parts.join("\n\n");
+  }
+
+  function bindLabelTips() {
+    if (document.getElementById("label-tip")) return;
+    const tip = document.createElement("div");
+    tip.id = "label-tip";
+    tip.hidden = true;
+    tip.setAttribute("role", "tooltip");
+    document.body.appendChild(tip);
+    let current = null;
+    function hide() {
+      current = null;
+      tip.hidden = true;
+    }
+    function show(host) {
+      if (!host || host.closest(".surface-chrome-source, .surface-header-source")) return;
+      const text = labelTipText(host.dataset.labelTip || "");
+      if (!text) return;
+      current = host;
+      tip.textContent = text;
+      tip.hidden = false;
+      const rect = host.getBoundingClientRect();
+      const width = tip.offsetWidth;
+      const height = tip.offsetHeight;
+      let left = Math.min(rect.left, window.innerWidth - width - 8);
+      left = Math.max(8, left);
+      let top = rect.bottom + 8;
+      if (top + height > window.innerHeight - 8) top = Math.max(8, rect.top - height - 8);
+      tip.style.left = left + "px";
+      tip.style.top = top + "px";
+    }
+    document.addEventListener("mouseover", (ev) => {
+      const host = ev.target.closest ? ev.target.closest("[data-label-tip]") : null;
+      if (!host) return;
+      show(host);
+    });
+    document.addEventListener("mouseout", (ev) => {
+      const host = ev.target.closest ? ev.target.closest("[data-label-tip]") : null;
+      if (!host || host !== current) return;
+      const next = ev.relatedTarget;
+      if (next && host.contains(next)) return;
+      hide();
+    });
+    document.addEventListener("focusin", (ev) => {
+      const host = ev.target.closest ? ev.target.closest("[data-label-tip]") : null;
+      if (host) show(host);
+    });
+    document.addEventListener("focusout", (ev) => {
+      const host = ev.target.closest ? ev.target.closest("[data-label-tip]") : null;
+      if (host) hide();
+    });
+  }
+
+  function seriesDisplayMeta() {
+    const head = [];
+    const rs = [];
+    SERIES_META.forEach((s) => {
+      if (s.id === "z_disp") head.push(s);
+      else rs.push(s);
+    });
+    return head.concat(rs.reverse());
+  }
 
   const state = {
     meta: null,
@@ -46,6 +297,10 @@
     freePreview: false,
     userId: "local",
     favorites: {},
+    favLists: [],
+    favFilterIds: [],
+    favIncludeBlank: true,
+    favModalListId: null,
     favOnly: false,
     excludeAllRsNeg: false,
     sortKey: "z_turnover_60",
@@ -66,9 +321,22 @@
     kabutanMode: "overview",
     kabutanTimer: null,
     rowObserver: null,
+    dataUpdatedAt: null,
+    seenBundleKey: "",
+    bundleNotice: null,
   };
 
   const $ = (id) => document.getElementById(id);
+  const chrome = () => window.StockRadarChrome;
+  let lastFavAnchor = null;
+  const FAV_LIST_MAX = 12;
+  const FAV_CELL_CHIPS = 5;
+  const FAV_NAME_MAX = 20;
+  const FAV_LIST_CAP_PLACEHOLDER = "最大数に達しています";
+  const FAV_CODES_PER_LIST = 500;
+  const FAV_MEMBERSHIP_MAX = 1500;
+  const FAV_DEFAULT_ID = "lst_default";
+  const FAV_HUES = ["#4da5ee", "#e8b44a", "#57bb8a", "#e07a5f", "#9b8cff", "#d47bb0"];
 
   const COPY = {
     login: "ログインしてください",
@@ -87,12 +355,24 @@
     "information_ratio",
   ];
   let prefsTimer = null;
+  let viewRefreshQueued = false;
 
   function liveCtx() {
     return window.__WEB_UI_CTX || null;
   }
 
+  function bootProgress(label, ratio) {
+    const p = window.__webUiProgress;
+    if (p && typeof p.show === "function") p.show(label, ratio);
+  }
+
+  function hideBootProgress() {
+    const p = window.__webUiProgress;
+    if (p && typeof p.hide === "function") p.hide();
+  }
+
   function showT5(kind, text) {
+    hideBootProgress();
     const msg = text || COPY[kind] || COPY.temporary;
     const banner = $("asof-banner");
     if (banner) banner.textContent = msg;
@@ -110,27 +390,63 @@
     }
   }
 
-  async function bffFetch(path, init) {
-    const ctx = liveCtx();
-    if (!ctx || !ctx.bffOrigin || !ctx.accessToken) {
-      const err = new Error("login");
-      err.t5 = "login";
-      throw err;
-    }
-    let res;
+  async function bffSend(origin, path, init, token) {
     try {
-      res = await fetch(String(ctx.bffOrigin).replace(/\/$/, "") + path, {
+      return await fetch(String(origin).replace(/\/$/, "") + path, {
         ...(init || {}),
         headers: {
-          Authorization: "Bearer " + ctx.accessToken,
+          Authorization: "Bearer " + token,
           "Content-Type": "application/json",
           ...((init && init.headers) || {}),
         },
       });
     } catch (_err) {
+      return null;
+    }
+  }
+
+  async function bffFetch(path, init) {
+    const ctx = liveCtx();
+    if (!ctx || !ctx.bffOrigin) {
+      const err = new Error("login");
+      err.t5 = "login";
+      throw err;
+    }
+    let token = ctx.accessToken || "";
+    if (typeof window.__webUiFreshAccessToken === "function") {
+      try {
+        const fresh = await window.__webUiFreshAccessToken();
+        if (fresh) token = fresh;
+      } catch (_err) {
+        /* use the snapshot already copied into the session */
+      }
+    }
+    if (!token) {
+      const err = new Error("login");
+      err.t5 = "login";
+      throw err;
+    }
+    let res = await bffSend(ctx.bffOrigin, path, init, token);
+    if (!res) {
       const err = new Error("temporary");
       err.t5 = "temporary";
       throw err;
+    }
+    if (res.status === 401 && typeof window.__webUiFreshAccessToken === "function") {
+      let fresh = null;
+      try {
+        fresh = await window.__webUiFreshAccessToken(true);
+      } catch (_err) {
+        fresh = null;
+      }
+      if (fresh && fresh !== token) {
+        res = await bffSend(ctx.bffOrigin, path, init, fresh);
+        if (!res) {
+          const err = new Error("temporary");
+          err.t5 = "temporary";
+          throw err;
+        }
+      }
     }
     if (res.status === 401) {
       const err = new Error("login");
@@ -186,15 +502,41 @@
     };
   }
 
-  async function decodeBundleResponse(res) {
-    const buf = await res.arrayBuffer();
+  async function decodeBundleBuffer(buf) {
     const bytes = new Uint8Array(buf);
     const gzipMagic = bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b;
     if (gzipMagic) return gunzipJson(buf);
     return JSON.parse(new TextDecoder().decode(bytes));
   }
 
+  async function readBodyWithProgress(res, onBytes) {
+    const total = Number(res.headers.get("content-length") || 0);
+    if (!res.body || typeof res.body.getReader !== "function") {
+      const buf = await res.arrayBuffer();
+      if (onBytes) onBytes(buf.byteLength, total || buf.byteLength);
+      return buf;
+    }
+    const reader = res.body.getReader();
+    const chunks = [];
+    let received = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      received += value.byteLength;
+      if (onBytes) onBytes(received, total);
+    }
+    const out = new Uint8Array(received);
+    let offset = 0;
+    for (const chunk of chunks) {
+      out.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return out.buffer;
+  }
+
   async function loadBundle(asOf, bench) {
+    bootProgress("署名付きURLを発行しています", 0.62);
     const minted = await bffFetch("/v1/mint", {
       method: "POST",
       body: JSON.stringify({ as_of: asOf, benchmark: bench }),
@@ -207,6 +549,7 @@
     }
     let res;
     try {
+      bootProgress("束をダウンロードしています", 0.68);
       res = await fetch(url, { cache: "no-store" });
     } catch (_err) {
       const err = new Error("temporary");
@@ -218,7 +561,16 @@
       err.t5 = "temporary";
       throw err;
     }
-    const bundle = await decodeBundleResponse(res);
+    state.dataUpdatedAt = minted.committed_at_utc || res.headers.get("last-modified") || null;
+    const buf = await readBodyWithProgress(res, (got, total) => {
+      if (total > 0) {
+        bootProgress("束をダウンロードしています", 0.68 + 0.22 * (got / total));
+      } else {
+        bootProgress("束をダウンロードしています", 0.78);
+      }
+    });
+    bootProgress("束を展開しています", 0.92);
+    const bundle = await decodeBundleBuffer(buf);
     return aliasBundle(bundle);
   }
 
@@ -229,10 +581,53 @@
     }, 400);
   }
 
+  function setViewBusy(on) {
+    const el = $("view-busy");
+    const host = $("workspace") || document.querySelector("main.layout");
+    if (el) el.hidden = !on;
+    if (host) {
+      if (on) host.setAttribute("aria-busy", "true");
+      else host.removeAttribute("aria-busy");
+    }
+  }
+
+  function requestViewRefresh(opts) {
+    state.pendingViewRefreshOpts = opts || {};
+    setViewBusy(true);
+    if (viewRefreshQueued) return;
+    viewRefreshQueued = true;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        viewRefreshQueued = false;
+        try {
+          renderTable(state.pendingViewRefreshOpts || {});
+        } finally {
+          if (!viewRefreshQueued) setViewBusy(false);
+        }
+      });
+    });
+  }
+
+  function sameCodeList(a, b) {
+    if (!a || !b || a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) return false;
+    }
+    return true;
+  }
+
   async function pushPrefs() {
     const bag = {
       favorites: {
-        codes: Object.keys(state.favorites).filter((c) => state.favorites[c]).sort(),
+        lists: state.favLists.map((list) => ({
+          id: list.id,
+          name: list.name,
+          hue: list.hue,
+          codes: list.codes.slice().sort(),
+        })),
+        codes: unionFavCodes(),
+        filter_ids: state.favFilterIds.slice(),
+        include_blank: !!state.favIncludeBlank,
       },
       display: {
         bench: state.bench,
@@ -256,15 +651,23 @@
 
   async function applyPrefsBag(bag) {
     const next = bag && typeof bag === "object" ? bag : {};
-    const fav = next.favorites && Array.isArray(next.favorites.codes) ? next.favorites.codes : [];
-    const mapped = {};
-    fav.forEach((c) => {
-      mapped[String(c).padStart(4, "0")] = true;
-    });
-    state.favorites = mapped;
+    state.favLists = normalizeFavLists(next.favorites);
+    rebuildFavIndex();
+    const rawFilter = next.favorites && Array.isArray(next.favorites.filter_ids) ? next.favorites.filter_ids : [];
+    const known = {};
+    state.favLists.forEach((list) => { known[list.id] = true; });
+    state.favFilterIds = rawFilter.map((id) => String(id)).filter((id) => known[id] || id === "__none__");
+    if (!state.favLists.some((list) => list.id === state.favModalListId)) {
+      state.favModalListId = state.favLists[0] ? state.favLists[0].id : null;
+    }
     const display = next.display && typeof next.display === "object" ? next.display : {};
     if (display.bench === "topix" || display.bench === "nikkei") state.bench = display.bench;
     if (typeof display.favOnly === "boolean") state.favOnly = display.favOnly;
+    if (next.favorites && typeof next.favorites.include_blank === "boolean") {
+      state.favIncludeBlank = next.favorites.include_blank;
+    } else {
+      state.favIncludeBlank = !state.favOnly;
+    }
     if (typeof display.excludeAllRsNeg === "boolean") state.excludeAllRsNeg = display.excludeAllRsNeg;
     if (Array.isArray(display.visibleKeys) && display.visibleKeys.length) {
       state.prefsVisibleKeys = display.visibleKeys.slice();
@@ -304,11 +707,11 @@
 
 
   const EXTRA_COL_DEFS = {
-    beta_adjusted_rs_topix: { key: "beta_adjusted_rs_topix", label: "β調整RS", kind: "signed1", bench: true },
-    information_ratio_topix: { key: "information_ratio_topix", label: "情報比率", kind: "signed1", bench: true },
-    perfect_order_days: { key: "perfect_order_days", label: "パーフェクトオーダー日数", kind: "int" },
-    price_change_pct: { key: "price_change_pct", label: "騰落率(%)", kind: "signed1" },
-    turnover_ma_ratio_60: { key: "turnover_ma_ratio_60", label: "売買代金MA比", kind: "signed1" },
+    beta_adjusted_rs_topix: { key: "beta_adjusted_rs_topix", label: "除β 252日RS", kind: "signed1", bench: true },
+    information_ratio_topix: { key: "information_ratio_topix", label: "RSの安定度", kind: "signed1", bench: true },
+    perfect_order_days: { key: "perfect_order_days", label: "ﾊﾟｰﾌｪｸﾄｵｰﾀﾞｰ日数", kind: "int" },
+    price_change_pct: { key: "price_change_pct", label: "前日比(%)", kind: "signed1" },
+    turnover_ma_ratio_60: { key: "turnover_ma_ratio_60", label: "売買代金倍率", kind: "signed1" },
   };
 
   const COLS_PANEL_OMIT_KEYS = new Set([
@@ -365,42 +768,428 @@
   ];
 
 
-  function favStorageKey(userId) {
-    return "web_ui_asof_favorites_v1:" + String(userId || "local");
+  function padFavCode(code) {
+    return String(code == null ? "" : code).padStart(4, "0");
   }
 
-  function loadFavorites(userId) {
-    try {
-      const raw = localStorage.getItem(favStorageKey(userId));
-      if (!raw) return {};
-      const arr = JSON.parse(raw);
-      if (!Array.isArray(arr)) return {};
-      const out = {};
-      arr.forEach((c) => {
-        const code = String(c).padStart(4, "0");
-        out[code] = true;
-      });
-      return out;
-    } catch (_) {
-      return {};
+  function uniqueFavCodes(arr) {
+    const out = [];
+    const seen = {};
+    (Array.isArray(arr) ? arr : []).forEach((item) => {
+      const code = padFavCode(item);
+      if (!code || code === "0000" || seen[code]) return;
+      seen[code] = true;
+      out.push(code);
+    });
+    return out.slice(0, FAV_CODES_PER_LIST);
+  }
+
+  function defaultFavList(codes) {
+    return { id: FAV_DEFAULT_ID, name: "お気入り", hue: 0, codes: uniqueFavCodes(codes) };
+  }
+
+  function normalizeFavLists(fav) {
+    const bag = fav && typeof fav === "object" ? fav : {};
+    const rawLists = Array.isArray(bag.lists) ? bag.lists : null;
+    if (!rawLists || !rawLists.length) {
+      return [defaultFavList(Array.isArray(bag.codes) ? bag.codes : [])];
     }
+    const seenId = {};
+    const out = [];
+    rawLists.forEach((raw, index) => {
+      if (!raw || typeof raw !== "object" || out.length >= FAV_LIST_MAX) return;
+      let id = String(raw.id || "").trim();
+      if (!id || seenId[id]) id = "lst_" + String(index + 1).padStart(2, "0");
+      seenId[id] = true;
+      let name = String(raw.name || "").trim().slice(0, FAV_NAME_MAX);
+      if (!name) name = "リスト" + (out.length + 1);
+      let hue = Number(raw.hue);
+      if (!Number.isInteger(hue) || hue < 0 || hue > 5) hue = out.length % 6;
+      out.push({ id, name, hue, codes: uniqueFavCodes(raw.codes) });
+    });
+    return out.length ? out : [defaultFavList([])];
   }
 
-  function saveFavorites() {
-    schedulePrefsSave();
+  function unionFavCodes() {
+    const seen = {};
+    const out = [];
+    state.favLists.forEach((list) => {
+      list.codes.forEach((code) => {
+        if (seen[code]) return;
+        seen[code] = true;
+        out.push(code);
+      });
+    });
+    return out.sort();
+  }
+
+  function rebuildFavIndex() {
+    const mapped = {};
+    unionFavCodes().forEach((code) => { mapped[code] = true; });
+    state.favorites = mapped;
+  }
+
+  function favHueColor(hue) {
+    return FAV_HUES[Math.max(0, Number(hue) || 0) % FAV_HUES.length];
+  }
+
+  function nextFavHue() {
+    const used = {};
+    state.favLists.forEach((list) => { used[list.hue] = true; });
+    for (let i = 0; i < FAV_HUES.length; i++) {
+      if (!used[i]) return i;
+    }
+    return state.favLists.length % FAV_HUES.length;
+  }
+
+  function nextFavListId() {
+    const seen = {};
+    state.favLists.forEach((list) => { seen[list.id] = true; });
+    for (let i = 0; i < 40; i++) {
+      const id = "lst_" + Math.random().toString(36).slice(2, 10);
+      if (!seen[id]) return id;
+    }
+    return "lst_" + String(Date.now()).slice(-8);
+  }
+
+  function findFavList(id) {
+    return state.favLists.find((list) => list.id === id) || null;
   }
 
   function isFavorite(code) {
-    return !!state.favorites[String(code).padStart(4, "0")];
+    return !!state.favorites[padFavCode(code)];
   }
 
-  function toggleFavorite(code) {
+  function codeInFavList(list, code) {
+    return !!(list && list.codes.indexOf(padFavCode(code)) >= 0);
+  }
+
+  function listsForCode(code) {
+    const c = padFavCode(code);
+    return state.favLists.filter((list) => list.codes.indexOf(c) >= 0);
+  }
+
+  function favMembershipCount() {
+    return state.favLists.reduce((n, list) => n + list.codes.length, 0);
+  }
+
+  function persistFavLists(opts) {
+    opts = opts || {};
+    rebuildFavIndex();
+    schedulePrefsSave();
+    // Table rows are rebuilt by requestViewRefresh. Chart cards keep their
+    // fav-star nodes, so the same patch has to run either way.
+    if (opts.refresh || state.favOnly) requestViewRefresh();
+    patchFavCell(opts.code);
+    const modal = $("fav-lists-modal");
+    if (opts.modal && modal && !modal.classList.contains("hidden")) renderFavListsModal();
+    if (opts.flyoutCode) refreshFavFlyout(opts.flyoutCode);
+  }
+
+  function patchFavCell(code) {
+    const sel = code
+      ? 'button.fav-star[data-fav-code="' + padFavCode(code) + '"]'
+      : "button.fav-star";
+    document.querySelectorAll(sel).forEach((btn) => {
+      const c = btn.dataset.favCode;
+      const html = favCellInnerHtml(c);
+      if (btn.innerHTML !== html) btn.innerHTML = html;
+      const on = isFavorite(c);
+      btn.classList.toggle("on", on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  }
+
+  function toggleCodeInFavList(code, listId) {
     if (state.freePreview) return;
-    const c = String(code).padStart(4, "0");
-    if (state.favorites[c]) delete state.favorites[c];
-    else state.favorites[c] = true;
-    saveFavorites();
-    renderTable();
+    const list = findFavList(listId);
+    if (!list) return;
+    const c = padFavCode(code);
+    const at = list.codes.indexOf(c);
+    if (at >= 0) {
+      list.codes.splice(at, 1);
+    } else {
+      if (list.codes.length >= FAV_CODES_PER_LIST) return;
+      if (favMembershipCount() >= FAV_MEMBERSHIP_MAX) return;
+      list.codes.push(c);
+    }
+    persistFavLists({ code: c, flyoutCode: c, modal: true });
+  }
+
+  function favCodeAddAtCap(list) {
+    return !list || list.codes.length >= FAV_CODES_PER_LIST || favMembershipCount() >= FAV_MEMBERSHIP_MAX;
+  }
+
+  function syncFavCreateFields(input, addBtn, idlePlaceholder, atCap) {
+    if (atCap == null) atCap = state.favLists.length >= FAV_LIST_MAX;
+    if (addBtn) addBtn.disabled = atCap;
+    if (!input) return;
+    input.disabled = atCap;
+    if (atCap) input.value = "";
+    input.placeholder = atCap ? FAV_LIST_CAP_PLACEHOLDER : idlePlaceholder;
+    input.title = atCap ? FAV_LIST_CAP_PLACEHOLDER : "";
+  }
+
+  function createFavList(name, initialCode) {
+    if (state.freePreview || state.favLists.length >= FAV_LIST_MAX) return null;
+    const trimmed = String(name || "").trim().slice(0, FAV_NAME_MAX);
+    const list = {
+      id: nextFavListId(),
+      name: trimmed || ("リスト" + (state.favLists.length + 1)),
+      hue: nextFavHue(),
+      codes: initialCode ? uniqueFavCodes([initialCode]) : [],
+    };
+    state.favLists.push(list);
+    if (!state.favModalListId) state.favModalListId = list.id;
+    persistFavLists({ code: initialCode, flyoutCode: initialCode, modal: true, refresh: true });
+    return list;
+  }
+
+  function renameFavList(listId, name) {
+    const list = findFavList(listId);
+    if (!list || state.freePreview) return;
+    const trimmed = String(name || "").trim().slice(0, FAV_NAME_MAX);
+    if (!trimmed) return;
+    list.name = trimmed;
+    persistFavLists({ modal: true });
+  }
+
+  function deleteFavList(listId) {
+    if (state.freePreview || state.favLists.length <= 1) return;
+    state.favLists = state.favLists.filter((list) => list.id !== listId);
+    state.favFilterIds = state.favFilterIds.filter((id) => id !== listId);
+    if (state.favModalListId === listId) {
+      state.favModalListId = state.favLists[0] ? state.favLists[0].id : null;
+    }
+    persistFavLists({ refresh: true, modal: true });
+  }
+
+  function reorderFavLists(ids) {
+    const next = ids.map((id) => findFavList(id)).filter(Boolean);
+    if (next.length !== state.favLists.length) return;
+    let changed = false;
+    for (let i = 0; i < next.length; i++) {
+      if (next[i].id !== state.favLists[i].id) {
+        changed = true;
+        break;
+      }
+    }
+    if (!changed) return;
+    state.favLists = next;
+    persistFavLists({ refresh: true, modal: true });
+  }
+
+  function favRenameFocused() {
+    const el = $("fav-list-rename");
+    if (!el) return false;
+    const active = document.activeElement;
+    return active === el || el.contains(active) || !!(el.shadowRoot && el.shadowRoot.activeElement);
+  }
+
+  function commitFavListRename() {
+    const el = $("fav-list-rename");
+    const list = findFavList(state.favModalListId);
+    if (!el || !list || state.freePreview) return;
+    const next = String(el.value || "").trim().slice(0, FAV_NAME_MAX);
+    if (!next) {
+      el.value = list.name;
+      return;
+    }
+    if (next !== list.name) renameFavList(list.id, next);
+  }
+
+  function placeFavDragRow(nav, moving, clientY) {
+    const rows = [...nav.querySelectorAll(".fav-list-row")].filter((el) => el !== moving);
+    const before = rows.find((el) => {
+      const box = el.getBoundingClientRect();
+      return clientY < box.top + box.height / 2;
+    });
+    if (before) nav.insertBefore(moving, before);
+    else nav.appendChild(moving);
+  }
+
+  function commitFavNavOrder(nav) {
+    if (!nav) return;
+    reorderFavLists([...nav.querySelectorAll(".fav-list-row")].map((el) => el.dataset.listId));
+  }
+
+  let favDragViaHtml5 = false;
+
+  function bindFavListDrag(handle, row, listId) {
+    handle.draggable = true;
+    handle.addEventListener("dragstart", (ev) => {
+      favDragViaHtml5 = true;
+      row.classList.add("is-dragging");
+      ev.dataTransfer.effectAllowed = "move";
+      try {
+        ev.dataTransfer.setData("text/plain", listId);
+      } catch (_) {}
+    });
+    handle.addEventListener("dragend", () => {
+      row.classList.remove("is-dragging");
+      favDragViaHtml5 = false;
+      commitFavNavOrder($("fav-lists-nav"));
+    });
+    handle.addEventListener("pointerdown", (ev) => {
+      if (ev.button !== 0) return;
+      ev.stopPropagation();
+      const nav = $("fav-lists-nav");
+      if (!nav) return;
+      try {
+        handle.setPointerCapture(ev.pointerId);
+      } catch (_) {}
+      let dragging = false;
+      const startY = ev.clientY;
+      const onMove = (moveEv) => {
+        if (Math.abs(moveEv.clientY - startY) < 4 && !dragging) return;
+        dragging = true;
+        row.classList.add("is-dragging");
+        placeFavDragRow(nav, row, moveEv.clientY);
+      };
+      const onUp = () => {
+        try {
+          handle.releasePointerCapture(ev.pointerId);
+        } catch (_) {}
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointercancel", onUp);
+        if (favDragViaHtml5) return;
+        row.classList.remove("is-dragging");
+        if (!dragging) {
+          if (state.favModalListId !== listId) {
+            state.favModalListId = listId;
+            renderFavListsModal();
+          }
+          return;
+        }
+        commitFavNavOrder(nav);
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+      window.addEventListener("pointercancel", onUp);
+    });
+  }
+
+  function addCodeToFavList(listId, code) {
+    const list = findFavList(listId);
+    const c = padFavCode(toHalfWidthCode(code));
+    if (!list || !c || c.length < 4) return false;
+    if (list.codes.indexOf(c) >= 0) return true;
+    if (list.codes.length >= FAV_CODES_PER_LIST || favMembershipCount() >= FAV_MEMBERSHIP_MAX) return false;
+    list.codes.push(c);
+    persistFavLists({ code: c, refresh: true, modal: true });
+    return true;
+  }
+
+  function removeCodeFromFavList(listId, code) {
+    const list = findFavList(listId);
+    if (!list) return;
+    const c = padFavCode(code);
+    list.codes = list.codes.filter((item) => item !== c);
+    persistFavLists({ code: c, refresh: true, modal: true });
+  }
+
+  function favCellInnerHtml(code) {
+    const lists = listsForCode(code);
+    if (!lists.length) return '<span class="fav-empty" aria-hidden="true"></span>';
+    const shown = lists.slice(0, FAV_CELL_CHIPS);
+    const extra = lists.length - shown.length;
+    return (
+      shown
+        .map((list) =>
+          '<span class="fav-chip" style="background:' +
+          favHueColor(list.hue) +
+          '" title="' +
+          escapeHtml(list.name) +
+          '"></span>'
+        )
+        .join("") +
+      (extra > 0 ? '<span class="fav-more">+' + extra + "</span>" : "")
+    );
+  }
+
+  function closeFavFlyout() {
+    blurTextFieldInside(".fav-flyout");
+    document.querySelectorAll(".fav-flyout").forEach((el) => el.remove());
+  }
+
+  function refreshFavFlyout(code) {
+    const menu = document.querySelector(".fav-flyout");
+    if (!menu || menu.dataset.favCode !== padFavCode(code)) return;
+    const c = padFavCode(code);
+    let anchor = lastFavAnchor;
+    if (!anchor || !anchor.isConnected || !anchor.dataset || anchor.dataset.favCode !== c) {
+      anchor = document.querySelector('button.fav-star[data-fav-code="' + c + '"]');
+    }
+    if (anchor) openFavFlyout(anchor, code);
+  }
+
+  function openFavFlyout(anchor, code) {
+    closeFavFlyout();
+    closeFilterMenu();
+    if (state.freePreview || !anchor) return;
+    const c = padFavCode(code);
+    lastFavAnchor = anchor;
+    const menu = document.createElement("div");
+    menu.className = "fav-flyout";
+    menu.dataset.favCode = c;
+    menu.addEventListener("click", (ev) => ev.stopPropagation());
+    state.favLists.forEach((list) => {
+      const inList = codeInFavList(list, c);
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = inList ? "in" : "";
+      btn.innerHTML =
+        '<span class="fav-chip" style="background:' +
+        favHueColor(list.hue) +
+        '"></span><span>' +
+        escapeHtml(list.name) +
+        '</span><span class="fav-flyout-check">' +
+        (inList ? "✓" : "") +
+        "</span>";
+      btn.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        toggleCodeInFavList(c, list.id);
+      });
+      menu.appendChild(btn);
+    });
+    const create = document.createElement("div");
+    create.className = "fav-flyout-create";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.maxLength = FAV_NAME_MAX;
+    markNonCredentialInput(input, "list-label");
+    const addBtn = document.createElement("button");
+    addBtn.type = "button";
+    addBtn.textContent = "追加";
+    syncFavCreateFields(input, addBtn, "新しいリスト");
+    const onCreate = () => {
+      if (addBtn.disabled) return;
+      const created = createFavList(input.value, c);
+      if (created) input.value = "";
+    };
+    addBtn.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      onCreate();
+    });
+    input.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        onCreate();
+      }
+    });
+    create.appendChild(input);
+    create.appendChild(addBtn);
+    menu.appendChild(create);
+    document.body.appendChild(menu);
+    const rect = anchor.getBoundingClientRect();
+    const mw = Math.max(220, menu.offsetWidth);
+    let left = rect.left;
+    if (left + mw > window.innerWidth - 8) left = Math.max(8, window.innerWidth - mw - 8);
+    menu.style.left = left + "px";
+    menu.style.top = Math.min(rect.bottom + 4, window.innerHeight - menu.offsetHeight - 8) + "px";
   }
 
   function setFavoritesUiEnabled(enabled) {
@@ -426,6 +1215,91 @@
     return !!(def && (def.kind === "signed1" || def.kind === "int"));
   }
 
+  function isTextFilterCol(key) {
+    return key === "code" || key === "name";
+  }
+
+  function toHalfWidthCode(value) {
+    const half = String(value == null ? "" : value).replace(/[\uFF01-\uFF5E]/g, (ch) =>
+      String.fromCharCode(ch.charCodeAt(0) - 0xFEE0)
+    );
+    return half.replace(/[^0-9A-Za-z]/g, "").toUpperCase();
+  }
+
+  const CORE_UNIVERSE_TIP = "この画面が扱う銘柄の範囲。国内株式のうち、上場して間もない銘柄（約1年分の株価がまだない）と、 売買代金が少なく取引が薄い銘柄を除いたもの。画面の数値はすべてこの範囲の中で計算している。";
+
+  function coreUniverseTermHtml() {
+    return (
+      '<button type="button" class="core-universe-term" aria-label="対象銘柄の説明">' +
+      "対象銘柄" +
+      '<span class="core-universe-tip" role="tooltip">' +
+      escapeHtml(CORE_UNIVERSE_TIP) +
+      "</span>" +
+      "</button>"
+    );
+  }
+
+  function unknownTickerHtml() {
+    return "存在しないか、この画面の" + coreUniverseTermHtml() + "に含まれません";
+  }
+
+  function coreHasCodeQuery(q) {
+    const needle = toHalfWidthCode(q);
+    if (!needle) return false;
+    return state.rows.some((row) => toHalfWidthCode(row.code).includes(needle));
+  }
+
+  function coreHasNameQuery(q) {
+    const needle = String(q || "").trim().toLowerCase();
+    if (!needle) return false;
+    return state.rows.some((row) => String(row.name || "").toLowerCase().includes(needle));
+  }
+
+  function describeCodeMiss(raw) {
+    const needle = toHalfWidthCode(raw);
+    if (!needle) return "";
+    if (coreHasCodeQuery(needle)) return coreUniverseTermHtml() + "にありますが、他のフィルタで表示されていません。";
+    return unknownTickerHtml();
+  }
+
+  function searchMissMessage() {
+    const codeFilt = state.colFilters.code;
+    const nameFilt = state.colFilters.name;
+    const codeQ = codeFilt && codeFilt.op === "contains" ? String(codeFilt.q || "") : "";
+    const nameQ = nameFilt && nameFilt.op === "contains" ? String(nameFilt.q || "").trim() : "";
+    if (!codeQ && !nameQ) return "";
+    if (codeQ) return describeCodeMiss(codeQ);
+    if (coreHasNameQuery(nameQ)) return coreUniverseTermHtml() + "にありますが、他のフィルタで表示されていません。";
+    return unknownTickerHtml();
+  }
+
+  function favAddCodeHint(raw) {
+    const needle = toHalfWidthCode(raw);
+    if (!needle || needle.length < 4) return "";
+    if (findRowByCode(padFavCode(needle))) return "";
+    return describeCodeMiss(needle);
+  }
+
+  function writeMissHtml(el, html) {
+    if (!el) return;
+    el.innerHTML = html || "";
+    el.hidden = !html;
+  }
+
+  function updateSearchMiss(rowCount) {
+    const el = $("search-miss");
+    if (!el) return;
+    writeMissHtml(el, rowCount === 0 ? searchMissMessage() : "");
+  }
+
+  function updateFavAddCodeHint() {
+    const el = $("fav-list-add-code-hint");
+    const input = $("fav-list-add-code");
+    if (!el) return;
+    const html = input && !input.disabled ? favAddCodeHint(input.value) : "";
+    writeMissHtml(el, html);
+  }
+
   function colFilterActive(key) {
     const f = state.colFilters[key];
     return !!(f && f.op && f.op !== "none");
@@ -441,6 +1315,17 @@
     if (!filt || !filt.op || filt.op === "none") return true;
     const key = mapKey(baseKey);
     const raw = row[key];
+    if (filt.op === "contains") {
+      const q = String(filt.q == null ? "" : filt.q).trim();
+      if (!q) return true;
+      const cell = raw == null ? "" : String(raw);
+      if (baseKey === "code") {
+        const needle = toHalfWidthCode(q);
+        if (!needle) return true;
+        return toHalfWidthCode(cell).includes(needle);
+      }
+      return cell.toLowerCase().includes(q.toLowerCase());
+    }
     const isNull = raw == null || Number.isNaN(Number(raw));
     if (filt.op === "isnull") return isNull;
     if (filt.op === "notnull") return !isNull;
@@ -469,8 +1354,194 @@
   }
 
   function closeFilterMenu() {
+    blurTextFieldInside(".col-filter-menu, .fav-filter-anchor, wa-dropdown.fav-filter-dropdown");
     state.filterMenuKey = null;
-    document.querySelectorAll(".col-filter-menu").forEach((el) => el.remove());
+    document.querySelectorAll(".col-filter-menu, .fav-filter-anchor, wa-dropdown.fav-filter-dropdown").forEach((el) => el.remove());
+    closeFavFlyout();
+  }
+
+  function closeAccountMenu() {
+    const dropdown = $("account-dropdown");
+    if (dropdown) dropdown.open = false;
+  }
+
+  let confirmPending = null;
+
+  function confirmDialogReady() {
+    return typeof customElements !== "undefined" && customElements.get("wa-dialog") && $("confirm-dialog");
+  }
+
+  function bindConfirmDialog() {
+    const dialog = $("confirm-dialog");
+    const ok = $("confirm-dialog-ok");
+    const cancel = $("confirm-dialog-cancel");
+    if (!dialog || dialog.dataset.bound === "1") return;
+    dialog.dataset.bound = "1";
+    const settle = (accepted) => {
+      const fn = confirmPending;
+      confirmPending = null;
+      if (dialog.open) dialog.open = false;
+      if (accepted && typeof fn === "function") fn();
+    };
+    if (ok) {
+      ok.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        settle(true);
+      });
+    }
+    if (cancel) {
+      cancel.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        settle(false);
+      });
+    }
+    dialog.addEventListener("wa-hide", () => {
+      confirmPending = null;
+    });
+  }
+
+  function confirmDestructive(message, onOk, okLabel) {
+    bindConfirmDialog();
+    const dialog = $("confirm-dialog");
+    const body = $("confirm-dialog-body");
+    const ok = $("confirm-dialog-ok");
+    if (!confirmDialogReady()) {
+      if (window.confirm(message)) onOk();
+      return;
+    }
+    if (body) body.textContent = message;
+    if (ok) ok.textContent = okLabel || "削除";
+    confirmPending = onOk;
+    dialog.open = true;
+  }
+
+  function bindAccountMenu() {
+    const dropdown = $("account-dropdown");
+    if (!dropdown || dropdown.dataset.bound === "1") return;
+    dropdown.dataset.bound = "1";
+    dropdown.addEventListener("wa-select", (ev) => {
+      const item = ev.detail && ev.detail.item;
+      const value = item ? String(item.value || "") : "";
+      if (value === "lists") openFavListsModal();
+      if (value === "logout" && typeof window.__webUiLogout === "function") window.__webUiLogout();
+    });
+  }
+
+  function openFavListsModal() {
+    if (state.freePreview) return;
+    closeFavFlyout();
+    closeAccountMenu();
+    if (!state.favLists.length) state.favLists = [defaultFavList([])];
+    if (!findFavList(state.favModalListId)) {
+      state.favModalListId = state.favLists[0].id;
+    }
+    renderFavListsModal();
+    const modal = $("fav-lists-modal");
+    if (!modal) return;
+    modal.classList.remove("hidden");
+    modal.setAttribute("aria-hidden", "false");
+  }
+
+  function closeFavListsModal() {
+    blurTextFieldInside("#fav-lists-modal");
+    const modal = $("fav-lists-modal");
+    if (!modal) return;
+    modal.classList.add("hidden");
+    modal.setAttribute("aria-hidden", "true");
+  }
+
+  function nameLookup(code) {
+    const row = findRowByCode(padFavCode(code));
+    return row && row.name ? String(row.name) : "";
+  }
+
+  function renderFavListsModal() {
+    const nav = $("fav-lists-nav");
+    const members = $("fav-lists-members");
+    const renameEl = $("fav-list-rename");
+    const deleteBtn = $("fav-list-delete");
+    if (!nav || !members) return;
+    if (nav.dataset.favDragBound !== "1") {
+      nav.dataset.favDragBound = "1";
+      nav.addEventListener("dragover", (ev) => {
+        ev.preventDefault();
+        const moving = nav.querySelector(".fav-list-row.is-dragging");
+        if (!moving) return;
+        placeFavDragRow(nav, moving, ev.clientY);
+      });
+    }
+    nav.innerHTML = "";
+    const selected = findFavList(state.favModalListId) || state.favLists[0] || null;
+    state.favLists.forEach((list) => {
+      const row = document.createElement("div");
+      row.className = "fav-list-row" + (selected && selected.id === list.id ? " active" : "");
+      row.dataset.listId = list.id;
+      const handle = document.createElement("button");
+      handle.type = "button";
+      handle.className = "fav-list-drag";
+      handle.title = "ドラッグして並べ替え";
+      handle.setAttribute("aria-label", "ドラッグして並べ替え");
+      handle.innerHTML =
+        '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M5 2.75a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5zm6 0a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5zM5 6.75a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5zm6 0a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5zM5 10.75a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5zm6 0a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5z"/></svg>';
+      bindFavListDrag(handle, row, list.id);
+      const pick = document.createElement("button");
+      pick.type = "button";
+      pick.className = "fav-list-row-name";
+      pick.innerHTML =
+        '<span class="fav-chip" style="background:' +
+        favHueColor(list.hue) +
+        '"></span>' +
+        escapeHtml(list.name) +
+        ' <span class="muted">(' +
+        list.codes.length +
+        ")</span>";
+      pick.addEventListener("click", () => {
+        state.favModalListId = list.id;
+        renderFavListsModal();
+      });
+      row.appendChild(handle);
+      row.appendChild(pick);
+      nav.appendChild(row);
+    });
+    syncFavCreateFields($("fav-list-new-name"), $("fav-list-add"), "新しいリスト名");
+    syncFavCreateFields($("fav-list-add-code"), $("fav-list-add-code-btn"), "7011", favCodeAddAtCap(selected));
+    updateFavAddCodeHint();
+    if (renameEl && !favRenameFocused()) renameEl.value = selected ? selected.name : "";
+    if (deleteBtn) deleteBtn.disabled = !selected || state.favLists.length <= 1;
+    members.innerHTML = "";
+    if (!selected) return;
+    selected.codes.slice().sort().forEach((code) => {
+      const row = document.createElement("div");
+      row.className = "fav-member-row";
+      const codeEl = document.createElement("code");
+      codeEl.textContent = code;
+      const name = document.createElement("span");
+      name.className = "muted";
+      name.textContent = nameLookup(code);
+      const rm = document.createElement("button");
+      rm.type = "button";
+      rm.textContent = "外す";
+      rm.addEventListener("click", () => {
+        const listId = selected.id;
+        const listName = selected.name;
+        const memberCode = code;
+        confirmDestructive(
+          "「" + listName + "」から " + memberCode + " を外しますか？",
+          () => removeCodeFromFavList(listId, memberCode),
+          "外す",
+        );
+      });
+      row.appendChild(codeEl);
+      row.appendChild(name);
+      row.appendChild(rm);
+      members.appendChild(row);
+    });
+    if (!selected.codes.length) {
+      const empty = document.createElement("p");
+      empty.className = "muted";
+      empty.textContent = "このリストに銘柄はありません。";
+      members.appendChild(empty);
+    }
   }
 
   function setSort(key, dir) {
@@ -478,10 +1549,8 @@
     state.sortKey = key;
     state.sortDir = dir;
     closeFilterMenu();
-    state.visibleChartCodes = [];
-    $("chart-host").innerHTML = "";
     schedulePrefsSave();
-    renderTable();
+    requestViewRefresh();
   }
 
   function clearSort() {
@@ -489,10 +1558,8 @@
     state.sortKey = null;
     state.sortDir = "desc";
     closeFilterMenu();
-    state.visibleChartCodes = [];
-    $("chart-host").innerHTML = "";
     schedulePrefsSave();
-    renderTable();
+    requestViewRefresh();
   }
 
   function applyColFilterFromMenu(key) {
@@ -507,69 +1574,513 @@
     if (op === "none") delete state.colFilters[key];
     else state.colFilters[key] = { op, a, b };
     closeFilterMenu();
-    state.visibleChartCodes = [];
-    $("chart-host").innerHTML = "";
     schedulePrefsSave();
-    renderTable();
+    requestViewRefresh();
+  }
+
+  function applyTextFilterFromMenu(key) {
+    if (state.freePreview) return;
+    const qEl = document.getElementById("cfm-q");
+    if (!qEl) return;
+    const raw = String(qEl.value || "");
+    const q = key === "code" ? toHalfWidthCode(raw) : raw.trim();
+    if (!q) delete state.colFilters[key];
+    else state.colFilters[key] = { op: "contains", q };
+    closeFilterMenu();
+    schedulePrefsSave();
+    requestViewRefresh();
+  }
+
+  // Chrome-family password extensions treat autocomplete=off as "use heuristics"
+  // and then match id/name substrings such as "name". A neutral name plus off
+  // keeps filter and favorite text fields out of that heuristic. inputmode=url
+  // stays on stock-code fields only; Japanese names still need the IME.
+  function markNonCredentialInput(el, fieldName) {
+    if (!el) return;
+    const apply = (node) => {
+      if (!node || !node.setAttribute) return;
+      if (node.getAttribute("autocomplete") !== "off") {
+        node.autocomplete = "off";
+        node.setAttribute("autocomplete", "off");
+      }
+      if (fieldName && node.getAttribute("name") !== fieldName) {
+        node.name = fieldName;
+        node.setAttribute("name", fieldName);
+      }
+      if (node.getAttribute("data-form-type") !== "other") node.setAttribute("data-form-type", "other");
+    };
+    apply(el);
+    const syncInner = () => {
+      const inner = el.shadowRoot && el.shadowRoot.querySelector("input, textarea");
+      apply(inner);
+    };
+    syncInner();
+    const ready = el.updateComplete;
+    if (ready && typeof ready.then === "function") ready.then(syncInner);
+    if (el.dataset && el.dataset.nonCredentialBound !== "1") {
+      el.dataset.nonCredentialBound = "1";
+      el.addEventListener("focusin", syncInner);
+    }
+  }
+
+  const PASSWORD_MANAGER_FRAME_IDS = [
+    "pejdijmoenmkgeppbflobdenhhabjlaj",
+    "aeblfdkhhhdcdjpifhhbdiojplfjncoa",
+    "nngceckbapebfimnlniiiahkandclblb",
+    "hdokiejnpimakedhajhdlcegeplioahd",
+  ];
+
+  function focusedTextControl() {
+    let node = document.activeElement;
+    if (!node || node === document.body || node === document.documentElement) return null;
+    let host = null;
+    if (node.shadowRoot && node.shadowRoot.activeElement) host = node;
+    while (node.shadowRoot && node.shadowRoot.activeElement) node = node.shadowRoot.activeElement;
+    if (!node || (node.localName !== "input" && node.localName !== "textarea")) return null;
+    const type = String(node.type || "text").toLowerCase();
+    if (["checkbox", "radio", "button", "submit", "file", "hidden", "range", "color"].indexOf(type) >= 0) return null;
+    return { control: node, host: host };
+  }
+
+  function isLoginEmail(found) {
+    if (!found) return false;
+    if (found.control && found.control.id === "email") return true;
+    return !!(found.host && found.host.id === "email");
+  }
+
+  function blurTextControl(found) {
+    if (!found) return;
+    if (typeof found.control.blur === "function") found.control.blur();
+    if (found.host && found.host !== found.control && typeof found.host.blur === "function") found.host.blur();
+  }
+
+  function removeStuckPasswordFrames() {
+    if (isLoginEmail(focusedTextControl())) return;
+    const frames = [];
+    document.querySelectorAll("iframe").forEach((frame) => frames.push(frame));
+    document.querySelectorAll("wa-input, wa-select").forEach((el) => {
+      if (!el.shadowRoot) return;
+      el.shadowRoot.querySelectorAll("iframe").forEach((frame) => frames.push(frame));
+    });
+    frames.forEach((frame) => {
+      const src = String(frame.getAttribute("src") || "");
+      const matched = PASSWORD_MANAGER_FRAME_IDS.some((id) => src.indexOf("chrome-extension://" + id + "/") === 0);
+      if (!matched) return;
+      const parent = frame.parentElement;
+      frame.remove();
+      if (parent && parent.childElementCount === 0 && parent !== document.body && parent !== document.documentElement) parent.remove();
+    });
+  }
+
+  function blurTextFieldInside(selector) {
+    const found = focusedTextControl();
+    if (!found) return;
+    const field = found.host || found.control;
+    if (!(field.closest && field.closest(selector))) return;
+    blurTextControl(found);
+    removeStuckPasswordFrames();
+  }
+
+  function pointerDownKeepsTextControl(ev, found) {
+    const path = typeof ev.composedPath === "function" ? ev.composedPath() : [];
+    if (path.indexOf(found.control) >= 0) return true;
+    if (found.host && path.indexOf(found.host) >= 0) return true;
+    const field = found.host || found.control;
+    const label = field.closest && field.closest("label");
+    return !!(label && path.indexOf(label) >= 0);
+  }
+
+  // Clicks on non-focusable surface, and controls that cancel mousedown, leave
+  // the inner input focused. Password UI then stays up because it never sees blur.
+  function scheduleReleaseTextFieldFocus(ev) {
+    const found = focusedTextControl();
+    if (!found || pointerDownKeepsTextControl(ev, found)) return;
+    const control = found.control;
+    const host = found.host;
+    setTimeout(() => {
+      const now = focusedTextControl();
+      if (now && now.control !== control) {
+        if (!isLoginEmail(now)) removeStuckPasswordFrames();
+        return;
+      }
+      blurTextControl({ control: control, host: host });
+      removeStuckPasswordFrames();
+    }, 0);
+  }
+
+  document.addEventListener("pointerdown", scheduleReleaseTextFieldFocus, true);
+
+  function applyHalfWidthCodeAttrs(node) {
+    if (!node) return;
+    node.lang = "en";
+    node.inputMode = "url";
+    node.autocapitalize = "off";
+    node.spellcheck = false;
+    node.autocomplete = "off";
+    if (node.style) node.style.imeMode = "disabled";
+    if (node.classList) node.classList.add("cfm-code-input");
+    if (node.setAttribute) {
+      node.setAttribute("lang", "en");
+      node.setAttribute("inputmode", "url");
+      node.setAttribute("autocapitalize", "off");
+      node.setAttribute("spellcheck", "false");
+      node.setAttribute("autocomplete", "off");
+    }
+  }
+
+  function bindHalfWidthCodeInput(el) {
+    if (!el || el.dataset.halfWidthBound === "1") return;
+    el.dataset.halfWidthBound = "1";
+    el.lang = "en";
+    // url is the alphanumeric sibling of a survey phone field (inputmode=tel):
+    // Chromium reports it as a non-text input type, so Windows IME switches to
+    // direct half-width alphanumeric when the field receives focus.
+    el.inputMode = "url";
+    applyHalfWidthCodeAttrs(el);
+    const syncInner = () => {
+      const inner = el.shadowRoot && el.shadowRoot.querySelector("input");
+      applyHalfWidthCodeAttrs(inner);
+    };
+    syncInner();
+    const ready = el.updateComplete;
+    if (ready && typeof ready.then === "function") ready.then(syncInner);
+    el.addEventListener("focus", syncInner, true);
+    let composing = false;
+    const apply = () => {
+      if (composing) return;
+      const next = toHalfWidthCode(el.value);
+      if (el.value !== next) el.value = next;
+    };
+    el.addEventListener("compositionstart", () => { composing = true; });
+    el.addEventListener("compositionend", () => {
+      composing = false;
+      apply();
+    });
+    el.addEventListener("input", apply);
+    el.addEventListener("wa-input", apply);
+  }
+
+  function placeFilterMenu(menu, th) {
+    document.body.appendChild(menu);
+    const rect = th.getBoundingClientRect();
+    const mw = Math.max(240, menu.offsetWidth);
+    let left = rect.left;
+    if (left + mw > window.innerWidth - 8) left = Math.max(8, window.innerWidth - mw - 8);
+    menu.style.left = left + "px";
+    menu.style.top = Math.min(rect.bottom + 4, window.innerHeight - menu.offsetHeight - 8) + "px";
   }
 
   function clearColFilter(key) {
     if (state.freePreview) return;
     delete state.colFilters[key];
     closeFilterMenu();
-    state.visibleChartCodes = [];
-    $("chart-host").innerHTML = "";
     schedulePrefsSave();
-    renderTable();
+    requestViewRefresh();
+  }
+
+  const FAV_FILTER_ALL = "__all__";
+  const FAV_FILTER_BLANK = "__blank__";
+
+  function hasWaDropdown() {
+    return typeof customElements !== "undefined" && !!customElements.get("wa-dropdown");
+  }
+
+  function favFilterableLists() {
+    return state.favLists.filter((list) => list.codes && list.codes.length > 0);
+  }
+
+  function favBlankCount() {
+    return state.rows.filter((row) => !isFavorite(padFavCode(row.code))).length;
+  }
+
+  function favCategorySelection() {
+    const visible = favFilterableLists();
+    const noneOn = state.favFilterIds.indexOf("__none__") >= 0;
+    const emptyIds = !noneOn && !state.favFilterIds.length;
+    // empty filter_ids + favOnly + include_blank means blank-only, not "all lists".
+    const allListsOn = !noneOn && (!state.favOnly || (emptyIds && !state.favIncludeBlank));
+    const blankOn = !noneOn && (!state.favOnly || !!state.favIncludeBlank);
+    const ids = noneOn
+      ? []
+      : (allListsOn ? visible.map((list) => list.id) : state.favFilterIds.filter((id) => visible.some((list) => list.id === id)));
+    return { blankOn, ids, allOn: blankOn && (allListsOn || !visible.length) };
+  }
+
+  function commitFavCategories(blankOn, ids) {
+    if (state.freePreview) return;
+    const visible = favFilterableLists();
+    const knownIds = ids.filter((id) => visible.some((list) => list.id === id));
+    const allListsOn = !visible.length || knownIds.length === visible.length;
+    if (blankOn && (allListsOn || !state.favLists.length)) {
+      state.favOnly = false;
+      state.favFilterIds = [];
+      state.favIncludeBlank = true;
+    } else if (!blankOn && !knownIds.length) {
+      state.favOnly = true;
+      state.favIncludeBlank = false;
+      state.favFilterIds = ["__none__"];
+    } else {
+      state.favOnly = true;
+      state.favIncludeBlank = !!blankOn;
+      state.favFilterIds = allListsOn ? [] : knownIds;
+    }
+    schedulePrefsSave();
+    requestViewRefresh();
+  }
+
+  function makeFavFilterItem(value, label, checked, locked, hue, count) {
+    const text = count != null ? label + " (" + count + ")" : label;
+    if (hasWaDropdown()) {
+      const item = document.createElement("wa-dropdown-item");
+      item.type = "checkbox";
+      item.value = value;
+      item.checked = !!checked;
+      item.disabled = !!locked;
+      if (hue != null) {
+        const chip = document.createElement("span");
+        chip.slot = "icon";
+        chip.className = "fav-chip";
+        chip.style.background = favHueColor(hue);
+        item.appendChild(chip);
+      }
+      item.appendChild(document.createTextNode(text));
+      return item;
+    }
+    const lab = document.createElement("label");
+    lab.className = "cfm-check";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.value = value;
+    input.checked = !!checked;
+    input.disabled = !!locked;
+    lab.appendChild(input);
+    if (hue != null) {
+      const chip = document.createElement("span");
+      chip.className = "fav-chip";
+      chip.style.background = favHueColor(hue);
+      lab.appendChild(chip);
+    }
+    lab.appendChild(document.createTextNode(" " + text));
+    return lab;
+  }
+
+  function readFavFilterChecks(root) {
+    const items = hasWaDropdown()
+      ? [...root.querySelectorAll("wa-dropdown-item[type='checkbox']")]
+      : [...root.querySelectorAll("input[type=checkbox]")];
+    const byValue = {};
+    items.forEach((el) => {
+      const value = hasWaDropdown() ? String(el.value || "") : String(el.value || "");
+      byValue[value] = !!el.checked;
+    });
+    return { items, byValue };
+  }
+
+  function writeFavFilterChecks(root, selection) {
+    const { items } = readFavFilterChecks(root);
+    const idSet = {};
+    (selection.ids || []).forEach((id) => { idSet[id] = true; });
+    items.forEach((el) => {
+      const value = String(el.value || "");
+      if (value === FAV_FILTER_ALL) el.checked = !!selection.allOn;
+      else if (value === FAV_FILTER_BLANK) el.checked = !!selection.blankOn;
+      else el.checked = !!idSet[value];
+    });
+  }
+
+  function applyFavFilterChecks(root, toggledValue) {
+    const { byValue } = readFavFilterChecks(root);
+    const visible = favFilterableLists();
+    const blankShown = favBlankCount() > 0;
+    let blankOn;
+    let ids;
+    if (toggledValue === FAV_FILTER_ALL) {
+      const on = !!byValue[FAV_FILTER_ALL];
+      blankOn = on && blankShown;
+      ids = on ? visible.map((list) => list.id) : [];
+    } else {
+      blankOn = blankShown && !!byValue[FAV_FILTER_BLANK];
+      ids = visible.map((list) => list.id).filter((id) => byValue[id]);
+    }
+    commitFavCategories(blankOn, ids);
+    writeFavFilterChecks(root, favCategorySelection());
+    requestAnimationFrame(() => {
+      if (!root.isConnected) return;
+      writeFavFilterChecks(root, favCategorySelection());
+    });
   }
 
   function openFavFilterMenu(th) {
     closeFilterMenu();
+    closeFavFlyout();
     state.filterMenuKey = "favorite";
+    const locked = !!state.freePreview;
+    const current = favCategorySelection();
+
+    if (hasWaDropdown()) {
+      const dropdown = document.createElement("wa-dropdown");
+      dropdown.className = "fav-filter-dropdown";
+      dropdown.placement = "bottom-start";
+      dropdown.size = "xs";
+      dropdown.distance = 4;
+      const trigger = document.createElement("button");
+      trigger.type = "button";
+      trigger.slot = "trigger";
+      trigger.className = "fav-filter-dropdown-trigger";
+      trigger.setAttribute("aria-label", "お気に入りフィルタ");
+      dropdown.appendChild(trigger);
+      dropdown.appendChild(makeFavFilterItem(FAV_FILTER_ALL, "（すべて）", current.allOn, locked));
+      const split = document.createElement("wa-divider");
+      dropdown.appendChild(split);
+      const blankCount = favBlankCount();
+      if (blankCount > 0) {
+        dropdown.appendChild(makeFavFilterItem(FAV_FILTER_BLANK, "（空白）", current.blankOn, locked, null, blankCount));
+      }
+      favFilterableLists().forEach((list) => {
+        dropdown.appendChild(
+          makeFavFilterItem(list.id, list.name, current.ids.indexOf(list.id) >= 0, locked, list.hue, list.codes.length),
+        );
+      });
+      dropdown.addEventListener("click", (ev) => ev.stopPropagation());
+      dropdown.addEventListener("wa-select", (ev) => {
+        ev.preventDefault();
+        if (locked) return;
+        const item = ev.detail && ev.detail.item;
+        applyFavFilterChecks(dropdown, item ? String(item.value || "") : "");
+      });
+      const anchor = document.createElement("div");
+      anchor.className = "fav-filter-anchor";
+      const rect = th.getBoundingClientRect();
+      anchor.style.left = rect.left + "px";
+      anchor.style.top = rect.top + "px";
+      anchor.style.width = Math.max(8, rect.width) + "px";
+      anchor.style.height = Math.max(8, rect.height) + "px";
+      dropdown.addEventListener("wa-after-hide", () => {
+        if (anchor.parentNode) anchor.remove();
+        if (state.filterMenuKey === "favorite") state.filterMenuKey = null;
+      });
+      anchor.appendChild(dropdown);
+      document.body.appendChild(anchor);
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          dropdown.open = true;
+        });
+      });
+      return;
+    }
+
+    const menu = document.createElement("div");
+    menu.className = "col-filter-menu" + (locked ? " is-locked" : "");
+    menu.addEventListener("click", (ev) => ev.stopPropagation());
+    if (locked) {
+      const note = document.createElement("p");
+      note.className = "cfm-note muted";
+      note.textContent = "無料プレビュー中はお気に入りフィルタを変更できません。";
+      menu.appendChild(note);
+    }
+    const sec = document.createElement("div");
+    sec.className = "cfm-section";
+    sec.appendChild(makeFavFilterItem(FAV_FILTER_ALL, "（すべて）", current.allOn, locked));
+    const blankCount = favBlankCount();
+    if (blankCount > 0) {
+      sec.appendChild(makeFavFilterItem(FAV_FILTER_BLANK, "（空白）", current.blankOn, locked, null, blankCount));
+    }
+    favFilterableLists().forEach((list) => {
+      sec.appendChild(makeFavFilterItem(list.id, list.name, current.ids.indexOf(list.id) >= 0, locked, list.hue, list.codes.length));
+    });
+    sec.querySelectorAll("input[type=checkbox]").forEach((input) => {
+      input.addEventListener("change", () => {
+        if (locked) return;
+        applyFavFilterChecks(menu, input.value);
+      });
+    });
+    menu.appendChild(sec);
+    placeFilterMenu(menu, th);
+  }
+
+  function openTextFilterMenu(th, key) {
+    closeFilterMenu();
+    if (!isTextFilterCol(key)) return;
+    state.filterMenuKey = key;
     const locked = !!state.freePreview;
     const menu = document.createElement("div");
     menu.className = "col-filter-menu" + (locked ? " is-locked" : "");
     menu.addEventListener("click", (ev) => ev.stopPropagation());
+    const cur = state.colFilters[key] || {};
+    const currentQ = cur.op === "contains" ? String(cur.q || "") : "";
 
     if (locked) {
       const note = document.createElement("p");
       note.className = "cfm-note muted";
-      note.textContent = "無料プレビュー中はお気入りフィルタを変更できません。";
+      note.textContent = "無料プレビュー中はフィルタを変更できません。";
       menu.appendChild(note);
     }
 
     const sec = document.createElement("div");
     sec.className = "cfm-section";
     const lab = document.createElement("label");
-    lab.className = "cfm-check";
-    const cb = document.createElement("input");
-    cb.type = "checkbox";
-    cb.checked = !!state.favOnly && !locked;
-    cb.disabled = locked;
-    cb.addEventListener("change", () => {
-      if (locked) {
-        cb.checked = false;
-        return;
-      }
-      state.favOnly = cb.checked;
-      closeFilterMenu();
-      state.visibleChartCodes = [];
-      $("chart-host").innerHTML = "";
-      schedulePrefsSave();
-      renderTable();
+    lab.appendChild(document.createTextNode(key === "code" ? "コード（半角英数字）" : "銘柄名"));
+    const ui = chrome();
+    const qEl = ui && ui.input
+      ? ui.input({
+          type: "text",
+          placeholder: key === "code" ? "含む" : "含む",
+          disabled: locked,
+          value: currentQ,
+          id: "cfm-q",
+        })
+      : document.createElement("input");
+    if (!ui || !ui.input) {
+      qEl.id = "cfm-q";
+      qEl.type = "text";
+      qEl.placeholder = "含む";
+      qEl.disabled = locked;
+      qEl.value = currentQ;
+    }
+    if (key === "code") bindHalfWidthCodeInput(qEl);
+    else markNonCredentialInput(qEl, "column-filter");
+    qEl.addEventListener("keydown", (ev) => {
+      if (ev.key !== "Enter" || locked) return;
+      ev.preventDefault();
+      applyTextFilterFromMenu(key);
     });
-    lab.appendChild(cb);
-    lab.appendChild(document.createTextNode(" お気入りのみ表示"));
+    lab.appendChild(qEl);
     sec.appendChild(lab);
-    menu.appendChild(sec);
 
-    document.body.appendChild(menu);
-    const rect = th.getBoundingClientRect();
-    const mw = Math.max(220, menu.offsetWidth);
-    let left = rect.left;
-    if (left + mw > window.innerWidth - 8) left = Math.max(8, window.innerWidth - mw - 8);
-    menu.style.left = left + "px";
-    menu.style.top = Math.min(rect.bottom + 4, window.innerHeight - menu.offsetHeight - 8) + "px";
+    const actions = document.createElement("div");
+    actions.className = "cfm-actions";
+    const applyBtn = ui && ui.button ? ui.button("適用", { disabled: locked }) : document.createElement("button");
+    const clearBtn = ui && ui.button ? ui.button("フィルタ清除", { disabled: locked }) : document.createElement("button");
+    if (!ui || !ui.button) {
+      applyBtn.type = "button";
+      applyBtn.textContent = "適用";
+      applyBtn.disabled = locked;
+      clearBtn.type = "button";
+      clearBtn.textContent = "フィルタ清除";
+      clearBtn.disabled = locked;
+    }
+    applyBtn.addEventListener("click", () => {
+      if (locked) return;
+      applyTextFilterFromMenu(key);
+    });
+    clearBtn.addEventListener("click", () => {
+      if (locked) return;
+      clearColFilter(key);
+    });
+    actions.appendChild(applyBtn);
+    actions.appendChild(clearBtn);
+    sec.appendChild(actions);
+    menu.appendChild(sec);
+    placeFilterMenu(menu, th);
+    if (!locked) {
+      const focus = async () => {
+        if (key === "code") qEl.inputMode = "url";
+        const done = qEl.updateComplete;
+        if (done && typeof done.then === "function") await done;
+        try { qEl.focus(); } catch (_err) {}
+      };
+      focus();
+    }
   }
 
   function openFilterMenu(th, key) {
@@ -594,10 +2105,13 @@
     const secSort = document.createElement("div");
     secSort.className = "cfm-section";
     function addSortBtn(dir, label) {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.textContent = label;
-      b.disabled = locked;
+      const ui = chrome();
+      const b = ui && ui.button ? ui.button(label, { disabled: locked }) : document.createElement("button");
+      if (!ui || !ui.button) {
+        b.type = "button";
+        b.textContent = label;
+        b.disabled = locked;
+      }
       if (sortedHere && state.sortDir === dir) b.classList.add("active");
       b.addEventListener("click", () => {
         if (locked) return;
@@ -608,10 +2122,13 @@
     addSortBtn("desc", "↓ 降順でソート");
     addSortBtn("asc", "↑ 昇順でソート");
     if (sortedHere) {
-      const clr = document.createElement("button");
-      clr.type = "button";
-      clr.textContent = "ソート解除";
-      clr.disabled = locked;
+      const ui = chrome();
+      const clr = ui && ui.button ? ui.button("ソート解除", { disabled: locked }) : document.createElement("button");
+      if (!ui || !ui.button) {
+        clr.type = "button";
+        clr.textContent = "ソート解除";
+        clr.disabled = locked;
+      }
       clr.addEventListener("click", () => {
         if (locked) return;
         clearSort();
@@ -624,10 +2141,11 @@
     secFilt.className = "cfm-section";
     const lab = document.createElement("label");
     lab.appendChild(document.createTextNode("フィルタ"));
-    const sel = document.createElement("select");
+    const ui = chrome();
+    const sel = ui && ui.select ? ui.select() : document.createElement("select");
     sel.id = "cfm-op";
     sel.disabled = locked;
-    [
+    const opItems = [
       ["none", "（なし）"],
       ["gt", "＞ より大きい"],
       ["gte", "≥ 以上"],
@@ -637,32 +2155,41 @@
       ["between", "範囲（以下〜以上）"],
       ["notnull", "空白でない"],
       ["isnull", "空白"],
-    ].forEach(([v, t]) => {
-      const o = document.createElement("option");
-      o.value = v;
-      o.textContent = t;
-      sel.appendChild(o);
-    });
-    sel.value = cur.op || "none";
+    ];
+    if (ui && ui.fillSelect) {
+      ui.fillSelect(sel, opItems.map(([value, text]) => ({ value, text })), cur.op || "none");
+    } else {
+      opItems.forEach(([v, t]) => {
+        const o = document.createElement("option");
+        o.value = v;
+        o.textContent = t;
+        sel.appendChild(o);
+      });
+      sel.value = cur.op || "none";
+    }
     lab.appendChild(sel);
     secFilt.appendChild(lab);
 
     const vals = document.createElement("div");
     vals.className = "cfm-vals";
-    const aEl = document.createElement("input");
-    aEl.id = "cfm-a";
-    aEl.type = "number";
-    aEl.step = "any";
-    aEl.placeholder = "値";
-    aEl.disabled = locked;
-    if (cur.a != null) aEl.value = String(cur.a);
-    const bEl = document.createElement("input");
-    bEl.id = "cfm-b";
-    bEl.type = "number";
-    bEl.step = "any";
-    bEl.placeholder = "上限";
-    bEl.disabled = locked;
-    if (cur.b != null) bEl.value = String(cur.b);
+    const aEl = ui && ui.input ? ui.input({ type: "number", placeholder: "値", disabled: locked, value: cur.a != null ? String(cur.a) : "", id: "cfm-a" }) : document.createElement("input");
+    const bEl = ui && ui.input ? ui.input({ type: "number", placeholder: "上限", disabled: locked, value: cur.b != null ? String(cur.b) : "", id: "cfm-b" }) : document.createElement("input");
+    if (!ui || !ui.input) {
+      aEl.id = "cfm-a";
+      aEl.type = "number";
+      aEl.step = "any";
+      aEl.placeholder = "値";
+      aEl.disabled = locked;
+      if (cur.a != null) aEl.value = String(cur.a);
+      bEl.id = "cfm-b";
+      bEl.type = "number";
+      bEl.step = "any";
+      bEl.placeholder = "上限";
+      bEl.disabled = locked;
+      if (cur.b != null) bEl.value = String(cur.b);
+    }
+    markNonCredentialInput(aEl, "filter-value");
+    markNonCredentialInput(bEl, "filter-value");
     vals.appendChild(aEl);
     vals.appendChild(bEl);
     secFilt.appendChild(vals);
@@ -674,22 +2201,25 @@
       bEl.classList.toggle("hidden", !needB);
     }
     syncValVisibility();
-    sel.addEventListener("change", syncValVisibility);
+    if (ui && ui.onSelectChange) ui.onSelectChange(sel, syncValVisibility);
+    else sel.addEventListener("change", syncValVisibility);
 
     const actions = document.createElement("div");
     actions.className = "cfm-actions";
-    const applyBtn = document.createElement("button");
-    applyBtn.type = "button";
-    applyBtn.textContent = "適用";
-    applyBtn.disabled = locked;
+    const applyBtn = ui && ui.button ? ui.button("適用", { disabled: locked }) : document.createElement("button");
+    const clearBtn = ui && ui.button ? ui.button("フィルタ清除", { disabled: locked }) : document.createElement("button");
+    if (!ui || !ui.button) {
+      applyBtn.type = "button";
+      applyBtn.textContent = "適用";
+      applyBtn.disabled = locked;
+      clearBtn.type = "button";
+      clearBtn.textContent = "フィルタ清除";
+      clearBtn.disabled = locked;
+    }
     applyBtn.addEventListener("click", () => {
       if (locked) return;
       applyColFilterFromMenu(key);
     });
-    const clearBtn = document.createElement("button");
-    clearBtn.type = "button";
-    clearBtn.textContent = "フィルタ清除";
-    clearBtn.disabled = locked;
     clearBtn.addEventListener("click", () => {
       if (locked) return;
       clearColFilter(key);
@@ -698,14 +2228,7 @@
     actions.appendChild(clearBtn);
     secFilt.appendChild(actions);
     menu.appendChild(secFilt);
-
-    document.body.appendChild(menu);
-    const rect = th.getBoundingClientRect();
-    const mw = Math.max(240, menu.offsetWidth);
-    let left = rect.left;
-    if (left + mw > window.innerWidth - 8) left = Math.max(8, window.innerWidth - mw - 8);
-    menu.style.left = left + "px";
-    menu.style.top = Math.min(rect.bottom + 4, window.innerHeight - menu.offsetHeight - 8) + "px";
+    placeFilterMenu(menu, th);
   }
 
   function isAllRsNegative(row) {
@@ -734,12 +2257,11 @@
 
   function syncFilterModalUi() {
     const sw = $("filter-exclude-all-rs-neg");
-    const lab = $("filter-exclude-all-rs-neg-label");
     if (sw) {
       sw.checked = !!state.excludeAllRsNeg && !state.freePreview;
       sw.disabled = !!state.freePreview;
+      sw.classList.toggle("disabled-filter", !!state.freePreview);
     }
-    if (lab) lab.classList.toggle("disabled-filter", !!state.freePreview);
     const note = $("filter-modal-note");
     if (note) {
       note.textContent = state.freePreview
@@ -843,9 +2365,19 @@
     return s.length <= 10 ? s : s.slice(0, 10);
   }
 
+  function displayPriceText(row) {
+    row = row || {};
+    const api = window.StockRadarPriceText;
+    if (api && typeof api.displayText === "function") return api.displayText(row);
+    if (row.candle_labels != null && String(row.candle_labels).trim()) {
+      return api && typeof api.fromLabels === "function" ? api.fromLabels(row.candle_labels) : "";
+    }
+    return row.price_text == null ? "" : String(row.price_text);
+  }
+
   function cellStyle(row, baseKey) {
     if (baseKey === "price_text") {
-      const rule = priceTextCf(row.price_text);
+      const rule = priceTextCf(displayPriceText(row));
       if (!rule) return null;
       return { bg: rule.bg, fg: rule.fg };
     }
@@ -904,7 +2436,16 @@
       rows = rows.filter((_, i) => mask[i]);
     } else {
       if (state.favOnly) {
-        rows = rows.filter((r) => isFavorite(r.code));
+        rows = rows.filter((r) => {
+          if (state.favFilterIds.indexOf("__none__") >= 0) return false;
+          const c = padFavCode(r.code);
+          const blank = !isFavorite(c);
+          if (blank) return !!state.favIncludeBlank;
+          if (!state.favFilterIds.length) return !state.favIncludeBlank;
+          return state.favLists.some((list) =>
+            state.favFilterIds.indexOf(list.id) >= 0 && codeInFavList(list, c)
+          );
+        });
       }
       if (state.excludeAllRsNeg) {
         rows = rows.filter((r) => !isAllRsNegative(r));
@@ -1012,25 +2553,39 @@
   function renderColsPanel() {
     const panel = $("cols-panel");
     panel.innerHTML = "";
+    const ui = chrome();
     const keys = [...new Set([...XLSX_DEFAULT.map((c) => c.key), ...state.allKeys])]
       .filter((k) => !omitFromColsPanel(k));
     keys.forEach((k) => {
-      const lab = document.createElement("label");
-      const cb = document.createElement("input");
-      cb.type = "checkbox";
-      cb.checked = state.visibleKeys.includes(k);
-      cb.addEventListener("change", () => {
-        if (cb.checked) {
+      const def = state.colDefs[k];
+      const label = def ? def.label : k;
+      const checked = state.visibleKeys.includes(k);
+      const onToggle = (isOn) => {
+        if (isOn) {
           if (!state.visibleKeys.includes(k)) state.visibleKeys.push(k);
         } else {
           state.visibleKeys = state.visibleKeys.filter((x) => x !== k);
         }
         schedulePrefsSave();
-        renderTable();
-      });
-      const def = state.colDefs[k];
+        requestViewRefresh();
+      };
+      const tipId = columnLabelId(k);
+      if (ui && ui.checkbox) {
+        const cb = ui.checkbox(label, checked, false);
+        attachLabelTip(cb, tipId);
+        if (ui.onCheck) ui.onCheck(cb, onToggle);
+        else cb.addEventListener("change", () => onToggle(!!cb.checked));
+        panel.appendChild(cb);
+        return;
+      }
+      const lab = document.createElement("label");
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = checked;
+      cb.addEventListener("change", () => onToggle(!!cb.checked));
       lab.appendChild(cb);
-      lab.appendChild(document.createTextNode(" " + (def ? def.label : k)));
+      lab.appendChild(document.createTextNode(" " + label));
+      attachLabelTip(lab, tipId);
       panel.appendChild(lab);
     });
   }
@@ -1038,20 +2593,190 @@
   function renderLegend() {
     const host = $("chart-legend");
     host.innerHTML = "";
-    SERIES_META.forEach((s) => {
-      const el = document.createElement("span");
+    const ui = chrome();
+    seriesDisplayMeta().forEach((s) => {
+      let swatchStyle = "";
+      let swatchClass = "";
       if (s.kind === "bar") {
-        el.innerHTML = '<i style="background:' + s.color + ';height:10px"></i>' + s.label;
+        swatchStyle = "background:" + s.color + ";height:10px";
       } else {
         const a = s.alpha;
-        el.innerHTML =
-          '<i class="rs-swatch" style="' +
+        swatchClass = "rs-swatch";
+        swatchStyle =
           "background:linear-gradient(90deg,rgba(" + RS_NEG + "," + a + ") 50%,rgba(" + RS_POS + "," + a + ") 50%);" +
-          "height:" + Math.max(2, Math.min(10, s.width / 2)) + "px" +
-          '"></i>' + s.label;
+          "height:" + Math.max(2, Math.min(10, s.width / 2)) + "px";
       }
-      host.appendChild(el);
+      const wrap = document.createElement("span");
+      wrap.className = "legend-tip";
+      const tipId = SERIES_LABEL_IDS[s.id] || "";
+      if (tipId) wrap.dataset.labelTip = tipId;
+      if (ui && ui.tag) {
+        wrap.appendChild(ui.tag(s.label, { swatchStyle, swatchClass }));
+      } else {
+        const el = document.createElement("span");
+        el.innerHTML =
+          '<i class="' +
+          swatchClass +
+          '" style="' +
+          swatchStyle +
+          '"></i>' +
+          s.label;
+        wrap.appendChild(el);
+      }
+      host.appendChild(wrap);
     });
+  }
+
+  function stickyColClass(k) {
+    if (k === "code") return "sticky-col sticky-col-code";
+    if (k === "name") return "sticky-col sticky-col-name";
+    return "";
+  }
+
+  function syncStickyColOffsets() {
+    const table = $("grid");
+    if (!table) return;
+    const codeCell =
+      table.querySelector("thead th.sticky-col-code") ||
+      table.querySelector("tbody td.sticky-col-code");
+    const width = codeCell ? Math.round(codeCell.getBoundingClientRect().width) : 0;
+    if (width > 0) table.style.setProperty("--sticky-code-w", width + "px");
+  }
+
+  function scheduleStickyColOffsets() {
+    syncStickyColOffsets();
+    requestAnimationFrame(() => {
+      syncStickyColOffsets();
+      requestAnimationFrame(syncStickyColOffsets);
+    });
+  }
+
+  function tdMarkup(row, k) {
+    const def = state.colDefs[k] || { kind: "text" };
+    const classes = [];
+    let extra = "";
+    if (def.kind === "signed1" || def.kind === "int") classes.push("num");
+    if (def.kind === "news_bundle") classes.push("news-bundle");
+    if (def.kind === "favorite") classes.push("fav-cell");
+    let inner = cellHtml(row, k);
+    if (def.kind === "signed1" && inner) {
+      const raw = row[mapKey(k)];
+      const ui = chrome();
+      const range = ui && ui.cfRangeForLabel ? ui.cfRangeForLabel(k) : 1;
+      const fmt = ui && ui.numberCellFormat ? ui.numberCellFormat(raw, range) : null;
+      if (fmt) {
+        classes.push("surface-cf-number");
+        extra = ' style="--cell-hue:' + fmt.hue + ";--cell-alpha:" + fmt.alpha + '"';
+      }
+      if (raw != null && raw !== "" && Number.isFinite(Number(raw))) {
+        extra += ' data-cf-value="' + escapeHtml(String(Number(raw))) + '"';
+      }
+    }
+    if (k === "price_text") {
+      classes.push("surface-cf-price");
+      const priceApi = window.StockRadarPriceText;
+      if (priceApi && priceApi.cellHtml) {
+        inner = priceApi.cellHtml(row);
+      } else if (inner) {
+        const ui = chrome();
+        const tone = ui && ui.priceTone ? ui.priceTone(displayPriceText(row)) : "neutral";
+        inner = '<span class="surface-price-tag" data-tone="' + escapeHtml(tone) + '">' + inner + "</span>";
+      }
+    }
+    const sticky = stickyColClass(k);
+    if (sticky) classes.push.apply(classes, sticky.split(" "));
+    const cls = classes.length ? ' class="' + classes.join(" ") + '"' : "";
+    return "<td" + cls + extra + ">" + inner + "</td>";
+  }
+
+  function bindGridEvents() {
+    const table = $("grid");
+    if (!table || table.dataset.bound === "1") return;
+    table.dataset.bound = "1";
+    window.addEventListener("resize", scheduleStickyColOffsets);
+    const tbody = table.tBodies[0];
+    if (!tbody) return;
+    tbody.addEventListener("click", (ev) => {
+      const star = ev.target.closest("button.fav-star, td.fav-cell");
+      if (star) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (state.freePreview) return;
+        const btn = star.closest ? (star.matches("button.fav-star") ? star : star.querySelector("button.fav-star")) : star;
+        const code = btn && btn.dataset ? btn.dataset.favCode : null;
+        if (code) openFavFlyout(btn, code);
+        return;
+      }
+      if (ev.target.closest("a")) return;
+      const tr = ev.target.closest("tr[data-code]");
+      if (tr) selectCode(tr.dataset.code, { scrollChart: true, toggle: true });
+    });
+    tbody.addEventListener("mouseover", (ev) => {
+      const tr = ev.target.closest("tr[data-code]");
+      if (!tr || !tbody.contains(tr)) return;
+      const related = ev.relatedTarget;
+      if (related && tr.contains(related)) return;
+      setHoveredCode(tr.dataset.code, { from: "table" });
+    });
+    tbody.addEventListener("mouseout", (ev) => {
+      const tr = ev.target.closest("tr[data-code]");
+      if (!tr || !tbody.contains(tr)) return;
+      const related = ev.relatedTarget;
+      if (related && (related === tr || tr.contains(related))) return;
+      if (state.hovered === tr.dataset.code) setHoveredCode(null);
+    });
+  }
+
+  // Trailing halfwidth katakana is the monthly shortener's suffix
+  // (ホールディングス / グループ / インターナショナル / コーポレーション).
+  // Names still wider than that wrapped line break once at an existing
+  // delimiter (・, space, hyphen), choosing the split with the shorter long line.
+  const NAME_BREAK_MIN_PX = 142;
+  const NAME_BREAK_SEPS = /[\u30FB\s\u3000\uFF0D-]/;
+  let nameWidthCtx = null;
+
+  function nameTextWidth(text) {
+    if (!nameWidthCtx) {
+      const probe = document.createElement("span");
+      const grid = document.getElementById("grid");
+      probe.style.cssText = "position:absolute;visibility:hidden;white-space:nowrap";
+      (grid || document.body).appendChild(probe);
+      const cs = getComputedStyle(probe);
+      probe.remove();
+      nameWidthCtx = document.createElement("canvas").getContext("2d");
+      nameWidthCtx.font = cs.fontWeight + " " + cs.fontSize + " " + cs.fontFamily;
+      if ("letterSpacing" in nameWidthCtx) nameWidthCtx.letterSpacing = cs.letterSpacing;
+    }
+    return nameWidthCtx.measureText(text).width;
+  }
+
+  function nameDelimiterBreak(text) {
+    if (nameTextWidth(text) <= NAME_BREAK_MIN_PX) return null;
+    let best = null;
+    for (let i = 0; i < text.length; i++) {
+      if (!NAME_BREAK_SEPS.test(text.charAt(i))) continue;
+      const left = text.slice(0, i).replace(/[\s\u3000]+$/, "");
+      const right = text.slice(i + 1).replace(/^[\s\u3000]+/, "");
+      if (!left || !right) continue;
+      const width = Math.max(nameTextWidth(left), nameTextWidth(right));
+      if (!best || width < best.width) best = { width: width, left: left, right: right };
+    }
+    if (!best || best.width >= nameTextWidth(text)) return null;
+    return best;
+  }
+
+  function nameCellHtml(name) {
+    const text = String(name);
+    const match = /^(.*?)([\uFF61-\uFF9F]+)$/.exec(text);
+    if (match) {
+      const prefix = match[1].replace(/[\s\u3000]+$/, "");
+      if (prefix) {
+        return escapeHtml(prefix) + '<span class="name-hankaku">' + escapeHtml(match[2]) + "</span>";
+      }
+    }
+    const split = nameDelimiterBreak(text);
+    if (!split) return escapeHtml(text);
+    return escapeHtml(split.left) + '<span class="name-break">' + escapeHtml(split.right) + "</span>";
   }
 
   function cellHtml(row, baseKey) {
@@ -1062,7 +2787,6 @@
       const on = isFavorite(code);
       const disabled = state.freePreview ? " disabled" : "";
       const cls = "fav-star" + (on ? " on" : "") + (state.freePreview ? " disabled" : "");
-      const label = on ? "★" : "☆";
       return (
         '<button type="button" class="' +
         cls +
@@ -1070,10 +2794,10 @@
         code +
         '" aria-pressed="' +
         (on ? "true" : "false") +
-        '" aria-label="favorite"' +
+        '" aria-label="favorite lists"' +
         disabled +
         ">" +
-        label +
+        favCellInnerHtml(code) +
         "</button>"
       );
     }
@@ -1097,7 +2821,9 @@
         })
         .join("");
     }
+    if (baseKey === "price_text") return escapeHtml(displayPriceText(row));
     const v = row[key];
+    if (baseKey === "name") return v == null ? "" : nameCellHtml(v);
     if (def.kind === "link") {
       const href = safeHttpUrl(v);
       if (!href) return "";
@@ -1112,94 +2838,100 @@
     return v == null ? "" : escapeHtml(String(v));
   }
 
-  function renderTable() {
+  function headerCaption(label) {
+    const text = String(label || "");
+    if (text.indexOf("連動分を除く") === 0) return "連動分を除く\n" + text.slice("連動分を除く".length).trim();
+    if (text.indexOf("パーフェクトオーダー") === 0 && text.length > "パーフェクトオーダー".length) {
+      return "パーフェクトオーダー\n" + text.slice("パーフェクトオーダー".length);
+    }
+    if (text.indexOf("指数比の") === 0) return "指数比の\n" + text.slice("指数比の".length);
+    if (text.indexOf("指数比 ") === 0) return "指数比\n" + text.slice("指数比 ".length);
+    return text;
+  }
+
+  function renderTable(opts) {
+    opts = opts || {};
+    bindGridEvents();
     const rows = displayRows();
     $("row-count").textContent = "表示 " + rows.length + " / 全 " + state.rows.length + " 銘柄";
+    const wrap = $("table-wrap");
+    const prevTop = wrap ? wrap.scrollTop : 0;
+    const prevLeft = wrap ? wrap.scrollLeft : 0;
     const thead = document.querySelector("#grid thead");
     const tbody = document.querySelector("#grid tbody");
     thead.innerHTML = "";
-    tbody.innerHTML = "";
     const trh = document.createElement("tr");
     state.visibleKeys.forEach((k) => {
       const th = document.createElement("th");
+      th.dataset.col = k;
+      const tipId = columnLabelId(k);
+      if (tipId) th.dataset.labelTip = tipId;
+      const sticky = stickyColClass(k);
+      if (sticky) th.className = sticky;
       const def = state.colDefs[k];
       const label = def ? def.label : mapKey(k);
-      if (isNumericCol(k) || k === "favorite") {
-        th.classList.add("th-numeric");
+      const caption = headerCaption(label);
+      if (isNumericCol(k) || k === "favorite" || isTextFilterCol(k)) {
+        th.classList.add("th-filterable");
+        if (isNumericCol(k) || k === "favorite") th.classList.add("th-numeric");
         if (k !== "favorite" && state.sortKey === k) th.classList.add("th-sorted");
         if (k === "favorite" ? state.favOnly : colFilterActive(k)) th.classList.add("th-filtered");
-        const inner = document.createElement("div");
-        inner.className = "th-inner";
-        const lab = document.createElement("span");
-        lab.className = "th-label";
-        lab.textContent = label;
-        const mark = document.createElement("span");
-        mark.className = "th-sort-mark";
-        if (k !== "favorite" && state.sortKey === k) {
-          mark.textContent = state.sortDir === "desc" ? "↓" : "↑";
+        const ui = chrome();
+        const btn = ui && ui.headerButton
+          ? ui.headerButton({
+              caption: caption,
+              title: k === "favorite" ? "お気に入りフィルタ" : (isTextFilterCol(k) ? "文字列フィルタ" : "ソート / フィルタ"),
+              sorted: k !== "favorite" && state.sortKey === k,
+              filtered: k === "favorite" ? state.favOnly : colFilterActive(k),
+            })
+          : document.createElement("button");
+        if (!ui || !ui.headerButton) {
+          btn.type = "button";
+          btn.textContent = caption;
+          btn.title = k === "favorite" ? "お気に入りフィルタ" : (isTextFilterCol(k) ? "文字列フィルタ" : "ソート / フィルタ");
         }
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "th-filter-btn";
-        btn.title = k === "favorite"
-          ? "お気入りフィルタ"
-          : "ソート / フィルタ";
-        btn.textContent = "▼";
+        btn.classList.add("th-filter-btn");
         btn.addEventListener("click", (ev) => {
           ev.preventDefault();
           ev.stopPropagation();
           if (k === "favorite") openFavFilterMenu(th);
+          else if (isTextFilterCol(k)) openTextFilterMenu(th, k);
           else openFilterMenu(th, k);
         });
-        inner.appendChild(lab);
-        inner.appendChild(mark);
-        inner.appendChild(btn);
-        th.appendChild(inner);
+        th.appendChild(btn);
       } else {
-        th.textContent = label;
+        th.textContent = caption;
       }
       trh.appendChild(th);
     });
     thead.appendChild(trh);
 
-    rows.forEach((row) => {
+    const keys = state.visibleKeys;
+    const parts = new Array(rows.length);
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
       const code = String(row.code).padStart(4, "0");
-      const tr = document.createElement("tr");
-      tr.dataset.code = code;
-      if (state.selected === code) tr.classList.add("selected");
-      if (state.hovered === code && state.selected !== code) tr.classList.add("is-hover");
-      state.visibleKeys.forEach((k) => {
-        const td = document.createElement("td");
-        const def = state.colDefs[k] || { kind: "text" };
-        if (def.kind === "signed1") td.classList.add("num");
-        if (def.kind === "news_bundle") td.classList.add("news-bundle");
-        if (def.kind === "favorite") td.classList.add("fav-cell");
-        td.innerHTML = cellHtml(row, k);
-        const st = cellStyle(row, k);
-        if (st) {
-          if (st.bg) td.style.backgroundColor = st.bg;
-          if (st.fg) td.style.color = st.fg;
-        }
-        tr.appendChild(td);
-      });
-      tr.querySelectorAll("button.fav-star").forEach((btn) => {
-        btn.addEventListener("click", (ev) => {
-          ev.preventDefault();
-          ev.stopPropagation();
-          if (state.freePreview) return;
-          toggleFavorite(btn.dataset.favCode || code);
-        });
-      });
-      tr.addEventListener("mouseenter", () => setHoveredCode(code, { from: "table" }));
-      tr.addEventListener("mouseleave", () => {
-        if (state.hovered === code) setHoveredCode(null);
-      });
-      tr.addEventListener("click", () => {
-        selectCode(code, { scrollChart: true });
-      });
-      tbody.appendChild(tr);
-    });
-    syncChartsFromTable(rows);
+      const codeEsc = escapeHtml(code);
+      let cls = "";
+      if (state.selected === code) cls = " selected";
+      else if (state.hovered === code) cls = " is-hover";
+      let tds = "";
+      for (let j = 0; j < keys.length; j++) tds += tdMarkup(row, keys[j]);
+      parts[i] = "<tr data-code=\"" + codeEsc + "\"" + (cls ? " class=\"" + cls.trim() + "\"" : "") + ">" + tds + "</tr>";
+    }
+    tbody.innerHTML = parts.join("");
+    updateSearchMiss(rows.length);
+    if (wrap) {
+      wrap.scrollTop = prevTop;
+      wrap.scrollLeft = prevLeft;
+    }
+    scheduleStickyColOffsets();
+
+    const codes = rows.map((r) => String(r.code).padStart(4, "0"));
+    if (opts.charts === "skip") return;
+    if (opts.charts !== "force" && sameCodeList(state.visibleChartCodes, codes)) return;
+    state.visibleChartCodes = codes;
+    refreshCharts(codes);
   }
 
   function yZ(z) {
@@ -1396,6 +3128,10 @@
         strokeSignedLine(ctx, arr, xAt, yAt, s.width, s.alpha, dpr);
       }
     });
+    const hoverIndex =
+      canvas._hoverIndex == null ? n - 1 : Math.max(0, Math.min(n - 1, canvas._hoverIndex));
+    const colW = n <= 1 ? zBarW : Math.max(zBarW, xSpan / (n - 1));
+    drawChartHoverMarker(ctx, xAt, padT, plotH, hoverIndex, colW, dpr);
     ctx.restore();
 
     // Overflow edge markers. Width = RS31. Color = RS green/red, or Z color if only Z overflows.
@@ -1457,6 +3193,95 @@
     };
   }
 
+  function drawChartHoverMarker(ctx, xAt, padT, plotH, index, colW, dpr) {
+    const x = xAt(index);
+    const hw = Math.max(colW, 1 * dpr);
+    ctx.save();
+    ctx.fillStyle = "rgba(110,168,254,0.16)";
+    ctx.fillRect(x - hw / 2, padT, hw, plotH);
+    ctx.strokeStyle = "rgba(110,168,254,0.85)";
+    ctx.lineWidth = Math.max(1, dpr);
+    ctx.beginPath();
+    ctx.moveTo(x, padT);
+    ctx.lineTo(x, padT + plotH);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function latestChartIndex(dates) {
+    return Math.max(0, (dates || []).length - 1);
+  }
+
+  function chartHoverCellHtml(seriesId, text, raw, fit) {
+    const n = raw == null ? NaN : Number(raw);
+    const ui = chrome();
+    const range = ui && ui.cfRangeForLabel ? ui.cfRangeForLabel(seriesId) : 1;
+    const fmt =
+      Number.isFinite(n) && ui && ui.numberCellFormat
+        ? ui.numberCellFormat(n, range)
+        : null;
+    let extra = "";
+    const classes = ["chart-hover-cell"];
+    if (fit) classes.push("chart-hover-fit");
+    if (fmt) {
+      classes.push("surface-cf-number");
+      extra = ' style="--cell-hue:' + fmt.hue + ";--cell-alpha:" + fmt.alpha + '"';
+    }
+    return (
+      '<span class="' + classes.join(" ") + '"' + extra + ">" + escapeHtml(text) + "</span>"
+    );
+  }
+
+  function fillChartHoverTable(hoverEl, dates, seriesMap, index) {
+    if (!hoverEl) return;
+    const n = (dates || []).length;
+    if (!n) {
+      hoverEl.innerHTML = "";
+      return;
+    }
+    const idx = Math.max(0, Math.min(n - 1, index));
+    const series = seriesDisplayMeta();
+    const colCount = 1 + series.length;
+    const head = ['<span class="chart-hover-date chart-hover-head"></span>'];
+    series.forEach((s) => {
+      const tipId = SERIES_LABEL_IDS[s.id] || "";
+      const fit = s.id === "z_disp" ? " chart-hover-fit" : "";
+      head.push(
+        '<span class="chart-hover-cell chart-hover-head' + fit + '"' +
+          (tipId ? ' data-label-tip="' + tipId + '"' : "") +
+          ">" +
+          '<span class="surface-label-compact"><span class="surface-label-compact-text">' + escapeHtml(s.label) + "</span></span>" +
+          "</span>"
+      );
+    });
+    const values = [
+      '<span class="chart-hover-date">' + escapeHtml(dates[idx] || "") + "</span>",
+    ];
+    series.forEach((s) => {
+      const raw = (seriesMap[s.id] || [])[idx];
+      const text = raw == null || Number.isNaN(Number(raw)) ? "null" : fmtSigned1(raw);
+      values.push(chartHoverCellHtml(s.id, text, raw, s.id === "z_disp"));
+    });
+    hoverEl.innerHTML =
+      '<div class="chart-hover-table" style="--chart-hover-cols:' +
+      colCount +
+      '">' +
+      head.join("") +
+      values.join("") +
+      "</div>";
+  }
+
+  function setChartHoverIndex(canvas, dates, seriesMap, hoverEl, index) {
+    if (!canvas) return;
+    const idx = Math.max(0, Math.min(latestChartIndex(dates), index));
+    const prev = canvas._hoverIndex;
+    canvas._hoverIndex = idx;
+    fillChartHoverTable(hoverEl, dates, seriesMap, idx);
+    if (prev !== idx) {
+      drawChart(canvas, dates, seriesMap, hoverEl, canvas._chartYShift || 0);
+    }
+  }
+
   function updateChartHover(canvas, dates, seriesMap, hoverEl, clientX) {
     const geom = canvas._chartGeom;
     if (!geom || !hoverEl) return;
@@ -1467,18 +3292,7 @@
       const d = Math.abs(geom.xAt(i) - x);
       if (d < bestDist) { bestDist = d; best = i; }
     }
-    const parts = [dates[best]];
-    SERIES_META.forEach((s) => {
-      const raw = (seriesMap[s.id] || [])[best];
-      if (raw == null || Number.isNaN(Number(raw))) {
-        parts.push(s.label + "=null");
-      } else if (s.id === "z_disp") {
-        parts.push(s.label + "=" + fmtSigned1(raw) + " (disp=" + fmtSigned1(Number(raw) / 5) + ")");
-      } else {
-        parts.push(s.label + "=" + fmtSigned1(raw));
-      }
-    });
-    hoverEl.textContent = parts.join(" | ");
+    setChartHoverIndex(canvas, dates, seriesMap, hoverEl, best);
   }
 
   function bindChartPan(canvas, dates, seriesMap, hoverEl) {
@@ -1504,6 +3318,9 @@
       canvas.classList.remove("is-panning");
       // Release -> snap back to 0-centered default view.
       redraw(0);
+      if (!canvas.matches(":hover")) {
+        setChartHoverIndex(canvas, dates, seriesMap, hoverEl, latestChartIndex(dates));
+      }
     };
 
     canvas.addEventListener("pointerdown", (ev) => {
@@ -1547,6 +3364,10 @@
       if (canvas._chartPan) return;
       updateChartHover(canvas, dates, seriesMap, hoverEl, ev.clientX);
     });
+    canvas.addEventListener("pointerleave", () => {
+      if (canvas._chartPan) return;
+      setChartHoverIndex(canvas, dates, seriesMap, hoverEl, latestChartIndex(dates));
+    });
   }
 
 
@@ -1576,6 +3397,14 @@
     if (card) card.scrollIntoView({ block: "nearest", inline: "nearest" });
   }
 
+  function applyChartCardChrome(shell, selected, hovered) {
+    if (!shell) return;
+    shell.classList.toggle("is-selected", !!selected);
+    shell.classList.toggle("is-hover", !!hovered);
+    const appearance = selected ? "accent" : hovered ? "filled-outlined" : "outlined";
+    if (shell.appearance !== appearance) shell.appearance = appearance;
+  }
+
   function syncHighlightClasses() {
     const sel = state.selected;
     const hov = state.hovered;
@@ -1586,8 +3415,11 @@
     });
     document.querySelectorAll("#chart-host .chart-card[data-code]").forEach((card) => {
       const c = card.dataset.code;
-      card.classList.toggle("selected", !!sel && c === sel);
-      card.classList.toggle("is-hover", !!hov && c === hov && c !== sel);
+      const selected = !!sel && c === sel;
+      const hovered = !!hov && c === hov && c !== sel;
+      card.classList.toggle("selected", selected);
+      card.classList.toggle("is-hover", hovered);
+      applyChartCardChrome(card.querySelector("wa-card"), selected, hovered);
     });
   }
 
@@ -1599,13 +3431,22 @@
     if (changed) syncHighlightClasses();
     if (!next) return;
     // Keep counterpart in view while hovering (nearest = no-op if already visible).
-    if (opts.from === "table") scrollChartCardIntoView(next);
-    else if (opts.from === "chart") scrollTableRowIntoView(next);
+    if (opts.from === "table") {
+      if (!state.selected) scrollChartCardIntoView(next);
+    } else if (opts.from === "chart") {
+      scrollTableRowIntoView(next);
+    }
   }
 
   function selectCode(code, opts) {
     opts = opts || {};
     const next = code ? String(code).padStart(4, "0") : null;
+    if (opts.toggle && next && state.selected === next) {
+      state.selected = null;
+      syncHighlightClasses();
+      showWebEmpty();
+      return;
+    }
     const row = findRowByCode(next);
     state.selected = next;
     if (next) state.hovered = next;
@@ -1619,6 +3460,7 @@
   function syncChartsFromTable(rows) {
     const list = rows || displayRows();
     const codes = list.map((r) => String(r.code).padStart(4, "0"));
+    if (sameCodeList(state.visibleChartCodes, codes)) return;
     state.visibleChartCodes = codes;
     refreshCharts(codes);
   }
@@ -1633,8 +3475,8 @@
     let canvas = card.querySelector("canvas");
     if (!canvas) {
       canvas = document.createElement("canvas");
-      const slot = card.querySelector(".chart-slot");
-      if (slot) slot.replaceWith(canvas);
+      const slot = card.querySelector(".chart-slot, [data-chart-canvas]");
+      if (slot) slot.replaceChildren(canvas);
       else card.appendChild(canvas);
     }
     const metrics = state.seriesCache[code];
@@ -1650,16 +3492,95 @@
       rs_sma75: values["rs_sma75_" + b] || [],
       z_disp: values.z_turnover_60 || [],
     };
-    const hoverEl = card.querySelector(".hover");
+    const hoverEl = card.querySelector(".hover, [data-chart-hover]");
+    canvas._hoverIndex = latestChartIndex(dates);
+    fillChartHoverTable(hoverEl, dates, seriesMap, canvas._hoverIndex);
     drawChart(canvas, dates, seriesMap, hoverEl, 0);
     bindChartPan(canvas, dates, seriesMap, hoverEl);
     card.dataset.drawn = "1";
   }
 
+  function makeFavStarButton(code) {
+    const c = padFavCode(code);
+    const on = isFavorite(c);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "fav-star" + (on ? " on" : "") + (state.freePreview ? " disabled" : "");
+    btn.dataset.favCode = c;
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+    btn.setAttribute("aria-label", "favorite lists");
+    if (state.freePreview) btn.disabled = true;
+    btn.innerHTML = favCellInnerHtml(c);
+    btn.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (state.freePreview) return;
+      openFavFlyout(btn, c);
+    });
+    return btn;
+  }
+
+  function makeChartCard(code) {
+    const row = findRowByCode(code) || {};
+    const ui = chrome();
+    const card = document.createElement("div");
+    card.className = "chart-card";
+    card.dataset.code = code;
+    const selected = state.selected === code;
+    const hovered = state.hovered === code && !selected;
+    if (selected) card.classList.add("selected");
+    if (hovered) card.classList.add("is-hover");
+    const shell = ui && ui.chartCard ? ui.chartCard() : null;
+    if (shell) {
+      const heading = shell.querySelector("[data-chart-title]");
+      if (heading) heading.textContent = code + " " + (row.name || "");
+      const favHost = shell.querySelector("[data-chart-fav]");
+      if (favHost) favHost.replaceChildren(makeFavStarButton(code));
+      applyChartCardChrome(shell, selected, hovered);
+      card.appendChild(shell);
+    } else {
+      card.innerHTML =
+        "<div class=\"chart-card-head\"><h4>" + escapeHtml(code) + " " + escapeHtml(row.name || "") + "</h4></div>" +
+        "<div class=\"hover\"></div>" +
+        "<div class=\"chart-slot\" aria-hidden=\"true\"></div>";
+      const head = card.querySelector(".chart-card-head");
+      if (head) head.appendChild(makeFavStarButton(code));
+    }
+    card.addEventListener("mouseenter", () => setHoveredCode(code, { from: "chart" }));
+    card.addEventListener("mouseleave", () => {
+      if (state.hovered === code) setHoveredCode(null);
+    });
+    card.addEventListener("click", (ev) => {
+      if (ev.target.closest("button.fav-star, .fav-flyout")) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        return;
+      }
+      const canvas = card.querySelector("canvas");
+      if (canvas && canvas._suppressClick) {
+        canvas._suppressClick = false;
+        ev.preventDefault();
+        ev.stopPropagation();
+        return;
+      }
+      selectCode(code, { scrollTable: true, toggle: true });
+    });
+    return card;
+  }
+
+  function ensureChartObserver(host) {
+    if (state.chartObserver) return state.chartObserver;
+    state.chartObserver = new IntersectionObserver((entries) => {
+      entries.forEach((en) => {
+        if (en.isIntersecting) paintChartCard(en.target);
+      });
+    }, { root: host, rootMargin: "160px 0px", threshold: 0.01 });
+    return state.chartObserver;
+  }
+
   function refreshCharts(codes) {
     const host = $("chart-host");
     if (!host) return;
-    // Preserve table order exactly (codes already ordered). Dedupe while keeping first index.
     const seen = new Set();
     const ordered = [];
     (codes || []).forEach((c) => {
@@ -1669,55 +3590,35 @@
       ordered.push(code);
     });
 
-    state.chartBuildId = (state.chartBuildId || 0) + 1;
-    if (state.chartObserver) {
-      state.chartObserver.disconnect();
-      state.chartObserver = null;
-    }
-
     const prevScroll = host.scrollTop;
-    host.innerHTML = "";
+    const existing = new Map();
+    host.querySelectorAll(".chart-card[data-code]").forEach((card) => {
+      existing.set(card.dataset.code, card);
+    });
+    const observer = ensureChartObserver(host);
+    const keep = new Set(ordered);
+    existing.forEach((card, code) => {
+      if (keep.has(code)) return;
+      observer.unobserve(card);
+      card.remove();
+    });
     const frag = document.createDocumentFragment();
-    const cards = [];
     ordered.forEach((code) => {
-      const row = findRowByCode(code) || {};
-      const card = document.createElement("div");
-      card.className = "chart-card";
-      card.dataset.code = code;
-      if (state.selected === code) card.classList.add("selected");
-      if (state.hovered === code && state.selected !== code) card.classList.add("is-hover");
-      card.innerHTML =
-        "<h4>" + escapeHtml(code) + " " + escapeHtml(row.name || "") + "</h4>" +
-        "<div class=\"hover\"></div>" +
-        "<div class=\"chart-slot\" aria-hidden=\"true\"></div>";
-      card.addEventListener("mouseenter", () => setHoveredCode(code, { from: "chart" }));
-      card.addEventListener("mouseleave", () => {
-        if (state.hovered === code) setHoveredCode(null);
-      });
-      card.addEventListener("click", (ev) => {
-        const canvas = card.querySelector("canvas");
-        if (canvas && canvas._suppressClick) {
-          canvas._suppressClick = false;
-          ev.preventDefault();
-          ev.stopPropagation();
-          return;
-        }
-        selectCode(code, { scrollTable: true });
-      });
+      let card = existing.get(code);
+      if (!card) {
+        card = makeChartCard(code);
+        observer.observe(card);
+      } else {
+        const selected = state.selected === code;
+        const hovered = state.hovered === code && !selected;
+        card.classList.toggle("selected", selected);
+        card.classList.toggle("is-hover", hovered);
+        applyChartCardChrome(card.querySelector("wa-card"), selected, hovered);
+      }
       frag.appendChild(card);
-      cards.push(card);
     });
     host.appendChild(frag);
 
-    state.chartObserver = new IntersectionObserver((entries) => {
-      entries.forEach((en) => {
-        if (en.isIntersecting) paintChartCard(en.target);
-      });
-    }, { root: host, rootMargin: "160px 0px", threshold: 0.01 });
-
-    cards.forEach((card) => state.chartObserver.observe(card));
-
-    // Restore scroll if list length similar; otherwise keep top / focus selection.
     host.scrollTop = prevScroll;
     if (state.selected) scrollChartCardIntoView(state.selected);
     else if (state.hovered) scrollChartCardIntoView(state.hovered);
@@ -1744,6 +3645,15 @@
     { key: "link_minkabu", label: "\u307f\u3093\u304b\u3076" },
     { key: "link_yahoo", label: "Yahoo!\u30d5\u30a1\u30a4\u30ca\u30f3\u30b9" },
   ];
+  const TAB_TIP_IDS = {
+    overview: "web_overview",
+    chart: "web_chart",
+    news: "web_news",
+    news_candidates: "web_news_candidates",
+    link_buffett: "web_buffett",
+    link_minkabu: "web_minkabu",
+    link_yahoo: "web_yahoo",
+  };
   const TAB_SETTINGS_KEY = "web_ui_asof_tab_settings_v1";
 
   function loadTabSettings() {
@@ -1778,21 +3688,33 @@
     const panel = $("tab-settings-panel");
     if (!panel) return;
     panel.innerHTML = "";
+    const ui = chrome();
     TAB_SETTINGS_META.forEach((meta) => {
-      const lab = document.createElement("label");
-      const cb = document.createElement("input");
-      cb.type = "checkbox";
-      cb.checked = !!state.tabSettings[meta.key];
-      cb.addEventListener("change", () => {
-        state.tabSettings[meta.key] = cb.checked;
+      const onToggle = (isOn) => {
+        state.tabSettings[meta.key] = !!isOn;
         saveTabSettings();
         const row = state.rows.find((r) => String(r.code).padStart(4, "0") === state.selected) || null;
         renderKabutanTabBar(row);
         if (row) applyKabutanUrl(row, state.kabutanMode);
         else showWebEmpty();
-      });
+      };
+      const tipId = TAB_TIP_IDS[meta.key] || "";
+      if (ui && ui.checkbox) {
+        const cb = ui.checkbox(meta.label, !!state.tabSettings[meta.key], false);
+        attachLabelTip(cb, tipId);
+        if (ui.onCheck) ui.onCheck(cb, onToggle);
+        else cb.addEventListener("change", () => onToggle(!!cb.checked));
+        panel.appendChild(cb);
+        return;
+      }
+      const lab = document.createElement("label");
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = !!state.tabSettings[meta.key];
+      cb.addEventListener("change", () => onToggle(!!cb.checked));
       lab.appendChild(cb);
       lab.appendChild(document.createTextNode(" " + meta.label));
+      attachLabelTip(lab, tipId);
       panel.appendChild(lab);
     });
   }
@@ -1834,61 +3756,96 @@
     const main = $("kabutan-tabs-main");
     if (!main) return;
     if (!state.tabSettings) loadTabSettings();
-    main.innerHTML = "";
+    const ui = chrome();
+    const children = [];
+    let panelIndex = 0;
+    let unknownNote = "";
 
-    const baseLabels = { overview: "\u6982\u8981", chart: "\u30c1\u30e3\u30fc\u30c8", news: "\u30cb\u30e5\u30fc\u30b9" };
-    ["overview", "chart", "news"].forEach((id) => {
-      if (!state.tabSettings[id]) return;
+    function addTab(id, label, opts) {
+      const options = opts || {};
+      const panel = "kabutan-panel-" + panelIndex;
+      panelIndex += 1;
+      const active = state.kabutanMode === id;
+      if (ui && ui.tab) {
+        const t = ui.tab({
+          panel,
+          label,
+          title: options.title,
+          disabled: options.disabled,
+          active,
+          candidate: options.candidate,
+        });
+        t.dataset.kab = id;
+        if (options.labelTip) t.dataset.labelTip = options.labelTip;
+        if (options.cand) t.dataset.cand = options.cand;
+        children.push(t);
+        if (ui.tabPanel) children.push(ui.tabPanel(panel, active));
+        return;
+      }
       const btn = document.createElement("button");
       btn.type = "button";
       btn.dataset.kab = id;
-      btn.textContent = baseLabels[id];
-      main.appendChild(btn);
+      btn.textContent = label;
+      if (options.disabled) btn.disabled = true;
+      if (options.title) btn.title = options.title;
+      if (options.labelTip) btn.dataset.labelTip = options.labelTip;
+      if (options.cand) btn.dataset.cand = options.cand;
+      if (options.candidate) btn.classList.add("is-candidate");
+      children.push(btn);
+    }
+
+    ["overview", "chart", "news"].forEach((id) => {
+      if (!state.tabSettings[id]) return;
+      const meta = TAB_SETTINGS_META.find((x) => x.key === id);
+      addTab(id, meta ? meta.label : id, { labelTip: TAB_TIP_IDS[id] });
     });
 
     ["link_buffett", "link_minkabu", "link_yahoo"].forEach((id) => {
       if (!state.tabSettings[id]) return;
       const meta = TAB_SETTINGS_META.find((x) => x.key === id);
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.dataset.kab = id;
-      btn.textContent = meta ? meta.label : id;
-      if (row && !row[id]) {
-        btn.disabled = true;
-        btn.title = "URL\u306a\u3057";
-      }
-      main.appendChild(btn);
+      addTab(id, meta ? meta.label : id, {
+        disabled: !!(row && !row[id]),
+        title: row && !row[id] ? "URL\u306a\u3057" : "",
+        labelTip: TAB_TIP_IDS[id],
+      });
     });
 
     if (state.tabSettings.news_candidates && row) {
       if (isUnknownMaterialRow(row)) {
-        const span = document.createElement("span");
-        span.className = "kabutan-unknown-material";
-        span.textContent = UNKNOWN_MATERIAL_TEXT;
-        main.appendChild(span);
+        unknownNote = UNKNOWN_MATERIAL_TEXT;
       } else {
         const items = eventNewsItems(row).filter((it) => it.title !== UNKNOWN_MATERIAL_TEXT);
         items.forEach((it) => {
-          const btn = document.createElement("button");
-          btn.type = "button";
-          btn.dataset.cand = String(it.n);
-          btn.dataset.kab = "cand:" + it.n;
-          btn.textContent = tabLabel10(it.title);
-          btn.title = it.title + (it.url ? ("\n" + it.url) : "");
-          btn.addEventListener("click", (ev) => {
-            ev.preventDefault();
-            ev.stopPropagation();
-            state.kabutanMode = "cand:" + it.n;
-            setKabutanActive(state.kabutanMode);
-            applyKabutanUrl(row, state.kabutanMode);
+          addTab("cand:" + it.n, tabLabel10(it.title), {
+            title: it.title + (it.url ? ("\n" + it.url) : ""),
+            cand: String(it.n),
+            candidate: true,
+            labelTip: "event_news_bundle",
           });
-          main.appendChild(btn);
         });
       }
     }
 
+    main.dataset.syncing = "true";
+    main.replaceChildren(...children);
+    const noteClass = "surface-tab-note";
+    const tabsBar = main.parentElement;
+    if (tabsBar) {
+      tabsBar.querySelectorAll("." + noteClass + ", .kabutan-unknown-material").forEach((el) => el.remove());
+      if (unknownNote) {
+        const span = document.createElement("span");
+        span.className = noteClass + " kabutan-unknown-material";
+        span.textContent = unknownNote;
+        main.insertAdjacentElement("afterend", span);
+      }
+    }
     ensureValidKabutanMode(row);
     setKabutanActive(state.kabutanMode);
+    Promise.resolve(main.updateComplete).then(() => {
+      requestAnimationFrame(() => {
+        delete main.dataset.syncing;
+      });
+    });
   }
 
   function isLikelyUnframeable(url) {
@@ -1968,8 +3925,9 @@
   function kabutanUrl(row, mode) {
     const code = String(row.code).padStart(4, "0");
     if (mode && String(mode).startsWith("cand:")) {
-      const n = String(mode).slice(5);
-      const url = row["event_news_" + n + "_url"];
+      const n = Number(String(mode).slice(5));
+      const item = eventNewsItems(row).find((it) => it.n === n);
+      const url = item && item.url;
       return url ? String(url) : null;
     }
     if (mode === "link_buffett" || mode === "link_minkabu" || mode === "link_yahoo") {
@@ -1983,9 +3941,35 @@
   function setKabutanActive(mode) {
     const host = $("kabutan-tabs-main") || document.querySelector(".kabutan-tabs");
     if (!host) return;
+    let activePanel = "";
     host.querySelectorAll("[data-kab]").forEach((b) => {
-      b.classList.toggle("active", b.dataset.kab === mode);
+      const on = b.dataset.kab === mode;
+      b.classList.toggle("active", on);
+      if (b.tagName === "WA-TAB") {
+        if (on) {
+          b.setAttribute("active", "");
+          activePanel = b.getAttribute("panel") || "";
+        } else {
+          b.removeAttribute("active");
+        }
+      }
     });
+    if (activePanel) host.setAttribute("active", activePanel);
+  }
+
+  // 株探のページ先頭はバナー広告とパンくず。本文の #container はその直下。
+  // 別オリジンのため iframe の scrollTop は触れない。フラグメントで初期位置だけ合わせる。
+  function kabutanEmbedUrl(url) {
+    try {
+      const parsed = new URL(url);
+      const host = parsed.hostname.toLowerCase();
+      if (host !== "kabutan.jp" && host !== "www.kabutan.jp") return url;
+      if (parsed.hash) return url;
+      parsed.hash = "container";
+      return parsed.toString();
+    } catch (err) {
+      return url;
+    }
   }
 
   function applyKabutanUrl(row, mode) {
@@ -2028,7 +4012,7 @@
     if (state.kabutanTimer) clearTimeout(state.kabutanTimer);
     frame.src = "about:blank";
     setTimeout(() => {
-      frame.src = url;
+      frame.src = kabutanEmbedUrl(url);
     }, 0);
   }
 
@@ -2046,26 +4030,78 @@
 
   function fillAsOfSelect() {
     const sel = $("asof-mode");
-    sel.innerHTML = "";
-    state.availableDates.forEach((d) => {
-      const opt = document.createElement("option");
-      opt.value = d;
-      opt.textContent = d;
-      if (d === state.asOf) opt.selected = true;
-      sel.appendChild(opt);
+    const ui = chrome();
+    const items = (state.availableDates || []).map((d) => ({ value: d, text: d }));
+    if (ui && ui.fillSelect) ui.fillSelect(sel, items, state.asOf);
+    else {
+      sel.replaceChildren();
+      state.availableDates.forEach((d) => {
+        const opt = document.createElement("option");
+        opt.value = d;
+        opt.textContent = d;
+        sel.appendChild(opt);
+      });
+    }
+    if (!state.asOf) return;
+    sel.value = state.asOf;
+    [...sel.querySelectorAll("wa-option, option")].forEach((opt) => {
+      if (opt.value === state.asOf) opt.setAttribute("selected", "");
+      else opt.removeAttribute("selected");
     });
+  }
+
+  function formatJstStamp(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    const parts = new Intl.DateTimeFormat("sv-SE", {
+      timeZone: "Asia/Tokyo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(d);
+    const get = (type) => {
+      const part = parts.find((item) => item.type === type);
+      return part ? part.value : "";
+    };
+    const stamp = get("year") + "-" + get("month") + "-" + get("day") + " " + get("hour") + ":" + get("minute");
+    return stamp.trim() === "-" ? "" : stamp + " JST";
+  }
+
+  function updateDataStamp() {
+    const el = $("data-updated");
+    if (!el) return;
+    const stamp = formatJstStamp(state.dataUpdatedAt);
+    el.textContent = stamp ? ("最終更新 " + stamp) : "";
   }
 
   function updateBanner() {
     const source = state.meta.csv_source === "ohlc_universe"
-      ? " | csv_source=ohlc_universe（ニュース/銘柄名は空。現行OHLCユニバース）"
+      ? " / ニュースと銘柄名は空です（現行のOHLCユニバース）"
       : "";
     $("asof-banner").textContent =
-      "as-of=" + state.meta.as_of +
-      " rows=" + state.meta.n_rows +
-      " axis=" + ((state.meta.axis_dates || []).length) +
+      "基準日 " + state.meta.as_of +
+      " / " + state.meta.n_rows + "銘柄" +
+      " / " + ((state.meta.axis_dates || []).length) + "営業日" +
       source +
       " | 内部向け初回ライブ。投資助言ではありません。";
+    updateDataStamp();
+    if (
+      state.bundleNotice &&
+      state.bundleNotice.trade_date === state.asOf &&
+      state.bundleNotice.committed_at_utc === state.dataUpdatedAt
+    ) {
+      const notice = $("bundle-notice");
+      if (notice) notice.hidden = true;
+      state.bundleNotice = null;
+    }
+  }
+
+  function priceTextAvailable() {
+    return state.allKeys.includes("price_text") || state.allKeys.includes("candle_labels");
   }
 
   function computeDefaultVisibleKeys() {
@@ -2073,6 +4109,7 @@
       if (k === "date" || HIDDEN_COL_KEYS.has(k)) return false;
       if (LINK_KEYS_OPTIONAL.has(k)) return false;
       if (k === "favorite") return true;
+      if (k === "price_text") return priceTextAvailable();
       if (k === "event_news_bundle") {
         return (
           state.allKeys.includes("event_news_bundle") ||
@@ -2091,7 +4128,28 @@
 
   function keyAvailable(k) {
     if (k === "favorite") return true;
+    if (k === "price_text") return priceTextAvailable();
     return state.allKeys.includes(k) || state.allKeys.includes(mapKey(k));
+  }
+
+  function orderVisibleKeys(keys, defaults) {
+    const preferred = window.__WEB_UI_VISIBLE_ORDER;
+    const basis = Array.isArray(preferred) && preferred.length ? preferred : (defaults || []);
+    const have = new Set(keys);
+    const ordered = [];
+    basis.forEach((k) => {
+      if (have.has(k)) {
+        ordered.push(k);
+        have.delete(k);
+      }
+    });
+    keys.forEach((k) => {
+      if (have.has(k)) {
+        ordered.push(k);
+        have.delete(k);
+      }
+    });
+    return ordered;
   }
 
   function reconcileVisibleKeys(defaults) {
@@ -2109,7 +4167,7 @@
         const newly = defaults.filter(
           (k) => !snapshot.includes(k) && !kept.includes(k) && keyAvailable(k)
         );
-        state.visibleKeys = [...new Set([...kept, ...newly])];
+        state.visibleKeys = orderVisibleKeys([...kept, ...newly], defaults);
       }
       state.visibleKeysReady = true;
     } else {
@@ -2117,18 +4175,23 @@
       const add = defaults.filter(
         (k) => newlyInBundle.has(k) && !kept.includes(k) && keyAvailable(k)
       );
-      state.visibleKeys = [...new Set([...kept, ...add])];
+      state.visibleKeys = orderVisibleKeys([...kept, ...add], defaults);
     }
     state.prevAllKeys = state.allKeys.slice();
     state.prefsDefaultKeysSnapshot = defaults.slice();
   }
 
   async function loadSnapshot(asOf) {
+    bootProgress("データを読み込んでいます", 0.58);
     state.asOf = asOf;
     state.seriesCache = {};
     state.visibleChartCodes = [];
     state.selected = null;
     state.hovered = null;
+    if (state.chartObserver) {
+      state.chartObserver.disconnect();
+      state.chartObserver = null;
+    }
     $("chart-host").innerHTML = "";
     showWebEmpty();
     state.kabutanMode = "overview";
@@ -2150,14 +4213,145 @@
     ensureColDefs();
     reconcileVisibleKeys(computeDefaultVisibleKeys());
 
+    bootProgress("画面を描画しています", 0.96);
     updateBanner();
     fillAsOfSelect();
     renderColsPanel();
     renderTable();
+    const app = $("app-root");
+    if (app) app.hidden = false;
+    hideBootProgress();
+  }
+
+  const BUNDLE_WATCH_MS = 300000;
+  let bundleWatchTimer = null;
+
+  function latestBundleCommit(commits, bench) {
+    let best = null;
+    for (const row of commits || []) {
+      if (!row || row.benchmark !== bench || !row.trade_date) continue;
+      const at = String(row.committed_at_utc || "");
+      if (
+        !best ||
+        row.trade_date > best.trade_date ||
+        (row.trade_date === best.trade_date && at > String(best.committed_at_utc || ""))
+      ) {
+        best = row;
+      }
+    }
+    return best;
+  }
+
+  function bundleCommitKey(row) {
+    if (!row) return "";
+    return String(row.trade_date || "") + "|" + String(row.committed_at_utc || "");
+  }
+
+  function hideBundleNotice() {
+    const notice = $("bundle-notice");
+    if (notice) notice.hidden = true;
+    state.bundleNotice = null;
+  }
+
+  function showBundleNotice(commit, datesBefore) {
+    const el = $("bundle-notice");
+    const text = $("bundle-notice-text");
+    if (!el || !text || !commit) return;
+    const date = String(commit.trade_date);
+    const known = (datesBefore || []).indexOf(date) >= 0;
+    state.bundleNotice = {
+      trade_date: date,
+      committed_at_utc: commit.committed_at_utc || null,
+    };
+    text.textContent = known && date === state.asOf
+      ? "基準日 " + date + " の束が更新されました。最終更新を反映しました。表示中の数値は、読み込み直すまでそのままです。"
+      : "基準日 " + date + " の束が配信されました。基準日の選択肢に追加しました。表示中の数値は、その基準日を選ぶまでそのままです。";
+    el.hidden = false;
+  }
+
+  function applyBundleIndex(payload, announce) {
+    const commits = Array.isArray(payload && payload.commits) ? payload.commits : null;
+    const incoming = Array.isArray(payload && payload.dates) ? payload.dates.filter(Boolean) : [];
+    const datesBefore = (state.availableDates || []).slice();
+    if (incoming.length) {
+      const merged = incoming.slice();
+      if (state.asOf && merged.indexOf(state.asOf) < 0) merged.push(state.asOf);
+      merged.sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
+      const changed = merged.join("\n") !== datesBefore.join("\n");
+      state.availableDates = merged;
+      if (changed) fillAsOfSelect();
+    }
+    if (!commits) return;
+    const current = commits.find((row) => row.trade_date === state.asOf && row.benchmark === state.bench);
+    if (current && current.committed_at_utc && current.committed_at_utc !== state.dataUpdatedAt) {
+      state.dataUpdatedAt = current.committed_at_utc;
+      updateDataStamp();
+    }
+    const latest = latestBundleCommit(commits, state.bench);
+    const key = bundleCommitKey(latest);
+    if (!announce) {
+      state.seenBundleKey = key;
+      return;
+    }
+    if (key && key !== state.seenBundleKey) {
+      showBundleNotice(latest, datesBefore);
+      state.seenBundleKey = key;
+    }
+  }
+
+  function bundleWatchOpen(now) {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Tokyo",
+      weekday: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(now || new Date());
+    const get = (type) => {
+      const part = parts.find((item) => item.type === type);
+      return part ? part.value : "";
+    };
+    const weekday = get("weekday");
+    if (weekday === "Sat" || weekday === "Sun") return false;
+    const minutes = Number(get("hour")) * 60 + Number(get("minute"));
+    return minutes >= 16 * 60 && minutes < 22 * 60;
+  }
+
+  async function refreshBundleIndex() {
+    if (document.visibilityState === "hidden") return;
+    if (!bundleWatchOpen()) return;
+    let payload;
+    try {
+      payload = await bffFetch("/v1/dates");
+    } catch (err) {
+      if (err && err.t5 === "login" && !liveCtx() && bundleWatchTimer) {
+        clearInterval(bundleWatchTimer);
+        bundleWatchTimer = null;
+      }
+      return;
+    }
+    applyBundleIndex(payload, true);
+  }
+
+  function startBundleWatch(initialPayload) {
+    applyBundleIndex(initialPayload, false);
+    const dismiss = $("bundle-notice-dismiss");
+    if (dismiss && dismiss.dataset.bound !== "1") {
+      dismiss.dataset.bound = "1";
+      dismiss.addEventListener("click", hideBundleNotice);
+    }
+    if (bundleWatchTimer) return;
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") refreshBundleIndex();
+    });
+    bundleWatchTimer = setInterval(refreshBundleIndex, BUNDLE_WATCH_MS);
   }
 
   async function boot() {
+    bindLabelTips();
+    bootProgress("基準日の一覧を取得しています", 0.42);
     const datesPayload = await bffFetch("/v1/dates");
+    state.bundleIndex = datesPayload;
     state.availableDates = datesPayload.dates || [];
     state.asOf = datesPayload.default || (state.availableDates[0] || null);
     if (!state.asOf) {
@@ -2166,22 +4360,32 @@
       return;
     }
 
-    $("asof-mode").addEventListener("change", (e) => {
-      loadSnapshot(e.target.value).catch((err) => {
-        $("asof-banner").textContent = "as-of switch failed: " + err;
+    const uiBoot = chrome();
+    const onAsof = (value) => {
+      loadSnapshot(value).catch((err) => {
+        hideBootProgress();
+        $("asof-banner").textContent = "基準日の切り替えに失敗しました。 " + err;
       });
-    });
-    $("bench-mode").addEventListener("change", (e) => {
-      state.bench = e.target.value;
+    };
+    const onBench = (value) => {
+      state.bench = value;
       schedulePrefsSave();
       loadSnapshot(state.asOf).catch((err) => {
         showT5(err && err.t5 ? err.t5 : "temporary");
       });
-    });
+    };
+    if (uiBoot && uiBoot.onSelectChange) {
+      uiBoot.onSelectChange($("asof-mode"), onAsof);
+      uiBoot.onSelectChange($("bench-mode"), onBench);
+    } else {
+      $("asof-mode").addEventListener("change", (e) => onAsof(e.target.value));
+      $("bench-mode").addEventListener("change", (e) => onBench(e.target.value));
+    }
     const ctx = liveCtx();
     state.userId = (ctx && ctx.uid) || "operator";
     state.freePreview = false;
     try {
+      bootProgress("表示設定を読み込んでいます", 0.52);
       const prefs = await bffFetch("/v1/preferences");
       await applyPrefsBag(prefs.bag || {});
     } catch (err) {
@@ -2198,6 +4402,71 @@
     }
     setFavoritesUiEnabled(!state.freePreview);
     syncFilterModalUi();
+    bindAccountMenu();
+    bindConfirmDialog();
+    markNonCredentialInput($("fav-list-new-name"), "list-label");
+    markNonCredentialInput($("fav-list-rename"), "list-label");
+    bindHalfWidthCodeInput($("fav-list-add-code"));
+    const favAddCode = $("fav-list-add-code");
+    if (favAddCode) {
+      favAddCode.addEventListener("input", updateFavAddCodeHint);
+      favAddCode.addEventListener("wa-input", updateFavAddCodeHint);
+    }
+    const favAdd = $("fav-list-add");
+    if (favAdd) {
+      favAdd.addEventListener("click", () => {
+        const nameEl = $("fav-list-new-name");
+        const created = createFavList(nameEl ? nameEl.value : "");
+        if (created && nameEl) nameEl.value = "";
+        if (created) {
+          state.favModalListId = created.id;
+          renderFavListsModal();
+        }
+      });
+    }
+    const favRename = $("fav-list-rename");
+    if (favRename) {
+      favRename.addEventListener("change", () => commitFavListRename());
+      favRename.addEventListener("wa-change", () => commitFavListRename());
+      favRename.addEventListener("wa-blur", () => commitFavListRename());
+      favRename.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter") {
+          ev.preventDefault();
+          commitFavListRename();
+          favRename.blur();
+        }
+      });
+    }
+    const favDelete = $("fav-list-delete");
+    if (favDelete) {
+      favDelete.addEventListener("click", () => {
+        const list = findFavList(state.favModalListId);
+        if (!list || state.favLists.length <= 1) return;
+        confirmDestructive("「" + list.name + "」を削除しますか？", () => deleteFavList(list.id));
+      });
+    }
+    const favCodeForm = $("fav-lists-add-code-form");
+    if (favCodeForm) {
+      favCodeForm.addEventListener("submit", (ev) => {
+        ev.preventDefault();
+        const input = $("fav-list-add-code");
+        const btn = $("fav-list-add-code-btn");
+        if ((input && input.disabled) || (btn && btn.disabled)) return;
+        const ok = addCodeToFavList(state.favModalListId, input ? input.value : "");
+        if (ok && input) input.value = "";
+        updateFavAddCodeHint();
+      });
+    }
+    const favClose = $("fav-lists-close");
+    const favDone = $("fav-lists-done");
+    const favModal = $("fav-lists-modal");
+    if (favClose) favClose.addEventListener("click", () => closeFavListsModal());
+    if (favDone) favDone.addEventListener("click", () => closeFavListsModal());
+    if (favModal) {
+      favModal.addEventListener("click", (ev) => {
+        if (ev.target && ev.target.getAttribute("data-fav-lists-close") === "1") closeFavListsModal();
+      });
+    }
     $("cols-toggle").addEventListener("click", () => openColsModal());
     $("cols-modal-close").addEventListener("click", () => closeColsModal());
     $("cols-modal-done").addEventListener("click", () => closeColsModal());
@@ -2218,37 +4487,63 @@
     $("filter-modal").addEventListener("click", (ev) => {
       if (ev.target && ev.target.getAttribute("data-filter-close") === "1") closeFilterModal();
     });
-    $("filter-exclude-all-rs-neg").addEventListener("change", (e) => {
+    const excludeCb = $("filter-exclude-all-rs-neg");
+    const onExclude = (checked) => {
       if (state.freePreview) {
-        e.target.checked = false;
+        excludeCb.checked = false;
         state.excludeAllRsNeg = false;
         syncFilterModalUi();
         return;
       }
-      state.excludeAllRsNeg = e.target.checked;
+      state.excludeAllRsNeg = !!checked;
       schedulePrefsSave();
-      state.visibleChartCodes = [];
-      $("chart-host").innerHTML = "";
-      renderTable();
-    });
+      requestViewRefresh();
+    };
+    if (uiBoot && uiBoot.onCheck) uiBoot.onCheck(excludeCb, onExclude);
+    else excludeCb.addEventListener("change", (e) => onExclude(e.target.checked));
     document.addEventListener("keydown", (ev) => {
       if (ev.key !== "Escape") return;
+      if ($("confirm-dialog") && $("confirm-dialog").open) return;
+      if ($("fav-lists-modal") && !$("fav-lists-modal").classList.contains("hidden")) closeFavListsModal();
       if (!$("cols-modal").classList.contains("hidden")) closeColsModal();
       if (!$("filter-modal").classList.contains("hidden")) closeFilterModal();
       if (!$("tab-settings-modal").classList.contains("hidden")) closeTabSettingsModal();
       closeFilterMenu();
+      closeAccountMenu();
+      closeFavFlyout();
     });
-    document.addEventListener("click", () => closeFilterMenu());
-    $("kabutan-tabs-main").addEventListener("click", (ev) => {
-      const btn = ev.target.closest("[data-kab]");
-      if (!btn || !ev.currentTarget.contains(btn)) return;
-      if (btn.hasAttribute("data-cand")) return;
-      if (btn.disabled) return;
-      ev.preventDefault();
-      state.kabutanMode = btn.dataset.kab;
+    document.addEventListener("click", (ev) => {
+      const t = ev.target;
+      if (t && t.closest && t.closest(".col-filter-menu, .fav-filter-anchor, .fav-flyout, .account-menu, .th-filter-btn, [data-surface-header], wa-dropdown")) {
+        return;
+      }
+      closeFilterMenu();
+      closeAccountMenu();
+      closeFavFlyout();
+    });
+    const tabHost = $("kabutan-tabs-main");
+    function applyKabutanFromTab(tab) {
+      if (!tab || tab.disabled) return;
+      const mode = tab.dataset.kab;
+      if (!mode) return;
+      state.kabutanMode = mode;
       setKabutanActive(state.kabutanMode);
       const row = state.rows.find((r) => String(r.code).padStart(4, "0") === state.selected);
       if (row) applyKabutanUrl(row, state.kabutanMode);
+    }
+    tabHost.addEventListener("wa-tab-show", (ev) => {
+      if (tabHost.dataset.syncing === "true") return;
+      const name = ev.detail && ev.detail.name;
+      const tab = [...tabHost.querySelectorAll("wa-tab")].find((el) => el.getAttribute("panel") === name);
+      applyKabutanFromTab(tab);
+    });
+    tabHost.addEventListener("click", (ev) => {
+      const btn = ev.target.closest("[data-kab]");
+      if (!btn || !tabHost.contains(btn)) return;
+      if (btn.tagName === "WA-TAB") return;
+      if (btn.disabled) return;
+      ev.preventDefault();
+      applyKabutanFromTab(btn);
     });
 
     ensureColDefs();
@@ -2256,6 +4551,7 @@
     initKabutanSplitter();
     renderLegend();
     await loadSnapshot(state.asOf);
+    startBundleWatch(datesPayload);
   }
 
   window.__webUiBoot = function webUiBoot() {

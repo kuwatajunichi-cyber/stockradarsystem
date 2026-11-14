@@ -573,14 +573,14 @@ def compute_candle_descriptors(
         today_high = today_row["High"]
         today_low = today_row["Low"]
         
-        # 前日の最高値 < 当日の最低値 → 下窓＋（GAP_DOWN、price_text）
+        # 酒田・チャート用語: 当日レンジが前日より上に完全に離れたら上窓（GAP_UP）
         if prev_high < today_low:
-            if "GAP_DOWN" not in labels.split(","):
-                labels = labels + ",GAP_DOWN" if labels else "GAP_DOWN"
-        # 前日の最低値 > 当日の最高値 → 上窓＋（GAP_UP、price_text）
-        elif prev_low > today_high:
             if "GAP_UP" not in labels.split(","):
                 labels = labels + ",GAP_UP" if labels else "GAP_UP"
+        # 当日レンジが前日より下に完全に離れたら下窓（GAP_DOWN）
+        elif prev_low > today_high:
+            if "GAP_DOWN" not in labels.split(","):
+                labels = labels + ",GAP_DOWN" if labels else "GAP_DOWN"
 
     # price_text生成
     price_text = compute_price_text(latest_df, labels, latest_q_sr)

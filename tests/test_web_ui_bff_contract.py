@@ -59,6 +59,10 @@ def test_bff_source_has_t5_and_no_secrets() -> None:
     assert "/v1/session" in blob
     assert "/v1/dates" in blob
     assert "/v1/mint" in blob
+    assert "committed_at_utc: row.committed_at_utc" in blob
+    assert "select=trade_date,benchmark,committed_at_utc" in blob
+    assert "function latestWebAsOfCommits" in blob
+    assert "commits" in blob
     assert "active_metric_set" in blob
     assert "metric_set_version_id=eq." in blob
     jwt = _read(_BFF / "src" / "jwt.js")
@@ -122,7 +126,9 @@ def test_static_config_exposes_bff_origin() -> None:
     assert "DecompressionStream" in app
     assert "Authorization" in app
     assert "signed_url" in app
+    assert "committed_at_utc" in app
     assert "textContent = minted" not in app
     live = _read(_STATIC / "assets" / "live.js")
     assert "signInWithOtp" in live
-    assert "csv_source=ohlc_universe" in app
+    assert 'csv_source === "ohlc_universe"' in app
+    assert "ニュースと銘柄名は空です（現行のOHLCユニバース）" in app

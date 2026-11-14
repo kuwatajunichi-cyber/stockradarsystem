@@ -197,9 +197,11 @@
 
 **列**: `candle_labels`（構造化ラベル）、`price_text`（表示用テキスト）
 
-詳細は [OHLC 記述子仕様 v1.2（設計正本）](../OHLC_desripter_v1.2.md) を参照。
+詳細は [OHLC 記述子仕様 v1.3（設計正本）](../OHLC_desripter_v1.3.md) を参照。
 
 **日次 CSV / 配布 XLSX**: CSV では両列。XLSX では **`price_text` のみ**（列 H「日足形状」相当）。**部分文字列条件**によるセル塗り分け（陽線・陰線・S高・S安・構造要因疑い・レンジ0 等）がテンプレ側に定義されている。`candle_labels` は表には出さない。
+
+**Web UI**: 表の「(当日の価格挙動)」は `candle_labels` からクライアントが合成する。バンドルに `price_text` があってもラベルがあれば使わない。`price_text` はラベル欠落時のフォールバック。Excel の `price_text` はサーバ生成のまま。
 
 ---
 

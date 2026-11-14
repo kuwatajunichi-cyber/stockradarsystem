@@ -1,11 +1,41 @@
 schema_version: 1
 phase: '5'
-last_updated_utc: '2026-10-04T20:50:00+09:00'
+last_updated_utc: '2026-11-12T21:34:16+09:00'
 overall_status: in_progress
 implementation_snapshot:
   local_worktree_has_unmerged_changes: true
-  note: 'v1.1 ops CAS 主張 a2a12909. daily YAML bind 未マージのため月曜 main daily は v1_free を v1.1 UUID に書き得る. ローカル 59 as-of は live 証拠ではない. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
+  note: 'web-ui-static version c81b8171-ea7f-4483-95e6-4f6e1f465cd2 deployed (kabutan embed opens at #container, below the banner and breadcrumb). Active deployment after secret put is 0fc7b2ff-99e1-4c5e-9f92-cdc592962618. web-ui-bff version 38f19b12-18c5-43ea-9eaf-b55672adf050 unchanged. dispatcher unchanged. workers_dev true. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
 correction_log:
+- at_utc: '2026-11-12T21:34:16+09:00'
+  reason: 'Deployed web-ui-static c81b8171 (kabutan iframe src uses #container so the initial view starts below the banner and breadcrumb). Active deployment after secret put is 0fc7b2ff. web-ui-bff 38f19b12 unchanged. github-cron-dispatcher not deployed. workers_dev true. local unmerged. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
+- at_utc: '2026-11-11T23:12:00+09:00'
+  reason: 'Deployed web-ui-static 0272425c (bundle poll refreshes the Supabase access token and does not stop the weekday 16:00-22:00 JST 5 min watch on a recoverable 401). live.js and app.js only. web-ui-bff 38f19b12 unchanged. github-cron-dispatcher not deployed. workers_dev true. local unmerged. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
+- at_utc: '2026-11-11T09:25:00+09:00'
+  reason: 'Deployed web-ui-static a87fe3a9 (display GAP_DOWN as 上窓＋ and GAP_UP as 下窓＋; stored labels unchanged). price-text.js only. web-ui-bff 38f19b12 unchanged. github-cron-dispatcher not deployed. workers_dev true. local unmerged. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
+- at_utc: '2026-11-11T03:15:00+09:00'
+  reason: 'Deployed web-ui-static b4303c02 (stock names wider than 142px break once at a delimiter). app.js and styles.css only. web-ui-bff 38f19b12 unchanged. github-cron-dispatcher not deployed. workers_dev true. local unmerged. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
+- at_utc: '2026-11-11T02:50:00+09:00'
+  reason: 'Deployed web-ui-static 537f5f79 (S高タッチ疑い and other exclusive price labels centered in the cell). only styles.css uploaded. web-ui-bff 38f19b12 unchanged. github-cron-dispatcher not deployed. workers_dev true. local unmerged. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
+- at_utc: '2026-11-11T02:40:00+09:00'
+  reason: 'Deployed web-ui-static 22d7652f (compact label token, ideal column/legend names, sort and filter bars, Consolas 14px on list and chart hover numbers, price cell layout). web-ui-bff 38f19b12 unchanged. github-cron-dispatcher not deployed. workers_dev true. local unmerged. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
+- at_utc: '2026-11-09T02:35:00+09:00'
+  reason: 'Deployed web-ui-static a7f27f2d (CF hue from unrounded value; 最終更新 and 基準日 watch with dismissable banner; poll weekdays 16:00-22:00 JST every 5 min) and web-ui-bff 38f19b12 (dates commits). github-cron-dispatcher not deployed. workers_dev true. local unmerged. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
+- at_utc: '2026-10-25T18:52:00+09:00'
+  reason: 'Deployed web-ui-static 3c165a6e (news-tab open button reads event_news_bundle URL). BFF and github-cron-dispatcher not deployed. workers_dev true. local unmerged. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
+- at_utc: '2026-10-25T17:12:00+09:00'
+  reason: 'Deployed web-ui-static 28bd444b (name column breaks before trailing halfwidth katakana). BFF and github-cron-dispatcher not deployed. workers_dev true. local unmerged. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
+- at_utc: '2026-10-25T01:32:00+09:00'
+  reason: 'Deployed web-ui-static 1c77aa0d (display labels, tooltips, two-line headers, empty-state copy). BFF and github-cron-dispatcher not deployed. workers_dev true. local unmerged. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
+- at_utc: '2026-10-24T01:47:00+09:00'
+  reason: 'Deployed web-ui-static 3cbaba83 (CF max alpha 1.5x, RS green Y0.75 / red Y0.25). BFF and github-cron-dispatcher not deployed. workers_dev true. local unmerged. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
+- at_utc: '2026-10-24T01:20:00+09:00'
+  reason: 'Deployed web-ui-static 826b4997 and web-ui-bff 58b3aeb1 (mint committed_at_utc for 最終更新). github-cron-dispatcher not deployed. workers_dev true. local unmerged. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
+- at_utc: '2026-10-23T23:58:00+09:00'
+  reason: 'Deployed web-ui-static 0800710d (favorites blank-only filter; only app.js changed vs prior live). BFF and github-cron-dispatcher not deployed. workers_dev true. local unmerged. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
+- at_utc: '2026-10-10T21:25:00+09:00'
+  reason: 'Deployed web-ui-static 8a2c6405 (client-composed price_text from candle_labels, GAP_UP/DOWN Sakata mapping, chart hover CF table). BFF and github-cron-dispatcher not deployed. workers_dev true. local unmerged. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
+- at_utc: '2026-10-09T03:04:00+09:00'
+  reason: 'Deployed web-ui-static 307ad29e (favorites lists, wa-dropdown account menu, wa-dialog delete confirm). BFF and github-cron-dispatcher not deployed. workers_dev true. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
 - at_utc: '2026-10-04T20:50:00+09:00'
   reason: 'Opus audit follow-up: T-5 JWKS/entitlements 503, backfill not_met for short lists, csv_source on bundle, BFF npm in CI, prototype isolation no longer blocks pr-5d merge. do not reverse CAS without GO. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
 - at_utc: '2026-10-04T20:40:00+09:00'
@@ -88,7 +118,7 @@ correction_log:
   reason: "Step 5.0: split Phase 5 into tracks A–E. pr_gates include 5.5a and remaining tracks as pending/local_only so 5.5a live close cannot\
     \ force overall closed. Calendar contract revised to closed_day_expected_ping before ping implementation."
 roadmap:
-  phase5_status_phrase: "in_progress（A/B live closed。020/022-024 本番 apply 済。v1.1 CAS 済。Web 束 2026-10-02 を新 UUID で再 commit。writer ゲートオン。U-6 人確認待ち。pr-5c/pr-5d pending。C/D/E pending）"
+  phase5_status_phrase: "in_progress（A/B live closed。020/022-024 本番 apply 済。v1.1 CAS 済。Web 束 2026-10-02 を新 UUID で再 commit。writer ゲートオン。web-ui-static c81b8171 / web-ui-bff 38f19b12 deploy。U-6 人確認待ち。pr-5c/pr-5d pending。C/D/E pending）"
 tracks:
   A_observability:
     description: "5.5a Healthchecks + 5.5b runs 集計（ops SQL。画面ではない）"
