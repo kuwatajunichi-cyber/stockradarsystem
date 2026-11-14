@@ -108,6 +108,8 @@ AC-1,5,6,7,10 完了。AC-9→Phase5。AC-2,3,4,8 部分。Phase 4 後監査の 
 Worker deploy gate, migration 記録, artifact_index.created_at_utc, contract stage dict。
 
 ## 改訂履歴
+2026-11-15 web-asof 窓トークン入れ替えの replay CLI と単体テストを追加（未スケジュール。日次 SMA75 ゲートは既定オン）。87 基準日の live rewrite は実施済み。BFF / static 未変更。pr-5c/5d pending。live_gate_5c/5d open。Issue #93 は OPEN。
+2026-11-14 配信済み web-asof 87 基準日の GAP_UP/GAP_DOWN を入れ替えて再 commit。パイロット 2026-08-18 generation e5e9fa4b。最新 2026-11-13 generation 0ca85092。cutoff 以降の束は対象外。BFF / static 未変更。pr-5c/5d pending。live_gate_5c/5d open。Issue #93 は OPEN。
 2026-11-14 web-ui-static を deploy（GAP_UP を上窓＋、GAP_DOWN を下窓＋と表示）。Version ac35aa92。price-text.js のみ。PR #184 を main へ merge（62c5e702）。BFF 38f19b12 と dispatcher は未変更。pr-5c/5d pending。live_gate_5c/5d open。Issue #93 は OPEN。
 2026-11-12 web-ui-static を deploy（株探埋め込みの初期位置をバナーとパンくずの下にする）。Version c81b8171。secret put 後の現行デプロイは 0fc7b2ff。BFF 38f19b12 と dispatcher は未変更。pr-5c/5d pending。live_gate_5c/5d open。Issue #93 は OPEN。
 2026-11-11 web-ui-static を deploy（ポーリングがアクセストークン更新後も平日 16:00-22:00 JST を 5 分間隔で続ける）。Version 0272425c。live.js と app.js のみ。BFF 38f19b12 と dispatcher は未変更。pr-5c/5d pending。live_gate_5c/5d open。Issue #93 は OPEN。

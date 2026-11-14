@@ -1,11 +1,15 @@
 schema_version: 1
 phase: '5'
-last_updated_utc: '2026-11-14T15:13:21+09:00'
+last_updated_utc: '2026-11-15T00:24:00+09:00'
 overall_status: in_progress
 implementation_snapshot:
   local_worktree_has_unmerged_changes: false
-  note: 'web-ui-static version ac35aa92-356b-40f6-ad7a-2a25d0a34396 deployed (price-text.js maps GAP_UP to 上窓＋ and GAP_DOWN to 下窓＋). PR 184 merged as 62c5e702. web-ui-bff version 38f19b12-18c5-43ea-9eaf-b55672adf050 unchanged. dispatcher unchanged. workers_dev true. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
+  note: 'Rewrote 87 committed web-asof as-of dates (topix+nikkei) swapping stored GAP_UP/GAP_DOWN. Pilot 2026-08-18 generation e5e9fa4b. Latest 2026-11-13 generation 0ca85092. Dry-run worklist empty after cutoff 2026-11-14T06:11:49Z. Gap-token swap replay CLI is opt-in and not in workflows. Daily SMA75 gate stays default on. web-ui-static ac35aa92 unchanged. web-ui-bff 38f19b12 unchanged. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
 correction_log:
+- at_utc: '2026-11-15T00:24:00+09:00'
+  reason: 'Add opt-in web_asof_gap_token_swap replay CLI and tests. Not scheduled. Daily SMA75 gate remains default on. Live rewrite of 87 as-of dates already recorded. web-ui-static ac35aa92 and web-ui-bff 38f19b12 unchanged. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
+- at_utc: '2026-11-14T15:56:11+09:00'
+  reason: 'Recommitted 87 pre-cutoff web-asof dates with swapped GAP_UP/GAP_DOWN tokens and 上窓＋/下窓＋ phrases. Numbers unchanged. Old gzip left in place. Cutoff 2026-11-14T06:11:49Z. Dry-run as_of_count 0. web-ui-static ac35aa92 and web-ui-bff 38f19b12 unchanged. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
 - at_utc: '2026-11-14T15:13:21+09:00'
   reason: 'Merged PR 184 at 62c5e702. Deployed web-ui-static ac35aa92 (price-text.js shows GAP_UP as 上窓＋ and GAP_DOWN as 下窓＋). web-ui-bff 38f19b12 unchanged. github-cron-dispatcher not deployed. workers_dev true. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
 - at_utc: '2026-11-12T21:34:16+09:00'
