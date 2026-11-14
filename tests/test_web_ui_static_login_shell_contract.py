@@ -459,8 +459,8 @@ def test_app_js_composes_price_text_from_candle_labels() -> None:
     assert "function orderVisibleKeys" in app
     assert 'state.allKeys.includes("candle_labels")' in app
     assert "window.StockRadarPriceText" in dictionary
-    assert '["GAP_UP", "\u4e0b\u7a93\uff0b"]' in dictionary
-    assert '["GAP_DOWN", "\u4e0a\u7a93\uff0b"]' in dictionary
+    assert '["GAP_UP", "\u4e0a\u7a93\uff0b"]' in dictionary
+    assert '["GAP_DOWN", "\u4e0b\u7a93\uff0b"]' in dictionary
     assert "function fromLabels" in dictionary
     assert "function hasCandleLabels" in dictionary
     assert "if (hasCandleLabels(row)) return fromLabels(row.candle_labels);" in dictionary

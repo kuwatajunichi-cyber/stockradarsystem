@@ -20,10 +20,10 @@
   const GROUPS = [
     [["GAP_DOMINANT", "ギャップ主導"]],
     [
-      // 本番の candle_labels は修正前の対応のまま。
-      // 上に離れた日が GAP_DOWN、下に離れた日が GAP_UP なので、表示語だけ逆にする。
-      ["GAP_UP", "下窓＋"],
-      ["GAP_DOWN", "上窓＋"],
+      // 酒田・チャート用語。compute_price_text と同じ対応。
+      // 再計算前の基準日はトークンが旧対応のままなので、窓の表示は逆になる。
+      ["GAP_UP", "上窓＋"],
+      ["GAP_DOWN", "下窓＋"],
     ],
     [
       ["RANGE_VERY_LARGE", "<極大>"],
