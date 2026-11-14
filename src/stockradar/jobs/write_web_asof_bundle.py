@@ -228,6 +228,7 @@ class WebAsofGenerationRequest:
     workflow: str = WEB_ASOF_SOURCE_WORKFLOW
     mode: str = "normal"
     sma75_eligible: Mapping[str, Sequence[bool]] | None = None
+    enforce_sma75: bool = True
 
 
 @dataclass(frozen=True)
@@ -273,17 +274,18 @@ def run_web_asof_generation(
                 exit_code=2,
                 reason=f"{bench} metric_set_version_id mismatch",
             )
-        eligible = None
-        if request.sma75_eligible is not None:
-            mask = request.sma75_eligible.get(bench)
-            if mask is not None:
-                eligible = list(mask)
-        if not sma75_cas_allowed(_sma75_values(payload), eligible=eligible):
-            return WebAsofGenerationResult(
-                status="error",
-                exit_code=2,
-                reason=f"{bench} rs_sma75 non-null rate below SMA75_NON_NULL_RATE_MIN",
-            )
+        if request.enforce_sma75:
+            eligible = None
+            if request.sma75_eligible is not None:
+                mask = request.sma75_eligible.get(bench)
+                if mask is not None:
+                    eligible = list(mask)
+            if not sma75_cas_allowed(_sma75_values(payload), eligible=eligible):
+                return WebAsofGenerationResult(
+                    status="error",
+                    exit_code=2,
+                    reason=f"{bench} rs_sma75 non-null rate below SMA75_NON_NULL_RATE_MIN",
+                )
         blob = gzip_bundle_bytes(payload)
         if len(blob) >= GZIP_MAX_BYTES:
             return WebAsofGenerationResult(
