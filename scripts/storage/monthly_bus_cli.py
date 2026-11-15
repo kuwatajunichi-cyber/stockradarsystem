@@ -13,7 +13,7 @@ if str(_REPO_ROOT / "src") not in sys.path:
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from stockradar.storage.mapping_catalog import load_mapping  # noqa: E402
+from stockradar.storage.mapping_catalog import load_mapping, resolve_phase4_rollout_stage  # noqa: E402
 from stockradar.storage.monthly_snapshot_manifest import (  # noqa: E402
     MONTHLY_CSV_NAMES,
     build_monthly_object_keys,
@@ -35,7 +35,6 @@ from stockradar.storage.phase4_rollout import (  # noqa: E402
     monthly_read_allows_github_fallback,
     monthly_shadow_write_enabled,
     monthly_write_is_fatal,
-    resolve_phase4_rollout_stage,
 )
 from stockradar.storage.supabase_client import (  # noqa: E402
     FakeSupabaseControlAdapter,

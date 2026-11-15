@@ -322,7 +322,7 @@ def test_run_materialize_skips_r2_when_monthly_resolve_source_is_github_fallback
             raise AssertionError("R2 must not be used when monthly_resolve_source=github_fallback")
 
     monkeypatch.setattr(
-        "scripts.storage.r2_staging_client.R2StagingAdapter",
+        "stockradar.storage.r2_staging.R2StagingAdapter",
         lambda: BoomR2(),
     )
 

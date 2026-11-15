@@ -50,7 +50,7 @@ from stockradar.indicators.rs import (
     compute_rs_acceleration_zscore_from_merged,
     compute_rs_from_merged,
 )
-from stockradar.prototype_web_ui_asof.sma75_rs import compute_rs_sma75_from_closes
+from stockradar.indicators.sma75_rs import compute_rs_sma75_from_closes
 from stockradar.indicators.zscore import (
     compute_turnover_ma_ratio_from_prepared,
     compute_zscore_turnover_from_prepared,

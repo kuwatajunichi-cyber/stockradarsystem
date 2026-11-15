@@ -24,8 +24,12 @@ from stockradar.storage.control_plane import (  # noqa: E402
     resolve_patched_r2_keys,
     supabase_commit_is_fatal,
 )
-from stockradar.storage.mapping_catalog import get_entry, load_mapping  # noqa: E402
-from stockradar.storage.phase4_rollout import monthly_write_is_fatal, resolve_phase4_rollout_stage  # noqa: E402
+from stockradar.storage.mapping_catalog import (  # noqa: E402
+    get_entry,
+    load_mapping,
+    resolve_phase4_rollout_stage,
+)
+from stockradar.storage.phase4_rollout import monthly_write_is_fatal  # noqa: E402
 from stockradar.storage.supabase_client import (  # noqa: E402
     FakeSupabaseControlAdapter,
     SupabaseControlPort,

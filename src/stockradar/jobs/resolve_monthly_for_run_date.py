@@ -13,11 +13,10 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from stockradar.storage.mapping_catalog import load_mapping
+from stockradar.storage.mapping_catalog import load_mapping, resolve_phase4_rollout_stage
 from stockradar.storage.phase4_rollout import (
     monthly_read_allows_github_fallback,
     monthly_read_uses_supabase_primary,
-    resolve_phase4_rollout_stage,
 )
 from stockradar.storage.supabase_client import FakeSupabaseControlAdapter, SupabaseRestAdapter
 from stockradar.universe.monthly_release_pick import MonthlyReleasePick, pick_monthly_release
