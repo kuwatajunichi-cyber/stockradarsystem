@@ -1,8 +1,7 @@
 """Phase 4 rollout stage helpers (Issue #93)."""
 from __future__ import annotations
 
-import os
-from typing import Any, Final, Mapping
+from typing import Final
 
 VALID_PHASE4_STAGES: Final[frozenset[str]] = frozenset({"4a", "4b", "4c"})
 
@@ -56,22 +55,3 @@ def monthly_shadow_write_enabled(stage: str) -> bool:
 
 def monthly_dual_write_enabled(stage: str) -> bool:
     return normalize_phase4_rollout_stage(stage) in {"4b", "4c"}
-
-
-def resolve_phase4_rollout_stage(
-    *,
-    cli_override: str | None = None,
-    env: Mapping[str, str] | None = None,
-    mapping: dict[str, Any] | None = None,
-) -> str:
-    if cli_override:
-        return normalize_phase4_rollout_stage(cli_override)
-    env_map = env if env is not None else os.environ
-    env_stage = str(env_map.get("PHASE4_ROLLOUT_STAGE") or "").strip()
-    if env_stage:
-        return normalize_phase4_rollout_stage(env_stage)
-    if mapping is None:
-        from stockradar.storage.mapping_catalog import load_mapping
-
-        mapping = load_mapping()
-    return normalize_phase4_rollout_stage(str(mapping.get("phase4_rollout_stage") or "4a"))

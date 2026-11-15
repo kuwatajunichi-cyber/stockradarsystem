@@ -42,6 +42,11 @@ docs/archive/repo_scratch/20*/
 data/derived_backfill_*.json
 docs/operations/evidence/_*.sql
 scripts/storage/_ops_*.py
+scripts/_[!_]*.py
+prototypes/**/scripts/_[!_]*.py
+.playwright-cli/
+src/*.egg-info/
+artifacts/quality-gate-summary/
 
 # Cloudflare Wrangler dev/build cache
 workers/**/.wrangler/

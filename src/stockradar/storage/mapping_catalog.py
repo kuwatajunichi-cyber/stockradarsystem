@@ -1,10 +1,13 @@
 """Load artifact/cache mapping entries from YAML (pure file read)."""
 from __future__ import annotations
 
+import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 import yaml
+
+from stockradar.storage.phase4_rollout import normalize_phase4_rollout_stage
 
 DEFAULT_MAPPING_PATH = "config/github_state_to_r2_supabase_mapping.yaml"
 
@@ -52,9 +55,24 @@ def phase3_rollout_stage(path: Path | None = None) -> str:
 
 
 def phase4_rollout_stage(path: Path | None = None) -> str:
-    from stockradar.storage.phase4_rollout import normalize_phase4_rollout_stage
-
     mapping = load_mapping(path)
+    return normalize_phase4_rollout_stage(str(mapping.get("phase4_rollout_stage") or "4a"))
+
+
+def resolve_phase4_rollout_stage(
+    *,
+    cli_override: str | None = None,
+    env: Mapping[str, str] | None = None,
+    mapping: dict[str, Any] | None = None,
+) -> str:
+    if cli_override:
+        return normalize_phase4_rollout_stage(cli_override)
+    env_map = env if env is not None else os.environ
+    env_stage = str(env_map.get("PHASE4_ROLLOUT_STAGE") or "").strip()
+    if env_stage:
+        return normalize_phase4_rollout_stage(env_stage)
+    if mapping is None:
+        mapping = load_mapping()
     return normalize_phase4_rollout_stage(str(mapping.get("phase4_rollout_stage") or "4a"))
 
 

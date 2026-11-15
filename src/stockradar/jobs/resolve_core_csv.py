@@ -32,10 +32,10 @@ from stockradar.storage.control_plane import (
     PATCHED_UNIVERSE_MANIFEST_FILENAME as PATCH_MANIFEST_NAME,
 )
 from stockradar.jobs.resolve_monthly_for_run_date import resolve_monthly_tag
+from stockradar.storage.mapping_catalog import resolve_phase4_rollout_stage
 from stockradar.storage.phase4_rollout import (
     monthly_read_allows_github_fallback,
     monthly_read_uses_supabase_primary,
-    resolve_phase4_rollout_stage,
 )
 
 STATE_FILENAME = ".resolve_core_state.json"
@@ -379,7 +379,7 @@ def run_materialize(
     )
     if use_r2_monthly:
         try:
-            from scripts.storage.r2_staging_client import R2StagingAdapter
+            from stockradar.storage.r2_staging import R2StagingAdapter
 
             src.write_bytes(R2StagingAdapter().get_object(object_key))
             fetched = True

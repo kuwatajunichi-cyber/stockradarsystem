@@ -19,11 +19,10 @@ from stockradar.storage.daily_publish_manifest import (  # noqa: E402
     resolve_publish_object_key,
     serialize_daily_publish_manifest,
 )
-from stockradar.storage.mapping_catalog import load_mapping  # noqa: E402
+from stockradar.storage.mapping_catalog import load_mapping, resolve_phase4_rollout_stage  # noqa: E402
 from stockradar.storage.phase4_rollout import (  # noqa: E402
     publish_commit_is_fatal,
     publish_dual_write_enabled,
-    resolve_phase4_rollout_stage,
 )
 from stockradar.storage.supabase_client import (  # noqa: E402
     FakeSupabaseControlAdapter,
