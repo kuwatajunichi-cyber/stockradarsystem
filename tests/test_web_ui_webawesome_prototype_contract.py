@@ -126,6 +126,7 @@ def test_local_adapter_only_fakes_io_and_bootstraps_production_app() -> None:
         assert route in adapter
     assert "window.__WEB_UI_CTX" in adapter
     assert "await window.__webUiBoot()" in adapter
+    assert "window.__WEB_UI_SAMPLE_BUNDLE_NOTICE" in adapter
     assert 'import "./theme.js"' in adapter
     assert "nativeFetch(input, init)" in adapter
     for forbidden_ui_implementation in (

@@ -1,11 +1,17 @@
 schema_version: 1
 phase: '5'
-last_updated_utc: '2026-11-15T00:24:00+09:00'
+last_updated_utc: '2026-11-20T22:14:00+09:00'
 overall_status: in_progress
 implementation_snapshot:
-  local_worktree_has_unmerged_changes: false
-  note: 'Rewrote 87 committed web-asof as-of dates (topix+nikkei) swapping stored GAP_UP/GAP_DOWN. Pilot 2026-08-18 generation e5e9fa4b. Latest 2026-11-13 generation 0ca85092. Dry-run worklist empty after cutoff 2026-11-14T06:11:49Z. Gap-token swap replay CLI is opt-in and not in workflows. Daily SMA75 gate stays default on. web-ui-static ac35aa92 unchanged. web-ui-bff 38f19b12 unchanged. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
+  local_worktree_has_unmerged_changes: true
+  note: 'Deployed web-ui-static c8d79237. Active deployment after secret put is b9a3ec35. index.html, app.js, and styles.css. Native dialogs, yielded table and chart builds, limited hover updates, in-box truncated text, text-scale rem sizes, pointer-following label tips, and a bundle notice that switches to the delivered data. web-ui-bff 38f19b12 unchanged. github-cron-dispatcher not deployed. workers_dev true. local unmerged. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
 correction_log:
+- at_utc: '2026-11-20T22:14:00+09:00'
+  reason: 'Deployed web-ui-static c8d79237 (native dialogs, yielded table and chart builds, limited hover updates, in-box truncated text, text-scale rem sizes, pointer-following label tips, bundle notice switches to the delivered data). Active deployment after secret put is b9a3ec35. index.html, app.js, and styles.css. web-ui-bff 38f19b12 unchanged. github-cron-dispatcher not deployed. workers_dev true. local unmerged. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
+- at_utc: '2026-11-17T02:09:00+09:00'
+  reason: 'Deployed web-ui-static af833e17 (label tips follow the pointer). Active deployment after secret put is 87ec3d7e. app.js only. web-ui-bff 38f19b12 unchanged. github-cron-dispatcher not deployed. workers_dev true. local unmerged. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
+- at_utc: '2026-11-17T00:47:00+09:00'
+  reason: 'Deployed web-ui-static 2e15aa94 (native dialogs, yielded table and chart builds, limited hover updates, in-box truncated text, text-scale rem sizes). Active deployment after secret put is d15b1b36. index.html, app.js, and styles.css only. web-ui-bff 38f19b12 unchanged. github-cron-dispatcher not deployed. workers_dev true. local unmerged. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
 - at_utc: '2026-11-15T00:24:00+09:00'
   reason: 'Add opt-in web_asof_gap_token_swap replay CLI and tests. Not scheduled. Daily SMA75 gate remains default on. Live rewrite of 87 as-of dates already recorded. web-ui-static ac35aa92 and web-ui-bff 38f19b12 unchanged. U-6 human wait. pr-5c/pr-5d pending. live_gate_5c/5d open. overall in_progress. Issue #93 OPEN.'
 - at_utc: '2026-11-14T15:56:11+09:00'
@@ -124,7 +130,7 @@ correction_log:
   reason: "Step 5.0: split Phase 5 into tracks A–E. pr_gates include 5.5a and remaining tracks as pending/local_only so 5.5a live close cannot\
     \ force overall closed. Calendar contract revised to closed_day_expected_ping before ping implementation."
 roadmap:
-  phase5_status_phrase: "in_progress（A/B live closed。020/022-024 本番 apply 済。v1.1 CAS 済。Web 束 2026-10-02 を新 UUID で再 commit。writer ゲートオン。web-ui-static ac35aa92 / web-ui-bff 38f19b12 deploy。U-6 人確認待ち。pr-5c/pr-5d pending。C/D/E pending）"
+  phase5_status_phrase: "in_progress（A/B live closed。020/022-024 本番 apply 済。v1.1 CAS 済。Web 束 2026-10-02 を新 UUID で再 commit。writer ゲートオン。web-ui-static b9a3ec35 / web-ui-bff 38f19b12 deploy。U-6 人確認待ち。pr-5c/pr-5d pending。C/D/E pending）"
 tracks:
   A_observability:
     description: "5.5a Healthchecks + 5.5b runs 集計（ops SQL。画面ではない）"

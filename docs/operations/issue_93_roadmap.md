@@ -15,7 +15,7 @@ GitHub Issue: [#93](https://github.com/kuwatajunichi-cyber/stockradarsystem/issu
 | 3c | warm cache + Supabase | **gate CLOSED** (2026-07-10) |
 | 4 | 月次 + publish + runs + Cron | **gate CLOSED** (2026-07-22) |
 | 4.5 | 派生指標時系列基盤 | **PR-45-1..4 merged・rollout 4.5c・Path B active・live_gate closed (user-authorized waiver 2026-08-29)・capacity_gate closed** |
-| 5 | entitlements + observability | **in_progress（A/B live closed。020/022-024 本番 apply 済。v1.1 CAS 済。Web 束 2026-10-02 を新 UUID で再 commit。writer ゲートオン。web-ui-static ac35aa92 / web-ui-bff 38f19b12 deploy。U-6 人確認待ち。pr-5c/pr-5d pending。C/D/E pending）** |
+| 5 | entitlements + observability | **in_progress（A/B live closed。020/022-024 本番 apply 済。v1.1 CAS 済。Web 束 2026-10-02 を新 UUID で再 commit。writer ゲートオン。web-ui-static b9a3ec35 / web-ui-bff 38f19b12 deploy。U-6 人確認待ち。pr-5c/pr-5d pending。C/D/E pending）** |
 
 Phase 3c gate CLOSED（runbook 記録済）。Issue #93 は Phase 5 が残るため **OPEN** 維持。Phase 4.5 gate は CLOSED（soak は waiver。連続 3 営業日達成とは書かない）。ADR-005 `live_gate_005` は CLOSED（2026-09-01）。
 
@@ -108,6 +108,9 @@ AC-1,5,6,7,10 完了。AC-9→Phase5。AC-2,3,4,8 部分。Phase 4 後監査の 
 Worker deploy gate, migration 記録, artifact_index.created_at_utc, contract stage dict。
 
 ## 改訂履歴
+2026-11-20 web-ui-static を deploy（dialog、長い表の分割、ホバー更新の限定、省略文字の箱内スクロール、text-scale、説明のカーソル追従、配信データの切り替えバナー）。Version c8d79237。secret put 後の現行デプロイは b9a3ec35。index.html / app.js / styles.css。BFF 38f19b12 と dispatcher は未変更。未マージ。pr-5c/5d pending。live_gate_5c/5d open。Issue #93 は OPEN。
+2026-11-17 web-ui-static を deploy（説明ツールチップをカーソルに追従）。Version af833e17。secret put 後の現行デプロイは 87ec3d7e。app.js のみ。BFF 38f19b12 と dispatcher は未変更。未マージ。pr-5c/5d pending。live_gate_5c/5d open。Issue #93 は OPEN。
+2026-11-17 web-ui-static を deploy（dialog、長い表の分割、ホバー更新の限定、省略文字の箱内スクロール、text-scale）。Version 2e15aa94。secret put 後の現行デプロイは d15b1b36。index.html / app.js / styles.css。BFF 38f19b12 と dispatcher は未変更。未マージ。pr-5c/5d pending。live_gate_5c/5d open。Issue #93 は OPEN。
 2026-11-15 web-asof 窓トークン入れ替えの replay CLI と単体テストを追加（未スケジュール。日次 SMA75 ゲートは既定オン）。87 基準日の live rewrite は実施済み。BFF / static 未変更。pr-5c/5d pending。live_gate_5c/5d open。Issue #93 は OPEN。
 2026-11-14 配信済み web-asof 87 基準日の GAP_UP/GAP_DOWN を入れ替えて再 commit。パイロット 2026-08-18 generation e5e9fa4b。最新 2026-11-13 generation 0ca85092。cutoff 以降の束は対象外。BFF / static 未変更。pr-5c/5d pending。live_gate_5c/5d open。Issue #93 は OPEN。
 2026-11-14 web-ui-static を deploy（GAP_UP を上窓＋、GAP_DOWN を下窓＋と表示）。Version ac35aa92。price-text.js のみ。PR #184 を main へ merge（62c5e702）。BFF 38f19b12 と dispatcher は未変更。pr-5c/5d pending。live_gate_5c/5d open。Issue #93 は OPEN。

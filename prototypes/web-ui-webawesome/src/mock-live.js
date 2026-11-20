@@ -282,4 +282,9 @@ window.__webUiLogout = async function webUiLogout() {
   if (loginCopy) loginCopy.hidden = false;
 };
 
+window.__WEB_UI_SAMPLE_BUNDLE_NOTICE = {
+  trade_date: "2026-10-01",
+  committed_at_utc: "2026-10-01T06:00:00.000Z",
+};
+
 await window.__webUiBoot();

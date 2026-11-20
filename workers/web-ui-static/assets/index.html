@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="text-scale" content="scale" />
   <title>Stock Radar (internal)</title>
   <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="/chrome.css" />
@@ -53,7 +54,8 @@
   </header>
   <div id="bundle-notice" class="bundle-notice" hidden>
     <p id="bundle-notice-text"></p>
-    <wa-button type="button" id="bundle-notice-dismiss" size="xs" appearance="plain">閉じる</wa-button>
+    <wa-button type="button" id="bundle-notice-switch" size="xs" appearance="filled-outlined" variant="neutral">このデータに切り替える</wa-button>
+    <wa-button type="button" id="bundle-notice-dismiss" size="xs" appearance="filled-outlined" variant="neutral">閉じる</wa-button>
   </div>
   <section class="toolbar">
     <label><span data-label-tip="as_of">基準日</span>
@@ -88,8 +90,13 @@
   </div>
   <main class="layout">
     <div class="main-left" id="main-left">
-      <div class="table-wrap" id="table-wrap">
-        <table id="grid"><thead></thead><tbody></tbody></table>
+      <div class="table-wrap" id="table-wrap" tabindex="0" role="region" aria-labelledby="grid-caption">
+        <table id="grid">
+          <caption id="grid-caption">銘柄一覧</caption>
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+        <div id="grid-sort-status" role="status"></div>
         <aside id="search-miss" class="search-miss" hidden></aside>
       </div>
       <div class="v-split" id="kabutan-split" role="separator" aria-orientation="horizontal" title="ドラッグで高さ変更"></div>
@@ -119,38 +126,30 @@
     </aside>
   </main>
   </div>
-  <div id="filter-modal" class="modal hidden" aria-hidden="true">
-    <div class="modal-backdrop" data-filter-close="1"></div>
-    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="filter-modal-title">
+  <dialog id="filter-modal" class="modal-dialog" aria-labelledby="filter-modal-title" closedby="any">
       <div class="modal-header">
         <h2 id="filter-modal-title">特殊フィルタ</h2>
         <wa-button type="button" id="filter-modal-close" class="modal-close" appearance="plain" size="xs" aria-label="close">×</wa-button>
       </div>
       <div class="modal-body filter-modal-body">
         <p id="filter-modal-note" class="muted filter-modal-note"></p>
-        <wa-checkbox id="filter-exclude-all-rs-neg" class="filter-switch" data-label-tip="exclude_all_rs_negative">指数比がすべてマイナスの銘柄を除外（31・63・126・252日リターンと75日線の傾き）</wa-checkbox>
+        <wa-checkbox id="filter-exclude-all-rs-neg" class="filter-switch" data-label-tip="exclude_all_rs_negative" autofocus>指数比がすべてマイナスの銘柄を除外（31・63・126・252日リターンと75日線の傾き）</wa-checkbox>
       </div>
       <div class="modal-footer">
         <wa-button type="button" id="filter-modal-done" size="xs" appearance="filled-outlined">閉じる</wa-button>
       </div>
-    </div>
-  </div>
-  <div id="tab-settings-modal" class="modal hidden" aria-hidden="true">
-    <div class="modal-backdrop" data-tab-settings-close="1"></div>
-    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="tab-settings-title">
+  </dialog>
+  <dialog id="tab-settings-modal" class="modal-dialog" aria-labelledby="tab-settings-title" closedby="any">
       <div class="modal-header">
         <h2 id="tab-settings-title">タブ表示設定</h2>
         <wa-button type="button" id="tab-settings-close" class="modal-close" appearance="plain" size="xs" aria-label="close">×</wa-button>
       </div>
       <div id="tab-settings-panel" class="modal-body"></div>
       <div class="modal-footer">
-        <wa-button type="button" id="tab-settings-done" size="xs" appearance="filled-outlined">閉じる</wa-button>
+        <wa-button type="button" id="tab-settings-done" size="xs" appearance="filled-outlined" autofocus>閉じる</wa-button>
       </div>
-    </div>
-  </div>
-  <div id="fav-lists-modal" class="modal hidden" aria-hidden="true">
-    <div class="modal-backdrop" data-fav-lists-close="1"></div>
-    <div class="modal-dialog fav-lists-dialog" role="dialog" aria-modal="true" aria-labelledby="fav-lists-title">
+  </dialog>
+  <dialog id="fav-lists-modal" class="modal-dialog fav-lists-dialog" aria-labelledby="fav-lists-title" closedby="any">
       <div class="modal-header">
         <h2 id="fav-lists-title">お気に入りリスト</h2>
         <wa-button type="button" id="fav-lists-close" class="modal-close" appearance="plain" size="xs" aria-label="close">×</wa-button>
@@ -159,7 +158,7 @@
         <div class="fav-lists-nav">
           <div id="fav-lists-nav"></div>
           <div class="fav-lists-nav-actions">
-            <input id="fav-list-new-name" type="text" maxlength="20" placeholder="新しいリスト名" />
+            <input id="fav-list-new-name" type="text" maxlength="20" placeholder="新しいリスト名" autofocus />
             <wa-button type="button" id="fav-list-add" size="xs" appearance="filled-outlined">追加</wa-button>
           </div>
         </div>
@@ -182,26 +181,22 @@
       <div class="modal-footer">
         <wa-button type="button" id="fav-lists-done" size="xs" appearance="filled-outlined">閉じる</wa-button>
       </div>
-    </div>
-  </div>
+  </dialog>
   <wa-dialog id="confirm-dialog" label="削除の確認" light-dismiss>
     <p id="confirm-dialog-body"></p>
     <wa-button slot="footer" type="button" id="confirm-dialog-cancel" appearance="plain" size="s">キャンセル</wa-button>
     <wa-button slot="footer" type="button" id="confirm-dialog-ok" variant="danger" appearance="accent" size="s">削除</wa-button>
   </wa-dialog>
-  <div id="cols-modal" class="modal hidden" aria-hidden="true">
-    <div class="modal-backdrop" data-cols-close="1"></div>
-    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="cols-modal-title">
+  <dialog id="cols-modal" class="modal-dialog" aria-labelledby="cols-modal-title" closedby="any">
       <div class="modal-header">
         <h2 id="cols-modal-title">列の出し隠し</h2>
         <wa-button type="button" id="cols-modal-close" class="modal-close" appearance="plain" size="xs" aria-label="close">×</wa-button>
       </div>
       <div id="cols-panel" class="modal-body"></div>
       <div class="modal-footer">
-        <wa-button type="button" id="cols-modal-done" size="xs" appearance="filled-outlined">閉じる</wa-button>
+        <wa-button type="button" id="cols-modal-done" size="xs" appearance="filled-outlined" autofocus>閉じる</wa-button>
       </div>
-    </div>
-  </div>
+  </dialog>
   </div>
   <script src="/price-text.js"></script>
   <script src="/app.js"></script>

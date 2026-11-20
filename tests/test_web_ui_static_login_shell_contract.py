@@ -108,7 +108,20 @@ def test_bundle_commit_watch_updates_stamp_dates_and_notice() -> None:
     assert "startBundleWatch(datesPayload)" in app
     assert 'id="bundle-notice"' in html
     assert 'id="bundle-notice-dismiss"' in html
+    assert 'id="bundle-notice-switch" size="xs" appearance="filled-outlined" variant="neutral"' in html
+    assert 'id="bundle-notice-dismiss" size="xs" appearance="filled-outlined" variant="neutral"' in html
+    assert "このデータに切り替える" in html
     assert ".bundle-notice[hidden]" in css
+    assert "#bundle-notice-dismiss { margin-left:auto; }" in css
+    switch = app.split("async function switchToNoticedBundle", 1)[1].split("function showBundleNotice", 1)[0]
+    assert "loadSnapshot(String(notice.trade_date))" in switch
+    assert "bundle-notice-switch" in app.split("function startBundleWatch", 1)[1].split("async function boot", 1)[0]
+    notice = app.split("function showBundleNotice", 1)[1].split("function applyBundleIndex", 1)[0]
+    assert "基準日の選択肢に追加しました" not in notice
+    assert "その基準日を選ぶまでそのままです" not in notice
+    assert 'のデータが配信されました。"' in notice
+    assert "function showSampleBundleNotice" in app
+    assert "window.__WEB_UI_SAMPLE_BUNDLE_NOTICE" in app
 
 
 def test_signed_cf_uses_value_before_display_rounding() -> None:
@@ -175,6 +188,37 @@ def test_app_js_escapes_bundle_html() -> None:
     assert "td.innerHTML = cellHtml" in proto
     assert "cellHtml(row, k)" in app
     assert "tbody.innerHTML" in app.split("function renderTable")[1].split("function yZ")[0]
+
+
+@pytest.mark.unit
+def test_web_ui_uses_native_dialog_popover_and_keeps_colors() -> None:
+    html = _HTML.read_text(encoding="utf-8")
+    app = (_STATIC / "assets" / "app.js").read_text(encoding="utf-8")
+    css = (_STATIC / "assets" / "styles.css").read_text(encoding="utf-8")
+    render_table = app.split("function renderTable")[1].split("function yZ")[0]
+    assert '<dialog id="filter-modal"' in html
+    assert '<dialog id="cols-modal"' in html
+    assert '<dialog id="fav-lists-modal"' in html
+    assert '<dialog id="tab-settings-modal"' in html
+    assert 'role="dialog"' not in html
+    assert 'role="region"' in html
+    assert 'id="grid-caption"' in html
+    assert "showModal()" in app
+    assert "enterConfirmsComposition" in app
+    assert "ev.keyCode === 229" in app
+    assert 'menu.popover = "auto"' in app
+    assert 'tip.popover = "hint"' in app
+    tips = app.split("function bindLabelTips")[1].split("function seriesDisplayMeta")[0]
+    assert "function placeTip" in tips
+    assert 'addEventListener("mousemove"' in tips
+    assert "ev.clientX" in tips
+    assert "ev.clientY" in tips
+    assert "aria-sort" in render_table or "aria-sort" in app.split("function paintHeaderState")[1].split("function moveRowToEnd")[0]
+    assert "moveBefore" in app
+    assert "tbody.innerHTML" in render_table
+    assert "background:#15202b" in css
+    assert "background:rgba(0,0,0,0.55)" in css
+    assert "color-scheme" not in css
 
 
 def test_app_js_accel_cf_pm1_and_extra_last_bar() -> None:
@@ -309,7 +353,7 @@ def test_web_ui_static_boot_progress_hides_login_until_session() -> None:
     table_css = css.split(".chart-hover-table")[1].split(".chart-hover-date")[0].replace(" ", "")
     assert "minmax(0,1fr)" in table_css
     assert "width:100%" in table_css
-    assert "font-size:11px" in css.split(".chart-card .hover")[1].split(".kabutan")[0]
+    assert "font-size:0.6875rem" in css.split(".chart-card .hover")[1].split(".kabutan")[0]
     assert ".fav-chip" in css
     assert "width:12px; height:12px" in css.split(".fav-chip")[1].split(".fav-more")[0]
     assert "width:12px; height:12px" in css.split(".fav-empty")[1].split(".fav-flyout")[0]
@@ -475,12 +519,12 @@ def test_app_js_composes_price_text_from_candle_labels() -> None:
     assert "width: 44px;" in css
     assert "width: 106px;" in css
     assert "--surface-label-compact-font-family: var(--surface-font-family);" in css
-    assert "--surface-label-compact-font-size: 11px;" in css
+    assert "--surface-label-compact-font-size: 0.6875rem;" in css
     assert "--surface-label-compact-font-weight: 400;" in css
     assert "--surface-label-compact-scale-x: 0.75;" in css
     assert "--surface-label-compact-color: var(--wa-color-text-normal);" in css
     assert "--surface-number-font-family: Consolas, \"Courier New\", monospace;" in css
-    assert "--surface-number-font-size: 14px;" in css
+    assert "--surface-number-font-size: 0.875rem;" in css
     assert "font-family: var(--surface-number-font-family);" in css
     assert "font-size: var(--surface-number-font-size);" in css
     assert "#grid thead th.th-sorted::after" in css
@@ -552,4 +596,36 @@ def test_fav_membership_patches_table_and_chart_stars() -> None:
     patch = app.split("function patchFavCell")[1].split("function toggleCodeInFavList")[0]
     assert ': "button.fav-star"' in patch
     assert "btn.dataset.favCode" in patch
+
+
+@pytest.mark.unit
+def test_web_ui_yields_long_work_and_scales_text() -> None:
+    app = (_STATIC / "assets" / "app.js").read_text(encoding="utf-8")
+    css = (_STATIC / "assets" / "styles.css").read_text(encoding="utf-8")
+    html = (_STATIC / "assets" / "index.html").read_text(encoding="utf-8")
+    render_table = app.split("function renderTable")[1].split("function yZ")[0]
+    assert 'name="text-scale" content="scale"' in html
+    assert "html { font-size" not in css
+    assert ":root { font-size" not in css
+    assert "font:0.75rem/1.35" in css
+    assert "min-height: 3.6875rem" in css
+    assert "height: 59px" not in css
+    assert "function yieldToMain" in app
+    assert '"scheduler" in window && "yield" in scheduler' in app
+    assert "setTimeout(resolve, 0)" in app
+    assert "MAIN_SLICE_MS = 50" in app
+    assert "sliceExpired(deadline)" in render_table
+    assert "tbody.innerHTML" in render_table
+    charts = app.split("function refreshCharts")[1].split("const TAB_SETTINGS_DEFAULT")[0]
+    assert "sliceExpired(deadline)" in charts
+    highlight = app.split("function syncHighlightClasses")[1].split("function setHoveredCode")[0]
+    assert 'querySelectorAll("#grid tbody tr[data-code]")' not in highlight
+    assert 'querySelectorAll("#chart-host .chart-card[data-code]")' not in highlight
+    assert "lastHighlightCodes" in highlight
+    assert 'class="line-clip"' in app
+    assert "animation-timeline: scroll(self inline)" in css
+    assert ".line-clip:is(:hover, :focus-visible)" in css
+    assert "prefers-reduced-motion: no-preference" in css
+    assert "@container style(--truncated: 1)" in css
+    assert "color-scheme" not in css
 

@@ -226,41 +226,75 @@
     if (document.getElementById("label-tip")) return;
     const tip = document.createElement("div");
     tip.id = "label-tip";
-    tip.hidden = true;
     tip.setAttribute("role", "tooltip");
+    const hintProbe = document.createElement("div");
+    hintProbe.popover = "hint";
+    const hintOk = hintProbe.popover === "hint";
+    if (hintOk) tip.popover = "hint";
+    else if ("popover" in HTMLElement.prototype) tip.popover = "manual";
     document.body.appendChild(tip);
     let current = null;
     function hide() {
       current = null;
+      if (typeof tip.hidePopover === "function" && tip.matches(":popover-open")) tip.hidePopover();
       tip.hidden = true;
     }
-    function show(host) {
-      if (!host || host.closest(".surface-chrome-source, .surface-header-source")) return;
-      const text = labelTipText(host.dataset.labelTip || "");
-      if (!text) return;
-      current = host;
-      tip.textContent = text;
-      tip.hidden = false;
-      const rect = host.getBoundingClientRect();
+    function pointerKeepsTip(ev, host) {
+      const next = ev.relatedTarget;
+      if (!next || typeof next.closest !== "function") return false;
+      if (host && host.contains(next)) return true;
+      return tip.contains(next);
+    }
+    function placeTip(x, y) {
       const width = tip.offsetWidth;
       const height = tip.offsetHeight;
-      let left = Math.min(rect.left, window.innerWidth - width - 8);
-      left = Math.max(8, left);
-      let top = rect.bottom + 8;
-      if (top + height > window.innerHeight - 8) top = Math.max(8, rect.top - height - 8);
+      const gap = 14;
+      let left = x + gap;
+      let top = y + gap;
+      if (left + width > window.innerWidth - 8) left = Math.max(8, x - width - gap);
+      if (top + height > window.innerHeight - 8) top = Math.max(8, y - height - gap);
+      tip.style.inset = "auto";
+      tip.style.margin = "0";
       tip.style.left = left + "px";
       tip.style.top = top + "px";
     }
+    function show(host, point) {
+      if (!host || host.closest(".surface-chrome-source, .surface-header-source")) return;
+      const text = labelTipText(host.dataset.labelTip || "");
+      if (!text) return;
+      if (current !== host) {
+        current = host;
+        tip.textContent = text;
+        tip.hidden = false;
+        if (typeof tip.showPopover === "function" && !tip.matches(":popover-open")) tip.showPopover();
+      }
+      if (point) placeTip(point.x, point.y);
+      else {
+        const rect = host.getBoundingClientRect();
+        placeTip(rect.left, rect.bottom);
+      }
+    }
+    tip.addEventListener("toggle", (ev) => {
+      if (ev.newState === "closed") current = null;
+    });
+    tip.addEventListener("mouseout", (ev) => {
+      if (!current || pointerKeepsTip(ev, current)) return;
+      hide();
+    });
     document.addEventListener("mouseover", (ev) => {
       const host = ev.target.closest ? ev.target.closest("[data-label-tip]") : null;
       if (!host) return;
-      show(host);
+      show(host, { x: ev.clientX, y: ev.clientY });
+    });
+    document.addEventListener("mousemove", (ev) => {
+      const host = ev.target.closest ? ev.target.closest("[data-label-tip]") : null;
+      if (!host || host !== current) return;
+      placeTip(ev.clientX, ev.clientY);
     });
     document.addEventListener("mouseout", (ev) => {
       const host = ev.target.closest ? ev.target.closest("[data-label-tip]") : null;
       if (!host || host !== current) return;
-      const next = ev.relatedTarget;
-      if (next && host.contains(next)) return;
+      if (pointerKeepsTip(ev, host)) return;
       hide();
     });
     document.addEventListener("focusin", (ev) => {
@@ -269,8 +303,18 @@
     });
     document.addEventListener("focusout", (ev) => {
       const host = ev.target.closest ? ev.target.closest("[data-label-tip]") : null;
-      if (host) hide();
+      if (!host || host !== current) return;
+      if (pointerKeepsTip(ev, host)) return;
+      hide();
     });
+    if (!hintOk) {
+      document.addEventListener("keydown", (ev) => {
+        if (ev.key !== "Escape" || !current) return;
+        hide();
+        ev.preventDefault();
+        ev.stopPropagation();
+      }, true);
+    }
   }
 
   function seriesDisplayMeta() {
@@ -591,6 +635,25 @@
     }
   }
 
+  const MAIN_SLICE_MS = 50;
+  let tableRenderGen = 0;
+
+  function yieldToMain() {
+    if ("scheduler" in window && "yield" in scheduler) return scheduler.yield();
+    return new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+  }
+
+  function sliceExpired(deadline) {
+    return performance.now() >= deadline;
+  }
+
+  async function nextSlice() {
+    await yieldToMain();
+    return performance.now() + MAIN_SLICE_MS;
+  }
+
   function requestViewRefresh(opts) {
     state.pendingViewRefreshOpts = opts || {};
     setViewBusy(true);
@@ -599,11 +662,7 @@
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         viewRefreshQueued = false;
-        try {
-          renderTable(state.pendingViewRefreshOpts || {});
-        } finally {
-          if (!viewRefreshQueued) setViewBusy(false);
-        }
+        renderTable(state.pendingViewRefreshOpts || {});
       });
     });
   }
@@ -882,7 +941,7 @@
     if (opts.refresh || state.favOnly) requestViewRefresh();
     patchFavCell(opts.code);
     const modal = $("fav-lists-modal");
-    if (opts.modal && modal && !modal.classList.contains("hidden")) renderFavListsModal();
+    if (opts.modal && modal && modal.open) renderFavListsModal();
     if (opts.flyoutCode) refreshFavFlyout(opts.flyoutCode);
   }
 
@@ -1108,9 +1167,33 @@
     );
   }
 
+  function enterConfirmsComposition(ev) {
+    return !!(ev && (ev.isComposing || ev.keyCode === 229));
+  }
+
   function closeFavFlyout() {
     blurTextFieldInside(".fav-flyout");
     document.querySelectorAll(".fav-flyout").forEach((el) => el.remove());
+  }
+
+  function mountAnchoredPopover(menu, rect, minWidth) {
+    menu.popover = "auto";
+    document.body.appendChild(menu);
+    if (typeof menu.showPopover === "function" && !menu.matches(":popover-open")) menu.showPopover();
+    const mw = Math.max(minWidth, menu.offsetWidth);
+    let left = rect.left;
+    if (left + mw > window.innerWidth - 8) left = Math.max(8, window.innerWidth - mw - 8);
+    menu.style.inset = "auto";
+    menu.style.margin = "0";
+    menu.style.left = left + "px";
+    menu.style.top = Math.min(rect.bottom + 4, window.innerHeight - menu.offsetHeight - 8) + "px";
+    menu.addEventListener("toggle", (ev) => {
+      if (ev.newState !== "closed") return;
+      if (menu.classList.contains("col-filter-menu") && state.filterMenuKey) state.filterMenuKey = null;
+      queueMicrotask(() => {
+        if (menu.isConnected) menu.remove();
+      });
+    });
   }
 
   function refreshFavFlyout(code) {
@@ -1175,21 +1258,14 @@
       onCreate();
     });
     input.addEventListener("keydown", (ev) => {
-      if (ev.key === "Enter") {
-        ev.preventDefault();
-        onCreate();
-      }
+      if (ev.key !== "Enter" || enterConfirmsComposition(ev)) return;
+      ev.preventDefault();
+      onCreate();
     });
     create.appendChild(input);
     create.appendChild(addBtn);
     menu.appendChild(create);
-    document.body.appendChild(menu);
-    const rect = anchor.getBoundingClientRect();
-    const mw = Math.max(220, menu.offsetWidth);
-    let left = rect.left;
-    if (left + mw > window.innerWidth - 8) left = Math.max(8, window.innerWidth - mw - 8);
-    menu.style.left = left + "px";
-    menu.style.top = Math.min(rect.bottom + 4, window.innerHeight - menu.offsetHeight - 8) + "px";
+    mountAnchoredPopover(menu, anchor.getBoundingClientRect(), 220);
   }
 
   function setFavoritesUiEnabled(enabled) {
@@ -1436,18 +1512,12 @@
       state.favModalListId = state.favLists[0].id;
     }
     renderFavListsModal();
-    const modal = $("fav-lists-modal");
-    if (!modal) return;
-    modal.classList.remove("hidden");
-    modal.setAttribute("aria-hidden", "false");
+    showAppDialog($("fav-lists-modal"));
   }
 
   function closeFavListsModal() {
     blurTextFieldInside("#fav-lists-modal");
-    const modal = $("fav-lists-modal");
-    if (!modal) return;
-    modal.classList.add("hidden");
-    modal.setAttribute("aria-hidden", "true");
+    hideAppDialog($("fav-lists-modal"));
   }
 
   function nameLookup(code) {
@@ -1761,13 +1831,7 @@
   }
 
   function placeFilterMenu(menu, th) {
-    document.body.appendChild(menu);
-    const rect = th.getBoundingClientRect();
-    const mw = Math.max(240, menu.offsetWidth);
-    let left = rect.left;
-    if (left + mw > window.innerWidth - 8) left = Math.max(8, window.innerWidth - mw - 8);
-    menu.style.left = left + "px";
-    menu.style.top = Math.min(rect.bottom + 4, window.innerHeight - menu.offsetHeight - 8) + "px";
+    mountAnchoredPopover(menu, th.getBoundingClientRect(), 240);
   }
 
   function clearColFilter(key) {
@@ -2040,7 +2104,7 @@
     if (key === "code") bindHalfWidthCodeInput(qEl);
     else markNonCredentialInput(qEl, "column-filter");
     qEl.addEventListener("keydown", (ev) => {
-      if (ev.key !== "Enter" || locked) return;
+      if (ev.key !== "Enter" || locked || enterConfirmsComposition(ev)) return;
       ev.preventDefault();
       applyTextFilterFromMenu(key);
     });
@@ -2242,17 +2306,40 @@
     return saw === RS_FILTER_KEYS.length;
   }
 
+  function showAppDialog(modal) {
+    if (!modal || modal.open) return;
+    modal.showModal();
+  }
+
+  function hideAppDialog(modal) {
+    if (!modal || !modal.open) return;
+    modal.close();
+  }
+
+  function bindAppDialogLightDismiss() {
+    if (bindAppDialogLightDismiss.done) return;
+    bindAppDialogLightDismiss.done = true;
+    if ("closedBy" in HTMLDialogElement.prototype) return;
+    document.querySelectorAll("dialog.modal-dialog[closedby='any']").forEach((dialog) => {
+      let pressedOutside = false;
+      const outside = (e) => {
+        const r = dialog.getBoundingClientRect();
+        return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+      };
+      dialog.addEventListener("pointerdown", (e) => { pressedOutside = outside(e); });
+      dialog.addEventListener("pointerup", (e) => {
+        if (pressedOutside && outside(e)) dialog.close();
+      });
+    });
+  }
+
   function openFilterModal() {
     syncFilterModalUi();
-    const modal = $("filter-modal");
-    modal.classList.remove("hidden");
-    modal.setAttribute("aria-hidden", "false");
+    showAppDialog($("filter-modal"));
   }
 
   function closeFilterModal() {
-    const modal = $("filter-modal");
-    modal.classList.add("hidden");
-    modal.setAttribute("aria-hidden", "true");
+    hideAppDialog($("filter-modal"));
   }
 
   function syncFilterModalUi() {
@@ -2539,15 +2626,11 @@
 
   function openColsModal() {
     renderColsPanel();
-    const modal = $("cols-modal");
-    modal.classList.remove("hidden");
-    modal.setAttribute("aria-hidden", "false");
+    showAppDialog($("cols-modal"));
   }
 
   function closeColsModal() {
-    const modal = $("cols-modal");
-    modal.classList.add("hidden");
-    modal.setAttribute("aria-hidden", "true");
+    hideAppDialog($("cols-modal"));
   }
 
   function renderColsPanel() {
@@ -2810,14 +2893,14 @@
           const href = safeHttpUrl(it.url);
           if (href) {
             return (
-              '<div class="news-line"><a href="' +
+              '<div class="news-line"><a class="line-clip" href="' +
               escapeHtml(href) +
-              '" target="_blank" rel="noopener">' +
+              '" target="_blank" rel="noopener"><span>' +
               t +
-              "</a></div>"
+              "</span></a></div>"
             );
           }
-          return '<div class="news-line">' + t + "</div>";
+          return '<div class="news-line line-clip"><span>' + t + "</span></div>";
         })
         .join("");
     }
@@ -2849,89 +2932,191 @@
     return text;
   }
 
-  function renderTable(opts) {
+  const rowCellHtml = new WeakMap();
+  let announcedSort = "";
+
+  function headerMatches(trh) {
+    if (!trh || trh.cells.length !== state.visibleKeys.length) return false;
+    for (let i = 0; i < state.visibleKeys.length; i++) {
+      if (trh.cells[i].dataset.col !== state.visibleKeys[i]) return false;
+    }
+    return true;
+  }
+
+  function paintHeaderState(th, key) {
+    const sorted = key !== "favorite" && state.sortKey === key;
+    const filtered = key === "favorite" ? !!state.favOnly : colFilterActive(key);
+    th.classList.toggle("th-sorted", sorted);
+    th.classList.toggle("th-filtered", filtered);
+    if (sorted) th.setAttribute("aria-sort", state.sortDir === "asc" ? "ascending" : "descending");
+    else th.removeAttribute("aria-sort");
+    const btn = th.querySelector(".th-filter-btn");
+    if (btn && btn.tagName === "WA-BUTTON") {
+      btn.appearance = filtered ? "filled-outlined" : "plain";
+      btn.variant = sorted || filtered ? "brand" : "neutral";
+    }
+  }
+
+  function moveRowToEnd(tbody, tr) {
+    if (typeof tbody.moveBefore === "function") tbody.moveBefore(tr, null);
+    else tbody.appendChild(tr);
+  }
+
+  function announceTableSort(rowCount) {
+    const el = $("grid-sort-status");
+    if (!el) return;
+    const def = state.colDefs[state.sortKey];
+    const label = def && def.label ? def.label : (state.sortKey || "");
+    const dir = state.sortDir === "asc" ? "昇順" : "降順";
+    const msg = label ? (label + "で" + dir + "、" + rowCount + "行") : "";
+    if (msg === announcedSort) return;
+    announcedSort = msg;
+    el.textContent = msg;
+  }
+
+  async function renderTable(opts) {
     opts = opts || {};
-    bindGridEvents();
-    const rows = displayRows();
-    $("row-count").textContent = "表示 " + rows.length + " / 全 " + state.rows.length + " 銘柄";
-    const wrap = $("table-wrap");
-    const prevTop = wrap ? wrap.scrollTop : 0;
-    const prevLeft = wrap ? wrap.scrollLeft : 0;
-    const thead = document.querySelector("#grid thead");
-    const tbody = document.querySelector("#grid tbody");
-    thead.innerHTML = "";
-    const trh = document.createElement("tr");
-    state.visibleKeys.forEach((k) => {
-      const th = document.createElement("th");
-      th.dataset.col = k;
-      const tipId = columnLabelId(k);
-      if (tipId) th.dataset.labelTip = tipId;
-      const sticky = stickyColClass(k);
-      if (sticky) th.className = sticky;
-      const def = state.colDefs[k];
-      const label = def ? def.label : mapKey(k);
-      const caption = headerCaption(label);
-      if (isNumericCol(k) || k === "favorite" || isTextFilterCol(k)) {
-        th.classList.add("th-filterable");
-        if (isNumericCol(k) || k === "favorite") th.classList.add("th-numeric");
-        if (k !== "favorite" && state.sortKey === k) th.classList.add("th-sorted");
-        if (k === "favorite" ? state.favOnly : colFilterActive(k)) th.classList.add("th-filtered");
-        const ui = chrome();
-        const btn = ui && ui.headerButton
-          ? ui.headerButton({
-              caption: caption,
-              title: k === "favorite" ? "お気に入りフィルタ" : (isTextFilterCol(k) ? "文字列フィルタ" : "ソート / フィルタ"),
-              sorted: k !== "favorite" && state.sortKey === k,
-              filtered: k === "favorite" ? state.favOnly : colFilterActive(k),
-            })
-          : document.createElement("button");
-        if (!ui || !ui.headerButton) {
-          btn.type = "button";
-          btn.textContent = caption;
-          btn.title = k === "favorite" ? "お気に入りフィルタ" : (isTextFilterCol(k) ? "文字列フィルタ" : "ソート / フィルタ");
-        }
-        btn.classList.add("th-filter-btn");
-        btn.addEventListener("click", (ev) => {
-          ev.preventDefault();
-          ev.stopPropagation();
-          if (k === "favorite") openFavFilterMenu(th);
-          else if (isTextFilterCol(k)) openTextFilterMenu(th, k);
-          else openFilterMenu(th, k);
-        });
-        th.appendChild(btn);
+    const gen = ++tableRenderGen;
+    const stale = () => gen !== tableRenderGen;
+    try {
+      bindGridEvents();
+      const rows = displayRows();
+      $("row-count").textContent = "表示 " + rows.length + " / 全 " + state.rows.length + " 銘柄";
+      const wrap = $("table-wrap");
+      const prevTop = wrap ? wrap.scrollTop : 0;
+      const prevLeft = wrap ? wrap.scrollLeft : 0;
+      const thead = document.querySelector("#grid thead");
+      const tbody = document.querySelector("#grid tbody");
+      const existingHead = thead.rows[0];
+      if (headerMatches(existingHead)) {
+        Array.from(existingHead.cells).forEach((th) => paintHeaderState(th, th.dataset.col));
       } else {
-        th.textContent = caption;
+        thead.innerHTML = "";
+        const trh = document.createElement("tr");
+        state.visibleKeys.forEach((k) => {
+          const th = document.createElement("th");
+          th.scope = "col";
+          th.dataset.col = k;
+          const tipId = columnLabelId(k);
+          if (tipId) th.dataset.labelTip = tipId;
+          const sticky = stickyColClass(k);
+          if (sticky) th.className = sticky;
+          const def = state.colDefs[k];
+          const label = def ? def.label : mapKey(k);
+          const caption = headerCaption(label);
+          if (isNumericCol(k) || k === "favorite" || isTextFilterCol(k)) {
+            th.classList.add("th-filterable");
+            if (isNumericCol(k) || k === "favorite") th.classList.add("th-numeric");
+            const ui = chrome();
+            const sorted = k !== "favorite" && state.sortKey === k;
+            const filtered = k === "favorite" ? state.favOnly : colFilterActive(k);
+            const btn = ui && ui.headerButton
+              ? ui.headerButton({
+                  caption: caption,
+                  title: k === "favorite" ? "お気に入りフィルタ" : (isTextFilterCol(k) ? "文字列フィルタ" : "ソート / フィルタ"),
+                  sorted: sorted,
+                  filtered: filtered,
+                })
+              : document.createElement("button");
+            if (!ui || !ui.headerButton) {
+              btn.type = "button";
+              btn.textContent = caption;
+              btn.title = k === "favorite" ? "お気に入りフィルタ" : (isTextFilterCol(k) ? "文字列フィルタ" : "ソート / フィルタ");
+            }
+            btn.classList.add("th-filter-btn");
+            btn.addEventListener("click", (ev) => {
+              ev.preventDefault();
+              ev.stopPropagation();
+              if (k === "favorite") openFavFilterMenu(th);
+              else if (isTextFilterCol(k)) openTextFilterMenu(th, k);
+              else openFilterMenu(th, k);
+            });
+            th.appendChild(btn);
+          } else {
+            th.textContent = caption;
+          }
+          paintHeaderState(th, k);
+          trh.appendChild(th);
+        });
+        thead.appendChild(trh);
       }
-      trh.appendChild(th);
-    });
-    thead.appendChild(trh);
 
-    const keys = state.visibleKeys;
-    const parts = new Array(rows.length);
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
-      const code = String(row.code).padStart(4, "0");
-      const codeEsc = escapeHtml(code);
-      let cls = "";
-      if (state.selected === code) cls = " selected";
-      else if (state.hovered === code) cls = " is-hover";
-      let tds = "";
-      for (let j = 0; j < keys.length; j++) tds += tdMarkup(row, keys[j]);
-      parts[i] = "<tr data-code=\"" + codeEsc + "\"" + (cls ? " class=\"" + cls.trim() + "\"" : "") + ">" + tds + "</tr>";
-    }
-    tbody.innerHTML = parts.join("");
-    updateSearchMiss(rows.length);
-    if (wrap) {
-      wrap.scrollTop = prevTop;
-      wrap.scrollLeft = prevLeft;
-    }
-    scheduleStickyColOffsets();
+      const keys = state.visibleKeys;
+      const desired = new Array(rows.length);
+      let deadline = performance.now() + MAIN_SLICE_MS;
+      for (let i = 0; i < rows.length; i++) {
+        if (stale()) return;
+        const row = rows[i];
+        const code = String(row.code).padStart(4, "0");
+        let tds = "";
+        for (let j = 0; j < keys.length; j++) tds += tdMarkup(row, keys[j]);
+        desired[i] = { code: code, html: tds };
+        if (sliceExpired(deadline)) {
+          deadline = await nextSlice();
+          if (stale()) return;
+        }
+      }
+      const existing = Array.from(tbody.rows);
+      const byCode = new Map();
+      let unique = true;
+      existing.forEach((tr) => {
+        const code = tr.dataset.code || "";
+        if (byCode.has(code)) unique = false;
+        byCode.set(code, tr);
+      });
+      const reusable = unique && existing.length === desired.length && desired.every((d) => {
+        const tr = byCode.get(d.code);
+        return tr && rowCellHtml.get(tr) === d.html;
+      });
+      if (reusable) {
+        for (let i = 0; i < desired.length; i++) {
+          if (stale()) return;
+          moveRowToEnd(tbody, byCode.get(desired[i].code));
+          if (sliceExpired(deadline)) {
+            deadline = await nextSlice();
+            if (stale()) return;
+          }
+        }
+      } else {
+        if (stale()) return;
+        tbody.innerHTML = "";
+        let frag = document.createDocumentFragment();
+        for (let i = 0; i < desired.length; i++) {
+          if (stale()) return;
+          const d = desired[i];
+          const tr = document.createElement("tr");
+          tr.dataset.code = d.code;
+          tr.innerHTML = d.html;
+          rowCellHtml.set(tr, d.html);
+          frag.appendChild(tr);
+          if (sliceExpired(deadline)) {
+            tbody.appendChild(frag);
+            frag = document.createDocumentFragment();
+            deadline = await nextSlice();
+            if (stale()) return;
+          }
+        }
+        tbody.appendChild(frag);
+      }
+      if (stale()) return;
+      syncHighlightClasses();
+      announceTableSort(rows.length);
+      updateSearchMiss(rows.length);
+      if (wrap) {
+        wrap.scrollTop = prevTop;
+        wrap.scrollLeft = prevLeft;
+      }
+      scheduleStickyColOffsets();
 
-    const codes = rows.map((r) => String(r.code).padStart(4, "0"));
-    if (opts.charts === "skip") return;
-    if (opts.charts !== "force" && sameCodeList(state.visibleChartCodes, codes)) return;
-    state.visibleChartCodes = codes;
-    refreshCharts(codes);
+      const codes = rows.map((r) => String(r.code).padStart(4, "0"));
+      if (opts.charts === "skip") return;
+      if (opts.charts !== "force" && sameCodeList(state.visibleChartCodes, codes)) return;
+      if (stale()) return;
+      state.visibleChartCodes = codes;
+      await refreshCharts(codes, gen);
+    } finally {
+      if (gen === tableRenderGen) setViewBusy(false);
+    }
   }
 
   function yZ(z) {
@@ -3405,22 +3590,45 @@
     if (shell.appearance !== appearance) shell.appearance = appearance;
   }
 
+  let lastHighlightCodes = [];
+
+  function highlightNode(code, selector) {
+    return document.querySelector(selector + '[data-code="' + code + '"]');
+  }
+
+  function paintHighlightedRow(tr) {
+    if (!tr) return;
+    const c = tr.dataset.code;
+    const selected = state.selected === c;
+    const hovered = state.hovered === c && !selected;
+    tr.classList.toggle("selected", selected);
+    tr.classList.toggle("is-hover", hovered);
+  }
+
+  function paintHighlightedCard(card) {
+    if (!card) return;
+    const c = card.dataset.code;
+    const selected = state.selected === c;
+    const hovered = state.hovered === c && !selected;
+    card.classList.toggle("selected", selected);
+    card.classList.toggle("is-hover", hovered);
+    applyChartCardChrome(card.querySelector("wa-card"), selected, hovered);
+  }
+
   function syncHighlightClasses() {
-    const sel = state.selected;
-    const hov = state.hovered;
-    document.querySelectorAll("#grid tbody tr[data-code]").forEach((tr) => {
-      const c = tr.dataset.code;
-      tr.classList.toggle("selected", !!sel && c === sel);
-      tr.classList.toggle("is-hover", !!hov && c === hov && c !== sel);
-    });
-    document.querySelectorAll("#chart-host .chart-card[data-code]").forEach((card) => {
-      const c = card.dataset.code;
-      const selected = !!sel && c === sel;
-      const hovered = !!hov && c === hov && c !== sel;
-      card.classList.toggle("selected", selected);
-      card.classList.toggle("is-hover", hovered);
-      applyChartCardChrome(card.querySelector("wa-card"), selected, hovered);
-    });
+    const next = [];
+    if (state.selected) next.push(state.selected);
+    if (state.hovered && state.hovered !== state.selected) next.push(state.hovered);
+    const codes = lastHighlightCodes.concat(next);
+    const seen = new Set();
+    for (let i = 0; i < codes.length; i++) {
+      const code = codes[i];
+      if (!code || seen.has(code)) continue;
+      seen.add(code);
+      paintHighlightedRow(highlightNode(code, "#grid tbody tr"));
+      paintHighlightedCard(highlightNode(code, "#chart-host .chart-card"));
+    }
+    lastHighlightCodes = next;
   }
 
   function setHoveredCode(code, opts) {
@@ -3533,14 +3741,19 @@
     const shell = ui && ui.chartCard ? ui.chartCard() : null;
     if (shell) {
       const heading = shell.querySelector("[data-chart-title]");
-      if (heading) heading.textContent = code + " " + (row.name || "");
+      if (heading) {
+        heading.classList.add("line-clip");
+        const span = document.createElement("span");
+        span.textContent = code + " " + (row.name || "");
+        heading.replaceChildren(span);
+      }
       const favHost = shell.querySelector("[data-chart-fav]");
       if (favHost) favHost.replaceChildren(makeFavStarButton(code));
       applyChartCardChrome(shell, selected, hovered);
       card.appendChild(shell);
     } else {
       card.innerHTML =
-        "<div class=\"chart-card-head\"><h4>" + escapeHtml(code) + " " + escapeHtml(row.name || "") + "</h4></div>" +
+        "<div class=\"chart-card-head\"><h4 class=\"line-clip\"><span>" + escapeHtml(code) + " " + escapeHtml(row.name || "") + "</span></h4></div>" +
         "<div class=\"hover\"></div>" +
         "<div class=\"chart-slot\" aria-hidden=\"true\"></div>";
       const head = card.querySelector(".chart-card-head");
@@ -3578,9 +3791,10 @@
     return state.chartObserver;
   }
 
-  function refreshCharts(codes) {
+  async function refreshCharts(codes, gen) {
     const host = $("chart-host");
     if (!host) return;
+    const stale = () => gen != null && gen !== tableRenderGen;
     const seen = new Set();
     const ordered = [];
     (codes || []).forEach((c) => {
@@ -3597,27 +3811,38 @@
     });
     const observer = ensureChartObserver(host);
     const keep = new Set(ordered);
-    existing.forEach((card, code) => {
-      if (keep.has(code)) return;
-      observer.unobserve(card);
-      card.remove();
-    });
-    const frag = document.createDocumentFragment();
-    ordered.forEach((code) => {
+    let deadline = performance.now() + MAIN_SLICE_MS;
+    for (const [code, card] of existing) {
+      if (stale()) return;
+      if (!keep.has(code)) {
+        observer.unobserve(card);
+        card.remove();
+      }
+      if (sliceExpired(deadline)) {
+        deadline = await nextSlice();
+        if (stale()) return;
+      }
+    }
+    let frag = document.createDocumentFragment();
+    for (let i = 0; i < ordered.length; i++) {
+      if (stale()) return;
+      const code = ordered[i];
       let card = existing.get(code);
-      if (!card) {
+      if (!card || !card.isConnected) {
         card = makeChartCard(code);
         observer.observe(card);
-      } else {
-        const selected = state.selected === code;
-        const hovered = state.hovered === code && !selected;
-        card.classList.toggle("selected", selected);
-        card.classList.toggle("is-hover", hovered);
-        applyChartCardChrome(card.querySelector("wa-card"), selected, hovered);
       }
       frag.appendChild(card);
-    });
+      if (sliceExpired(deadline)) {
+        host.appendChild(frag);
+        frag = document.createDocumentFragment();
+        deadline = await nextSlice();
+        if (stale()) return;
+      }
+    }
     host.appendChild(frag);
+    if (stale()) return;
+    syncHighlightClasses();
 
     host.scrollTop = prevScroll;
     if (state.selected) scrollChartCardIntoView(state.selected);
@@ -3673,15 +3898,11 @@
 
   function openTabSettingsModal() {
     renderTabSettingsPanel();
-    const modal = $("tab-settings-modal");
-    modal.classList.remove("hidden");
-    modal.setAttribute("aria-hidden", "false");
+    showAppDialog($("tab-settings-modal"));
   }
 
   function closeTabSettingsModal() {
-    const modal = $("tab-settings-modal");
-    modal.classList.add("hidden");
-    modal.setAttribute("aria-hidden", "true");
+    hideAppDialog($("tab-settings-modal"));
   }
 
   function renderTabSettingsPanel() {
@@ -3777,7 +3998,13 @@
         });
         t.dataset.kab = id;
         if (options.labelTip) t.dataset.labelTip = options.labelTip;
-        if (options.cand) t.dataset.cand = options.cand;
+        if (options.cand) {
+          t.dataset.cand = options.cand;
+          t.classList.add("line-clip");
+          const span = document.createElement("span");
+          span.textContent = label;
+          t.replaceChildren(span);
+        }
         children.push(t);
         if (ui.tabPanel) children.push(ui.tabPanel(panel, active));
         return;
@@ -3785,8 +4012,16 @@
       const btn = document.createElement("button");
       btn.type = "button";
       btn.dataset.kab = id;
-      btn.textContent = label;
+      if (options.cand) {
+        btn.classList.add("line-clip");
+        const span = document.createElement("span");
+        span.textContent = label;
+        btn.replaceChildren(span);
+      } else {
+        btn.textContent = label;
+      }
       if (options.disabled) btn.disabled = true;
+      if (active) btn.classList.add("active");
       if (options.title) btn.title = options.title;
       if (options.labelTip) btn.dataset.labelTip = options.labelTip;
       if (options.cand) btn.dataset.cand = options.cand;
@@ -4253,6 +4488,26 @@
     state.bundleNotice = null;
   }
 
+  let bundleNoticeSwitching = false;
+
+  async function switchToNoticedBundle() {
+    const notice = state.bundleNotice;
+    if (!notice || !notice.trade_date || bundleNoticeSwitching) return;
+    bundleNoticeSwitching = true;
+    const btn = $("bundle-notice-switch");
+    if (btn) btn.disabled = true;
+    try {
+      await loadSnapshot(String(notice.trade_date));
+    } catch (err) {
+      hideBootProgress();
+      const banner = $("asof-banner");
+      if (banner) banner.textContent = "基準日の切り替えに失敗しました。 " + err;
+    } finally {
+      bundleNoticeSwitching = false;
+      if (btn) btn.disabled = false;
+    }
+  }
+
   function showBundleNotice(commit, datesBefore) {
     const el = $("bundle-notice");
     const text = $("bundle-notice-text");
@@ -4264,8 +4519,8 @@
       committed_at_utc: commit.committed_at_utc || null,
     };
     text.textContent = known && date === state.asOf
-      ? "基準日 " + date + " の束が更新されました。最終更新を反映しました。表示中の数値は、読み込み直すまでそのままです。"
-      : "基準日 " + date + " の束が配信されました。基準日の選択肢に追加しました。表示中の数値は、その基準日を選ぶまでそのままです。";
+      ? "基準日 " + date + " のデータが更新されました。最終更新を反映しました。表示中の数値は、読み込み直すまでそのままです。"
+      : "基準日 " + date + " のデータが配信されました。";
     el.hidden = false;
   }
 
@@ -4340,11 +4595,34 @@
       dismiss.dataset.bound = "1";
       dismiss.addEventListener("click", hideBundleNotice);
     }
+    const switchBtn = $("bundle-notice-switch");
+    if (switchBtn && switchBtn.dataset.bound !== "1") {
+      switchBtn.dataset.bound = "1";
+      switchBtn.addEventListener("click", () => {
+        switchToNoticedBundle();
+      });
+    }
     if (bundleWatchTimer) return;
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") refreshBundleIndex();
     });
     bundleWatchTimer = setInterval(refreshBundleIndex, BUNDLE_WATCH_MS);
+    showSampleBundleNotice();
+  }
+
+  function showSampleBundleNotice() {
+    const sample = window.__WEB_UI_SAMPLE_BUNDLE_NOTICE;
+    if (!sample || !sample.trade_date) return;
+    const date = String(sample.trade_date);
+    const datesBefore = (state.availableDates || []).slice();
+    if (datesBefore.indexOf(date) < 0) {
+      state.availableDates = [date].concat(datesBefore);
+      fillAsOfSelect();
+    }
+    showBundleNotice(
+      { trade_date: date, committed_at_utc: sample.committed_at_utc || null },
+      datesBefore
+    );
   }
 
   async function boot() {
@@ -4430,11 +4708,10 @@
       favRename.addEventListener("wa-change", () => commitFavListRename());
       favRename.addEventListener("wa-blur", () => commitFavListRename());
       favRename.addEventListener("keydown", (ev) => {
-        if (ev.key === "Enter") {
-          ev.preventDefault();
-          commitFavListRename();
-          favRename.blur();
-        }
+        if (ev.key !== "Enter" || enterConfirmsComposition(ev)) return;
+        ev.preventDefault();
+        commitFavListRename();
+        favRename.blur();
       });
     }
     const favDelete = $("fav-list-delete");
@@ -4459,34 +4736,20 @@
     }
     const favClose = $("fav-lists-close");
     const favDone = $("fav-lists-done");
-    const favModal = $("fav-lists-modal");
+    bindAppDialogLightDismiss();
     if (favClose) favClose.addEventListener("click", () => closeFavListsModal());
     if (favDone) favDone.addEventListener("click", () => closeFavListsModal());
-    if (favModal) {
-      favModal.addEventListener("click", (ev) => {
-        if (ev.target && ev.target.getAttribute("data-fav-lists-close") === "1") closeFavListsModal();
-      });
-    }
     $("cols-toggle").addEventListener("click", () => openColsModal());
     $("cols-modal-close").addEventListener("click", () => closeColsModal());
     $("cols-modal-done").addEventListener("click", () => closeColsModal());
-    $("cols-modal").addEventListener("click", (ev) => {
-      if (ev.target && ev.target.getAttribute("data-cols-close") === "1") closeColsModal();
-    });
 
     $("filter-toggle").addEventListener("click", () => openFilterModal());
     $("tab-settings-toggle").addEventListener("click", () => openTabSettingsModal());
     $("tab-settings-close").addEventListener("click", () => closeTabSettingsModal());
     $("tab-settings-done").addEventListener("click", () => closeTabSettingsModal());
-    $("tab-settings-modal").addEventListener("click", (ev) => {
-      if (ev.target && ev.target.getAttribute("data-tab-settings-close") === "1") closeTabSettingsModal();
-    });
 
     $("filter-modal-close").addEventListener("click", () => closeFilterModal());
     $("filter-modal-done").addEventListener("click", () => closeFilterModal());
-    $("filter-modal").addEventListener("click", (ev) => {
-      if (ev.target && ev.target.getAttribute("data-filter-close") === "1") closeFilterModal();
-    });
     const excludeCb = $("filter-exclude-all-rs-neg");
     const onExclude = (checked) => {
       if (state.freePreview) {
@@ -4504,10 +4767,6 @@
     document.addEventListener("keydown", (ev) => {
       if (ev.key !== "Escape") return;
       if ($("confirm-dialog") && $("confirm-dialog").open) return;
-      if ($("fav-lists-modal") && !$("fav-lists-modal").classList.contains("hidden")) closeFavListsModal();
-      if (!$("cols-modal").classList.contains("hidden")) closeColsModal();
-      if (!$("filter-modal").classList.contains("hidden")) closeFilterModal();
-      if (!$("tab-settings-modal").classList.contains("hidden")) closeTabSettingsModal();
       closeFilterMenu();
       closeAccountMenu();
       closeFavFlyout();
